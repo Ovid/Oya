@@ -3,6 +3,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from oya.api.routers import repos
+
 app = FastAPI(
     title="Oya",
     description="Local-first editable wiki generator for codebases",
@@ -23,3 +25,7 @@ app.add_middleware(
 async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+# Include routers
+app.include_router(repos.router)
