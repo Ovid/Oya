@@ -7,6 +7,7 @@ from oya.parsing.models import (
     ParseResult,
 )
 from oya.parsing.base import BaseParser
+from oya.parsing.python_parser import PythonParser
 
 __all__ = [
     "ParsedSymbol",
@@ -14,4 +15,5 @@ __all__ = [
     "ParsedFile",
     "ParseResult",
     "BaseParser",
+    "PythonParser",
 ]
