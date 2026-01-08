@@ -71,6 +71,38 @@ class Settings:
         """Path to cache directory."""
         return self.coretechs_path / "meta" / "cache"
 
+    @property
+    def chroma_path(self) -> Path:
+        """Path to ChromaDB vector store directory."""
+        return self.coretechs_path / "meta" / "chroma"
+
+    @property
+    def llm_provider(self) -> str:
+        """LLM provider name."""
+        return self.active_provider
+
+    @property
+    def llm_model(self) -> str:
+        """LLM model name."""
+        return self.active_model
+
+    @property
+    def llm_api_key(self) -> Optional[str]:
+        """API key for the active LLM provider."""
+        provider_keys = {
+            "openai": self.openai_api_key,
+            "anthropic": self.anthropic_api_key,
+            "google": self.google_api_key,
+        }
+        return provider_keys.get(self.active_provider)
+
+    @property
+    def llm_endpoint(self) -> Optional[str]:
+        """Endpoint for LLM provider (mainly for Ollama)."""
+        if self.active_provider == "ollama":
+            return self.ollama_endpoint
+        return None
+
 
 def _detect_provider_from_keys() -> tuple[str, str]:
     """Auto-detect provider from available API keys.
