@@ -24,6 +24,10 @@ class Database:
         """Execute SQL statement for multiple parameter sets."""
         return self._conn.executemany(sql, params_list)
 
+    def executescript(self, sql: str) -> sqlite3.Cursor:
+        """Execute multiple SQL statements as a script."""
+        return self._conn.executescript(sql)
+
     def commit(self) -> None:
         """Commit current transaction."""
         self._conn.commit()

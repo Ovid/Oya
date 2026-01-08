@@ -112,7 +112,7 @@ def run_migrations(db: Database) -> None:
     if current_version < SCHEMA_VERSION:
         # Apply schema using executescript which handles multiple statements
         # Note: executescript auto-commits, so we handle the version insert separately
-        db._conn.executescript(SCHEMA_SQL)
+        db.executescript(SCHEMA_SQL)
 
         # Record schema version
         db.execute(
