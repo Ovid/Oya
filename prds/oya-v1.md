@@ -143,34 +143,34 @@ Oya provides:
 
 ## **5\. Functional Requirements**
 
-| ID | Feature | Description |
-| ----- | ----- | ----- |
-| F1 | Docker-only execution | Entire system runs via Docker Compose (backend \+ frontend). |
-| F2 | Backend | Python backend (FastAPI recommended). |
-| F3 | Frontend | React frontend (TypeScript recommended). |
-| F4 | Repo ingestion | GitHub URL or local git repo path. |
-| F5 | Artifact isolation | All artifacts stored under `.coretechs/` where feasible. |
-| F6 | Wiki generation | Overview, Architecture, Workflows, Directories, Files. |
-| F7 | Landing page | Default landing page is **Overview**. |
-| F8 | Last updated | Show generation datetime \+ HEAD commit hash and commit time. |
-| F9 | Progress visibility | Step-based progress, timestamped running log, live updates. |
-| F10 | Event streaming | SSE or WebSocket with job ID and timestamps. |
-| F11 | Q\&A assistant | Ask questions with follow-ups and scoping. |
-| F12 | Mandatory disclaimer | Every AI-generated wiki section and Q\&A answer must state it may be wrong. |
-| F13 | Mandatory citations (Q\&A) | Every answer must cite code, notes, or artifacts. |
-| F14 | Evidence gating | Default Q\&A mode is evidence-gated; optional Loose mode with warning. |
-| F15 | Provenance viewer | Click citations to view code snippets or notes with commit context. |
-| F16 | In-UI corrections | Markdown editor; users never manage files manually. |
-| F17 | Notes metadata | Datetime, inferred author (git/OS), git context, scope, target. |
-| F18 | Notes precedence | Notes override AI inference in wiki and Q\&A. |
-| F19 | Post-note reconciliation | Regenerate affected content and ask for confirmation. |
-| F20 | Mermaid diagrams | Polished theme; editable; saved as artifacts or notes. |
-| F21 | Provider config | OpenAI, Anthropic, Gemini keys; model selection. |
-| F22 | Ollama fallback | Local Ollama endpoint and model support. |
-| F23 | Secrets handling | Secrets never committed; ignored by default. |
-| F24 | Search | Search across wiki and notes. |
-| F25 | Failure handling | Partial results retained and clearly labeled. |
-| F26 | Licensing | Only permissive open-source dependencies; license report required. |
+| ID    | Feature                    | Description                                                                 |
+| ----- | -------------------------- | --------------------------------------------------------------------------- |
+| F1    | Docker-only execution      | Entire system runs via Docker Compose (backend \+ frontend).                |
+| F2    | Backend                    | Python backend (FastAPI recommended).                                       |
+| F3    | Frontend                   | React frontend (TypeScript recommended).                                    |
+| F4    | Repo ingestion             | GitHub URL or local git repo path.                                          |
+| F5    | Artifact isolation         | All artifacts stored under `.coretechs/` where feasible.                    |
+| F6    | Wiki generation            | Overview, Architecture, Workflows, Directories, Files.                      |
+| F7    | Landing page               | Default landing page is **Overview**.                                       |
+| F8    | Last updated               | Show generation datetime \+ HEAD commit hash and commit time.               |
+| F9    | Progress visibility        | Step-based progress, timestamped running log, live updates.                 |
+| F10   | Event streaming            | SSE or WebSocket with job ID and timestamps.                                |
+| F11   | Q\&A assistant             | Ask questions with follow-ups and scoping.                                  |
+| F12   | Mandatory disclaimer       | Every AI-generated wiki section and Q\&A answer must state it may be wrong. |
+| F13   | Mandatory citations (Q\&A) | Every answer must cite code, notes, or artifacts.                           |
+| F14   | Evidence gating            | Default Q\&A mode is evidence-gated; optional Loose mode with warning.      |
+| F15   | Provenance viewer          | Click citations to view code snippets or notes with commit context.         |
+| F16   | In-UI corrections          | Markdown editor; users never manage files manually.                         |
+| F17   | Notes metadata             | Datetime, inferred author (git/OS), git context, scope, target.             |
+| F18   | Notes precedence           | Notes override AI inference in wiki and Q\&A.                               |
+| F19   | Post-note reconciliation   | Regenerate affected content and ask for confirmation.                       |
+| F20   | Mermaid diagrams           | Polished theme; editable; saved as artifacts or notes.                      |
+| F21   | Provider config            | OpenAI, Anthropic, Gemini keys; model selection.                            |
+| F22   | Ollama fallback            | Local Ollama endpoint and model support.                                    |
+| F23   | Secrets handling           | Secrets never committed; ignored by default.                                |
+| F24   | Search                     | Search across wiki and notes.                                               |
+| F25   | Failure handling           | Partial results retained and clearly labeled.                               |
+| F26   | Licensing                  | Only permissive open-source dependencies; license report required.          |
 
 ---
 
