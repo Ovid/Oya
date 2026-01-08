@@ -6,6 +6,10 @@ import type {
   WikiTree,
   SearchResponse,
   ProgressEvent,
+  QARequest,
+  QAResponse,
+  NoteCreate,
+  Note,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -85,6 +89,35 @@ export async function search(query: string, type?: string): Promise<SearchRespon
   const params = new URLSearchParams({ q: query });
   if (type) params.append('type', type);
   return fetchJson<SearchResponse>(`/api/search?${params}`);
+}
+
+// Q&A endpoint
+export async function askQuestion(request: QARequest): Promise<QAResponse> {
+  return fetchJson<QAResponse>('/api/qa/ask', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+// Notes endpoints
+export async function createNote(note: NoteCreate): Promise<Note> {
+  return fetchJson<Note>('/api/notes', {
+    method: 'POST',
+    body: JSON.stringify(note),
+  });
+}
+
+export async function listNotes(target?: string): Promise<Note[]> {
+  const params = target ? `?target=${encodeURIComponent(target)}` : '';
+  return fetchJson<Note[]>(`/api/notes${params}`);
+}
+
+export async function getNote(noteId: number): Promise<Note> {
+  return fetchJson<Note>(`/api/notes/${noteId}`);
+}
+
+export async function deleteNote(noteId: number): Promise<void> {
+  await fetch(`${API_BASE}/api/notes/${noteId}`, { method: 'DELETE' });
 }
 
 // SSE streaming for job progress

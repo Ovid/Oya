@@ -65,6 +65,51 @@ export interface ProgressEvent {
   error?: string;
 }
 
+// Q&A Types
+export type QAMode = 'gated' | 'loose';
+
+export interface Citation {
+  path: string;
+  title: string;
+  lines: string | null;
+}
+
+export interface QARequest {
+  question: string;
+  context?: {
+    page_type: string;
+    slug: string;
+  };
+  mode?: QAMode;
+}
+
+export interface QAResponse {
+  answer: string;
+  citations: Citation[];
+  evidence_sufficient: boolean;
+  disclaimer: string;
+}
+
+// Notes Types
+export type NoteScope = 'file' | 'directory' | 'workflow' | 'general';
+
+export interface NoteCreate {
+  scope: NoteScope;
+  target: string;
+  content: string;
+  author?: string;
+}
+
+export interface Note {
+  id: number;
+  filepath: string;
+  scope: NoteScope;
+  target: string;
+  content: string;
+  author: string | null;
+  created_at: string;
+}
+
 // UI State Types
 export interface AppState {
   repoStatus: RepoStatus | null;

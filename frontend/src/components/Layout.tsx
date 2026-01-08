@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { RightSidebar } from './RightSidebar';
+import { QADock } from './QADock';
 
 interface LayoutProps {
   children: ReactNode;
@@ -28,7 +29,7 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Main Content */}
         <main
-          className={`flex-1 min-h-[calc(100vh-3.5rem)] ${
+          className={`flex-1 min-h-[calc(100vh-3.5rem)] pb-16 ${
             sidebarOpen ? 'ml-64' : ''
           } ${rightSidebarOpen ? 'mr-56' : ''}`}
         >
@@ -44,6 +45,9 @@ export function Layout({ children }: LayoutProps) {
           </aside>
         )}
       </div>
+
+      {/* Q&A Dock */}
+      <QADock />
     </div>
   );
 }
