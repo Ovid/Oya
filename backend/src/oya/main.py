@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from oya.api.routers import repos
+from oya.api.routers import repos, wiki
 
 app = FastAPI(
     title="Oya",
@@ -29,3 +29,4 @@ async def health_check() -> dict[str, str]:
 
 # Include routers
 app.include_router(repos.router)
+app.include_router(wiki.router)
