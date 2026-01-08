@@ -65,3 +65,5 @@ def test_coretechs_paths(temp_workspace: Path, monkeypatch):
     assert settings.wiki_path == temp_workspace / ".coretechs" / "wiki"
     assert settings.notes_path == temp_workspace / ".coretechs" / "notes"
     assert settings.db_path == temp_workspace / ".coretechs" / "meta" / "oya.db"
+    assert settings.index_path == temp_workspace / ".coretechs" / "meta" / "index"
+    assert settings.cache_path == temp_workspace / ".coretechs" / "meta" / "cache"
