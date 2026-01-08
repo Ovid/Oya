@@ -6532,13 +6532,1310 @@ Phase 4 implements the complete wiki generation pipeline:
 
 ## Phase 5: API Endpoints
 
-The plan continues with:
-- Task 5.1: FastAPI Application Setup
-- Task 5.2: Repository Management Endpoints
-- Task 5.3: Wiki Page Endpoints
-- Task 5.4: Generation Job Endpoints
-- Task 5.5: SSE Progress Streaming
-- Task 5.6: Search Endpoints
+Phase 5 exposes the backend functionality through REST API endpoints with SSE for real-time progress.
+
+### Task 5.1: FastAPI Application Setup
+
+**Files:**
+- Create: `backend/src/oya/api/__init__.py`
+- Create: `backend/src/oya/api/deps.py`
+- Create: `backend/src/oya/api/routers/__init__.py`
+- Modify: `backend/src/oya/main.py`
+- Create: `backend/tests/test_api_deps.py`
+
+**Required Tests (test_api_deps.py):**
+```python
+"""API dependency tests."""
+
+import pytest
+from pathlib import Path
+
+from oya.api.deps import get_db, get_settings, get_repo
+
+
+def test_get_settings_returns_settings():
+    """get_settings returns Settings instance."""
+    settings = get_settings()
+    assert hasattr(settings, "workspace_path")
+    assert hasattr(settings, "active_provider")
+
+
+def test_get_db_returns_database(tmp_path, monkeypatch):
+    """get_db returns Database instance with migrations applied."""
+    from oya.api.deps import get_db
+    from oya.db.connection import Database
+
+    # Configure workspace
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+
+    # Clear cached settings
+    from oya.config import load_settings
+    load_settings.cache_clear()
+
+    db = get_db()
+    assert isinstance(db, Database)
+
+    # Verify migrations ran (schema_version table exists)
+    result = db.execute("SELECT version FROM schema_version").fetchone()
+    assert result is not None
+
+
+def test_get_repo_returns_repository(tmp_path, monkeypatch):
+    """get_repo returns Repository wrapper for workspace."""
+    import subprocess
+    from oya.repo.repository import Repository
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+
+    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+
+    from oya.config import load_settings
+    load_settings.cache_clear()
+
+    repo = get_repo()
+    assert isinstance(repo, Repository)
+```
+
+**Implementation (backend/src/oya/api/deps.py):**
+```python
+"""FastAPI dependency injection functions."""
+
+from functools import lru_cache
+from typing import Generator
+
+from oya.config import Settings, load_settings
+from oya.db.connection import Database
+from oya.db.migrations import run_migrations
+from oya.repo.repository import Repository
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached application settings."""
+    return load_settings()
+
+
+_db_instance: Database | None = None
+
+
+def get_db() -> Database:
+    """Get database connection with migrations applied."""
+    global _db_instance
+    if _db_instance is None:
+        settings = get_settings()
+        _db_instance = Database(settings.db_path)
+        run_migrations(_db_instance)
+    return _db_instance
+
+
+def get_repo() -> Repository:
+    """Get repository wrapper for workspace."""
+    settings = get_settings()
+    return Repository(settings.workspace_path)
+```
+
+**Implementation (backend/src/oya/api/__init__.py):**
+```python
+"""Oya API package."""
+
+from oya.api.deps import get_db, get_settings, get_repo
+
+__all__ = ["get_db", "get_settings", "get_repo"]
+```
+
+**Implementation (backend/src/oya/api/routers/__init__.py):**
+```python
+"""API routers package."""
+```
+
+**Modify main.py to include routers:**
+```python
+"""FastAPI application entry point."""
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(
+    title="Oya",
+    description="Local-first editable wiki generator for codebases",
+    version="0.1.0",
+)
+
+# CORS middleware for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health_check() -> dict[str, str]:
+    """Health check endpoint."""
+    return {"status": "healthy"}
+```
+
+**TDD Steps:**
+1. Write test_api_deps.py with all tests
+2. Run: `pytest tests/test_api_deps.py -v` → FAIL
+3. Create api/__init__.py, api/deps.py, api/routers/__init__.py
+4. Update main.py with CORS
+5. Run: `pytest tests/test_api_deps.py -v` → PASS
+6. Commit: `git commit -m "feat(api): add dependency injection and app setup"`
+
+---
+
+### Task 5.2: Repository Management Endpoints
+
+**Files:**
+- Create: `backend/src/oya/api/routers/repos.py`
+- Create: `backend/src/oya/api/schemas.py`
+- Create: `backend/tests/test_repos_api.py`
+- Modify: `backend/src/oya/main.py`
+
+**Required Tests (test_repos_api.py):**
+```python
+"""Repository management API tests."""
+
+import subprocess
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from oya.main import app
+
+
+@pytest.fixture
+def workspace(tmp_path, monkeypatch):
+    """Create workspace with git repo."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=workspace, capture_output=True)
+
+    # Create a file and commit
+    (workspace / "README.md").write_text("# Test Repo")
+    subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=workspace, capture_output=True)
+
+    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+
+    # Clear caches
+    from oya.config import load_settings
+    from oya.api.deps import get_settings
+    load_settings.cache_clear()
+    get_settings.cache_clear()
+
+    return workspace
+
+
+@pytest.fixture
+async def client():
+    """Create async test client."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+async def test_get_repo_status_returns_info(client, workspace):
+    """GET /api/repos/status returns repository info."""
+    response = await client.get("/api/repos/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "path" in data
+    assert "head_commit" in data
+    assert "initialized" in data
+    assert data["initialized"] is True
+
+
+async def test_post_repos_init_starts_generation(client, workspace):
+    """POST /api/repos/init starts wiki generation job."""
+    response = await client.post("/api/repos/init")
+
+    assert response.status_code == 202
+    data = response.json()
+    assert "job_id" in data
+    assert data["job_id"] is not None
+
+
+async def test_get_repo_status_not_initialized(client, tmp_path, monkeypatch):
+    """GET /api/repos/status returns not initialized for non-git dir."""
+    non_git = tmp_path / "non_git"
+    non_git.mkdir()
+    monkeypatch.setenv("WORKSPACE_PATH", str(non_git))
+
+    from oya.config import load_settings
+    from oya.api.deps import get_settings
+    load_settings.cache_clear()
+    get_settings.cache_clear()
+
+    response = await client.get("/api/repos/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["initialized"] is False
+```
+
+**Implementation (backend/src/oya/api/schemas.py):**
+```python
+"""Pydantic schemas for API requests and responses."""
+
+from datetime import datetime
+from pydantic import BaseModel
+
+
+class RepoStatus(BaseModel):
+    """Repository status response."""
+    path: str
+    head_commit: str | None
+    head_message: str | None
+    branch: str | None
+    initialized: bool
+    last_generation: datetime | None = None
+    generation_status: str | None = None
+
+
+class JobCreated(BaseModel):
+    """Job creation response."""
+    job_id: str
+    status: str = "pending"
+    message: str = "Job started"
+
+
+class JobStatus(BaseModel):
+    """Job status response."""
+    job_id: str
+    status: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    current_phase: str | None = None
+    total_phases: int | None = None
+    error_message: str | None = None
+```
+
+**Implementation (backend/src/oya/api/routers/repos.py):**
+```python
+"""Repository management endpoints."""
+
+import uuid
+from fastapi import APIRouter, Depends, BackgroundTasks
+
+from oya.api.deps import get_repo, get_db, get_settings
+from oya.api.schemas import RepoStatus, JobCreated
+from oya.repo.repository import Repository
+from oya.db.connection import Database
+from oya.config import Settings
+
+router = APIRouter(prefix="/api/repos", tags=["repos"])
+
+
+@router.get("/status", response_model=RepoStatus)
+async def get_repo_status(
+    repo: Repository = Depends(get_repo),
+) -> RepoStatus:
+    """Get current repository status."""
+    try:
+        head = repo.head_commit()
+        return RepoStatus(
+            path=str(repo.path),
+            head_commit=head.hexsha if head else None,
+            head_message=head.message.strip() if head else None,
+            branch=repo.current_branch(),
+            initialized=True,
+        )
+    except Exception:
+        return RepoStatus(
+            path=str(repo.path),
+            head_commit=None,
+            head_message=None,
+            branch=None,
+            initialized=False,
+        )
+
+
+@router.post("/init", response_model=JobCreated, status_code=202)
+async def init_repo(
+    background_tasks: BackgroundTasks,
+    repo: Repository = Depends(get_repo),
+    db: Database = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> JobCreated:
+    """Initialize repository and start wiki generation."""
+    job_id = str(uuid.uuid4())
+
+    # Record job in database
+    db.execute(
+        """
+        INSERT INTO generations (id, type, status, started_at)
+        VALUES (?, ?, ?, datetime('now'))
+        """,
+        (job_id, "full", "pending"),
+    )
+    db.commit()
+
+    # Start generation in background
+    background_tasks.add_task(_run_generation, job_id, repo, db, settings)
+
+    return JobCreated(job_id=job_id, message="Wiki generation started")
+
+
+async def _run_generation(
+    job_id: str,
+    repo: Repository,
+    db: Database,
+    settings: Settings,
+) -> None:
+    """Run wiki generation in background."""
+    from oya.generation.orchestrator import GenerationOrchestrator
+    from oya.llm.client import LLMClient
+
+    try:
+        # Update status to running
+        db.execute(
+            "UPDATE generations SET status = 'running' WHERE id = ?",
+            (job_id,),
+        )
+        db.commit()
+
+        # Create orchestrator and run
+        llm = LLMClient()
+        orchestrator = GenerationOrchestrator(
+            llm_client=llm,
+            repo=repo,
+            db=db,
+            wiki_path=settings.wiki_path,
+        )
+
+        await orchestrator.run()
+
+        # Update status to completed
+        db.execute(
+            """
+            UPDATE generations
+            SET status = 'completed', completed_at = datetime('now')
+            WHERE id = ?
+            """,
+            (job_id,),
+        )
+        db.commit()
+
+    except Exception as e:
+        # Update status to failed
+        db.execute(
+            """
+            UPDATE generations
+            SET status = 'failed', error_message = ?, completed_at = datetime('now')
+            WHERE id = ?
+            """,
+            (str(e), job_id),
+        )
+        db.commit()
+```
+
+**Update main.py to include repos router:**
+```python
+# Add import
+from oya.api.routers import repos
+
+# After app creation, add:
+app.include_router(repos.router)
+```
+
+**TDD Steps:**
+1. Write test_repos_api.py with all tests
+2. Run: `pytest tests/test_repos_api.py -v` → FAIL
+3. Create api/schemas.py
+4. Create api/routers/repos.py
+5. Update main.py to include router
+6. Run: `pytest tests/test_repos_api.py -v` → PASS
+7. Commit: `git commit -m "feat(api): add repository management endpoints"`
+
+---
+
+### Task 5.3: Wiki Page Endpoints
+
+**Files:**
+- Create: `backend/src/oya/api/routers/wiki.py`
+- Create: `backend/tests/test_wiki_api.py`
+- Modify: `backend/src/oya/main.py`
+
+**Required Tests (test_wiki_api.py):**
+```python
+"""Wiki page API tests."""
+
+import subprocess
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from oya.main import app
+
+
+@pytest.fixture
+def workspace_with_wiki(tmp_path, monkeypatch):
+    """Create workspace with wiki pages."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+
+    # Create wiki structure
+    wiki_path = workspace / ".coretechs" / "wiki"
+    wiki_path.mkdir(parents=True)
+
+    # Create overview
+    (wiki_path / "overview.md").write_text("# Project Overview\n\nThis is the overview.")
+
+    # Create architecture
+    (wiki_path / "architecture.md").write_text("# Architecture\n\nSystem design here.")
+
+    # Create workflow
+    workflows = wiki_path / "workflows"
+    workflows.mkdir()
+    (workflows / "authentication.md").write_text("# Authentication Workflow")
+
+    # Create directory page
+    directories = wiki_path / "directories"
+    directories.mkdir()
+    (directories / "src.md").write_text("# src Directory")
+
+    # Create file page
+    files = wiki_path / "files"
+    files.mkdir()
+    (files / "src-main-py.md").write_text("# src/main.py")
+
+    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+
+    from oya.config import load_settings
+    from oya.api.deps import get_settings
+    load_settings.cache_clear()
+    get_settings.cache_clear()
+
+    return workspace
+
+
+@pytest.fixture
+async def client():
+    """Create async test client."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+async def test_get_overview_page(client, workspace_with_wiki):
+    """GET /api/wiki/overview returns overview page."""
+    response = await client.get("/api/wiki/overview")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "content" in data
+    assert "Project Overview" in data["content"]
+    assert data["page_type"] == "overview"
+
+
+async def test_get_architecture_page(client, workspace_with_wiki):
+    """GET /api/wiki/architecture returns architecture page."""
+    response = await client.get("/api/wiki/architecture")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "Architecture" in data["content"]
+
+
+async def test_get_workflow_page(client, workspace_with_wiki):
+    """GET /api/wiki/workflows/{slug} returns workflow page."""
+    response = await client.get("/api/wiki/workflows/authentication")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "Authentication" in data["content"]
+
+
+async def test_get_directory_page(client, workspace_with_wiki):
+    """GET /api/wiki/directories/{slug} returns directory page."""
+    response = await client.get("/api/wiki/directories/src")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "src" in data["content"]
+
+
+async def test_get_file_page(client, workspace_with_wiki):
+    """GET /api/wiki/files/{slug} returns file page."""
+    response = await client.get("/api/wiki/files/src-main-py")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "main.py" in data["content"]
+
+
+async def test_get_nonexistent_page_returns_404(client, workspace_with_wiki):
+    """GET /api/wiki/workflows/{nonexistent} returns 404."""
+    response = await client.get("/api/wiki/workflows/nonexistent")
+
+    assert response.status_code == 404
+
+
+async def test_get_wiki_tree(client, workspace_with_wiki):
+    """GET /api/wiki/tree returns full wiki structure."""
+    response = await client.get("/api/wiki/tree")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "overview" in data
+    assert "architecture" in data
+    assert "workflows" in data
+    assert "directories" in data
+    assert "files" in data
+```
+
+**Implementation (backend/src/oya/api/routers/wiki.py):**
+```python
+"""Wiki page endpoints."""
+
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from oya.api.deps import get_settings
+from oya.config import Settings
+
+router = APIRouter(prefix="/api/wiki", tags=["wiki"])
+
+
+class WikiPage(BaseModel):
+    """Wiki page response."""
+    content: str
+    page_type: str
+    path: str
+    word_count: int
+
+
+class WikiTree(BaseModel):
+    """Wiki tree structure."""
+    overview: bool
+    architecture: bool
+    workflows: list[str]
+    directories: list[str]
+    files: list[str]
+
+
+@router.get("/overview", response_model=WikiPage)
+async def get_overview(
+    settings: Settings = Depends(get_settings),
+) -> WikiPage:
+    """Get the overview page."""
+    return _get_page(settings.wiki_path, "overview.md", "overview")
+
+
+@router.get("/architecture", response_model=WikiPage)
+async def get_architecture(
+    settings: Settings = Depends(get_settings),
+) -> WikiPage:
+    """Get the architecture page."""
+    return _get_page(settings.wiki_path, "architecture.md", "architecture")
+
+
+@router.get("/workflows/{slug}", response_model=WikiPage)
+async def get_workflow(
+    slug: str,
+    settings: Settings = Depends(get_settings),
+) -> WikiPage:
+    """Get a workflow page."""
+    return _get_page(settings.wiki_path, f"workflows/{slug}.md", "workflow")
+
+
+@router.get("/directories/{slug}", response_model=WikiPage)
+async def get_directory(
+    slug: str,
+    settings: Settings = Depends(get_settings),
+) -> WikiPage:
+    """Get a directory page."""
+    return _get_page(settings.wiki_path, f"directories/{slug}.md", "directory")
+
+
+@router.get("/files/{slug}", response_model=WikiPage)
+async def get_file(
+    slug: str,
+    settings: Settings = Depends(get_settings),
+) -> WikiPage:
+    """Get a file page."""
+    return _get_page(settings.wiki_path, f"files/{slug}.md", "file")
+
+
+@router.get("/tree", response_model=WikiTree)
+async def get_wiki_tree(
+    settings: Settings = Depends(get_settings),
+) -> WikiTree:
+    """Get the wiki tree structure."""
+    wiki_path = settings.wiki_path
+
+    workflows = []
+    directories = []
+    files = []
+
+    # Check workflows
+    workflow_dir = wiki_path / "workflows"
+    if workflow_dir.exists():
+        workflows = [f.stem for f in workflow_dir.glob("*.md")]
+
+    # Check directories
+    dir_dir = wiki_path / "directories"
+    if dir_dir.exists():
+        directories = [f.stem for f in dir_dir.glob("*.md")]
+
+    # Check files
+    files_dir = wiki_path / "files"
+    if files_dir.exists():
+        files = [f.stem for f in files_dir.glob("*.md")]
+
+    return WikiTree(
+        overview=(wiki_path / "overview.md").exists(),
+        architecture=(wiki_path / "architecture.md").exists(),
+        workflows=sorted(workflows),
+        directories=sorted(directories),
+        files=sorted(files),
+    )
+
+
+def _get_page(wiki_path: Path, relative_path: str, page_type: str) -> WikiPage:
+    """Get a wiki page by path."""
+    full_path = wiki_path / relative_path
+
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail=f"Page not found: {relative_path}")
+
+    content = full_path.read_text(encoding="utf-8")
+    word_count = len(content.split())
+
+    return WikiPage(
+        content=content,
+        page_type=page_type,
+        path=relative_path,
+        word_count=word_count,
+    )
+```
+
+**Update main.py:**
+```python
+from oya.api.routers import repos, wiki
+app.include_router(wiki.router)
+```
+
+**TDD Steps:**
+1. Write test_wiki_api.py with all tests
+2. Run: `pytest tests/test_wiki_api.py -v` → FAIL
+3. Create api/routers/wiki.py
+4. Update main.py to include wiki router
+5. Run: `pytest tests/test_wiki_api.py -v` → PASS
+6. Commit: `git commit -m "feat(api): add wiki page endpoints"`
+
+---
+
+### Task 5.4: Generation Job Endpoints
+
+**Files:**
+- Create: `backend/src/oya/api/routers/jobs.py`
+- Create: `backend/tests/test_jobs_api.py`
+- Modify: `backend/src/oya/main.py`
+
+**Required Tests (test_jobs_api.py):**
+```python
+"""Job management API tests."""
+
+import subprocess
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from oya.main import app
+
+
+@pytest.fixture
+def workspace_with_db(tmp_path, monkeypatch):
+    """Create workspace with database and job."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+
+    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+
+    from oya.config import load_settings
+    from oya.api.deps import get_settings, get_db
+    load_settings.cache_clear()
+    get_settings.cache_clear()
+
+    # Initialize database with a test job
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO generations (id, type, status, started_at, current_phase, total_phases)
+        VALUES ('test-job-123', 'full', 'running', datetime('now'), 'analysis', 6)
+        """
+    )
+    db.commit()
+
+    return workspace
+
+
+@pytest.fixture
+async def client():
+    """Create async test client."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+async def test_get_job_status(client, workspace_with_db):
+    """GET /api/jobs/{job_id} returns job status."""
+    response = await client.get("/api/jobs/test-job-123")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["job_id"] == "test-job-123"
+    assert data["status"] == "running"
+    assert data["current_phase"] == "analysis"
+
+
+async def test_get_nonexistent_job_returns_404(client, workspace_with_db):
+    """GET /api/jobs/{nonexistent} returns 404."""
+    response = await client.get("/api/jobs/nonexistent-job")
+
+    assert response.status_code == 404
+
+
+async def test_list_jobs(client, workspace_with_db):
+    """GET /api/jobs returns list of jobs."""
+    response = await client.get("/api/jobs")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert data[0]["job_id"] == "test-job-123"
+```
+
+**Implementation (backend/src/oya/api/routers/jobs.py):**
+```python
+"""Job management endpoints."""
+
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from oya.api.deps import get_db
+from oya.db.connection import Database
+
+router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+
+
+class JobStatus(BaseModel):
+    """Job status response."""
+    job_id: str
+    type: str
+    status: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    current_phase: str | None = None
+    total_phases: int | None = None
+    error_message: str | None = None
+
+
+@router.get("", response_model=list[JobStatus])
+async def list_jobs(
+    db: Database = Depends(get_db),
+    limit: int = 20,
+) -> list[JobStatus]:
+    """List recent generation jobs."""
+    cursor = db.execute(
+        """
+        SELECT id, type, status, started_at, completed_at,
+               current_phase, total_phases, error_message
+        FROM generations
+        ORDER BY started_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+
+    jobs = []
+    for row in cursor.fetchall():
+        jobs.append(JobStatus(
+            job_id=row["id"],
+            type=row["type"],
+            status=row["status"],
+            started_at=_parse_datetime(row["started_at"]),
+            completed_at=_parse_datetime(row["completed_at"]),
+            current_phase=row["current_phase"],
+            total_phases=row["total_phases"],
+            error_message=row["error_message"],
+        ))
+
+    return jobs
+
+
+@router.get("/{job_id}", response_model=JobStatus)
+async def get_job(
+    job_id: str,
+    db: Database = Depends(get_db),
+) -> JobStatus:
+    """Get status of a specific job."""
+    cursor = db.execute(
+        """
+        SELECT id, type, status, started_at, completed_at,
+               current_phase, total_phases, error_message
+        FROM generations
+        WHERE id = ?
+        """,
+        (job_id,),
+    )
+
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    return JobStatus(
+        job_id=row["id"],
+        type=row["type"],
+        status=row["status"],
+        started_at=_parse_datetime(row["started_at"]),
+        completed_at=_parse_datetime(row["completed_at"]),
+        current_phase=row["current_phase"],
+        total_phases=row["total_phases"],
+        error_message=row["error_message"],
+    )
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    """Parse SQLite datetime string."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace(" ", "T"))
+    except ValueError:
+        return None
+```
+
+**Update main.py:**
+```python
+from oya.api.routers import repos, wiki, jobs
+app.include_router(jobs.router)
+```
+
+**TDD Steps:**
+1. Write test_jobs_api.py with all tests
+2. Run: `pytest tests/test_jobs_api.py -v` → FAIL
+3. Create api/routers/jobs.py
+4. Update main.py to include jobs router
+5. Run: `pytest tests/test_jobs_api.py -v` → PASS
+6. Commit: `git commit -m "feat(api): add job management endpoints"`
+
+---
+
+### Task 5.5: SSE Progress Streaming
+
+**Files:**
+- Modify: `backend/src/oya/api/routers/jobs.py`
+- Create: `backend/tests/test_sse_streaming.py`
+
+**Required Tests (test_sse_streaming.py):**
+```python
+"""SSE streaming tests."""
+
+import subprocess
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from oya.main import app
+
+
+@pytest.fixture
+def workspace_with_job(tmp_path, monkeypatch):
+    """Create workspace with database and running job."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+
+    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+
+    from oya.config import load_settings
+    from oya.api.deps import get_settings, get_db
+    load_settings.cache_clear()
+    get_settings.cache_clear()
+
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO generations (id, type, status, started_at)
+        VALUES ('stream-job-123', 'full', 'completed', datetime('now'))
+        """
+    )
+    db.commit()
+
+    return workspace
+
+
+@pytest.fixture
+async def client():
+    """Create async test client."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+async def test_sse_stream_endpoint_exists(client, workspace_with_job):
+    """GET /api/jobs/{job_id}/stream returns SSE response."""
+    response = await client.get("/api/jobs/stream-job-123/stream")
+
+    # For completed jobs, we get a final event immediately
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers.get("content-type", "")
+
+
+async def test_sse_stream_completed_job_sends_complete_event(client, workspace_with_job):
+    """Streaming completed job sends complete event."""
+    response = await client.get("/api/jobs/stream-job-123/stream")
+
+    assert response.status_code == 200
+    content = response.text
+    assert "event: complete" in content or "completed" in content
+
+
+async def test_sse_stream_nonexistent_job_returns_404(client, workspace_with_job):
+    """GET /api/jobs/{nonexistent}/stream returns 404."""
+    response = await client.get("/api/jobs/nonexistent/stream")
+
+    assert response.status_code == 404
+```
+
+**Implementation (add to jobs.py):**
+```python
+import asyncio
+import json
+from fastapi.responses import StreamingResponse
+
+
+@router.get("/{job_id}/stream")
+async def stream_job_progress(
+    job_id: str,
+    db: Database = Depends(get_db),
+):
+    """Stream job progress via SSE."""
+    # Verify job exists
+    cursor = db.execute("SELECT id, status FROM generations WHERE id = ?", (job_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    async def event_generator():
+        """Generate SSE events for job progress."""
+        while True:
+            # Get current job status
+            cursor = db.execute(
+                """
+                SELECT id, status, current_phase, total_phases, error_message
+                FROM generations WHERE id = ?
+                """,
+                (job_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row:
+                break
+
+            status = row["status"]
+
+            # Send progress event
+            event_data = {
+                "job_id": row["id"],
+                "status": status,
+                "phase": row["current_phase"],
+                "total_phases": row["total_phases"],
+            }
+
+            if status == "completed":
+                yield f"event: complete\ndata: {json.dumps(event_data)}\n\n"
+                break
+            elif status == "failed":
+                event_data["error"] = row["error_message"]
+                yield f"event: error\ndata: {json.dumps(event_data)}\n\n"
+                break
+            else:
+                yield f"event: progress\ndata: {json.dumps(event_data)}\n\n"
+
+            # Poll every 500ms
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+```
+
+**TDD Steps:**
+1. Write test_sse_streaming.py with all tests
+2. Run: `pytest tests/test_sse_streaming.py -v` → FAIL
+3. Add SSE endpoint to jobs.py
+4. Run: `pytest tests/test_sse_streaming.py -v` → PASS
+5. Commit: `git commit -m "feat(api): add SSE progress streaming"`
+
+---
+
+### Task 5.6: Search Endpoints
+
+**Files:**
+- Create: `backend/src/oya/api/routers/search.py`
+- Create: `backend/tests/test_search_api.py`
+- Modify: `backend/src/oya/main.py`
+
+**Required Tests (test_search_api.py):**
+```python
+"""Search API tests."""
+
+import subprocess
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from oya.main import app
+
+
+@pytest.fixture
+def workspace_with_content(tmp_path, monkeypatch):
+    """Create workspace with searchable content."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+
+    # Create wiki with content
+    wiki = workspace / ".coretechs" / "wiki"
+    wiki.mkdir(parents=True)
+    (wiki / "overview.md").write_text("# Authentication System\n\nThis handles user login and OAuth.")
+    (wiki / "architecture.md").write_text("# Architecture\n\nThe system uses FastAPI.")
+
+    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+
+    from oya.config import load_settings
+    from oya.api.deps import get_settings, get_db
+    load_settings.cache_clear()
+    get_settings.cache_clear()
+
+    # Index content in FTS
+    db = get_db()
+    db.execute(
+        "INSERT INTO fts_content (content, title, path, type) VALUES (?, ?, ?, ?)",
+        ("This handles user login and OAuth authentication", "Overview", "overview.md", "wiki"),
+    )
+    db.execute(
+        "INSERT INTO fts_content (content, title, path, type) VALUES (?, ?, ?, ?)",
+        ("The system uses FastAPI for the backend", "Architecture", "architecture.md", "wiki"),
+    )
+    db.commit()
+
+    return workspace
+
+
+@pytest.fixture
+async def client():
+    """Create async test client."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+async def test_search_returns_results(client, workspace_with_content):
+    """GET /api/search?q=... returns matching results."""
+    response = await client.get("/api/search", params={"q": "authentication"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert len(data["results"]) > 0
+
+
+async def test_search_returns_empty_for_no_match(client, workspace_with_content):
+    """GET /api/search?q=... returns empty for no matches."""
+    response = await client.get("/api/search", params={"q": "nonexistent_term_xyz"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["results"] == []
+
+
+async def test_search_requires_query(client, workspace_with_content):
+    """GET /api/search without q returns 422."""
+    response = await client.get("/api/search")
+
+    assert response.status_code == 422
+
+
+async def test_search_result_contains_snippet(client, workspace_with_content):
+    """Search results include snippet and metadata."""
+    response = await client.get("/api/search", params={"q": "FastAPI"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["results"]) > 0
+    result = data["results"][0]
+    assert "title" in result
+    assert "path" in result
+    assert "snippet" in result
+    assert "type" in result
+```
+
+**Implementation (backend/src/oya/api/routers/search.py):**
+```python
+"""Search endpoints."""
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from oya.api.deps import get_db
+from oya.db.connection import Database
+
+router = APIRouter(prefix="/api/search", tags=["search"])
+
+
+class SearchResult(BaseModel):
+    """Individual search result."""
+    title: str
+    path: str
+    snippet: str
+    type: str
+    score: float = 0.0
+
+
+class SearchResponse(BaseModel):
+    """Search response with results."""
+    query: str
+    results: list[SearchResult]
+    total: int
+
+
+@router.get("", response_model=SearchResponse)
+async def search(
+    q: str = Query(..., min_length=1, description="Search query"),
+    type: str | None = Query(None, description="Filter by type: wiki, note"),
+    limit: int = Query(20, ge=1, le=100),
+    db: Database = Depends(get_db),
+) -> SearchResponse:
+    """Search wiki content and notes using full-text search."""
+    # Build FTS5 query
+    # Escape special characters and add prefix matching
+    search_terms = q.replace('"', '""')
+    fts_query = f'"{search_terms}"*'
+
+    # Build SQL with optional type filter
+    sql = """
+        SELECT content, title, path, type,
+               bm25(fts_content) as score
+        FROM fts_content
+        WHERE fts_content MATCH ?
+    """
+    params: list = [fts_query]
+
+    if type:
+        sql += " AND type = ?"
+        params.append(type)
+
+    sql += " ORDER BY score LIMIT ?"
+    params.append(limit)
+
+    cursor = db.execute(sql, tuple(params))
+
+    results = []
+    for row in cursor.fetchall():
+        # Create snippet from content
+        content = row["content"] or ""
+        snippet = _create_snippet(content, q)
+
+        results.append(SearchResult(
+            title=row["title"] or "",
+            path=row["path"] or "",
+            snippet=snippet,
+            type=row["type"] or "wiki",
+            score=abs(row["score"]) if row["score"] else 0.0,
+        ))
+
+    return SearchResponse(
+        query=q,
+        results=results,
+        total=len(results),
+    )
+
+
+def _create_snippet(content: str, query: str, max_length: int = 200) -> str:
+    """Create a snippet around the query terms."""
+    lower_content = content.lower()
+    lower_query = query.lower()
+
+    # Find position of query in content
+    pos = lower_content.find(lower_query)
+
+    if pos == -1:
+        # Query not found, return start of content
+        return content[:max_length] + ("..." if len(content) > max_length else "")
+
+    # Calculate start and end positions for snippet
+    start = max(0, pos - 50)
+    end = min(len(content), pos + len(query) + 150)
+
+    snippet = content[start:end]
+
+    # Add ellipsis if needed
+    if start > 0:
+        snippet = "..." + snippet
+    if end < len(content):
+        snippet = snippet + "..."
+
+    return snippet
+```
+
+**Update main.py:**
+```python
+from oya.api.routers import repos, wiki, jobs, search
+app.include_router(search.router)
+```
+
+**TDD Steps:**
+1. Write test_search_api.py with all tests
+2. Run: `pytest tests/test_search_api.py -v` → FAIL
+3. Create api/routers/search.py
+4. Update main.py to include search router
+5. Run: `pytest tests/test_search_api.py -v` → PASS
+6. Commit: `git commit -m "feat(api): add search endpoints"`
+
+---
+
+Phase 5 implements the complete REST API:
+- Task 5.1: FastAPI application setup with dependencies
+- Task 5.2: Repository management endpoints (init, status)
+- Task 5.3: Wiki page endpoints (overview, architecture, workflows, directories, files, tree)
+- Task 5.4: Generation job endpoints (list, status)
+- Task 5.5: SSE progress streaming for real-time updates
+- Task 5.6: Search endpoints with FTS5 full-text search
+
+---
+
+## Phase 6-9: Remaining Phases
+
 - Phase 6: Frontend Implementation
 - Phase 7: Q&A System
 - Phase 8: Notes/Correction System
