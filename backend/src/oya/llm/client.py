@@ -2,6 +2,36 @@
 """LiteLLM-based LLM client."""
 
 from litellm import acompletion
+from litellm.exceptions import (
+    APIConnectionError,
+    APIError,
+    AuthenticationError,
+    RateLimitError,
+)
+
+
+class LLMError(Exception):
+    """Base exception for LLM client errors."""
+
+    pass
+
+
+class LLMConnectionError(LLMError):
+    """Raised when unable to connect to the LLM provider."""
+
+    pass
+
+
+class LLMAuthenticationError(LLMError):
+    """Raised when authentication with the LLM provider fails."""
+
+    pass
+
+
+class LLMRateLimitError(LLMError):
+    """Raised when rate limited by the LLM provider."""
+
+    pass
 
 
 class LLMClient:
@@ -78,8 +108,17 @@ class LLMClient:
         if self.endpoint and self.provider == "ollama":
             kwargs["api_base"] = self.endpoint
 
-        response = await acompletion(**kwargs)
-        return response.choices[0].message.content
+        try:
+            response = await acompletion(**kwargs)
+            return response.choices[0].message.content
+        except AuthenticationError as e:
+            raise LLMAuthenticationError(f"Authentication failed: {e}") from e
+        except RateLimitError as e:
+            raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
+        except APIConnectionError as e:
+            raise LLMConnectionError(f"Connection failed: {e}") from e
+        except APIError as e:
+            raise LLMError(f"LLM API error: {e}") from e
 
     async def generate_with_json(
         self,
