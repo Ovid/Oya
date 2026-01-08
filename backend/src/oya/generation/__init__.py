@@ -3,6 +3,7 @@
 
 from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
+from oya.generation.file import FileGenerator
 from oya.generation.chunking import (
     Chunk,
     chunk_by_symbols,
@@ -38,6 +39,8 @@ __all__ = [
     "ArchitectureGenerator",
     # Directory Generator
     "DirectoryGenerator",
+    # File Generator
+    "FileGenerator",
     # Chunking
     "Chunk",
     "chunk_by_symbols",
