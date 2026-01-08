@@ -3838,16 +3838,2707 @@ git commit -m "feat(backend): add parser registry for language detection"
 
 ## Phase 4: Wiki Generation Pipeline
 
+This phase builds the core wiki generation system that transforms parsed code into documentation.
+
+### Task 4.1: Prompt Templates
+
+**Files:**
+- Create: `backend/src/oya/generation/prompts.py`
+- Create: `backend/tests/test_prompts.py`
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_prompts.py
+"""Prompt template tests."""
+
+import pytest
+
+from oya.generation.prompts import (
+    PromptTemplate,
+    get_overview_prompt,
+    get_architecture_prompt,
+    get_workflow_prompt,
+    get_directory_prompt,
+    get_file_prompt,
+)
+
+
+def test_prompt_template_renders_variables():
+    """PromptTemplate substitutes variables correctly."""
+    template = PromptTemplate(
+        "Hello {name}, welcome to {project}!"
+    )
+    result = template.render(name="Alice", project="Oya")
+
+    assert result == "Hello Alice, welcome to Oya!"
+
+
+def test_prompt_template_handles_missing_variable():
+    """PromptTemplate raises error for missing variables."""
+    template = PromptTemplate("Hello {name}!")
+
+    with pytest.raises(KeyError):
+        template.render()
+
+
+def test_get_overview_prompt_includes_context():
+    """Overview prompt includes readme and structure."""
+    prompt = get_overview_prompt(
+        repo_name="my-project",
+        readme_content="# My Project\nA cool project.",
+        file_tree="src/\n  main.py\ntests/",
+        package_info={"name": "my-project", "version": "1.0.0"},
+    )
+
+    assert "my-project" in prompt
+    assert "A cool project" in prompt
+    assert "src/" in prompt
+
+
+def test_get_architecture_prompt_includes_symbols():
+    """Architecture prompt includes parsed symbols."""
+    prompt = get_architecture_prompt(
+        repo_name="my-project",
+        file_tree="src/\n  main.py",
+        key_symbols=[
+            {"file": "src/main.py", "name": "main", "type": "function"},
+            {"file": "src/api.py", "name": "Router", "type": "class"},
+        ],
+        dependencies=["fastapi", "sqlalchemy"],
+    )
+
+    assert "my-project" in prompt
+    assert "main" in prompt
+    assert "Router" in prompt
+    assert "fastapi" in prompt
+
+
+def test_get_file_prompt_includes_content():
+    """File prompt includes file content and context."""
+    prompt = get_file_prompt(
+        file_path="src/auth/login.py",
+        content="def login(user): pass",
+        symbols=[{"name": "login", "type": "function", "line": 1}],
+        imports=["from flask import request"],
+        architecture_summary="Authentication system handles user login.",
+    )
+
+    assert "src/auth/login.py" in prompt
+    assert "def login" in prompt
+    assert "Authentication system" in prompt
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_prompts.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement prompt templates**
+
+```python
+# backend/src/oya/generation/prompts.py
+"""Prompt templates for wiki generation."""
+
+from dataclasses import dataclass
+from string import Template
+
+
+@dataclass
+class PromptTemplate:
+    """Simple template for LLM prompts with variable substitution."""
+
+    template: str
+
+    def render(self, **kwargs) -> str:
+        """Render template with provided variables.
+
+        Args:
+            **kwargs: Variable values to substitute.
+
+        Returns:
+            Rendered prompt string.
+
+        Raises:
+            KeyError: If a required variable is missing.
+        """
+        # Use str.format for {var} syntax
+        return self.template.format(**kwargs)
+
+
+# System prompts for different generation types
+SYSTEM_PROMPT = """You are a technical documentation expert. Generate clear, accurate documentation based on the provided code context. Use markdown formatting. Include code examples where helpful. Be concise but thorough."""
+
+OVERVIEW_TEMPLATE = PromptTemplate("""
+Generate an overview documentation page for the repository "{repo_name}".
+
+## README Content
+{readme_content}
+
+## File Structure
+```
+{file_tree}
+```
+
+## Package Information
+{package_info}
+
+Write a comprehensive overview that includes:
+1. **Purpose**: What this project does
+2. **Tech Stack**: Key technologies and frameworks used
+3. **Getting Started**: How to install and run
+4. **Key Concepts**: Important terms or patterns to understand
+5. **Project Structure**: Brief explanation of directory layout
+
+Format as markdown. Be accurate based on the provided context.
+""")
+
+
+ARCHITECTURE_TEMPLATE = PromptTemplate("""
+Generate an architecture documentation page for "{repo_name}".
+
+## File Structure
+```
+{file_tree}
+```
+
+## Key Code Symbols
+{key_symbols}
+
+## Dependencies
+{dependencies}
+
+Write architecture documentation that includes:
+1. **System Design**: High-level architecture overview
+2. **Component Relationships**: How different parts interact
+3. **Data Flow**: How data moves through the system
+4. **Key Design Patterns**: Notable patterns used
+5. **Mermaid Diagrams**: Include at least one diagram showing component relationships
+
+Format as markdown with Mermaid diagrams where appropriate.
+""")
+
+
+WORKFLOW_TEMPLATE = PromptTemplate("""
+Generate workflow documentation for "{workflow_name}" in {repo_name}.
+
+## Entry Points
+{entry_points}
+
+## Related Files
+{related_files}
+
+## Code Context
+{code_context}
+
+Write workflow documentation that includes:
+1. **Purpose**: What this workflow accomplishes
+2. **Entry Points**: Where the workflow starts
+3. **Steps**: The sequence of operations
+4. **Key Files**: Important files involved
+5. **Sequence Diagram**: Mermaid diagram showing the flow
+
+Format as markdown.
+""")
+
+
+DIRECTORY_TEMPLATE = PromptTemplate("""
+Generate documentation for the directory "{directory_path}" in {repo_name}.
+
+## Files in Directory
+{file_list}
+
+## Symbol Summary
+{symbols}
+
+## Role in Architecture
+{architecture_context}
+
+Write directory documentation that includes:
+1. **Purpose**: What this directory contains and why
+2. **Contents**: Overview of files and their roles
+3. **Usage**: How code in this directory is used
+4. **Related Directories**: Connections to other parts of the codebase
+
+Format as markdown.
+""")
+
+
+FILE_TEMPLATE = PromptTemplate("""
+Generate documentation for the file "{file_path}".
+
+## File Content
+```{language}
+{content}
+```
+
+## Parsed Symbols
+{symbols}
+
+## Imports
+{imports}
+
+## Architecture Context
+{architecture_summary}
+
+Write file documentation that includes:
+1. **Purpose**: What this file does
+2. **Key Exports**: Important functions, classes, or constants
+3. **Usage Examples**: How this file's exports are typically used
+4. **Dependencies**: What this file depends on
+5. **Related Files**: Files that use or are used by this file
+
+Format as markdown.
+""")
+
+
+def get_overview_prompt(
+    repo_name: str,
+    readme_content: str,
+    file_tree: str,
+    package_info: dict,
+) -> str:
+    """Generate prompt for overview page.
+
+    Args:
+        repo_name: Name of the repository.
+        readme_content: Content of README file.
+        file_tree: String representation of file tree.
+        package_info: Dict with package metadata.
+
+    Returns:
+        Rendered prompt string.
+    """
+    return OVERVIEW_TEMPLATE.render(
+        repo_name=repo_name,
+        readme_content=readme_content or "No README found.",
+        file_tree=file_tree,
+        package_info=str(package_info),
+    )
+
+
+def get_architecture_prompt(
+    repo_name: str,
+    file_tree: str,
+    key_symbols: list[dict],
+    dependencies: list[str],
+) -> str:
+    """Generate prompt for architecture page.
+
+    Args:
+        repo_name: Name of the repository.
+        file_tree: String representation of file tree.
+        key_symbols: List of important symbols across the codebase.
+        dependencies: List of project dependencies.
+
+    Returns:
+        Rendered prompt string.
+    """
+    symbols_str = "\n".join(
+        f"- {s['file']}: {s['name']} ({s['type']})"
+        for s in key_symbols
+    )
+    deps_str = ", ".join(dependencies) if dependencies else "None detected"
+
+    return ARCHITECTURE_TEMPLATE.render(
+        repo_name=repo_name,
+        file_tree=file_tree,
+        key_symbols=symbols_str,
+        dependencies=deps_str,
+    )
+
+
+def get_workflow_prompt(
+    repo_name: str,
+    workflow_name: str,
+    entry_points: list[dict],
+    related_files: list[str],
+    code_context: str,
+) -> str:
+    """Generate prompt for workflow page.
+
+    Args:
+        repo_name: Name of the repository.
+        workflow_name: Name of the workflow.
+        entry_points: List of entry point dicts.
+        related_files: List of related file paths.
+        code_context: Relevant code snippets.
+
+    Returns:
+        Rendered prompt string.
+    """
+    entry_str = "\n".join(
+        f"- {e['file']}: {e['name']} ({e.get('type', 'unknown')})"
+        for e in entry_points
+    )
+    files_str = "\n".join(f"- {f}" for f in related_files)
+
+    return WORKFLOW_TEMPLATE.render(
+        repo_name=repo_name,
+        workflow_name=workflow_name,
+        entry_points=entry_str,
+        related_files=files_str,
+        code_context=code_context,
+    )
+
+
+def get_directory_prompt(
+    repo_name: str,
+    directory_path: str,
+    file_list: list[str],
+    symbols: list[dict],
+    architecture_context: str,
+) -> str:
+    """Generate prompt for directory page.
+
+    Args:
+        repo_name: Name of the repository.
+        directory_path: Path to the directory.
+        file_list: List of files in the directory.
+        symbols: List of symbols in the directory's files.
+        architecture_context: How this directory fits in the architecture.
+
+    Returns:
+        Rendered prompt string.
+    """
+    files_str = "\n".join(f"- {f}" for f in file_list)
+    symbols_str = "\n".join(
+        f"- {s['file']}: {s['name']} ({s['type']})"
+        for s in symbols
+    )
+
+    return DIRECTORY_TEMPLATE.render(
+        repo_name=repo_name,
+        directory_path=directory_path,
+        file_list=files_str,
+        symbols=symbols_str,
+        architecture_context=architecture_context,
+    )
+
+
+def get_file_prompt(
+    file_path: str,
+    content: str,
+    symbols: list[dict],
+    imports: list[str],
+    architecture_summary: str,
+    language: str = "",
+) -> str:
+    """Generate prompt for file page.
+
+    Args:
+        file_path: Path to the file.
+        content: File content.
+        symbols: List of parsed symbols.
+        imports: List of import statements.
+        architecture_summary: Architecture context.
+        language: Programming language for syntax highlighting.
+
+    Returns:
+        Rendered prompt string.
+    """
+    symbols_str = "\n".join(
+        f"- {s['name']} ({s['type']}) at line {s.get('line', '?')}"
+        for s in symbols
+    )
+    imports_str = "\n".join(imports) if imports else "None"
+
+    return FILE_TEMPLATE.render(
+        file_path=file_path,
+        content=content,
+        language=language,
+        symbols=symbols_str,
+        imports=imports_str,
+        architecture_summary=architecture_summary,
+    )
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_prompts.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+```python
+# backend/src/oya/generation/__init__.py
+"""Wiki generation module."""
+
+from oya.generation.prompts import (
+    PromptTemplate,
+    get_overview_prompt,
+    get_architecture_prompt,
+    get_workflow_prompt,
+    get_directory_prompt,
+    get_file_prompt,
+)
+
+__all__ = [
+    "PromptTemplate",
+    "get_overview_prompt",
+    "get_architecture_prompt",
+    "get_workflow_prompt",
+    "get_directory_prompt",
+    "get_file_prompt",
+]
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_prompts.py
+git commit -m "feat(backend): add prompt templates for wiki generation"
+```
+
+---
+
+### Task 4.2: Content Chunking
+
+**Files:**
+- Create: `backend/src/oya/generation/chunking.py`
+- Create: `backend/tests/test_chunking.py`
+- Modify: `backend/src/oya/generation/__init__.py` (add export)
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_chunking.py
+"""Content chunking tests."""
+
+import pytest
+
+from oya.generation.chunking import (
+    Chunk,
+    chunk_file_content,
+    chunk_by_symbols,
+    estimate_tokens,
+)
+
+
+def test_estimate_tokens_approximation():
+    """Token estimation is roughly 4 chars per token."""
+    text = "Hello world, this is a test."
+    tokens = estimate_tokens(text)
+
+    # ~28 chars / 4 = ~7 tokens
+    assert 5 <= tokens <= 10
+
+
+def test_chunk_file_content_respects_size():
+    """Chunks respect maximum token size."""
+    content = "line\n" * 1000  # 5000 chars
+    chunks = chunk_file_content(content, "test.py", max_tokens=100)
+
+    for chunk in chunks:
+        assert estimate_tokens(chunk.content) <= 120  # Allow some overflow
+
+
+def test_chunk_file_content_includes_metadata():
+    """Chunks include file path and line info."""
+    content = "line1\nline2\nline3\n"
+    chunks = chunk_file_content(content, "src/main.py", max_tokens=1000)
+
+    assert len(chunks) >= 1
+    assert chunks[0].file_path == "src/main.py"
+    assert chunks[0].start_line == 1
+
+
+def test_chunk_by_symbols_creates_logical_chunks():
+    """Symbol-based chunking respects code boundaries."""
+    content = '''def foo():
+    pass
+
+def bar():
+    pass
+
+class Baz:
+    def method(self):
+        pass
+'''
+    symbols = [
+        {"name": "foo", "start_line": 1, "end_line": 2},
+        {"name": "bar", "start_line": 4, "end_line": 5},
+        {"name": "Baz", "start_line": 7, "end_line": 9},
+    ]
+
+    chunks = chunk_by_symbols(content, "test.py", symbols, max_tokens=500)
+
+    # Should have at least one chunk per symbol or grouped
+    assert len(chunks) >= 1
+    # Each chunk should contain complete symbols
+    for chunk in chunks:
+        assert chunk.symbols  # Has associated symbols
+
+
+def test_chunk_includes_overlap():
+    """Chunks include overlap for context."""
+    content = "line\n" * 100
+    chunks = chunk_file_content(
+        content, "test.py", max_tokens=50, overlap_lines=5
+    )
+
+    if len(chunks) > 1:
+        # Check that second chunk starts before first chunk ends
+        assert chunks[1].start_line <= chunks[0].end_line + 5
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_chunking.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement chunking**
+
+```python
+# backend/src/oya/generation/chunking.py
+"""Content chunking for wiki generation and embedding."""
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Chunk:
+    """A chunk of file content for processing.
+
+    Attributes:
+        content: The text content of the chunk.
+        file_path: Path to the source file.
+        start_line: Starting line number (1-indexed).
+        end_line: Ending line number (1-indexed).
+        symbols: List of symbols contained in this chunk.
+        chunk_index: Index of this chunk within the file.
+    """
+
+    content: str
+    file_path: str
+    start_line: int
+    end_line: int
+    symbols: list[dict] = field(default_factory=list)
+    chunk_index: int = 0
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate token count for text.
+
+    Uses a simple heuristic of ~4 characters per token,
+    which is a reasonable approximation for code.
+
+    Args:
+        text: Text to estimate tokens for.
+
+    Returns:
+        Estimated token count.
+    """
+    return len(text) // 4
+
+
+def chunk_file_content(
+    content: str,
+    file_path: str,
+    max_tokens: int = 1000,
+    overlap_lines: int = 5,
+) -> list[Chunk]:
+    """Split file content into chunks by line count.
+
+    Args:
+        content: File content to chunk.
+        file_path: Path to the source file.
+        max_tokens: Maximum tokens per chunk.
+        overlap_lines: Number of lines to overlap between chunks.
+
+    Returns:
+        List of Chunk objects.
+    """
+    if not content.strip():
+        return []
+
+    lines = content.split("\n")
+    chunks: list[Chunk] = []
+    chunk_index = 0
+    current_start = 0
+
+    while current_start < len(lines):
+        # Build chunk until we hit max tokens
+        current_lines: list[str] = []
+        current_end = current_start
+
+        while current_end < len(lines):
+            test_content = "\n".join(current_lines + [lines[current_end]])
+            if estimate_tokens(test_content) > max_tokens and current_lines:
+                break
+            current_lines.append(lines[current_end])
+            current_end += 1
+
+        if current_lines:
+            chunk_content = "\n".join(current_lines)
+            chunks.append(
+                Chunk(
+                    content=chunk_content,
+                    file_path=file_path,
+                    start_line=current_start + 1,  # 1-indexed
+                    end_line=current_start + len(current_lines),
+                    chunk_index=chunk_index,
+                )
+            )
+            chunk_index += 1
+
+        # Move start position, accounting for overlap
+        if current_end >= len(lines):
+            break
+        current_start = max(current_start + 1, current_end - overlap_lines)
+
+    return chunks
+
+
+def chunk_by_symbols(
+    content: str,
+    file_path: str,
+    symbols: list[dict],
+    max_tokens: int = 1000,
+) -> list[Chunk]:
+    """Split file content by symbol boundaries.
+
+    Groups symbols into chunks that respect code boundaries
+    while staying under the token limit.
+
+    Args:
+        content: File content to chunk.
+        file_path: Path to the source file.
+        symbols: List of symbol dicts with start_line/end_line.
+        max_tokens: Maximum tokens per chunk.
+
+    Returns:
+        List of Chunk objects with associated symbols.
+    """
+    if not content.strip():
+        return []
+
+    if not symbols:
+        # Fall back to line-based chunking
+        return chunk_file_content(content, file_path, max_tokens)
+
+    lines = content.split("\n")
+    chunks: list[Chunk] = []
+    chunk_index = 0
+
+    # Sort symbols by start line
+    sorted_symbols = sorted(symbols, key=lambda s: s.get("start_line", 0))
+
+    current_symbols: list[dict] = []
+    current_start_line = 1
+
+    for symbol in sorted_symbols:
+        sym_start = symbol.get("start_line", 1)
+        sym_end = symbol.get("end_line", sym_start)
+
+        # Calculate content if we add this symbol
+        test_end = max(
+            sym_end,
+            current_symbols[-1].get("end_line", 0) if current_symbols else 0,
+        )
+        test_start = min(
+            sym_start,
+            current_start_line,
+        )
+        test_content = "\n".join(lines[test_start - 1 : test_end])
+
+        if estimate_tokens(test_content) > max_tokens and current_symbols:
+            # Flush current chunk
+            chunk_end = current_symbols[-1].get("end_line", current_start_line)
+            chunk_content = "\n".join(lines[current_start_line - 1 : chunk_end])
+            chunks.append(
+                Chunk(
+                    content=chunk_content,
+                    file_path=file_path,
+                    start_line=current_start_line,
+                    end_line=chunk_end,
+                    symbols=current_symbols.copy(),
+                    chunk_index=chunk_index,
+                )
+            )
+            chunk_index += 1
+            current_symbols = []
+            current_start_line = sym_start
+
+        current_symbols.append(symbol)
+        if not current_symbols or sym_start < current_start_line:
+            current_start_line = sym_start
+
+    # Flush remaining symbols
+    if current_symbols:
+        chunk_end = current_symbols[-1].get("end_line", current_start_line)
+        chunk_content = "\n".join(lines[current_start_line - 1 : chunk_end])
+        chunks.append(
+            Chunk(
+                content=chunk_content,
+                file_path=file_path,
+                start_line=current_start_line,
+                end_line=chunk_end,
+                symbols=current_symbols.copy(),
+                chunk_index=chunk_index,
+            )
+        )
+
+    return chunks
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_chunking.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+Add to `backend/src/oya/generation/__init__.py`:
+```python
+from oya.generation.chunking import (
+    Chunk,
+    chunk_file_content,
+    chunk_by_symbols,
+    estimate_tokens,
+)
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_chunking.py
+git commit -m "feat(backend): add content chunking for wiki generation"
+```
+
+---
+
+### Task 4.3: Overview Page Generator
+
+**Files:**
+- Create: `backend/src/oya/generation/overview.py`
+- Create: `backend/tests/test_overview_generator.py`
+- Modify: `backend/src/oya/generation/__init__.py` (add export)
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_overview_generator.py
+"""Overview page generator tests."""
+
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from oya.generation.overview import OverviewGenerator
+
+
+@pytest.fixture
+def mock_llm_client():
+    """Create mock LLM client."""
+    client = AsyncMock()
+    client.generate.return_value = "# Overview\n\nThis is the generated overview."
+    return client
+
+
+@pytest.fixture
+def mock_repo():
+    """Create mock repository."""
+    repo = MagicMock()
+    repo.path = Path("/workspace/my-project")
+    return repo
+
+
+@pytest.fixture
+def generator(mock_llm_client, mock_repo):
+    """Create overview generator."""
+    return OverviewGenerator(
+        llm_client=mock_llm_client,
+        repo=mock_repo,
+    )
+
+
+@pytest.mark.asyncio
+async def test_generates_overview_page(generator, mock_llm_client):
+    """Generates overview markdown from repo context."""
+    result = await generator.generate(
+        readme_content="# My Project\n\nA cool project.",
+        file_tree="src/\n  main.py",
+        package_info={"name": "my-project"},
+    )
+
+    assert "Overview" in result.content
+    mock_llm_client.generate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_handles_missing_readme(generator):
+    """Generates overview even without README."""
+    result = await generator.generate(
+        readme_content=None,
+        file_tree="src/\n  main.py",
+        package_info={},
+    )
+
+    assert result.content  # Should still generate something
+
+
+@pytest.mark.asyncio
+async def test_returns_page_metadata(generator):
+    """Returns metadata with the generated page."""
+    result = await generator.generate(
+        readme_content="# Test",
+        file_tree="src/",
+        package_info={},
+    )
+
+    assert result.page_type == "overview"
+    assert result.path == "overview.md"
+    assert result.word_count > 0
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_overview_generator.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement overview generator**
+
+```python
+# backend/src/oya/generation/overview.py
+"""Overview page generator."""
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from oya.generation.prompts import SYSTEM_PROMPT, get_overview_prompt
+
+
+@dataclass
+class GeneratedPage:
+    """Result of page generation.
+
+    Attributes:
+        content: Generated markdown content.
+        page_type: Type of wiki page.
+        path: Relative path for the wiki page.
+        word_count: Number of words in content.
+        target: Optional target (file/directory path).
+    """
+
+    content: str
+    page_type: str
+    path: str
+    word_count: int
+    target: str | None = None
+
+
+class OverviewGenerator:
+    """Generates the repository overview page.
+
+    The overview page provides a high-level introduction to the
+    repository, including purpose, tech stack, and getting started.
+    """
+
+    def __init__(self, llm_client, repo):
+        """Initialize the overview generator.
+
+        Args:
+            llm_client: LLM client for generation.
+            repo: Repository wrapper for context.
+        """
+        self.llm_client = llm_client
+        self.repo = repo
+
+    async def generate(
+        self,
+        readme_content: str | None,
+        file_tree: str,
+        package_info: dict,
+    ) -> GeneratedPage:
+        """Generate the overview page.
+
+        Args:
+            readme_content: Content of README file (if any).
+            file_tree: String representation of file structure.
+            package_info: Package metadata dict.
+
+        Returns:
+            GeneratedPage with overview content.
+        """
+        repo_name = self.repo.path.name
+
+        prompt = get_overview_prompt(
+            repo_name=repo_name,
+            readme_content=readme_content or "",
+            file_tree=file_tree,
+            package_info=package_info,
+        )
+
+        content = await self.llm_client.generate(
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+        )
+
+        word_count = len(content.split())
+
+        return GeneratedPage(
+            content=content,
+            page_type="overview",
+            path="overview.md",
+            word_count=word_count,
+        )
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_overview_generator.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+Add to `backend/src/oya/generation/__init__.py`:
+```python
+from oya.generation.overview import GeneratedPage, OverviewGenerator
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_overview_generator.py
+git commit -m "feat(backend): add overview page generator"
+```
+
+---
+
+### Task 4.4: Architecture Page Generator
+
+**Files:**
+- Create: `backend/src/oya/generation/architecture.py`
+- Create: `backend/tests/test_architecture_generator.py`
+- Modify: `backend/src/oya/generation/__init__.py` (add export)
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_architecture_generator.py
+"""Architecture page generator tests."""
+
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from oya.generation.architecture import ArchitectureGenerator
+
+
+@pytest.fixture
+def mock_llm_client():
+    """Create mock LLM client."""
+    client = AsyncMock()
+    client.generate.return_value = """# Architecture
+
+## System Design
+
+The system follows a layered architecture.
+
+```mermaid
+graph TD
+    A[Frontend] --> B[API]
+    B --> C[Database]
+```
+"""
+    return client
+
+
+@pytest.fixture
+def mock_repo():
+    """Create mock repository."""
+    repo = MagicMock()
+    repo.path = Path("/workspace/my-project")
+    return repo
+
+
+@pytest.fixture
+def generator(mock_llm_client, mock_repo):
+    """Create architecture generator."""
+    return ArchitectureGenerator(
+        llm_client=mock_llm_client,
+        repo=mock_repo,
+    )
+
+
+@pytest.mark.asyncio
+async def test_generates_architecture_page(generator, mock_llm_client):
+    """Generates architecture markdown from symbols."""
+    result = await generator.generate(
+        file_tree="src/\n  api/\n  db/",
+        key_symbols=[
+            {"file": "src/api/routes.py", "name": "app", "type": "variable"},
+            {"file": "src/db/models.py", "name": "User", "type": "class"},
+        ],
+        dependencies=["fastapi", "sqlalchemy"],
+    )
+
+    assert "Architecture" in result.content
+    mock_llm_client.generate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_includes_mermaid_diagrams(generator):
+    """Generated architecture includes Mermaid diagrams."""
+    result = await generator.generate(
+        file_tree="src/",
+        key_symbols=[],
+        dependencies=[],
+    )
+
+    # The mock returns content with Mermaid
+    assert "mermaid" in result.content.lower() or "graph" in result.content.lower()
+
+
+@pytest.mark.asyncio
+async def test_returns_architecture_metadata(generator):
+    """Returns correct page metadata."""
+    result = await generator.generate(
+        file_tree="src/",
+        key_symbols=[],
+        dependencies=[],
+    )
+
+    assert result.page_type == "architecture"
+    assert result.path == "architecture.md"
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_architecture_generator.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement architecture generator**
+
+```python
+# backend/src/oya/generation/architecture.py
+"""Architecture page generator."""
+
+from pathlib import Path
+
+from oya.generation.overview import GeneratedPage
+from oya.generation.prompts import SYSTEM_PROMPT, get_architecture_prompt
+
+
+class ArchitectureGenerator:
+    """Generates the repository architecture page.
+
+    The architecture page provides system design documentation
+    including component relationships, data flow, and diagrams.
+    """
+
+    def __init__(self, llm_client, repo):
+        """Initialize the architecture generator.
+
+        Args:
+            llm_client: LLM client for generation.
+            repo: Repository wrapper for context.
+        """
+        self.llm_client = llm_client
+        self.repo = repo
+
+    async def generate(
+        self,
+        file_tree: str,
+        key_symbols: list[dict],
+        dependencies: list[str],
+    ) -> GeneratedPage:
+        """Generate the architecture page.
+
+        Args:
+            file_tree: String representation of file structure.
+            key_symbols: Important symbols across the codebase.
+            dependencies: List of project dependencies.
+
+        Returns:
+            GeneratedPage with architecture content.
+        """
+        repo_name = self.repo.path.name
+
+        prompt = get_architecture_prompt(
+            repo_name=repo_name,
+            file_tree=file_tree,
+            key_symbols=key_symbols,
+            dependencies=dependencies,
+        )
+
+        content = await self.llm_client.generate(
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+        )
+
+        word_count = len(content.split())
+
+        return GeneratedPage(
+            content=content,
+            page_type="architecture",
+            path="architecture.md",
+            word_count=word_count,
+        )
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_architecture_generator.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+Add to `backend/src/oya/generation/__init__.py`:
+```python
+from oya.generation.architecture import ArchitectureGenerator
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_architecture_generator.py
+git commit -m "feat(backend): add architecture page generator"
+```
+
+---
+
+### Task 4.5: Workflow Discovery and Generation
+
+**Files:**
+- Create: `backend/src/oya/generation/workflows.py`
+- Create: `backend/tests/test_workflow_generator.py`
+- Modify: `backend/src/oya/generation/__init__.py` (add export)
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_workflow_generator.py
+"""Workflow discovery and generator tests."""
+
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from oya.generation.workflows import (
+    WorkflowDiscovery,
+    WorkflowGenerator,
+    DiscoveredWorkflow,
+)
+
+
+@pytest.fixture
+def mock_llm_client():
+    """Create mock LLM client."""
+    client = AsyncMock()
+    client.generate.return_value = "# User Authentication\n\nHandles login flow."
+    return client
+
+
+@pytest.fixture
+def mock_repo():
+    """Create mock repository."""
+    repo = MagicMock()
+    repo.path = Path("/workspace/my-project")
+    return repo
+
+
+class TestWorkflowDiscovery:
+    """Tests for workflow discovery."""
+
+    def test_discovers_cli_entry_points(self):
+        """Finds CLI commands as workflow entry points."""
+        discovery = WorkflowDiscovery()
+
+        symbols = [
+            {
+                "file": "cli.py",
+                "name": "main",
+                "type": "function",
+                "decorators": ["click.command"],
+            },
+            {
+                "file": "cli.py",
+                "name": "init_db",
+                "type": "function",
+                "decorators": ["click.command"],
+            },
+        ]
+
+        entry_points = discovery.find_entry_points(symbols)
+
+        assert len(entry_points) >= 2
+        assert any(e["name"] == "main" for e in entry_points)
+
+    def test_discovers_api_routes(self):
+        """Finds API routes as workflow entry points."""
+        discovery = WorkflowDiscovery()
+
+        symbols = [
+            {
+                "file": "api/users.py",
+                "name": "get_users",
+                "type": "route",
+                "metadata": {"method": "GET", "path": "/users"},
+            },
+            {
+                "file": "api/users.py",
+                "name": "create_user",
+                "type": "route",
+                "metadata": {"method": "POST", "path": "/users"},
+            },
+        ]
+
+        entry_points = discovery.find_entry_points(symbols)
+
+        assert len(entry_points) >= 2
+
+    def test_discovers_main_functions(self):
+        """Finds main functions as entry points."""
+        discovery = WorkflowDiscovery()
+
+        symbols = [
+            {"file": "main.py", "name": "main", "type": "function"},
+            {"file": "app.py", "name": "__main__", "type": "function"},
+        ]
+
+        entry_points = discovery.find_entry_points(symbols)
+
+        assert len(entry_points) >= 1
+
+
+class TestWorkflowGenerator:
+    """Tests for workflow generation."""
+
+    @pytest.fixture
+    def generator(self, mock_llm_client, mock_repo):
+        """Create workflow generator."""
+        return WorkflowGenerator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generates_workflow_page(self, generator, mock_llm_client):
+        """Generates workflow markdown."""
+        workflow = DiscoveredWorkflow(
+            name="User Authentication",
+            slug="user-authentication",
+            entry_points=[
+                {"file": "auth/login.py", "name": "login", "type": "route"}
+            ],
+            related_files=["auth/login.py", "auth/session.py"],
+        )
+
+        result = await generator.generate(
+            workflow=workflow,
+            code_context="def login(): pass",
+        )
+
+        assert "Authentication" in result.content
+        mock_llm_client.generate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_workflow_metadata(self, generator):
+        """Returns correct page metadata."""
+        workflow = DiscoveredWorkflow(
+            name="Test Workflow",
+            slug="test-workflow",
+            entry_points=[],
+            related_files=[],
+        )
+
+        result = await generator.generate(
+            workflow=workflow,
+            code_context="",
+        )
+
+        assert result.page_type == "workflow"
+        assert result.path == "workflows/test-workflow.md"
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_workflow_generator.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement workflow discovery and generation**
+
+```python
+# backend/src/oya/generation/workflows.py
+"""Workflow discovery and generation."""
+
+import re
+from dataclasses import dataclass, field
+
+from oya.generation.overview import GeneratedPage
+from oya.generation.prompts import SYSTEM_PROMPT, get_workflow_prompt
+
+
+@dataclass
+class DiscoveredWorkflow:
+    """A discovered workflow in the codebase.
+
+    Attributes:
+        name: Human-readable workflow name.
+        slug: URL-safe slug for the workflow.
+        entry_points: List of entry point symbols.
+        related_files: Files involved in this workflow.
+    """
+
+    name: str
+    slug: str
+    entry_points: list[dict] = field(default_factory=list)
+    related_files: list[str] = field(default_factory=list)
+
+
+class WorkflowDiscovery:
+    """Discovers workflows from parsed code symbols.
+
+    Workflows are identified by:
+    - CLI commands (click, argparse, typer decorators)
+    - API routes (FastAPI, Flask, etc.)
+    - Main functions and entry points
+    - Test suites
+    """
+
+    # Patterns that indicate entry points
+    ENTRY_POINT_DECORATORS = {
+        "click.command",
+        "click.group",
+        "typer.command",
+        "app.route",
+        "app.get",
+        "app.post",
+        "app.put",
+        "app.delete",
+        "router.get",
+        "router.post",
+        "pytest.fixture",
+    }
+
+    ENTRY_POINT_NAMES = {
+        "main",
+        "__main__",
+        "run",
+        "start",
+        "serve",
+        "execute",
+    }
+
+    def find_entry_points(self, symbols: list[dict]) -> list[dict]:
+        """Find workflow entry points from symbols.
+
+        Args:
+            symbols: List of parsed symbol dicts.
+
+        Returns:
+            List of entry point symbol dicts.
+        """
+        entry_points: list[dict] = []
+
+        for symbol in symbols:
+            if self._is_entry_point(symbol):
+                entry_points.append(symbol)
+
+        return entry_points
+
+    def _is_entry_point(self, symbol: dict) -> bool:
+        """Check if a symbol is a workflow entry point.
+
+        Args:
+            symbol: Symbol dict to check.
+
+        Returns:
+            True if symbol is an entry point.
+        """
+        # Check symbol type
+        sym_type = symbol.get("type", "")
+        if sym_type in ("route", "cli_command"):
+            return True
+
+        # Check decorators
+        decorators = symbol.get("decorators", [])
+        for dec in decorators:
+            dec_lower = dec.lower()
+            for pattern in self.ENTRY_POINT_DECORATORS:
+                if pattern in dec_lower:
+                    return True
+
+        # Check name
+        name = symbol.get("name", "")
+        if name in self.ENTRY_POINT_NAMES:
+            return True
+
+        return False
+
+    def group_into_workflows(
+        self,
+        entry_points: list[dict],
+        file_imports: dict[str, list[str]],
+    ) -> list[DiscoveredWorkflow]:
+        """Group entry points into logical workflows.
+
+        Args:
+            entry_points: List of entry point symbols.
+            file_imports: Map of file paths to their imports.
+
+        Returns:
+            List of discovered workflows.
+        """
+        workflows: list[DiscoveredWorkflow] = []
+
+        # Group by file directory as a simple heuristic
+        dir_groups: dict[str, list[dict]] = {}
+        for ep in entry_points:
+            file_path = ep.get("file", "")
+            dir_path = "/".join(file_path.split("/")[:-1]) or "root"
+            if dir_path not in dir_groups:
+                dir_groups[dir_path] = []
+            dir_groups[dir_path].append(ep)
+
+        for dir_path, eps in dir_groups.items():
+            # Create workflow name from directory
+            name = self._make_workflow_name(dir_path, eps)
+            slug = self._slugify(name)
+
+            # Collect related files
+            related_files = list(set(ep.get("file", "") for ep in eps))
+
+            workflows.append(
+                DiscoveredWorkflow(
+                    name=name,
+                    slug=slug,
+                    entry_points=eps,
+                    related_files=related_files,
+                )
+            )
+
+        return workflows
+
+    def _make_workflow_name(self, dir_path: str, entry_points: list[dict]) -> str:
+        """Generate a human-readable workflow name.
+
+        Args:
+            dir_path: Directory path.
+            entry_points: Entry points in this workflow.
+
+        Returns:
+            Human-readable name.
+        """
+        if dir_path == "root":
+            return "Main Application"
+
+        # Use directory name
+        parts = dir_path.split("/")
+        name = parts[-1] if parts else "Unknown"
+
+        # Title case and clean up
+        name = name.replace("_", " ").replace("-", " ").title()
+        return name
+
+    def _slugify(self, name: str) -> str:
+        """Convert name to URL-safe slug.
+
+        Args:
+            name: Human-readable name.
+
+        Returns:
+            URL-safe slug.
+        """
+        slug = name.lower()
+        slug = re.sub(r"[^a-z0-9]+", "-", slug)
+        slug = slug.strip("-")
+        return slug
+
+
+class WorkflowGenerator:
+    """Generates workflow documentation pages."""
+
+    def __init__(self, llm_client, repo):
+        """Initialize the workflow generator.
+
+        Args:
+            llm_client: LLM client for generation.
+            repo: Repository wrapper for context.
+        """
+        self.llm_client = llm_client
+        self.repo = repo
+
+    async def generate(
+        self,
+        workflow: DiscoveredWorkflow,
+        code_context: str,
+    ) -> GeneratedPage:
+        """Generate a workflow documentation page.
+
+        Args:
+            workflow: Discovered workflow to document.
+            code_context: Relevant code snippets for context.
+
+        Returns:
+            GeneratedPage with workflow content.
+        """
+        repo_name = self.repo.path.name
+
+        prompt = get_workflow_prompt(
+            repo_name=repo_name,
+            workflow_name=workflow.name,
+            entry_points=workflow.entry_points,
+            related_files=workflow.related_files,
+            code_context=code_context,
+        )
+
+        content = await self.llm_client.generate(
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+        )
+
+        word_count = len(content.split())
+
+        return GeneratedPage(
+            content=content,
+            page_type="workflow",
+            path=f"workflows/{workflow.slug}.md",
+            word_count=word_count,
+            target=workflow.slug,
+        )
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_workflow_generator.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+Add to `backend/src/oya/generation/__init__.py`:
+```python
+from oya.generation.workflows import (
+    DiscoveredWorkflow,
+    WorkflowDiscovery,
+    WorkflowGenerator,
+)
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_workflow_generator.py
+git commit -m "feat(backend): add workflow discovery and generation"
+```
+
+---
+
+### Task 4.6: Directory Page Generator
+
+**Files:**
+- Create: `backend/src/oya/generation/directory.py`
+- Create: `backend/tests/test_directory_generator.py`
+- Modify: `backend/src/oya/generation/__init__.py` (add export)
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_directory_generator.py
+"""Directory page generator tests."""
+
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from oya.generation.directory import DirectoryGenerator
+
+
+@pytest.fixture
+def mock_llm_client():
+    """Create mock LLM client."""
+    client = AsyncMock()
+    client.generate.return_value = "# src/auth/\n\nAuthentication module."
+    return client
+
+
+@pytest.fixture
+def mock_repo():
+    """Create mock repository."""
+    repo = MagicMock()
+    repo.path = Path("/workspace/my-project")
+    return repo
+
+
+@pytest.fixture
+def generator(mock_llm_client, mock_repo):
+    """Create directory generator."""
+    return DirectoryGenerator(
+        llm_client=mock_llm_client,
+        repo=mock_repo,
+    )
+
+
+@pytest.mark.asyncio
+async def test_generates_directory_page(generator, mock_llm_client):
+    """Generates directory markdown."""
+    result = await generator.generate(
+        directory_path="src/auth",
+        file_list=["login.py", "session.py", "utils.py"],
+        symbols=[
+            {"file": "login.py", "name": "login", "type": "function"},
+            {"file": "session.py", "name": "Session", "type": "class"},
+        ],
+        architecture_context="Handles user authentication.",
+    )
+
+    assert result.content
+    mock_llm_client.generate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_returns_directory_metadata(generator):
+    """Returns correct page metadata."""
+    result = await generator.generate(
+        directory_path="src/api",
+        file_list=["routes.py"],
+        symbols=[],
+        architecture_context="",
+    )
+
+    assert result.page_type == "directory"
+    assert "src-api" in result.path
+    assert result.target == "src/api"
+
+
+@pytest.mark.asyncio
+async def test_handles_nested_directories(generator):
+    """Handles deeply nested directory paths."""
+    result = await generator.generate(
+        directory_path="src/services/auth/providers",
+        file_list=["oauth.py", "jwt.py"],
+        symbols=[],
+        architecture_context="",
+    )
+
+    assert result.target == "src/services/auth/providers"
+    assert "providers" in result.path
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_directory_generator.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement directory generator**
+
+```python
+# backend/src/oya/generation/directory.py
+"""Directory page generator."""
+
+import re
+from pathlib import Path
+
+from oya.generation.overview import GeneratedPage
+from oya.generation.prompts import SYSTEM_PROMPT, get_directory_prompt
+
+
+class DirectoryGenerator:
+    """Generates directory documentation pages.
+
+    Directory pages aggregate information about files in a directory
+    and explain how they fit into the overall architecture.
+    """
+
+    def __init__(self, llm_client, repo):
+        """Initialize the directory generator.
+
+        Args:
+            llm_client: LLM client for generation.
+            repo: Repository wrapper for context.
+        """
+        self.llm_client = llm_client
+        self.repo = repo
+
+    async def generate(
+        self,
+        directory_path: str,
+        file_list: list[str],
+        symbols: list[dict],
+        architecture_context: str,
+    ) -> GeneratedPage:
+        """Generate a directory documentation page.
+
+        Args:
+            directory_path: Path to the directory.
+            file_list: List of files in the directory.
+            symbols: Parsed symbols from the directory's files.
+            architecture_context: How this directory fits in architecture.
+
+        Returns:
+            GeneratedPage with directory content.
+        """
+        repo_name = self.repo.path.name
+
+        prompt = get_directory_prompt(
+            repo_name=repo_name,
+            directory_path=directory_path,
+            file_list=file_list,
+            symbols=symbols,
+            architecture_context=architecture_context,
+        )
+
+        content = await self.llm_client.generate(
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+        )
+
+        word_count = len(content.split())
+        slug = self._path_to_slug(directory_path)
+
+        return GeneratedPage(
+            content=content,
+            page_type="directory",
+            path=f"directories/{slug}.md",
+            word_count=word_count,
+            target=directory_path,
+        )
+
+    def _path_to_slug(self, path: str) -> str:
+        """Convert directory path to URL-safe slug.
+
+        Args:
+            path: Directory path.
+
+        Returns:
+            URL-safe slug.
+        """
+        slug = path.replace("/", "-").replace("\\", "-")
+        slug = re.sub(r"[^a-z0-9-]", "", slug.lower())
+        slug = re.sub(r"-+", "-", slug)
+        return slug.strip("-")
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_directory_generator.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+Add to `backend/src/oya/generation/__init__.py`:
+```python
+from oya.generation.directory import DirectoryGenerator
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_directory_generator.py
+git commit -m "feat(backend): add directory page generator"
+```
+
+---
+
+### Task 4.7: File Page Generator
+
+**Files:**
+- Create: `backend/src/oya/generation/file.py`
+- Create: `backend/tests/test_file_generator.py`
+- Modify: `backend/src/oya/generation/__init__.py` (add export)
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_file_generator.py
+"""File page generator tests."""
+
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from oya.generation.file import FileGenerator
+
+
+@pytest.fixture
+def mock_llm_client():
+    """Create mock LLM client."""
+    client = AsyncMock()
+    client.generate.return_value = "# login.py\n\nHandles user authentication."
+    return client
+
+
+@pytest.fixture
+def mock_repo():
+    """Create mock repository."""
+    repo = MagicMock()
+    repo.path = Path("/workspace/my-project")
+    return repo
+
+
+@pytest.fixture
+def generator(mock_llm_client, mock_repo):
+    """Create file generator."""
+    return FileGenerator(
+        llm_client=mock_llm_client,
+        repo=mock_repo,
+    )
+
+
+@pytest.mark.asyncio
+async def test_generates_file_page(generator, mock_llm_client):
+    """Generates file documentation markdown."""
+    result = await generator.generate(
+        file_path="src/auth/login.py",
+        content="def login(user, password): pass",
+        symbols=[{"name": "login", "type": "function", "line": 1}],
+        imports=["from flask import request"],
+        architecture_summary="Authentication module.",
+    )
+
+    assert result.content
+    mock_llm_client.generate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_returns_file_metadata(generator):
+    """Returns correct page metadata."""
+    result = await generator.generate(
+        file_path="src/main.py",
+        content="print('hello')",
+        symbols=[],
+        imports=[],
+        architecture_summary="",
+    )
+
+    assert result.page_type == "file"
+    assert "src-main-py" in result.path
+    assert result.target == "src/main.py"
+
+
+@pytest.mark.asyncio
+async def test_includes_language_in_prompt(generator, mock_llm_client):
+    """Includes language for syntax highlighting."""
+    await generator.generate(
+        file_path="src/app.ts",
+        content="const x = 1;",
+        symbols=[],
+        imports=[],
+        architecture_summary="",
+    )
+
+    call_args = mock_llm_client.generate.call_args
+    # The prompt should mention the file for context
+    assert "app.ts" in call_args.kwargs["prompt"]
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_file_generator.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement file generator**
+
+```python
+# backend/src/oya/generation/file.py
+"""File page generator."""
+
+import re
+from pathlib import Path
+
+from oya.generation.overview import GeneratedPage
+from oya.generation.prompts import SYSTEM_PROMPT, get_file_prompt
+
+
+# Extension to language mapping for syntax highlighting
+EXTENSION_LANGUAGES = {
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".jsx": "jsx",
+    ".java": "java",
+    ".go": "go",
+    ".rs": "rust",
+    ".rb": "ruby",
+    ".php": "php",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".h": "c",
+    ".hpp": "cpp",
+    ".cs": "csharp",
+    ".swift": "swift",
+    ".kt": "kotlin",
+    ".scala": "scala",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".zsh": "zsh",
+    ".sql": "sql",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".xml": "xml",
+    ".html": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".md": "markdown",
+}
+
+
+class FileGenerator:
+    """Generates file documentation pages.
+
+    File pages document individual source files, including
+    their purpose, exports, usage, and relationships.
+    """
+
+    def __init__(self, llm_client, repo):
+        """Initialize the file generator.
+
+        Args:
+            llm_client: LLM client for generation.
+            repo: Repository wrapper for context.
+        """
+        self.llm_client = llm_client
+        self.repo = repo
+
+    async def generate(
+        self,
+        file_path: str,
+        content: str,
+        symbols: list[dict],
+        imports: list[str],
+        architecture_summary: str,
+    ) -> GeneratedPage:
+        """Generate a file documentation page.
+
+        Args:
+            file_path: Path to the source file.
+            content: File content.
+            symbols: Parsed symbols from the file.
+            imports: Import statements from the file.
+            architecture_summary: Architecture context.
+
+        Returns:
+            GeneratedPage with file content.
+        """
+        language = self._detect_language(file_path)
+
+        prompt = get_file_prompt(
+            file_path=file_path,
+            content=content,
+            symbols=symbols,
+            imports=imports,
+            architecture_summary=architecture_summary,
+            language=language,
+        )
+
+        generated_content = await self.llm_client.generate(
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+        )
+
+        word_count = len(generated_content.split())
+        slug = self._path_to_slug(file_path)
+
+        return GeneratedPage(
+            content=generated_content,
+            page_type="file",
+            path=f"files/{slug}.md",
+            word_count=word_count,
+            target=file_path,
+        )
+
+    def _detect_language(self, file_path: str) -> str:
+        """Detect programming language from file extension.
+
+        Args:
+            file_path: Path to the file.
+
+        Returns:
+            Language name for syntax highlighting.
+        """
+        ext = Path(file_path).suffix.lower()
+        return EXTENSION_LANGUAGES.get(ext, "")
+
+    def _path_to_slug(self, path: str) -> str:
+        """Convert file path to URL-safe slug.
+
+        Args:
+            path: File path.
+
+        Returns:
+            URL-safe slug.
+        """
+        slug = path.replace("/", "-").replace("\\", "-")
+        slug = re.sub(r"[^a-z0-9-.]", "", slug.lower())
+        slug = re.sub(r"-+", "-", slug)
+        return slug.strip("-")
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_file_generator.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+Add to `backend/src/oya/generation/__init__.py`:
+```python
+from oya.generation.file import FileGenerator
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_file_generator.py
+git commit -m "feat(backend): add file page generator"
+```
+
+---
+
+### Task 4.8: Generation Orchestrator
+
+**Files:**
+- Create: `backend/src/oya/generation/orchestrator.py`
+- Create: `backend/tests/test_orchestrator.py`
+- Modify: `backend/src/oya/generation/__init__.py` (add export)
+
+**Step 1: Write the failing test**
+
+```python
+# backend/tests/test_orchestrator.py
+"""Generation orchestrator tests."""
+
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from oya.generation.orchestrator import (
+    GenerationOrchestrator,
+    GenerationPhase,
+    GenerationProgress,
+)
+
+
+@pytest.fixture
+def mock_llm_client():
+    """Create mock LLM client."""
+    client = AsyncMock()
+    client.generate.return_value = "# Generated Content"
+    return client
+
+
+@pytest.fixture
+def mock_repo():
+    """Create mock repository."""
+    repo = MagicMock()
+    repo.path = Path("/workspace/my-project")
+    repo.list_files.return_value = ["src/main.py", "README.md"]
+    repo.get_head_commit.return_value = "abc123"
+    return repo
+
+
+@pytest.fixture
+def mock_db():
+    """Create mock database."""
+    return MagicMock()
+
+
+@pytest.fixture
+def orchestrator(mock_llm_client, mock_repo, mock_db):
+    """Create orchestrator."""
+    return GenerationOrchestrator(
+        llm_client=mock_llm_client,
+        repo=mock_repo,
+        db=mock_db,
+        wiki_path=Path("/workspace/my-project/.coretechs/wiki"),
+    )
+
+
+def test_generation_phases_defined():
+    """Generation phases are properly defined."""
+    assert GenerationPhase.ANALYSIS.value == "analysis"
+    assert GenerationPhase.OVERVIEW.value == "overview"
+    assert GenerationPhase.ARCHITECTURE.value == "architecture"
+    assert GenerationPhase.WORKFLOWS.value == "workflows"
+    assert GenerationPhase.DIRECTORIES.value == "directories"
+    assert GenerationPhase.FILES.value == "files"
+
+
+@pytest.mark.asyncio
+async def test_runs_full_generation(orchestrator):
+    """Runs all generation phases."""
+    progress_events = []
+
+    async def progress_callback(progress: GenerationProgress):
+        progress_events.append(progress)
+
+    with patch.object(orchestrator, "_run_analysis", new_callable=AsyncMock):
+        with patch.object(orchestrator, "_run_overview", new_callable=AsyncMock):
+            with patch.object(orchestrator, "_run_architecture", new_callable=AsyncMock):
+                with patch.object(orchestrator, "_run_workflows", new_callable=AsyncMock):
+                    with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock):
+                        with patch.object(orchestrator, "_run_files", new_callable=AsyncMock):
+                            await orchestrator.run(progress_callback=progress_callback)
+
+    # Should have progress events for each phase
+    assert len(progress_events) >= 1
+
+
+@pytest.mark.asyncio
+async def test_emits_progress_events(orchestrator):
+    """Emits progress events during generation."""
+    progress_events = []
+
+    async def progress_callback(progress: GenerationProgress):
+        progress_events.append(progress)
+
+    # Run just analysis phase
+    with patch.object(orchestrator, "_run_analysis", new_callable=AsyncMock) as mock_analysis:
+        mock_analysis.return_value = {"files": [], "symbols": []}
+        with patch.object(orchestrator, "_run_overview", new_callable=AsyncMock):
+            with patch.object(orchestrator, "_run_architecture", new_callable=AsyncMock):
+                with patch.object(orchestrator, "_run_workflows", new_callable=AsyncMock):
+                    with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock):
+                        with patch.object(orchestrator, "_run_files", new_callable=AsyncMock):
+                            await orchestrator.run(progress_callback=progress_callback)
+
+    # Check progress events have expected fields
+    for event in progress_events:
+        assert hasattr(event, "phase")
+        assert hasattr(event, "message")
+
+
+@pytest.mark.asyncio
+async def test_saves_pages_to_wiki_path(orchestrator, mock_llm_client):
+    """Saves generated pages to wiki directory."""
+    with patch.object(orchestrator, "_run_analysis", new_callable=AsyncMock) as mock_analysis:
+        mock_analysis.return_value = {"files": [], "symbols": [], "file_tree": ""}
+        with patch.object(orchestrator, "_save_page", new_callable=AsyncMock) as mock_save:
+            with patch.object(orchestrator, "_run_workflows", new_callable=AsyncMock):
+                with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock):
+                    with patch.object(orchestrator, "_run_files", new_callable=AsyncMock):
+                        await orchestrator.run()
+
+            # Should have saved overview and architecture pages
+            assert mock_save.call_count >= 2
+```
+
+**Step 2: Run test to verify it fails**
+
+```bash
+pytest backend/tests/test_orchestrator.py -v
+```
+
+Expected: FAIL with import error
+
+**Step 3: Implement generation orchestrator**
+
+```python
+# backend/src/oya/generation/orchestrator.py
+"""Generation orchestrator for wiki pipeline."""
+
+import asyncio
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Callable
+from uuid import uuid4
+
+from oya.generation.architecture import ArchitectureGenerator
+from oya.generation.directory import DirectoryGenerator
+from oya.generation.file import FileGenerator
+from oya.generation.overview import GeneratedPage, OverviewGenerator
+from oya.generation.workflows import (
+    DiscoveredWorkflow,
+    WorkflowDiscovery,
+    WorkflowGenerator,
+)
+
+
+class GenerationPhase(Enum):
+    """Phases of the wiki generation pipeline."""
+
+    ANALYSIS = "analysis"
+    OVERVIEW = "overview"
+    ARCHITECTURE = "architecture"
+    WORKFLOWS = "workflows"
+    DIRECTORIES = "directories"
+    FILES = "files"
+
+
+@dataclass
+class GenerationProgress:
+    """Progress update during generation.
+
+    Attributes:
+        phase: Current generation phase.
+        step: Current step within the phase.
+        total_steps: Total steps in this phase.
+        message: Human-readable progress message.
+        timestamp: When this update occurred.
+    """
+
+    phase: GenerationPhase
+    step: int
+    total_steps: int
+    message: str
+    timestamp: datetime
+
+
+class GenerationOrchestrator:
+    """Orchestrates the wiki generation pipeline.
+
+    Coordinates all generation phases:
+    1. Analysis - Parse and index repository
+    2. Overview - Generate overview page
+    3. Architecture - Generate architecture page
+    4. Workflows - Discover and document workflows
+    5. Directories - Generate directory pages
+    6. Files - Generate file pages
+    """
+
+    def __init__(
+        self,
+        llm_client,
+        repo,
+        db,
+        wiki_path: Path,
+        parser_registry=None,
+    ):
+        """Initialize the orchestrator.
+
+        Args:
+            llm_client: LLM client for generation.
+            repo: Repository wrapper.
+            db: Database connection.
+            wiki_path: Path to wiki output directory.
+            parser_registry: Optional parser registry for code analysis.
+        """
+        self.llm_client = llm_client
+        self.repo = repo
+        self.db = db
+        self.wiki_path = wiki_path
+        self.parser_registry = parser_registry
+
+        # Initialize generators
+        self.overview_gen = OverviewGenerator(llm_client, repo)
+        self.architecture_gen = ArchitectureGenerator(llm_client, repo)
+        self.workflow_gen = WorkflowGenerator(llm_client, repo)
+        self.directory_gen = DirectoryGenerator(llm_client, repo)
+        self.file_gen = FileGenerator(llm_client, repo)
+
+        # Workflow discovery
+        self.workflow_discovery = WorkflowDiscovery()
+
+        # Generation state
+        self.job_id: str = ""
+        self.commit_hash: str = ""
+
+    async def run(
+        self,
+        progress_callback: Callable[[GenerationProgress], None] | None = None,
+    ) -> str:
+        """Run the full generation pipeline.
+
+        Args:
+            progress_callback: Optional callback for progress updates.
+
+        Returns:
+            Job ID for tracking.
+        """
+        self.job_id = str(uuid4())
+        self.commit_hash = self.repo.get_head_commit()
+
+        # Ensure wiki directory exists
+        self.wiki_path.mkdir(parents=True, exist_ok=True)
+
+        async def emit_progress(
+            phase: GenerationPhase,
+            step: int,
+            total: int,
+            message: str,
+        ):
+            if progress_callback:
+                progress = GenerationProgress(
+                    phase=phase,
+                    step=step,
+                    total_steps=total,
+                    message=message,
+                    timestamp=datetime.now(),
+                )
+                await progress_callback(progress)
+
+        # Phase 1: Analysis
+        await emit_progress(GenerationPhase.ANALYSIS, 1, 6, "Analyzing repository...")
+        analysis_result = await self._run_analysis()
+
+        # Phase 2: Overview
+        await emit_progress(GenerationPhase.OVERVIEW, 2, 6, "Generating overview...")
+        overview_page = await self._run_overview(analysis_result)
+        await self._save_page(overview_page)
+
+        # Phase 3: Architecture
+        await emit_progress(GenerationPhase.ARCHITECTURE, 3, 6, "Generating architecture...")
+        architecture_page = await self._run_architecture(analysis_result)
+        await self._save_page(architecture_page)
+
+        # Phase 4: Workflows
+        await emit_progress(GenerationPhase.WORKFLOWS, 4, 6, "Discovering workflows...")
+        await self._run_workflows(analysis_result)
+
+        # Phase 5: Directories
+        await emit_progress(GenerationPhase.DIRECTORIES, 5, 6, "Generating directory docs...")
+        await self._run_directories(analysis_result)
+
+        # Phase 6: Files
+        await emit_progress(GenerationPhase.FILES, 6, 6, "Generating file docs...")
+        await self._run_files(analysis_result)
+
+        return self.job_id
+
+    async def _run_analysis(self) -> dict:
+        """Run repository analysis phase.
+
+        Returns:
+            Dict with analysis results.
+        """
+        files = self.repo.list_files()
+        symbols: list[dict] = []
+        file_contents: dict[str, str] = {}
+
+        # Parse each file if parser registry available
+        if self.parser_registry:
+            for file_path in files:
+                try:
+                    content = (self.repo.path / file_path).read_text()
+                    file_contents[file_path] = content
+                    result = self.parser_registry.parse_file(
+                        Path(file_path), content
+                    )
+                    if result.ok and result.file:
+                        for sym in result.file.symbols:
+                            symbols.append({
+                                "file": file_path,
+                                "name": sym.name,
+                                "type": sym.symbol_type.value,
+                                "start_line": sym.start_line,
+                                "end_line": sym.end_line,
+                                "decorators": sym.decorators,
+                            })
+                except Exception:
+                    pass  # Skip files that can't be read/parsed
+
+        # Build file tree string
+        file_tree = "\n".join(files[:100])  # Limit for prompt
+
+        return {
+            "files": files,
+            "symbols": symbols,
+            "file_tree": file_tree,
+            "file_contents": file_contents,
+        }
+
+    async def _run_overview(self, analysis: dict) -> GeneratedPage:
+        """Run overview generation phase.
+
+        Args:
+            analysis: Analysis results.
+
+        Returns:
+            Generated overview page.
+        """
+        # Try to read README
+        readme_content = None
+        for readme_name in ["README.md", "readme.md", "README", "README.txt"]:
+            readme_path = self.repo.path / readme_name
+            if readme_path.exists():
+                try:
+                    readme_content = readme_path.read_text()
+                    break
+                except Exception:
+                    pass
+
+        # Try to read package info
+        package_info = {}
+        for pkg_file in ["package.json", "pyproject.toml", "Cargo.toml"]:
+            pkg_path = self.repo.path / pkg_file
+            if pkg_path.exists():
+                package_info["file"] = pkg_file
+                break
+
+        return await self.overview_gen.generate(
+            readme_content=readme_content,
+            file_tree=analysis["file_tree"],
+            package_info=package_info,
+        )
+
+    async def _run_architecture(self, analysis: dict) -> GeneratedPage:
+        """Run architecture generation phase.
+
+        Args:
+            analysis: Analysis results.
+
+        Returns:
+            Generated architecture page.
+        """
+        # Extract key symbols (classes, main functions, routes)
+        key_symbols = [
+            s for s in analysis["symbols"]
+            if s["type"] in ("class", "route", "cli_command")
+            or s["name"] in ("main", "app", "router")
+        ][:50]  # Limit for prompt
+
+        # Try to detect dependencies
+        dependencies: list[str] = []
+        # Could parse package.json, pyproject.toml, etc.
+
+        return await self.architecture_gen.generate(
+            file_tree=analysis["file_tree"],
+            key_symbols=key_symbols,
+            dependencies=dependencies,
+        )
+
+    async def _run_workflows(self, analysis: dict) -> list[GeneratedPage]:
+        """Run workflow discovery and generation phase.
+
+        Args:
+            analysis: Analysis results.
+
+        Returns:
+            List of generated workflow pages.
+        """
+        # Discover entry points
+        entry_points = self.workflow_discovery.find_entry_points(
+            analysis["symbols"]
+        )
+
+        # Group into workflows
+        workflows = self.workflow_discovery.group_into_workflows(
+            entry_points, {}
+        )
+
+        pages: list[GeneratedPage] = []
+        for workflow in workflows[:10]:  # Limit workflows
+            # Get code context for this workflow
+            code_context = ""
+            for file_path in workflow.related_files[:3]:
+                if file_path in analysis.get("file_contents", {}):
+                    code_context += f"\n# {file_path}\n"
+                    code_context += analysis["file_contents"][file_path][:2000]
+
+            page = await self.workflow_gen.generate(
+                workflow=workflow,
+                code_context=code_context,
+            )
+            await self._save_page(page)
+            pages.append(page)
+
+        return pages
+
+    async def _run_directories(self, analysis: dict) -> list[GeneratedPage]:
+        """Run directory documentation phase.
+
+        Args:
+            analysis: Analysis results.
+
+        Returns:
+            List of generated directory pages.
+        """
+        # Group files by directory
+        dir_files: dict[str, list[str]] = {}
+        for file_path in analysis["files"]:
+            dir_path = "/".join(file_path.split("/")[:-1]) or "."
+            if dir_path not in dir_files:
+                dir_files[dir_path] = []
+            dir_files[dir_path].append(file_path.split("/")[-1])
+
+        pages: list[GeneratedPage] = []
+        for dir_path, files in list(dir_files.items())[:20]:  # Limit dirs
+            if dir_path == ".":
+                continue  # Skip root
+
+            # Get symbols in this directory
+            dir_symbols = [
+                s for s in analysis["symbols"]
+                if s["file"].startswith(dir_path + "/")
+            ]
+
+            page = await self.directory_gen.generate(
+                directory_path=dir_path,
+                file_list=files,
+                symbols=dir_symbols[:20],
+                architecture_context="",
+            )
+            await self._save_page(page)
+            pages.append(page)
+
+        return pages
+
+    async def _run_files(self, analysis: dict) -> list[GeneratedPage]:
+        """Run file documentation phase.
+
+        Args:
+            analysis: Analysis results.
+
+        Returns:
+            List of generated file pages.
+        """
+        pages: list[GeneratedPage] = []
+        file_contents = analysis.get("file_contents", {})
+
+        for file_path in analysis["files"][:50]:  # Limit files
+            content = file_contents.get(file_path, "")
+            if not content:
+                continue
+
+            # Get symbols for this file
+            file_symbols = [
+                s for s in analysis["symbols"]
+                if s["file"] == file_path
+            ]
+
+            # Extract imports (simplified)
+            imports = [
+                s["name"] for s in file_symbols
+                if s["type"] == "import"
+            ]
+
+            page = await self.file_gen.generate(
+                file_path=file_path,
+                content=content[:5000],  # Limit content
+                symbols=file_symbols,
+                imports=imports,
+                architecture_summary="",
+            )
+            await self._save_page(page)
+            pages.append(page)
+
+        return pages
+
+    async def _save_page(self, page: GeneratedPage) -> None:
+        """Save a generated page to the wiki directory.
+
+        Args:
+            page: Generated page to save.
+        """
+        page_path = self.wiki_path / page.path
+        page_path.parent.mkdir(parents=True, exist_ok=True)
+        page_path.write_text(page.content)
+
+        # Record in database
+        if self.db:
+            self.db.execute(
+                """
+                INSERT OR REPLACE INTO wiki_pages
+                (path, type, target, generation_id, commit_hash, word_count, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'complete')
+                """,
+                (
+                    page.path,
+                    page.page_type,
+                    page.target,
+                    self.job_id,
+                    self.commit_hash,
+                    page.word_count,
+                ),
+            )
+            self.db.commit()
+```
+
+**Step 4: Run test to verify it passes**
+
+```bash
+pytest backend/tests/test_orchestrator.py -v
+```
+
+Expected: PASS
+
+**Step 5: Update exports**
+
+Add to `backend/src/oya/generation/__init__.py`:
+```python
+from oya.generation.orchestrator import (
+    GenerationOrchestrator,
+    GenerationPhase,
+    GenerationProgress,
+)
+```
+
+**Step 6: Commit**
+
+```bash
+git add backend/src/oya/generation/ backend/tests/test_orchestrator.py
+git commit -m "feat(backend): add generation orchestrator for wiki pipeline"
+```
+
+---
+
+**Phase 4 Summary:**
+
+Phase 4 implements the complete wiki generation pipeline:
+- Task 4.1: Prompt templates for consistent LLM prompting
+- Task 4.2: Content chunking for embedding and context management
+- Task 4.3: Overview page generator (repository introduction)
+- Task 4.4: Architecture page generator (system design docs)
+- Task 4.5: Workflow discovery and generation (execution flows)
+- Task 4.6: Directory page generator (module summaries)
+- Task 4.7: File page generator (individual file docs)
+- Task 4.8: Generation orchestrator (coordinates entire pipeline)
+
+---
+
+## Phase 5: API Endpoints
+
 The plan continues with:
-- Task 4.1: Prompt Templates
-- Task 4.2: Content Chunking
-- Task 4.3: Overview Page Generator
-- Task 4.4: Architecture Page Generator
-- Task 4.5: Workflow Discovery and Generation
-- Task 4.6: Directory Page Generator
-- Task 4.7: File Page Generator
-- Task 4.8: Generation Orchestrator
-- Phase 5: API Endpoints
+- Task 5.1: FastAPI Application Setup
+- Task 5.2: Repository Management Endpoints
+- Task 5.3: Wiki Page Endpoints
+- Task 5.4: Generation Job Endpoints
+- Task 5.5: SSE Progress Streaming
+- Task 5.6: Search Endpoints
 - Phase 6: Frontend Implementation
 - Phase 7: Q&A System
 - Phase 8: Notes/Correction System
