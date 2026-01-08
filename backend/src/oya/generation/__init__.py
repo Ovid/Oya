@@ -2,6 +2,7 @@
 """Wiki generation pipeline module."""
 
 from oya.generation.architecture import ArchitectureGenerator
+from oya.generation.directory import DirectoryGenerator
 from oya.generation.chunking import (
     Chunk,
     chunk_by_symbols,
@@ -35,6 +36,8 @@ from oya.generation.workflows import (
 __all__ = [
     # Architecture Generator
     "ArchitectureGenerator",
+    # Directory Generator
+    "DirectoryGenerator",
     # Chunking
     "Chunk",
     "chunk_by_symbols",
