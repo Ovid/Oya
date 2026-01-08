@@ -1,0 +1,100 @@
+"""File filtering tests."""
+
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from oya.repo.file_filter import FileFilter
+
+
+@pytest.fixture
+def temp_repo():
+    """Create temporary directory with various files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir)
+
+        # Create structure
+        (repo_path / "src").mkdir()
+        (repo_path / "src" / "main.py").write_text("code")
+        (repo_path / "node_modules").mkdir()
+        (repo_path / "node_modules" / "pkg").mkdir()
+        (repo_path / "node_modules" / "pkg" / "index.js").write_text("module")
+        (repo_path / "build").mkdir()
+        (repo_path / "build" / "output.js").write_text("built")
+        (repo_path / ".git").mkdir()
+        (repo_path / ".git" / "config").write_text("git")
+        (repo_path / "README.md").write_text("readme")
+
+        yield repo_path
+
+
+def test_default_excludes_node_modules(temp_repo: Path):
+    """Default patterns exclude node_modules."""
+    filter = FileFilter(temp_repo)
+
+    files = filter.get_files()
+
+    assert not any("node_modules" in f for f in files)
+
+
+def test_default_excludes_git(temp_repo: Path):
+    """Default patterns exclude .git."""
+    filter = FileFilter(temp_repo)
+
+    files = filter.get_files()
+
+    assert not any(".git" in f for f in files)
+
+
+def test_default_excludes_build(temp_repo: Path):
+    """Default patterns exclude build directories."""
+    filter = FileFilter(temp_repo)
+
+    files = filter.get_files()
+
+    assert not any("build" in f for f in files)
+
+
+def test_includes_source_files(temp_repo: Path):
+    """Includes regular source files."""
+    filter = FileFilter(temp_repo)
+
+    files = filter.get_files()
+
+    assert "src/main.py" in files
+    assert "README.md" in files
+
+
+def test_oyaignore_adds_custom_patterns(temp_repo: Path):
+    """Custom .oyaignore patterns are applied."""
+    # Create .oyaignore
+    (temp_repo / ".oyaignore").write_text("*.md\n")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "README.md" not in files
+    assert "src/main.py" in files
+
+
+def test_respects_max_file_size(temp_repo: Path):
+    """Files over max size are excluded."""
+    # Create large file
+    (temp_repo / "large.txt").write_text("x" * 1000)
+
+    filter = FileFilter(temp_repo, max_file_size_kb=0.5)  # 0.5 KB
+    files = filter.get_files()
+
+    assert "large.txt" not in files
+
+
+def test_excludes_binary_files(temp_repo: Path):
+    """Binary files are excluded."""
+    # Create a binary file (with null bytes)
+    (temp_repo / "image.bin").write_bytes(b"\x00\x01\x02\x03")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "image.bin" not in files
