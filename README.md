@@ -2,6 +2,14 @@
 
 A local-first, editable wiki generator for codebases. Oya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
 
+# Who is Oya?
+
+Ọya (Yorùbá: Ọya, also known as Oyá, Oiá, Yànsàn-án, Yansã, Iyámsá, or Iansã)
+is one of the principal female deities of the Yoruba pantheon. She is the
+orisha of winds, lightning, and storms, and is the only orisha capable
+of controlling the Eégún (spirits of the dead), a power given to her by Babalú
+Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
+
 ## Features
 
 - **Automatic Wiki Generation** - Generates overview, architecture, workflow, directory, and file documentation from your codebase

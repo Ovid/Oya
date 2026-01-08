@@ -98,3 +98,42 @@ def test_excludes_binary_files(temp_repo: Path):
     files = filter.get_files()
 
     assert "image.bin" not in files
+
+
+def test_oyaignore_directory_with_trailing_slash(temp_repo: Path):
+    """Directory patterns with trailing slash are correctly excluded."""
+    # Create docs directory with files
+    (temp_repo / "docs").mkdir()
+    (temp_repo / "docs" / "plan.md").write_text("plan content")
+    (temp_repo / "docs" / "design.md").write_text("design content")
+    (temp_repo / "docs" / "nested").mkdir()
+    (temp_repo / "docs" / "nested" / "deep.md").write_text("deep content")
+
+    # Create .oyaignore with trailing slash pattern
+    (temp_repo / ".oyaignore").write_text("docs/\n")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    # All docs files should be excluded
+    assert not any("docs" in f for f in files)
+    # But other files should still be included
+    assert "src/main.py" in files
+    assert "README.md" in files
+
+
+def test_oyaignore_directory_without_trailing_slash(temp_repo: Path):
+    """Directory patterns without trailing slash also work."""
+    # Create docs directory with files
+    (temp_repo / "docs").mkdir()
+    (temp_repo / "docs" / "plan.md").write_text("plan content")
+
+    # Create .oyaignore without trailing slash
+    (temp_repo / ".oyaignore").write_text("docs\n")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    # Docs files should be excluded
+    assert not any("docs" in f for f in files)
+    assert "src/main.py" in files

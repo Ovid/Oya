@@ -8,6 +8,7 @@ from oya.api.schemas import RepoStatus, JobCreated
 from oya.repo.git_repo import GitRepo
 from oya.db.connection import Database
 from oya.config import Settings
+from oya.generation.orchestrator import GenerationProgress
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
@@ -48,13 +49,13 @@ async def init_repo(
     """Initialize repository and start wiki generation."""
     job_id = str(uuid.uuid4())
 
-    # Record job in database
+    # Record job in database (6 phases: analysis, overview, architecture, workflows, directories, files)
     db.execute(
         """
-        INSERT INTO generations (id, type, status, started_at)
-        VALUES (?, ?, ?, datetime('now'))
+        INSERT INTO generations (id, type, status, started_at, total_phases)
+        VALUES (?, ?, ?, datetime('now'), ?)
         """,
-        (job_id, "full", "pending"),
+        (job_id, "full", "pending", 6),
     )
     db.commit()
 
@@ -74,16 +75,45 @@ async def _run_generation(
     from oya.generation.orchestrator import GenerationOrchestrator
     from oya.llm.client import LLMClient
 
+    # Phase number mapping for progress tracking
+    phase_numbers = {
+        "analysis": 1,
+        "overview": 2,
+        "architecture": 3,
+        "workflows": 4,
+        "directories": 5,
+        "files": 6,
+    }
+
+    async def progress_callback(progress: GenerationProgress) -> None:
+        """Update database with current progress."""
+        phase_name = progress.phase.value
+        phase_num = phase_numbers.get(phase_name, 0)
+        db.execute(
+            """
+            UPDATE generations
+            SET current_phase = ?, status = 'running'
+            WHERE id = ?
+            """,
+            (f"{phase_num}:{phase_name}", job_id),
+        )
+        db.commit()
+
     try:
         # Update status to running
         db.execute(
-            "UPDATE generations SET status = 'running' WHERE id = ?",
+            "UPDATE generations SET status = 'running', current_phase = '0:starting' WHERE id = ?",
             (job_id,),
         )
         db.commit()
 
         # Create orchestrator and run
-        llm = LLMClient()
+        llm = LLMClient(
+            provider=settings.llm_provider,
+            model=settings.llm_model,
+            api_key=settings.llm_api_key,
+            endpoint=settings.llm_endpoint,
+        )
         orchestrator = GenerationOrchestrator(
             llm_client=llm,
             repo=repo,
@@ -91,7 +121,7 @@ async def _run_generation(
             wiki_path=settings.wiki_path,
         )
 
-        await orchestrator.run()
+        await orchestrator.run(progress_callback=progress_callback)
 
         # Update status to completed
         db.execute(

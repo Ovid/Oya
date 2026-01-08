@@ -14,6 +14,7 @@ from oya.generation.file import FileGenerator
 from oya.generation.overview import GeneratedPage, OverviewGenerator
 from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
 from oya.parsing.registry import ParserRegistry
+from oya.repo.file_filter import FileFilter
 
 
 class GenerationPhase(Enum):
@@ -197,7 +198,9 @@ class GenerationOrchestrator:
         Returns:
             Analysis results with files, symbols, file_tree, file_contents.
         """
-        files = self.repo.list_files()
+        # Use FileFilter to respect .oyaignore and default exclusions
+        file_filter = FileFilter(self.repo.path)
+        files = file_filter.get_files()
         symbols: list[dict] = []
         file_contents: dict[str, str] = {}
 

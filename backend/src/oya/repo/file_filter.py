@@ -79,13 +79,22 @@ class FileFilter:
         parts = path.split("/")
 
         for pattern in self.exclude_patterns:
-            # Check each path component
-            for part in parts:
-                if fnmatch.fnmatch(part, pattern):
+            # Handle directory patterns (trailing slash means directory)
+            # e.g., "docs/" should match any path starting with "docs/"
+            if pattern.endswith("/"):
+                dir_pattern = pattern.rstrip("/")
+                # Check if any path component matches the directory pattern
+                for part in parts:
+                    if fnmatch.fnmatch(part, dir_pattern):
+                        return True
+            else:
+                # Check each path component
+                for part in parts:
+                    if fnmatch.fnmatch(part, pattern):
+                        return True
+                # Check full path
+                if fnmatch.fnmatch(path, pattern):
                     return True
-            # Check full path
-            if fnmatch.fnmatch(path, pattern):
-                return True
 
         return False
 
