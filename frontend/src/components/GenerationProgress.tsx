@@ -35,7 +35,16 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
   const [totalPhases, setTotalPhases] = useState<number>(6);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [startTime] = useState<Date>(new Date());
+  const [elapsed, setElapsed] = useState<number>(0);
   const lastPhaseRef = useRef<string>('');
+
+  // Update elapsed time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [startTime]);
 
   useEffect(() => {
     const cleanup = streamJobProgress(
@@ -88,7 +97,6 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
 
   const phaseInfo = PHASES[currentPhase] || { name: currentPhase, description: 'Processing...' };
   const progress = totalPhases > 0 ? (currentPhaseNum / totalPhases) * 100 : 0;
-  const elapsed = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
   const elapsedStr = elapsed < 60
     ? `${elapsed}s`
     : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;

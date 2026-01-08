@@ -65,6 +65,8 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
 
   const handleGenerationComplete = useCallback(async () => {
     setGeneratingJobId(null);
+    // Clear the current job from global state
+    dispatch({ type: 'SET_CURRENT_JOB', payload: null });
     // Refresh the wiki tree and reload the page
     await refreshTree();
     // Re-trigger page load
@@ -88,7 +90,9 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   const handleGenerationError = useCallback((errorMessage: string) => {
     setGeneratingJobId(null);
     setGenerationError(errorMessage);
-  }, []);
+    // Clear the current job from global state
+    dispatch({ type: 'SET_CURRENT_JOB', payload: null });
+  }, [dispatch]);
 
   if (loading) {
     return (
