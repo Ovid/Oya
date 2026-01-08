@@ -1,20 +1,45 @@
-function App() {
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AppProvider } from './context/AppContext';
+import { Layout } from './components/Layout';
+import {
+  OverviewPage,
+  ArchitecturePage,
+  WorkflowPage,
+  DirectoryPage,
+  FilePage,
+} from './components/pages';
+
+function WelcomePage() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="px-4 py-3">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Oya
-          </h1>
-        </div>
-      </header>
-      <main className="p-4">
-        <p className="text-gray-600 dark:text-gray-300">
-          Wiki generator loading...
-        </p>
-      </main>
+    <div className="text-center py-12">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        Welcome to Oya
+      </h1>
+      <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+        Generate comprehensive documentation for your codebase.
+        Click "Generate Wiki" to get started.
+      </p>
     </div>
-  )
+  );
 }
 
-export default App
+function App() {
+  return (
+    <BrowserRouter>
+      <AppProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/architecture" element={<ArchitecturePage />} />
+            <Route path="/workflows/:slug" element={<WorkflowPage />} />
+            <Route path="/directories/:slug" element={<DirectoryPage />} />
+            <Route path="/files/:slug" element={<FilePage />} />
+            <Route path="/welcome" element={<WelcomePage />} />
+          </Routes>
+        </Layout>
+      </AppProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
