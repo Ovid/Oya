@@ -1,6 +1,7 @@
 # backend/src/oya/generation/__init__.py
 """Wiki generation pipeline module."""
 
+from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.chunking import (
     Chunk,
     chunk_by_symbols,
@@ -27,6 +28,8 @@ from oya.generation.prompts import (
 )
 
 __all__ = [
+    # Architecture Generator
+    "ArchitectureGenerator",
     # Chunking
     "Chunk",
     "chunk_by_symbols",
