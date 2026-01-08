@@ -15,7 +15,7 @@ DEFAULT_EXCLUDES = [
     ".venv",
     "venv",
     "__pycache__",
-    ".pyc",
+    "*.pyc",
     # Build outputs
     "build",
     "dist",

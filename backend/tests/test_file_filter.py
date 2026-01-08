@@ -87,3 +87,14 @@ def test_respects_max_file_size(temp_repo: Path):
     files = filter.get_files()
 
     assert "large.txt" not in files
+
+
+def test_excludes_binary_files(temp_repo: Path):
+    """Binary files are excluded."""
+    # Create a binary file (with null bytes)
+    (temp_repo / "image.bin").write_bytes(b"\x00\x01\x02\x03")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "image.bin" not in files
