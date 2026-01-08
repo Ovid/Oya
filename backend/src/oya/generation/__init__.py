@@ -1,0 +1,32 @@
+# backend/src/oya/generation/__init__.py
+"""Wiki generation pipeline module."""
+
+from oya.generation.prompts import (
+    ARCHITECTURE_TEMPLATE,
+    DIRECTORY_TEMPLATE,
+    FILE_TEMPLATE,
+    OVERVIEW_TEMPLATE,
+    SYSTEM_PROMPT,
+    WORKFLOW_TEMPLATE,
+    PromptTemplate,
+    get_architecture_prompt,
+    get_directory_prompt,
+    get_file_prompt,
+    get_overview_prompt,
+    get_workflow_prompt,
+)
+
+__all__ = [
+    "ARCHITECTURE_TEMPLATE",
+    "DIRECTORY_TEMPLATE",
+    "FILE_TEMPLATE",
+    "OVERVIEW_TEMPLATE",
+    "SYSTEM_PROMPT",
+    "WORKFLOW_TEMPLATE",
+    "PromptTemplate",
+    "get_architecture_prompt",
+    "get_directory_prompt",
+    "get_file_prompt",
+    "get_overview_prompt",
+    "get_workflow_prompt",
+]
