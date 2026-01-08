@@ -9,6 +9,7 @@ from oya.parsing.models import (
 from oya.parsing.base import BaseParser
 from oya.parsing.python_parser import PythonParser
 from oya.parsing.typescript_parser import TypeScriptParser
+from oya.parsing.java_parser import JavaParser
 
 __all__ = [
     "ParsedSymbol",
@@ -18,4 +19,5 @@ __all__ = [
     "BaseParser",
     "PythonParser",
     "TypeScriptParser",
+    "JavaParser",
 ]
