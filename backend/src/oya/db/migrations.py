@@ -3,7 +3,7 @@
 from oya.db.connection import Database
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -45,10 +45,11 @@ CREATE TABLE IF NOT EXISTS wiki_pages (
 -- Notes registry (human corrections)
 -- Tracks all correction notes with their scope and targeting
 CREATE TABLE IF NOT EXISTS notes (
-    id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     filepath TEXT NOT NULL UNIQUE,  -- Path relative to .coretechs/notes/
-    scope TEXT NOT NULL,  -- 'file', 'directory', 'workflow', 'architecture', 'general'
+    scope TEXT NOT NULL,  -- 'file', 'directory', 'workflow', 'general'
     target TEXT,  -- Target path or identifier
+    content TEXT,  -- Note content (for search and display)
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     author TEXT,
     git_branch TEXT,

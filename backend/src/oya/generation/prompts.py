@@ -40,6 +40,10 @@ clear, accurate, and helpful documentation for codebases. Follow these guideline
 5. Highlight important patterns, dependencies, and relationships
 6. Note any potential issues, TODOs, or areas for improvement
 
+IMPORTANT: If human correction notes are provided, they represent ground truth from
+the developer. You MUST integrate these corrections naturally into your documentation.
+Human notes override any inference you might make from the code.
+
 Output your documentation in clean Markdown format."""
 
 
@@ -401,6 +405,7 @@ def get_file_prompt(
     imports: list[str],
     architecture_summary: str,
     language: str = "",
+    notes: list[dict[str, Any]] | None = None,
 ) -> str:
     """Generate a prompt for creating a file documentation page.
 
@@ -411,11 +416,12 @@ def get_file_prompt(
         imports: List of import statements.
         architecture_summary: Summary of how this file fits in the architecture.
         language: Programming language for syntax highlighting.
+        notes: Optional list of correction notes affecting this file.
 
     Returns:
         The rendered prompt string.
     """
-    return FILE_TEMPLATE.render(
+    prompt = FILE_TEMPLATE.render(
         file_path=file_path,
         content=content,
         symbols=_format_symbols(symbols),
@@ -423,3 +429,101 @@ def get_file_prompt(
         architecture_summary=architecture_summary or "No architecture context provided.",
         language=language,
     )
+
+    if notes:
+        prompt = _add_notes_to_prompt(prompt, notes)
+
+    return prompt
+
+
+def _format_notes(notes: list[dict[str, Any]]) -> str:
+    """Format notes for inclusion in a prompt.
+
+    Args:
+        notes: List of note dictionaries with content, author, created_at.
+
+    Returns:
+        Formatted string representation of notes.
+    """
+    if not notes:
+        return ""
+
+    lines = ["## Developer Corrections (Ground Truth)", ""]
+    lines.append("The following corrections have been provided by developers and MUST be incorporated:")
+    lines.append("")
+
+    for i, note in enumerate(notes, 1):
+        content = note.get("content", "")
+        author = note.get("author", "Unknown")
+        created_at = note.get("created_at", "")
+
+        lines.append(f"### Correction {i}")
+        if author:
+            lines.append(f"*From: {author}*")
+        if created_at:
+            lines.append(f"*Date: {created_at}*")
+        lines.append("")
+        lines.append(content)
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _add_notes_to_prompt(prompt: str, notes: list[dict[str, Any]]) -> str:
+    """Add notes section to a prompt.
+
+    Args:
+        prompt: Original prompt.
+        notes: List of correction notes.
+
+    Returns:
+        Prompt with notes section added.
+    """
+    notes_section = _format_notes(notes)
+    if notes_section:
+        # Insert notes before the "---" separator
+        if "---" in prompt:
+            parts = prompt.split("---", 1)
+            return parts[0] + notes_section + "\n---" + parts[1]
+        else:
+            return prompt + "\n\n" + notes_section
+
+    return prompt
+
+
+def get_notes_for_target(
+    db: Any,
+    scope: str,
+    target: str,
+) -> list[dict[str, Any]]:
+    """Load notes that affect a specific target.
+
+    Args:
+        db: Database connection.
+        scope: Note scope ('file', 'directory', 'workflow', 'general').
+        target: Target path.
+
+    Returns:
+        List of note dictionaries.
+    """
+    # Query notes by scope and target
+    sql = """
+        SELECT content, author, created_at
+        FROM notes
+        WHERE (scope = ? AND target = ?)
+           OR scope = 'general'
+        ORDER BY created_at DESC
+    """
+
+    try:
+        cursor = db.execute(sql, (scope, target))
+        notes = []
+        for row in cursor.fetchall():
+            notes.append({
+                "content": row["content"],
+                "author": row["author"],
+                "created_at": row["created_at"],
+            })
+        return notes
+    except Exception:
+        return []

@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from oya.api.routers import repos, wiki, jobs, search, qa
+from oya.api.routers import repos, wiki, jobs, search, qa, notes
 
 app = FastAPI(
     title="Oya",
@@ -33,3 +33,4 @@ app.include_router(wiki.router)
 app.include_router(jobs.router)
 app.include_router(search.router)
 app.include_router(qa.router)
+app.include_router(notes.router)
