@@ -26,6 +26,11 @@ from oya.generation.prompts import (
     get_overview_prompt,
     get_workflow_prompt,
 )
+from oya.generation.workflows import (
+    DiscoveredWorkflow,
+    WorkflowDiscovery,
+    WorkflowGenerator,
+)
 
 __all__ = [
     # Architecture Generator
@@ -51,4 +56,8 @@ __all__ = [
     "get_file_prompt",
     "get_overview_prompt",
     "get_workflow_prompt",
+    # Workflow Discovery and Generation
+    "DiscoveredWorkflow",
+    "WorkflowDiscovery",
+    "WorkflowGenerator",
 ]
