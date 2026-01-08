@@ -103,6 +103,22 @@ type UserMap = Record<string, User>;
     assert "UserMap" in names
 
 
+def test_parses_enum(parser):
+    """Extracts TypeScript enums."""
+    code = '''
+enum Status {
+    PENDING,
+    ACTIVE,
+    COMPLETED
+}
+'''
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    enum_sym = next(s for s in result.file.symbols if s.symbol_type == SymbolType.ENUM)
+    assert enum_sym.name == "Status"
+
+
 def test_parses_imports(parser):
     """Extracts import statements."""
     code = '''

@@ -142,6 +142,9 @@ class TypeScriptParser(BaseParser):
         elif node_type == "type_alias_declaration":
             self._extract_type_alias(node, symbols, content)
             skip_children = True
+        elif node_type == "enum_declaration":
+            self._extract_enum(node, symbols, content)
+            skip_children = True
         elif node_type == "import_statement":
             self._extract_import(node, imports, content)
             skip_children = True
@@ -372,6 +375,36 @@ class TypeScriptParser(BaseParser):
             )
         )
 
+    def _extract_enum(
+        self,
+        node,
+        symbols: list[ParsedSymbol],
+        content: str,
+    ) -> None:
+        """Extract a TypeScript enum declaration.
+
+        Args:
+            node: The enum_declaration node.
+            symbols: List to append the symbol.
+            content: Original source content.
+        """
+        name_node = node.child_by_field_name("name")
+        if not name_node:
+            return
+
+        name = self._get_node_text(name_node, content)
+        start_line = node.start_point[0] + 1
+        end_line = node.end_point[0] + 1
+
+        symbols.append(
+            ParsedSymbol(
+                name=name,
+                symbol_type=SymbolType.ENUM,
+                start_line=start_line,
+                end_line=end_line,
+            )
+        )
+
     def _extract_import(
         self,
         node,
@@ -443,6 +476,12 @@ class TypeScriptParser(BaseParser):
                     name = self._get_node_text(name_node, content)
                     exports.append(name)
                 self._extract_type_alias(child, symbols, content)
+            elif child.type == "enum_declaration":
+                name_node = child.child_by_field_name("name")
+                if name_node:
+                    name = self._get_node_text(name_node, content)
+                    exports.append(name)
+                self._extract_enum(child, symbols, content)
 
     def _get_node_text(self, node, content: str) -> str:
         """Get the text content of a tree-sitter node.
