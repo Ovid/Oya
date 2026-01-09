@@ -48,6 +48,55 @@ Output your documentation in clean Markdown format."""
 
 
 # =============================================================================
+# Synthesis Template
+# =============================================================================
+
+SYNTHESIS_TEMPLATE = PromptTemplate(
+    """Synthesize the following file and directory summaries into a coherent understanding of the codebase.
+
+## File Summaries
+{file_summaries}
+
+## Directory Summaries
+{directory_summaries}
+
+---
+
+Analyze the summaries above and produce a JSON response with the following structure:
+
+```json
+{{
+  "key_components": [
+    {{
+      "name": "ComponentName",
+      "file": "path/to/file.py",
+      "role": "Description of what this component does and why it's important",
+      "layer": "api|domain|infrastructure|utility|config|test"
+    }}
+  ],
+  "dependency_graph": {{
+    "layer_name": ["dependent_layer1", "dependent_layer2"]
+  }},
+  "project_summary": "A comprehensive 2-3 sentence summary of what this project does, its main purpose, and key technologies used."
+}}
+```
+
+Guidelines:
+1. **key_components**: Identify the 5-15 most important classes, functions, or modules that form the backbone of the system. Focus on:
+   - Entry points and main orchestrators
+   - Core domain models and services
+   - Key infrastructure components
+   - Important utilities used throughout
+
+2. **dependency_graph**: Map which layers depend on which other layers. For example, "api" typically depends on "domain", and "domain" may depend on "infrastructure".
+
+3. **project_summary**: Write a clear, informative summary that would help a new developer understand what this codebase does at a glance.
+
+Respond with valid JSON only, no additional text."""
+)
+
+
+# =============================================================================
 # Overview Template
 # =============================================================================
 
@@ -358,6 +407,34 @@ def _format_file_summaries(file_summaries: list[Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_directory_summaries(directory_summaries: list[Any]) -> str:
+    """Format a list of DirectorySummaries for inclusion in a prompt.
+
+    Args:
+        directory_summaries: List of DirectorySummary objects.
+
+    Returns:
+        Formatted string representation of directory summaries.
+    """
+    if not directory_summaries:
+        return "No directory summaries available."
+
+    lines = []
+    for summary in directory_summaries:
+        lines.append(f"### {summary.directory_path}")
+        lines.append(f"- **Purpose**: {summary.purpose}")
+        if summary.contains:
+            files = ", ".join(summary.contains[:10])  # Limit to first 10
+            if len(summary.contains) > 10:
+                files += f" (and {len(summary.contains) - 10} more)"
+            lines.append(f"- **Contains**: {files}")
+        if summary.role_in_system:
+            lines.append(f"- **Role in System**: {summary.role_in_system}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def get_overview_prompt(
     repo_name: str,
     readme_content: str,
@@ -611,3 +688,22 @@ def get_notes_for_target(
         return notes
     except Exception:
         return []
+
+
+def get_synthesis_prompt(
+    file_summaries: list[Any],
+    directory_summaries: list[Any],
+) -> str:
+    """Generate a prompt for synthesizing summaries into a codebase understanding.
+
+    Args:
+        file_summaries: List of FileSummary objects.
+        directory_summaries: List of DirectorySummary objects.
+
+    Returns:
+        The rendered prompt string.
+    """
+    return SYNTHESIS_TEMPLATE.render(
+        file_summaries=_format_file_summaries(file_summaries),
+        directory_summaries=_format_directory_summaries(directory_summaries),
+    )
