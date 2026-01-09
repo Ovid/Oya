@@ -294,6 +294,36 @@ class GenerationOrchestrator:
 
         return False, signature_hash
 
+    def _should_regenerate_synthesis(
+        self,
+        files_regenerated: bool,
+        directories_regenerated: bool,
+    ) -> bool:
+        """Check if synthesis needs to be regenerated.
+
+        Synthesis should be regenerated when:
+        - Any file's documentation was regenerated (cascade from files)
+        - Any directory's documentation was regenerated (cascade from directories)
+        - No existing synthesis.json exists
+
+        Args:
+            files_regenerated: True if any file was regenerated.
+            directories_regenerated: True if any directory was regenerated.
+
+        Returns:
+            True if synthesis should be regenerated.
+        """
+        # If any files or directories were regenerated, synthesis must be regenerated
+        if files_regenerated or directories_regenerated:
+            return True
+
+        # Check if synthesis.json exists
+        synthesis_path = self.meta_path / "synthesis.json"
+        if not synthesis_path.exists():
+            return True
+
+        return False
+
     async def run(
         self,
         progress_callback: ProgressCallback | None = None,
@@ -307,6 +337,10 @@ class GenerationOrchestrator:
         - Directory documentation uses file summaries for context
         - Synthesis combines all summaries into a coherent codebase map
         - Architecture and Overview use the synthesis map for accurate context
+
+        Cascade behavior (Requirement 7.2):
+        - If any file is regenerated, synthesis is regenerated
+        - If synthesis is regenerated, architecture and overview are regenerated
 
         Args:
             progress_callback: Optional async callback for progress updates.
@@ -336,6 +370,9 @@ class GenerationOrchestrator:
         for page in file_pages:
             await self._save_page(page)
 
+        # Track if any files were regenerated (for cascade)
+        files_regenerated = len(file_pages) > 0
+
         # Phase 3: Directories (uses file_hashes for signature computation and file_summaries for context)
         directory_pages, directory_summaries = await self._run_directories(
             analysis, file_hashes, progress_callback, file_summaries=file_summaries
@@ -343,15 +380,38 @@ class GenerationOrchestrator:
         for page in directory_pages:
             await self._save_page(page)
 
+        # Track if any directories were regenerated (for cascade)
+        directories_regenerated = len(directory_pages) > 0
+
         # Phase 4: Synthesis (combine file and directory summaries into SynthesisMap)
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.SYNTHESIS,
-                message="Synthesizing codebase understanding...",
-            ),
+        # Cascade: regenerate synthesis if any files or directories were regenerated
+        should_regenerate_synthesis = self._should_regenerate_synthesis(
+            files_regenerated, directories_regenerated
         )
-        synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
+
+        if should_regenerate_synthesis:
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.SYNTHESIS,
+                    message="Synthesizing codebase understanding...",
+                ),
+            )
+            synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
+        else:
+            # Load existing synthesis map
+            from oya.generation.synthesis import load_synthesis_map
+            synthesis_map, _ = load_synthesis_map(str(self.meta_path))
+            if synthesis_map is None:
+                # Fallback: regenerate if loading fails
+                await self._emit_progress(
+                    progress_callback,
+                    GenerationProgress(
+                        phase=GenerationPhase.SYNTHESIS,
+                        message="Synthesizing codebase understanding...",
+                    ),
+                )
+                synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
 
         # Phase 5: Architecture (uses SynthesisMap as primary context)
         await self._emit_progress(

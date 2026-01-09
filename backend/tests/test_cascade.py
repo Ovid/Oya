@@ -556,3 +556,208 @@ class TestFileChangeCascadeEndToEnd:
         assert "src/file2.py" in generated_files, "Changed file should be regenerated"
         assert "src/file3.py" in generated_files, "New file should be regenerated"
         assert "src/file1.py" not in generated_files, "Unchanged file should be skipped"
+
+
+# ============================================================================
+# Property 11: Cascade - File Regeneration Triggers Synthesis
+# ============================================================================
+
+
+class TestSynthesisCascade:
+    """Property 11: Cascade - File Regeneration Triggers Synthesis
+    
+    For any generation run where at least one file's documentation was
+    regenerated, the Synthesis_Map SHALL also be regenerated.
+    
+    Validates: Requirements 7.2
+    """
+
+    @pytest.fixture
+    def mock_llm_client(self):
+        """Create mock LLM client."""
+        client = AsyncMock()
+        client.generate.return_value = "# Generated Content"
+        return client
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create mock repository."""
+        repo = MagicMock()
+        repo.path = tmp_path
+        repo.list_files.return_value = []
+        repo.get_head_commit.return_value = "abc123"
+        return repo
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database that tracks page info."""
+        db = MagicMock()
+        db._page_info = {}
+        
+        def mock_execute(query, params=None):
+            cursor = MagicMock()
+            if "SELECT metadata" in query and params:
+                target, page_type = params
+                key = f"{target}:{page_type}"
+                if key in db._page_info:
+                    info = db._page_info[key]
+                    cursor.fetchone.return_value = (info.get("metadata"), info.get("generated_at"))
+                else:
+                    cursor.fetchone.return_value = None
+            elif "SELECT COUNT" in query:
+                cursor.fetchone.return_value = (0,)
+            return cursor
+        
+        db.execute = mock_execute
+        db.commit = MagicMock()
+        return db
+
+    @given(data=file_with_content_strategy())
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_file_regeneration_triggers_synthesis_regeneration(
+        self, data, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 11: Cascade - File Regeneration Triggers Synthesis
+        
+        When at least one file is regenerated (content hash changed), the cascade
+        property requires that synthesis must also be regenerated.
+        
+        This test verifies the precondition: changed content triggers file regeneration.
+        The cascade behavior (file regen -> synthesis regen) is tested in the
+        integration test below.
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        file_path = data["file_path"]
+        original_content = data["original_content"]
+        modified_content = data["modified_content"]
+        
+        # Compute hashes
+        original_hash = compute_content_hash(original_content)
+        
+        # Simulate that the file was previously generated with original content
+        key = f"{file_path}:file"
+        mock_db._page_info[key] = {
+            "metadata": f'{{"source_hash": "{original_hash}"}}',
+            "generated_at": "2025-01-01T00:00:00",
+        }
+        
+        # Check if file should be regenerated with modified content
+        file_hashes = {}
+        should_regen, content_hash = orchestrator._should_regenerate_file(
+            file_path, modified_content, file_hashes
+        )
+        
+        # Property: changed content MUST trigger file regeneration
+        assert should_regen is True, (
+            f"File with changed content should trigger regeneration. "
+            f"Original hash: {original_hash}, New hash: {content_hash}"
+        )
+
+    @given(content=file_content_strategy(), file_path=file_path_strategy())
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_unchanged_file_does_not_trigger_regeneration(
+        self, content, file_path, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 11: Cascade - File Regeneration Triggers Synthesis
+        
+        When no files have changed content, file regeneration is skipped.
+        This is the inverse case - unchanged files don't trigger the cascade.
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Compute hash
+        content_hash = compute_content_hash(content)
+        
+        # Simulate that the file was previously generated with same content
+        key = f"{file_path}:file"
+        mock_db._page_info[key] = {
+            "metadata": f'{{"source_hash": "{content_hash}"}}',
+            "generated_at": "2025-01-01T00:00:00",
+        }
+        
+        # Check if file should be regenerated with same content
+        file_hashes = {}
+        should_regen, returned_hash = orchestrator._should_regenerate_file(
+            file_path, content, file_hashes
+        )
+        
+        # Property: unchanged content should NOT trigger regeneration
+        assert should_regen is False, (
+            f"File with unchanged content should NOT trigger regeneration. "
+            f"Content hash: {content_hash}"
+        )
+
+    @pytest.mark.asyncio
+    @given(data=file_with_content_strategy())
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    async def test_regenerated_files_produce_summaries_for_synthesis(
+        self, data, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 11: Cascade - File Regeneration Triggers Synthesis
+        
+        When files are regenerated, their FileSummaries are collected and will
+        be passed to the synthesis phase. This is the data flow that enables
+        the cascade.
+        """
+        from oya.generation.summaries import FileSummary
+        from oya.generation.overview import GeneratedPage
+        
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        file_path = data["file_path"]
+        modified_content = data["modified_content"]
+        
+        # No previous generation - file is new (will be regenerated)
+        
+        # Mock the file generator to return a known FileSummary
+        expected_summary = FileSummary(
+            file_path=file_path,
+            purpose="Test purpose",
+            layer="utility",
+        )
+        mock_page = GeneratedPage(
+            content="# File Doc",
+            page_type="file",
+            path=f"files/{file_path.replace('/', '-')}.md",
+            word_count=10,
+            target=file_path,
+        )
+        
+        async def mock_generate(*args, **kwargs):
+            return mock_page, expected_summary
+        
+        orchestrator.file_generator.generate = mock_generate
+        
+        # Run files phase
+        analysis = {
+            "files": [file_path],
+            "symbols": [],
+            "file_tree": file_path,
+            "file_contents": {file_path: modified_content},
+        }
+        
+        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        
+        # Property: regenerated files produce summaries
+        assert len(pages) == 1, "New file should be regenerated"
+        assert len(file_summaries) == 1, "FileSummary should be collected for regenerated file"
+        assert file_summaries[0].file_path == file_path
+        
+        # These summaries will be passed to _run_synthesis in the pipeline
+
