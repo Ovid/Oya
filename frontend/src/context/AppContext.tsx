@@ -16,6 +16,7 @@ interface AppState {
   isLoading: boolean;
   error: string | null;
   noteEditor: NoteEditorState;
+  darkMode: boolean;
 }
 
 type Action =
@@ -26,7 +27,15 @@ type Action =
   | { type: 'SET_CURRENT_PAGE'; payload: WikiPage | null }
   | { type: 'SET_CURRENT_JOB'; payload: JobStatus | null }
   | { type: 'OPEN_NOTE_EDITOR'; payload: { scope: NoteScope; target: string } }
-  | { type: 'CLOSE_NOTE_EDITOR' };
+  | { type: 'CLOSE_NOTE_EDITOR' }
+  | { type: 'SET_DARK_MODE'; payload: boolean };
+
+function getInitialDarkMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  const stored = localStorage.getItem('oya-dark-mode');
+  if (stored !== null) return stored === 'true';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
 
 const initialState: AppState = {
   repoStatus: null,
@@ -40,6 +49,7 @@ const initialState: AppState = {
     defaultScope: 'general',
     defaultTarget: '',
   },
+  darkMode: getInitialDarkMode(),
 };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -70,6 +80,8 @@ function appReducer(state: AppState, action: Action): AppState {
         ...state,
         noteEditor: { ...state.noteEditor, isOpen: false },
       };
+    case 'SET_DARK_MODE':
+      return { ...state, darkMode: action.payload };
     default:
       return state;
   }
@@ -83,6 +95,7 @@ interface AppContextValue {
   startGeneration: () => Promise<string | null>;
   openNoteEditor: (scope?: NoteScope, target?: string) => void;
   closeNoteEditor: () => void;
+  toggleDarkMode: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -134,6 +147,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLOSE_NOTE_EDITOR' });
   };
 
+  const toggleDarkMode = () => {
+    const newValue = !state.darkMode;
+    localStorage.setItem('oya-dark-mode', String(newValue));
+    dispatch({ type: 'SET_DARK_MODE', payload: newValue });
+  };
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    if (state.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [state.darkMode]);
+
   // Initial data load
   useEffect(() => {
     const init = async () => {
@@ -146,7 +174,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ state, dispatch, refreshStatus, refreshTree, startGeneration, openNoteEditor, closeNoteEditor }}>
+    <AppContext.Provider value={{ state, dispatch, refreshStatus, refreshTree, startGeneration, openNoteEditor, closeNoteEditor, toggleDarkMode }}>
       {children}
     </AppContext.Provider>
   );
