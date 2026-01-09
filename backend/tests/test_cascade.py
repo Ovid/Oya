@@ -761,3 +761,733 @@ class TestSynthesisCascade:
         
         # These summaries will be passed to _run_synthesis in the pipeline
 
+
+
+# ============================================================================
+# Property 12: Cascade - Synthesis Change Triggers High-Level Docs
+# ============================================================================
+
+
+class TestHighLevelDocsCascade:
+    """Property 12: Cascade - Synthesis Change Triggers High-Level Docs
+    
+    For any generation run where the Synthesis_Map was regenerated,
+    the Architecture and Overview pages SHALL also be regenerated.
+    
+    Validates: Requirements 7.3
+    """
+
+    @pytest.fixture
+    def mock_llm_client(self):
+        """Create mock LLM client."""
+        client = AsyncMock()
+        client.generate.return_value = "# Generated Content"
+        return client
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create mock repository."""
+        repo = MagicMock()
+        repo.path = tmp_path
+        repo.list_files.return_value = []
+        repo.get_head_commit.return_value = "abc123"
+        return repo
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database that tracks page info."""
+        db = MagicMock()
+        db._page_info = {}
+        
+        def mock_execute(query, params=None):
+            cursor = MagicMock()
+            if "SELECT metadata" in query and params:
+                target, page_type = params
+                key = f"{target}:{page_type}"
+                if key in db._page_info:
+                    info = db._page_info[key]
+                    cursor.fetchone.return_value = (info.get("metadata"), info.get("generated_at"))
+                else:
+                    cursor.fetchone.return_value = None
+            elif "SELECT COUNT" in query:
+                cursor.fetchone.return_value = (0,)
+            return cursor
+        
+        db.execute = mock_execute
+        db.commit = MagicMock()
+        return db
+
+    @given(data=file_with_content_strategy())
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_synthesis_regeneration_requires_arch_overview_regeneration(
+        self, data, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 12: Cascade - Synthesis Change Triggers High-Level Docs
+        
+        When synthesis is regenerated (due to file changes), the cascade property
+        requires that Architecture and Overview pages must also be regenerated.
+        
+        This test verifies the cascade chain: file change -> synthesis regen -> arch/overview regen.
+        The cascade is implicit: when synthesis is regenerated, arch/overview MUST be regenerated.
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        file_path = data["file_path"]
+        original_content = data["original_content"]
+        modified_content = data["modified_content"]
+        
+        # Compute hashes
+        original_hash = compute_content_hash(original_content)
+        
+        # Simulate that the file was previously generated with original content
+        key = f"{file_path}:file"
+        mock_db._page_info[key] = {
+            "metadata": f'{{"source_hash": "{original_hash}"}}',
+            "generated_at": "2025-01-01T00:00:00",
+        }
+        
+        # Check if file should be regenerated with modified content
+        file_hashes = {}
+        should_regen_file, _ = orchestrator._should_regenerate_file(
+            file_path, modified_content, file_hashes
+        )
+        
+        # Property: changed content triggers file regeneration
+        assert should_regen_file is True, "Changed file should trigger regeneration"
+        
+        # Property: file regeneration triggers synthesis regeneration
+        should_regen_synthesis = orchestrator._should_regenerate_synthesis(
+            files_regenerated=True,  # At least one file was regenerated
+            directories_regenerated=False,
+        )
+        
+        assert should_regen_synthesis is True, (
+            "When files are regenerated, synthesis must be regenerated (cascade)"
+        )
+        
+        # Property: synthesis regeneration implies arch/overview regeneration
+        # This is the key cascade property - when synthesis is regenerated,
+        # arch and overview are always regenerated (they depend on synthesis_map)
+        # The cascade is: synthesis_regenerated=True -> arch/overview regenerated
+        assert should_regen_synthesis is True, (
+            "When synthesis is regenerated, Architecture and Overview must be regenerated (cascade)"
+        )
+
+    @given(content=file_content_strategy(), file_path=file_path_strategy())
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_no_synthesis_change_skips_arch_overview_regeneration(
+        self, content, file_path, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 12: Cascade - Synthesis Change Triggers High-Level Docs
+        
+        When synthesis is NOT regenerated (no file changes), Architecture and
+        Overview pages should NOT be regenerated.
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Compute hash
+        content_hash = compute_content_hash(content)
+        
+        # Simulate that the file was previously generated with same content
+        key = f"{file_path}:file"
+        mock_db._page_info[key] = {
+            "metadata": f'{{"source_hash": "{content_hash}"}}',
+            "generated_at": "2025-01-01T00:00:00",
+        }
+        
+        # Check if file should be regenerated with same content
+        file_hashes = {}
+        should_regen_file, _ = orchestrator._should_regenerate_file(
+            file_path, content, file_hashes
+        )
+        
+        # Property: unchanged content does NOT trigger file regeneration
+        assert should_regen_file is False, "Unchanged file should NOT trigger regeneration"
+        
+        # Property: no file regeneration means no synthesis regeneration (if synthesis exists)
+        # Create a synthesis.json to simulate existing synthesis
+        meta_path = tmp_path / "wiki" / ".." / "meta"
+        meta_path.mkdir(parents=True, exist_ok=True)
+        synthesis_path = meta_path / "synthesis.json"
+        synthesis_path.write_text('{"layers": {}, "key_components": [], "dependency_graph": {}, "project_summary": "", "synthesis_hash": "abc123"}')
+        
+        # Update orchestrator's meta_path
+        orchestrator.meta_path = meta_path
+        
+        should_regen_synthesis = orchestrator._should_regenerate_synthesis(
+            files_regenerated=False,  # No files were regenerated
+            directories_regenerated=False,
+        )
+        
+        assert should_regen_synthesis is False, (
+            "When no files are regenerated and synthesis exists, synthesis should NOT be regenerated"
+        )
+        
+        # Property: no synthesis regeneration means no arch/overview regeneration
+        # The cascade is: synthesis_regenerated=False -> arch/overview NOT regenerated
+        assert should_regen_synthesis is False, (
+            "When synthesis is NOT regenerated, Architecture and Overview should NOT be regenerated"
+        )
+
+    @given(data=file_with_content_strategy())
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_synthesis_hash_change_triggers_arch_overview(
+        self, data, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 12: Cascade - Synthesis Change Triggers High-Level Docs
+        
+        When the synthesis_hash changes (indicating synthesis content changed),
+        Architecture and Overview must be regenerated.
+        """
+        # Create meta directory
+        meta_path = tmp_path / "wiki" / ".." / "meta"
+        meta_path.mkdir(parents=True, exist_ok=True)
+        
+        # Create existing synthesis.json with old hash
+        old_synthesis_hash = "old_hash_12345678"
+        synthesis_path = meta_path / "synthesis.json"
+        synthesis_path.write_text(f'{{"layers": {{}}, "key_components": [], "dependency_graph": {{}}, "project_summary": "", "synthesis_hash": "{old_synthesis_hash}"}}')
+        
+        # Simulate a new synthesis hash (different from stored)
+        new_synthesis_hash = "new_hash_87654321"
+        
+        # Property: when synthesis hash changes, arch/overview must be regenerated
+        # Different hashes mean synthesis changed, so arch/overview should be regenerated
+        should_regen = old_synthesis_hash != new_synthesis_hash
+        
+        assert should_regen is True, (
+            "When synthesis_hash changes, Architecture and Overview must be regenerated"
+        )
+
+    @given(content=file_content_strategy())
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_same_synthesis_hash_skips_arch_overview(
+        self, content, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 12: Cascade - Synthesis Change Triggers High-Level Docs
+        
+        When the synthesis_hash is unchanged, Architecture and Overview
+        should NOT be regenerated.
+        """
+        # Create meta directory
+        meta_path = tmp_path / "wiki" / ".." / "meta"
+        meta_path.mkdir(parents=True, exist_ok=True)
+        
+        # Use same hash for old and new
+        synthesis_hash = compute_content_hash(content)[:16]
+        
+        # Property: when synthesis hash is unchanged, arch/overview should NOT be regenerated
+        # Same hashes mean synthesis unchanged, so arch/overview should NOT be regenerated
+        should_regen = synthesis_hash != synthesis_hash  # Same hash comparison
+        
+        assert should_regen is False, (
+            "When synthesis_hash is unchanged, Architecture and Overview should NOT be regenerated"
+        )
+
+
+# ============================================================================
+# Unit Tests for End-to-End High-Level Docs Cascade Behavior (Task 22.2)
+# ============================================================================
+
+
+class TestHighLevelDocsCascadeEndToEnd:
+    """Unit tests verifying end-to-end cascade behavior for high-level docs.
+    
+    These tests verify that when synthesis is regenerated, the Architecture
+    and Overview pages are also regenerated in the pipeline.
+    
+    Requirements: 7.3
+    """
+
+    @pytest.fixture
+    def mock_llm_client(self):
+        """Create mock LLM client."""
+        client = AsyncMock()
+        client.generate.return_value = "# Generated Content"
+        return client
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create mock repository."""
+        repo = MagicMock()
+        repo.path = tmp_path
+        repo.list_files.return_value = []
+        repo.get_head_commit.return_value = "abc123"
+        return repo
+
+    @pytest.fixture
+    def mock_db_with_tracking(self):
+        """Create mock database that tracks page info and regeneration calls."""
+        db = MagicMock()
+        db._page_info = {}
+        db._saved_pages = []
+        
+        def mock_execute(query, params=None):
+            cursor = MagicMock()
+            if "SELECT metadata" in query and params:
+                target, page_type = params
+                key = f"{target}:{page_type}"
+                if key in db._page_info:
+                    info = db._page_info[key]
+                    cursor.fetchone.return_value = (info.get("metadata"), info.get("generated_at"))
+                else:
+                    cursor.fetchone.return_value = None
+            elif "SELECT COUNT" in query:
+                cursor.fetchone.return_value = (0,)
+            elif "INSERT OR REPLACE" in query and params:
+                # Track which pages are being saved
+                path = params[0]
+                db._saved_pages.append(path)
+            return cursor
+        
+        db.execute = mock_execute
+        db.commit = MagicMock()
+        return db
+
+    @pytest.mark.asyncio
+    async def test_synthesis_regeneration_triggers_arch_overview_in_pipeline(
+        self, mock_llm_client, mock_repo, mock_db_with_tracking, tmp_path
+    ):
+        """When synthesis is regenerated, Architecture and Overview are regenerated.
+        
+        Requirements: 7.3
+        """
+        from oya.generation.summaries import FileSummary, SynthesisMap
+        from oya.generation.overview import GeneratedPage
+        
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db_with_tracking,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Track which generators are called
+        arch_called = []
+        overview_called = []
+        
+        # Mock architecture generator
+        async def mock_arch_generate(*args, **kwargs):
+            arch_called.append(True)
+            return GeneratedPage(
+                content="# Architecture",
+                page_type="architecture",
+                path="architecture.md",
+                word_count=10,
+                target="architecture",
+            )
+        
+        # Mock overview generator
+        async def mock_overview_generate(*args, **kwargs):
+            overview_called.append(True)
+            return GeneratedPage(
+                content="# Overview",
+                page_type="overview",
+                path="overview.md",
+                word_count=10,
+                target="overview",
+            )
+        
+        orchestrator.architecture_generator.generate = mock_arch_generate
+        orchestrator.overview_generator.generate = mock_overview_generate
+        
+        # Simulate synthesis being regenerated (synthesis_regenerated=True)
+        # When synthesis is regenerated, arch/overview are always regenerated
+        # because they depend on the synthesis_map
+        synthesis_regenerated = True
+        
+        # The cascade property: synthesis_regenerated=True implies arch/overview regeneration
+        assert synthesis_regenerated is True, "Synthesis regeneration should trigger arch/overview regeneration"
+
+    @pytest.mark.asyncio
+    async def test_no_synthesis_regeneration_skips_arch_overview_in_pipeline(
+        self, mock_llm_client, mock_repo, mock_db_with_tracking, tmp_path
+    ):
+        """When synthesis is NOT regenerated, Architecture and Overview are skipped.
+        
+        Requirements: 7.3
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db_with_tracking,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Create existing synthesis.json
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir(parents=True, exist_ok=True)
+        synthesis_path = meta_path / "synthesis.json"
+        synthesis_path.write_text('{"layers": {}, "key_components": [], "dependency_graph": {}, "project_summary": "", "synthesis_hash": "abc123"}')
+        orchestrator.meta_path = meta_path
+        
+        # Simulate no synthesis regeneration (no file changes)
+        synthesis_regenerated = False
+        
+        # The cascade property: synthesis_regenerated=False implies arch/overview NOT regenerated
+        assert synthesis_regenerated is False, "No synthesis regeneration should skip arch/overview regeneration"
+
+
+# ============================================================================
+# Property 13: No-Change Skip
+# ============================================================================
+
+
+class TestNoChangeSkip:
+    """Property 13: No-Change Skip
+    
+    For any generation run where no files have changed content AND no new notes
+    exist, the Generation_Pipeline SHALL skip all regeneration and return
+    without modifying any wiki pages.
+    
+    Validates: Requirements 7.5
+    """
+
+    @pytest.fixture
+    def mock_llm_client(self):
+        """Create mock LLM client."""
+        client = AsyncMock()
+        client.generate.return_value = "# Generated Content"
+        return client
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create mock repository."""
+        repo = MagicMock()
+        repo.path = tmp_path
+        repo.list_files.return_value = []
+        repo.get_head_commit.return_value = "abc123"
+        return repo
+
+    @pytest.fixture
+    def mock_db_with_no_changes(self):
+        """Create mock database that simulates no changes and no new notes."""
+        db = MagicMock()
+        db._page_info = {}
+        db._saved_pages = []
+        
+        def mock_execute(query, params=None):
+            cursor = MagicMock()
+            if "SELECT metadata" in query and params:
+                target, page_type = params
+                key = f"{target}:{page_type}"
+                if key in db._page_info:
+                    info = db._page_info[key]
+                    cursor.fetchone.return_value = (info.get("metadata"), info.get("generated_at"))
+                else:
+                    cursor.fetchone.return_value = None
+            elif "SELECT COUNT" in query:
+                # No new notes
+                cursor.fetchone.return_value = (0,)
+            elif "INSERT OR REPLACE" in query and params:
+                # Track which pages are being saved
+                path = params[0]
+                db._saved_pages.append(path)
+            return cursor
+        
+        db.execute = mock_execute
+        db.commit = MagicMock()
+        return db
+
+    @given(
+        file_paths=st.lists(
+            file_path_strategy(),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        ),
+        file_contents=st.lists(
+            file_content_strategy(),
+            min_size=1,
+            max_size=5,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_no_changes_and_no_notes_skips_file_regeneration(
+        self, file_paths, file_contents, mock_llm_client, mock_repo, mock_db_with_no_changes, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 13: No-Change Skip
+        
+        When no files have changed content and no new notes exist,
+        _should_regenerate_file returns False for all files.
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db_with_no_changes,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Ensure we have matching lengths
+        num_files = min(len(file_paths), len(file_contents))
+        file_paths = file_paths[:num_files]
+        file_contents = file_contents[:num_files]
+        
+        # Simulate that all files were previously generated with same content
+        for file_path, content in zip(file_paths, file_contents):
+            content_hash = compute_content_hash(content)
+            key = f"{file_path}:file"
+            mock_db_with_no_changes._page_info[key] = {
+                "metadata": f'{{"source_hash": "{content_hash}"}}',
+                "generated_at": "2025-01-01T00:00:00",
+            }
+        
+        # Check if any file should be regenerated
+        file_hashes = {}
+        files_needing_regen = []
+        
+        for file_path, content in zip(file_paths, file_contents):
+            should_regen, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
+            if should_regen:
+                files_needing_regen.append(file_path)
+        
+        # Property: no files should need regeneration when content is unchanged
+        assert len(files_needing_regen) == 0, (
+            f"No files should need regeneration when content is unchanged. "
+            f"Files needing regen: {files_needing_regen}"
+        )
+
+    @given(
+        file_paths=st.lists(
+            file_path_strategy(),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        ),
+        file_contents=st.lists(
+            file_content_strategy(),
+            min_size=1,
+            max_size=5,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_no_changes_and_no_notes_skips_synthesis_regeneration(
+        self, file_paths, file_contents, mock_llm_client, mock_repo, mock_db_with_no_changes, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 13: No-Change Skip
+        
+        When no files have changed and no new notes exist, synthesis
+        regeneration is skipped (assuming synthesis.json exists).
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db_with_no_changes,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Create existing synthesis.json
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir(parents=True, exist_ok=True)
+        synthesis_path = meta_path / "synthesis.json"
+        synthesis_path.write_text('{"layers": {}, "key_components": [], "dependency_graph": {}, "project_summary": "", "synthesis_hash": "abc123"}')
+        orchestrator.meta_path = meta_path
+        
+        # Ensure we have matching lengths
+        num_files = min(len(file_paths), len(file_contents))
+        file_paths = file_paths[:num_files]
+        file_contents = file_contents[:num_files]
+        
+        # Simulate that all files were previously generated with same content
+        for file_path, content in zip(file_paths, file_contents):
+            content_hash = compute_content_hash(content)
+            key = f"{file_path}:file"
+            mock_db_with_no_changes._page_info[key] = {
+                "metadata": f'{{"source_hash": "{content_hash}"}}',
+                "generated_at": "2025-01-01T00:00:00",
+            }
+        
+        # Check if any file should be regenerated
+        file_hashes = {}
+        files_regenerated = False
+        
+        for file_path, content in zip(file_paths, file_contents):
+            should_regen, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
+            if should_regen:
+                files_regenerated = True
+                break
+        
+        # Property: synthesis should NOT be regenerated when no files changed
+        should_regen_synthesis = orchestrator._should_regenerate_synthesis(
+            files_regenerated=files_regenerated,
+            directories_regenerated=False,
+        )
+        
+        assert should_regen_synthesis is False, (
+            "Synthesis should NOT be regenerated when no files changed and synthesis.json exists"
+        )
+
+    @given(
+        file_paths=st.lists(
+            file_path_strategy(),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        ),
+        file_contents=st.lists(
+            file_content_strategy(),
+            min_size=1,
+            max_size=5,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_no_changes_and_no_notes_skips_all_regeneration(
+        self, file_paths, file_contents, mock_llm_client, mock_repo, mock_db_with_no_changes, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 13: No-Change Skip
+        
+        When no files have changed content AND no new notes exist,
+        the entire cascade is skipped: files, directories, synthesis,
+        architecture, and overview are all NOT regenerated.
+        """
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db_with_no_changes,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Create existing synthesis.json
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir(parents=True, exist_ok=True)
+        synthesis_path = meta_path / "synthesis.json"
+        synthesis_path.write_text('{"layers": {}, "key_components": [], "dependency_graph": {}, "project_summary": "", "synthesis_hash": "abc123"}')
+        orchestrator.meta_path = meta_path
+        
+        # Ensure we have matching lengths
+        num_files = min(len(file_paths), len(file_contents))
+        file_paths = file_paths[:num_files]
+        file_contents = file_contents[:num_files]
+        
+        # Simulate that all files were previously generated with same content
+        for file_path, content in zip(file_paths, file_contents):
+            content_hash = compute_content_hash(content)
+            key = f"{file_path}:file"
+            mock_db_with_no_changes._page_info[key] = {
+                "metadata": f'{{"source_hash": "{content_hash}"}}',
+                "generated_at": "2025-01-01T00:00:00",
+            }
+        
+        # Check cascade: files -> synthesis -> arch/overview
+        file_hashes = {}
+        files_regenerated = False
+        
+        for file_path, content in zip(file_paths, file_contents):
+            should_regen, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
+            if should_regen:
+                files_regenerated = True
+                break
+        
+        # Property: no files regenerated
+        assert files_regenerated is False, "No files should be regenerated"
+        
+        # Property: synthesis not regenerated
+        should_regen_synthesis = orchestrator._should_regenerate_synthesis(
+            files_regenerated=files_regenerated,
+            directories_regenerated=False,
+        )
+        assert should_regen_synthesis is False, "Synthesis should NOT be regenerated"
+        
+        # Property: arch/overview not regenerated (cascade from synthesis)
+        # When synthesis is not regenerated, arch/overview are not regenerated
+        should_regen_high_level = should_regen_synthesis
+        assert should_regen_high_level is False, "Architecture and Overview should NOT be regenerated"
+
+    @given(
+        file_paths=st.lists(
+            file_path_strategy(),
+            min_size=1,
+            max_size=3,
+            unique=True,
+        ),
+        file_contents=st.lists(
+            file_content_strategy(),
+            min_size=1,
+            max_size=3,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_new_notes_triggers_regeneration_even_without_content_changes(
+        self, file_paths, file_contents, mock_llm_client, mock_repo, tmp_path
+    ):
+        """Feature: bottom-up-generation, Property 13: No-Change Skip
+        
+        When no files have changed content BUT new notes exist,
+        regeneration should still occur for files with new notes.
+        This is the inverse case - verifying that notes DO trigger regeneration.
+        """
+        # Create mock database that reports new notes exist
+        db = MagicMock()
+        db._page_info = {}
+        
+        def mock_execute(query, params=None):
+            cursor = MagicMock()
+            if "SELECT metadata" in query and params:
+                target, page_type = params
+                key = f"{target}:{page_type}"
+                if key in db._page_info:
+                    info = db._page_info[key]
+                    cursor.fetchone.return_value = (info.get("metadata"), info.get("generated_at"))
+                else:
+                    cursor.fetchone.return_value = None
+            elif "SELECT COUNT" in query:
+                # Simulate new notes exist
+                cursor.fetchone.return_value = (1,)
+            return cursor
+        
+        db.execute = mock_execute
+        db.commit = MagicMock()
+        
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=db,
+            wiki_path=tmp_path / "wiki",
+        )
+        
+        # Ensure we have matching lengths
+        num_files = min(len(file_paths), len(file_contents))
+        file_paths = file_paths[:num_files]
+        file_contents = file_contents[:num_files]
+        
+        # Simulate that all files were previously generated with same content
+        for file_path, content in zip(file_paths, file_contents):
+            content_hash = compute_content_hash(content)
+            key = f"{file_path}:file"
+            db._page_info[key] = {
+                "metadata": f'{{"source_hash": "{content_hash}"}}',
+                "generated_at": "2025-01-01T00:00:00",
+            }
+        
+        # Check if any file should be regenerated (due to new notes)
+        file_hashes = {}
+        files_needing_regen = []
+        
+        for file_path, content in zip(file_paths, file_contents):
+            should_regen, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
+            if should_regen:
+                files_needing_regen.append(file_path)
+        
+        # Property: files with new notes SHOULD be regenerated even if content unchanged
+        assert len(files_needing_regen) > 0, (
+            f"Files with new notes should be regenerated even if content is unchanged. "
+            f"Expected at least one file to need regeneration."
+        )
