@@ -159,6 +159,44 @@ Format the output as clean Markdown suitable for a wiki page."""
 )
 
 
+ARCHITECTURE_SYNTHESIS_TEMPLATE = PromptTemplate(
+    """Generate an architecture documentation page for "{repo_name}".
+
+## Project Structure
+```
+{file_tree}
+```
+
+## System Layers
+{layers}
+
+## Key Components
+{key_components}
+
+## Layer Dependencies
+{dependency_graph}
+
+## Project Summary
+{project_summary}
+
+## External Dependencies
+{dependencies}
+
+---
+
+Create architecture documentation that includes:
+1. **System Overview**: High-level description of the system architecture based on the project summary and layer structure
+2. **Layer Architecture**: Describe each layer's purpose and responsibilities
+3. **Component Diagram**: Create a Mermaid diagram showing the main components and their relationships based on the layer dependencies
+4. **Key Components**: Document the most important classes and functions identified above
+5. **Data Flow**: How data moves through the layers
+6. **Design Patterns**: Notable patterns used in the codebase
+7. **External Dependencies**: Key libraries and their purposes
+
+Format the output as clean Markdown suitable for a wiki page."""
+)
+
+
 # =============================================================================
 # Workflow Template
 # =============================================================================
@@ -376,6 +414,83 @@ def _format_package_info(package_info: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_synthesis_layers(synthesis_map: Any) -> str:
+    """Format layer information from a SynthesisMap for inclusion in a prompt.
+
+    Args:
+        synthesis_map: A SynthesisMap object containing layer information.
+
+    Returns:
+        Formatted string representation of layers.
+    """
+    if not synthesis_map or not synthesis_map.layers:
+        return "No layer information available."
+
+    lines = []
+    for layer_name, layer_info in synthesis_map.layers.items():
+        lines.append(f"### {layer_name.upper()} Layer")
+        lines.append(f"**Purpose**: {layer_info.purpose}")
+        if layer_info.directories:
+            dirs = ", ".join(layer_info.directories[:5])
+            if len(layer_info.directories) > 5:
+                dirs += f" (and {len(layer_info.directories) - 5} more)"
+            lines.append(f"**Directories**: {dirs}")
+        if layer_info.files:
+            files = ", ".join(layer_info.files[:10])
+            if len(layer_info.files) > 10:
+                files += f" (and {len(layer_info.files) - 10} more)"
+            lines.append(f"**Files**: {files}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _format_synthesis_key_components(synthesis_map: Any) -> str:
+    """Format key components from a SynthesisMap for inclusion in a prompt.
+
+    Args:
+        synthesis_map: A SynthesisMap object containing key components.
+
+    Returns:
+        Formatted string representation of key components.
+    """
+    if not synthesis_map or not synthesis_map.key_components:
+        return "No key components identified."
+
+    lines = []
+    for comp in synthesis_map.key_components:
+        lines.append(f"### {comp.name}")
+        lines.append(f"- **File**: {comp.file}")
+        lines.append(f"- **Role**: {comp.role}")
+        lines.append(f"- **Layer**: {comp.layer}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _format_synthesis_dependency_graph(synthesis_map: Any) -> str:
+    """Format dependency graph from a SynthesisMap for inclusion in a prompt.
+
+    Args:
+        synthesis_map: A SynthesisMap object containing dependency graph.
+
+    Returns:
+        Formatted string representation of dependency graph.
+    """
+    if not synthesis_map or not synthesis_map.dependency_graph:
+        return "No dependency graph available."
+
+    lines = []
+    for source, targets in synthesis_map.dependency_graph.items():
+        if targets:
+            deps = ", ".join(targets)
+            lines.append(f"- **{source}** depends on: {deps}")
+        else:
+            lines.append(f"- **{source}**: no dependencies")
+
+    return "\n".join(lines)
+
+
 def _format_file_summaries(file_summaries: list[Any]) -> str:
     """Format a list of FileSummaries for inclusion in a prompt.
 
@@ -463,25 +578,46 @@ def get_overview_prompt(
 def get_architecture_prompt(
     repo_name: str,
     file_tree: str,
-    key_symbols: list[dict[str, Any]],
-    dependencies: list[str],
+    key_symbols: list[dict[str, Any]] | None = None,
+    dependencies: list[str] | None = None,
+    synthesis_map: Any = None,
 ) -> str:
     """Generate a prompt for creating an architecture page.
+
+    Supports two modes:
+    1. Legacy mode: Uses key_symbols for architecture context
+    2. Synthesis mode: Uses SynthesisMap for richer architecture context
 
     Args:
         repo_name: Name of the repository.
         file_tree: String representation of the file tree.
-        key_symbols: List of key symbol dictionaries.
+        key_symbols: List of key symbol dictionaries (legacy mode).
         dependencies: List of dependency names.
+        synthesis_map: SynthesisMap object with layer and component info (preferred).
 
     Returns:
         The rendered prompt string.
     """
+    deps = dependencies or []
+
+    # Use synthesis-based template if synthesis_map is provided
+    if synthesis_map is not None:
+        return ARCHITECTURE_SYNTHESIS_TEMPLATE.render(
+            repo_name=repo_name,
+            file_tree=file_tree,
+            layers=_format_synthesis_layers(synthesis_map),
+            key_components=_format_synthesis_key_components(synthesis_map),
+            dependency_graph=_format_synthesis_dependency_graph(synthesis_map),
+            project_summary=synthesis_map.project_summary or "No project summary available.",
+            dependencies=_format_dependencies(deps),
+        )
+
+    # Fall back to legacy template with key_symbols
     return ARCHITECTURE_TEMPLATE.render(
         repo_name=repo_name,
         file_tree=file_tree,
-        key_symbols=_format_symbols(key_symbols),
-        dependencies=_format_dependencies(dependencies),
+        key_symbols=_format_symbols(key_symbols or []),
+        dependencies=_format_dependencies(deps),
     )
 
 
