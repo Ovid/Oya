@@ -414,38 +414,44 @@ class GenerationOrchestrator:
                 synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
 
         # Phase 5: Architecture (uses SynthesisMap as primary context)
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.ARCHITECTURE,
-                message="Generating architecture page...",
-            ),
-        )
-        architecture_page = await self._run_architecture(analysis, synthesis_map=synthesis_map)
-        await self._save_page(architecture_page)
+        # Cascade: regenerate architecture only if synthesis was regenerated (Requirement 7.3, 7.5)
+        if should_regenerate_synthesis:
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.ARCHITECTURE,
+                    message="Generating architecture page...",
+                ),
+            )
+            architecture_page = await self._run_architecture(analysis, synthesis_map=synthesis_map)
+            await self._save_page(architecture_page)
 
         # Phase 6: Overview (uses SynthesisMap as primary context)
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.OVERVIEW,
-                message="Generating overview page...",
-            ),
-        )
-        overview_page = await self._run_overview(analysis, synthesis_map=synthesis_map)
-        await self._save_page(overview_page)
+        # Cascade: regenerate overview only if synthesis was regenerated (Requirement 7.3, 7.5)
+        if should_regenerate_synthesis:
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.OVERVIEW,
+                    message="Generating overview page...",
+                ),
+            )
+            overview_page = await self._run_overview(analysis, synthesis_map=synthesis_map)
+            await self._save_page(overview_page)
 
         # Phase 7: Workflows
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.WORKFLOWS,
-                message="Generating workflow pages...",
-            ),
-        )
-        workflow_pages = await self._run_workflows(analysis)
-        for page in workflow_pages:
-            await self._save_page(page)
+        # Cascade: regenerate workflows only if synthesis was regenerated (Requirement 7.5)
+        if should_regenerate_synthesis:
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.WORKFLOWS,
+                    message="Generating workflow pages...",
+                ),
+            )
+            workflow_pages = await self._run_workflows(analysis)
+            for page in workflow_pages:
+                await self._save_page(page)
 
         return job_id
 
