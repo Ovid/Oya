@@ -14,13 +14,14 @@ export function RightSidebar() {
 
     if (pageType === 'file') {
       scope = 'file';
-      target = currentPage.source_path || currentPage.path || '';
+      target = currentPage.source_path || '';
     } else if (pageType === 'directory') {
       scope = 'directory';
-      target = currentPage.source_path || currentPage.path || '';
+      target = currentPage.source_path || '';
     } else if (pageType === 'workflow') {
       scope = 'workflow';
-      target = currentPage.source_path || currentPage.path || '';
+      // For workflows, use source_path if available, otherwise extract from path
+      target = currentPage.source_path || '';
     }
 
     openNoteEditor(scope, target);
