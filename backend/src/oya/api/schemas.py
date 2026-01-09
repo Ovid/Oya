@@ -1,7 +1,7 @@
 """Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RepoStatus(BaseModel):
@@ -20,3 +20,14 @@ class JobCreated(BaseModel):
     job_id: str
     status: str = "pending"
     message: str = "Job started"
+
+
+class WorkspaceSwitch(BaseModel):
+    """Request to switch workspace."""
+    path: str = Field(..., description="Absolute path to the new workspace directory")
+
+
+class WorkspaceSwitchResponse(BaseModel):
+    """Response after switching workspace."""
+    status: RepoStatus
+    message: str

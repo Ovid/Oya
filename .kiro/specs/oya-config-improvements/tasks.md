@@ -67,15 +67,15 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - _Requirements: 4.9, 4.10, 4.12, 4.13_
   - [x] 5.3 REFACTOR: Clean up path validation code
 
-- [ ] 6. Workspace switching API (TDD)
-  - [ ] 6.1 RED: Write failing unit tests for workspace switch endpoint
+- [x] 6. Workspace switching API (TDD)
+  - [x] 6.1 RED: Write failing unit tests for workspace switch endpoint
     - Test successful switch returns 200 with status
     - Test non-existent path returns 400
     - Test file path returns 400
     - Test path outside base returns 403
     - Tests should fail (endpoint doesn't exist yet)
     - _Requirements: 4.6, 4.7, 4.11_
-  - [ ] 6.2 GREEN: Implement workspace switch endpoint
+  - [x] 6.2 GREEN: Implement workspace switch endpoint
     - Add `WorkspaceSwitch` and `WorkspaceSwitchResponse` schemas to `backend/src/oya/api/schemas.py`
     - Add POST `/api/repos/workspace` endpoint to `backend/src/oya/api/routers/repos.py`
     - Validate path using path validation utility
@@ -84,7 +84,7 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - Run workspace initialization for new workspace
     - Return new repository status
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.11_
-  - [ ] 6.3 REFACTOR: Clean up workspace switch implementation
+  - [x] 6.3 REFACTOR: Clean up workspace switch implementation
 
 - [ ] 7. Checkpoint - Verify backend API works
   - Ensure all tests pass, ask the user if questions arise.

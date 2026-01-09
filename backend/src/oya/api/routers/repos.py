@@ -1,25 +1,40 @@
 """Repository management endpoints."""
 
+import os
 import uuid
-from fastapi import APIRouter, Depends, BackgroundTasks
+from pathlib import Path
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 
-from oya.api.deps import get_repo, get_db, get_settings
-from oya.api.schemas import RepoStatus, JobCreated
+from oya.api.deps import (
+    get_repo,
+    get_db,
+    get_settings,
+    get_workspace_base_path,
+    validate_workspace_path,
+    _reset_db_instance,
+    _reset_vectorstore_instance,
+)
+from oya.api.schemas import RepoStatus, JobCreated, WorkspaceSwitch, WorkspaceSwitchResponse
 from oya.repo.git_repo import GitRepo
 from oya.db.connection import Database
-from oya.config import Settings
+from oya.config import Settings, load_settings
 from oya.generation.orchestrator import GenerationProgress
+from oya.workspace import initialize_workspace
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
 
-@router.get("/status", response_model=RepoStatus)
-async def get_repo_status(
-    settings: Settings = Depends(get_settings),
-) -> RepoStatus:
-    """Get current repository status."""
+def _build_repo_status(workspace_path: Path) -> RepoStatus:
+    """Build RepoStatus for a workspace path.
+    
+    Args:
+        workspace_path: Path to the workspace directory.
+        
+    Returns:
+        RepoStatus with git info if available, or uninitialized status.
+    """
     try:
-        repo = GitRepo(settings.workspace_path)
+        repo = GitRepo(workspace_path)
         head_commit = repo.get_head_commit()
         commit = repo._repo.head.commit
         return RepoStatus(
@@ -31,12 +46,20 @@ async def get_repo_status(
         )
     except Exception:
         return RepoStatus(
-            path=str(settings.workspace_path),
+            path=str(workspace_path),
             head_commit=None,
             head_message=None,
             branch=None,
             initialized=False,
         )
+
+
+@router.get("/status", response_model=RepoStatus)
+async def get_repo_status(
+    settings: Settings = Depends(get_settings),
+) -> RepoStatus:
+    """Get current repository status."""
+    return _build_repo_status(settings.workspace_path)
 
 
 @router.post("/init", response_model=JobCreated, status_code=202)
@@ -149,3 +172,46 @@ async def _run_generation(
             (str(e), job_id),
         )
         db.commit()
+
+
+@router.post("/workspace", response_model=WorkspaceSwitchResponse)
+async def switch_workspace(
+    request: WorkspaceSwitch,
+) -> WorkspaceSwitchResponse:
+    """Switch to a different workspace directory.
+    
+    Validates the path, clears caches, reinitializes database,
+    and runs workspace initialization for the new workspace.
+    
+    Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.11
+    """
+    # Get base path for validation
+    base_path = get_workspace_base_path()
+    
+    # Validate the requested path
+    is_valid, error_msg, resolved_path = validate_workspace_path(request.path, base_path)
+    
+    if not is_valid:
+        if "outside allowed" in error_msg:
+            raise HTTPException(status_code=403, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Clear settings cache and update WORKSPACE_PATH environment variable
+    os.environ["WORKSPACE_PATH"] = str(resolved_path)
+    load_settings.cache_clear()
+    get_settings.cache_clear()
+    
+    # Reset database and vectorstore instances for new workspace
+    _reset_db_instance()
+    _reset_vectorstore_instance()
+    
+    # Initialize workspace for the new path
+    initialize_workspace(resolved_path)
+    
+    # Build and return status for the new workspace
+    status = _build_repo_status(resolved_path)
+    
+    return WorkspaceSwitchResponse(
+        status=status,
+        message=f"Switched to workspace: {resolved_path}"
+    )
