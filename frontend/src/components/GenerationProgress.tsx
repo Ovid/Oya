@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import type { ProgressEvent } from '../types';
 import { streamJobProgress } from '../api/client';
 
@@ -23,11 +23,8 @@ const PHASES: Record<string, PhaseInfo> = {
   'files': { name: 'Files', description: 'Generating file-level documentation...' },
 };
 
-interface LogEntry {
-  phase: string;
-  timestamp: Date;
-  status: 'completed' | 'in_progress';
-}
+// Ordered list of phases for progress display
+const PHASE_ORDER = ['analysis', 'overview', 'architecture', 'workflows', 'directories', 'files'];
 
 export function GenerationProgress({ jobId, onComplete, onError }: GenerationProgressProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('starting');
@@ -35,10 +32,9 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
   const [totalPhases, setTotalPhases] = useState<number>(6);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [totalSteps, setTotalSteps] = useState<number>(0);
-  const [log, setLog] = useState<LogEntry[]>([]);
   const [startTime] = useState<Date>(new Date());
   const [elapsed, setElapsed] = useState<number>(0);
-  const lastPhaseRef = useRef<string>('');
+  const [isComplete, setIsComplete] = useState<boolean>(false);
 
   // Update elapsed time every second
   useEffect(() => {
@@ -57,29 +53,9 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
           const [numStr, phaseName] = event.phase.split(':');
           const phaseNum = parseInt(numStr, 10);
 
-          if (phaseName && phaseName !== lastPhaseRef.current) {
-            // Mark previous phase as completed
-            if (lastPhaseRef.current && lastPhaseRef.current !== 'starting') {
-              setLog(prev => prev.map(entry =>
-                entry.phase === lastPhaseRef.current
-                  ? { ...entry, status: 'completed' as const }
-                  : entry
-              ));
-            }
-
-            // Add new phase to log
-            setLog(prev => [...prev, {
-              phase: phaseName,
-              timestamp: new Date(),
-              status: 'in_progress' as const,
-            }]);
-
-            lastPhaseRef.current = phaseName;
+          if (phaseName) {
             setCurrentPhase(phaseName);
             setCurrentPhaseNum(phaseNum);
-            // Reset step tracking when phase changes
-            setCurrentStep(0);
-            setTotalSteps(0);
           }
         }
 
@@ -96,8 +72,7 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
         }
       },
       () => {
-        // Mark final phase as completed
-        setLog(prev => prev.map(entry => ({ ...entry, status: 'completed' as const })));
+        setIsComplete(true);
         onComplete();
       },
       (error: Error) => {
@@ -181,19 +156,34 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
         )}
       </div>
 
-      {/* Phase log */}
-      {log.length > 0 && (
+      {/* Phase log - shows all phases with their status based on current phase number */}
+      {currentPhaseNum > 0 && (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress Log</h4>
           </div>
           <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-            {log.map((entry, index) => {
-              const info = PHASES[entry.phase] || { name: entry.phase };
+            {PHASE_ORDER.map((phase, index) => {
+              const phaseNum = index + 1; // Phases are 1-indexed
+              const info = PHASES[phase] || { name: phase };
+
+              // Determine status: completed if phase number < current, in_progress if equal, pending if greater
+              let status: 'completed' | 'in_progress' | 'pending';
+              if (isComplete || phaseNum < currentPhaseNum) {
+                status = 'completed';
+              } else if (phaseNum === currentPhaseNum) {
+                status = 'in_progress';
+              } else {
+                status = 'pending';
+              }
+
+              // Only show phases that have started or completed
+              if (status === 'pending') return null;
+
               return (
-                <li key={index} className="px-4 py-3 flex items-center justify-between">
+                <li key={phase} className="px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center">
-                    {entry.status === 'completed' ? (
+                    {status === 'completed' ? (
                       <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
@@ -203,13 +193,10 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
                     )}
-                    <span className={`text-sm ${entry.status === 'completed' ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white font-medium'}`}>
+                    <span className={`text-sm ${status === 'completed' ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white font-medium'}`}>
                       {info.name}
                     </span>
                   </div>
-                  <span className="text-xs text-gray-500 dark:text-gray-500">
-                    {entry.timestamp.toLocaleTimeString()}
-                  </span>
                 </li>
               );
             })}
