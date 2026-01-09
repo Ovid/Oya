@@ -1,5 +1,9 @@
 # TODO
 
+* Allow optional web search? Might pull in more context. Might pull in a mess.
+* Where to put .oyawiki if not using current repo? Currently puts the docs in
+  that repo.
+    * What if two repos share the same name?
 * The wiki generation might overprioritize docs over code. I'm not sure. Check
   if this is the case.
 * Config files for removing hard-coded data.
