@@ -86,19 +86,19 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.11_
   - [x] 6.3 REFACTOR: Clean up workspace switch implementation
 
-- [ ] 7. Checkpoint - Verify backend API works
+- [x] 7. Checkpoint - Verify backend API works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Frontend API client (TDD)
-  - [ ] 8.1 RED: Write failing test for switchWorkspace API function
+- [x] 8. Frontend API client (TDD)
+  - [x] 8.1 RED: Write failing test for switchWorkspace API function
     - Test that function calls correct endpoint
     - Test should fail (function doesn't exist yet)
     - _Requirements: 3.3_
-  - [ ] 8.2 GREEN: Implement frontend API client
+  - [x] 8.2 GREEN: Implement frontend API client
     - Add `WorkspaceSwitchRequest` and `WorkspaceSwitchResponse` to `frontend/src/types/index.ts`
     - Add `switchWorkspace()` function to `frontend/src/api/client.ts`
     - _Requirements: 3.3, 4.1_
-  - [ ] 8.3 REFACTOR: Clean up API client code
+  - [x] 8.3 REFACTOR: Clean up API client code
 
 - [ ] 9. DirectoryPicker component (TDD)
   - [ ] 9.1 RED: Write failing unit tests for DirectoryPicker

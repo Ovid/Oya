@@ -124,3 +124,13 @@ export interface AppState {
 }
 
 export type PageType = 'overview' | 'architecture' | 'workflow' | 'directory' | 'file';
+
+// Workspace Switching Types
+export interface WorkspaceSwitchRequest {
+  path: string;
+}
+
+export interface WorkspaceSwitchResponse {
+  status: RepoStatus;
+  message: string;
+}

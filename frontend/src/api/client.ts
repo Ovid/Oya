@@ -10,6 +10,7 @@ import type {
   QAResponse,
   NoteCreate,
   Note,
+  WorkspaceSwitchResponse,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -48,6 +49,13 @@ export async function getRepoStatus(): Promise<RepoStatus> {
 
 export async function initRepo(): Promise<JobCreated> {
   return fetchJson<JobCreated>('/api/repos/init', { method: 'POST' });
+}
+
+export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResponse> {
+  return fetchJson<WorkspaceSwitchResponse>('/api/repos/workspace', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  });
 }
 
 // Wiki endpoints
