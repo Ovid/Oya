@@ -16,6 +16,7 @@ from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
 from oya.generation.overview import GeneratedPage, OverviewGenerator
+from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
 from oya.parsing.registry import ParserRegistry
 from oya.repo.file_filter import FileFilter
@@ -25,11 +26,12 @@ class GenerationPhase(Enum):
     """Phases of wiki generation."""
 
     ANALYSIS = "analysis"
-    OVERVIEW = "overview"
-    ARCHITECTURE = "architecture"
-    WORKFLOWS = "workflows"
-    DIRECTORIES = "directories"
     FILES = "files"
+    DIRECTORIES = "directories"
+    SYNTHESIS = "synthesis"
+    ARCHITECTURE = "architecture"
+    OVERVIEW = "overview"
+    WORKFLOWS = "workflows"
 
 
 @dataclass
@@ -136,9 +138,13 @@ class GenerationOrchestrator:
         self.workflow_generator = WorkflowGenerator(llm_client, repo)
         self.directory_generator = DirectoryGenerator(llm_client, repo)
         self.file_generator = FileGenerator(llm_client, repo)
+        self.synthesis_generator = SynthesisGenerator(llm_client)
 
         # Workflow discovery helper
         self.workflow_discovery = WorkflowDiscovery()
+
+        # Meta path for synthesis storage
+        self.meta_path = self.wiki_path.parent / "meta"
 
     def _get_existing_page_info(self, target: str, page_type: str) -> dict | None:
         """Get existing page info from database for incremental check.
@@ -269,6 +275,8 @@ class GenerationOrchestrator:
     ) -> str:
         """Run the complete generation pipeline.
 
+        Pipeline order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+
         Args:
             progress_callback: Optional async callback for progress updates.
 
@@ -290,18 +298,31 @@ class GenerationOrchestrator:
         )
         analysis = await self._run_analysis()
 
-        # Phase 2: Overview
+        # Phase 2: Files (run before directories to compute content hashes and collect summaries)
+        file_pages, file_hashes, file_summaries = await self._run_files(
+            analysis, progress_callback
+        )
+        for page in file_pages:
+            await self._save_page(page)
+
+        # Phase 3: Directories (uses file_hashes for signature computation and file_summaries for context)
+        directory_pages, directory_summaries = await self._run_directories(
+            analysis, file_hashes, progress_callback, file_summaries=file_summaries
+        )
+        for page in directory_pages:
+            await self._save_page(page)
+
+        # Phase 4: Synthesis (combine file and directory summaries into SynthesisMap)
         await self._emit_progress(
             progress_callback,
             GenerationProgress(
-                phase=GenerationPhase.OVERVIEW,
-                message="Generating overview page...",
+                phase=GenerationPhase.SYNTHESIS,
+                message="Synthesizing codebase understanding...",
             ),
         )
-        overview_page = await self._run_overview(analysis)
-        await self._save_page(overview_page)
+        synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
 
-        # Phase 3: Architecture
+        # Phase 5: Architecture (uses SynthesisMap as primary context)
         await self._emit_progress(
             progress_callback,
             GenerationProgress(
@@ -309,10 +330,21 @@ class GenerationOrchestrator:
                 message="Generating architecture page...",
             ),
         )
-        architecture_page = await self._run_architecture(analysis)
+        architecture_page = await self._run_architecture(analysis, synthesis_map=synthesis_map)
         await self._save_page(architecture_page)
 
-        # Phase 4: Workflows
+        # Phase 6: Overview (uses SynthesisMap as primary context)
+        await self._emit_progress(
+            progress_callback,
+            GenerationProgress(
+                phase=GenerationPhase.OVERVIEW,
+                message="Generating overview page...",
+            ),
+        )
+        overview_page = await self._run_overview(analysis, synthesis_map=synthesis_map)
+        await self._save_page(overview_page)
+
+        # Phase 7: Workflows
         await self._emit_progress(
             progress_callback,
             GenerationProgress(
@@ -322,18 +354,6 @@ class GenerationOrchestrator:
         )
         workflow_pages = await self._run_workflows(analysis)
         for page in workflow_pages:
-            await self._save_page(page)
-
-        # Phase 5: Files (run before directories to compute content hashes)
-        file_pages, file_hashes = await self._run_files(analysis, progress_callback)
-        for page in file_pages:
-            await self._save_page(page)
-
-        # Phase 6: Directories (uses file_hashes for signature computation)
-        directory_pages = await self._run_directories(
-            analysis, file_hashes, progress_callback
-        )
-        for page in directory_pages:
             await self._save_page(page)
 
         return job_id
@@ -424,11 +444,16 @@ class GenerationOrchestrator:
 
         return "\n".join(lines)
 
-    async def _run_overview(self, analysis: dict) -> GeneratedPage:
+    async def _run_overview(
+        self,
+        analysis: dict,
+        synthesis_map=None,
+    ) -> GeneratedPage:
         """Run overview generation phase.
 
         Args:
             analysis: Analysis results.
+            synthesis_map: Optional SynthesisMap for richer overview context.
 
         Returns:
             Generated overview page.
@@ -447,6 +472,7 @@ class GenerationOrchestrator:
             readme_content=readme_content,
             file_tree=analysis["file_tree"],
             package_info=package_info,
+            synthesis_map=synthesis_map,
         )
 
     def _extract_package_info(self, file_contents: dict[str, str]) -> dict:
@@ -488,24 +514,37 @@ class GenerationOrchestrator:
 
         return package_info
 
-    async def _run_architecture(self, analysis: dict) -> GeneratedPage:
+    async def _run_architecture(
+        self,
+        analysis: dict,
+        synthesis_map=None,
+    ) -> GeneratedPage:
         """Run architecture generation phase.
 
         Args:
             analysis: Analysis results.
+            synthesis_map: Optional SynthesisMap for richer architecture context.
 
         Returns:
             Generated architecture page.
         """
-        # Extract key symbols (classes and functions)
+        # Extract dependencies from package info
+        package_info = self._extract_package_info(analysis["file_contents"])
+        dependencies = package_info.get("dependencies", [])
+
+        # If we have a synthesis map, use it as primary context
+        if synthesis_map is not None:
+            return await self.architecture_generator.generate(
+                file_tree=analysis["file_tree"],
+                dependencies=dependencies,
+                synthesis_map=synthesis_map,
+            )
+
+        # Legacy mode: use key symbols
         key_symbols = [
             s for s in analysis["symbols"]
             if s.get("type") in ("class", "function", "method")
         ][:50]  # Limit to top 50
-
-        # Extract dependencies from package info
-        package_info = self._extract_package_info(analysis["file_contents"])
-        dependencies = package_info.get("dependencies", [])
 
         return await self.architecture_generator.generate(
             file_tree=analysis["file_tree"],
@@ -547,23 +586,61 @@ class GenerationOrchestrator:
 
         return pages
 
+    async def _run_synthesis(
+        self,
+        file_summaries: list,
+        directory_summaries: list,
+    ):
+        """Run synthesis phase to combine summaries into a SynthesisMap.
+
+        Args:
+            file_summaries: List of FileSummary objects from files phase.
+            directory_summaries: List of DirectorySummary objects from directories phase.
+
+        Returns:
+            SynthesisMap containing aggregated codebase understanding.
+        """
+        from oya.generation.summaries import SynthesisMap
+
+        # Generate the synthesis map
+        synthesis_map = await self.synthesis_generator.generate(
+            file_summaries=file_summaries,
+            directory_summaries=directory_summaries,
+        )
+
+        # Save to synthesis.json
+        save_synthesis_map(synthesis_map, str(self.meta_path))
+
+        return synthesis_map
+
     async def _run_directories(
         self,
         analysis: dict,
         file_hashes: dict[str, str],
         progress_callback: ProgressCallback | None = None,
-    ) -> list[GeneratedPage]:
+        file_summaries: list | None = None,
+    ) -> tuple[list[GeneratedPage], list]:
         """Run directory generation phase with parallel processing and incremental support.
 
         Args:
             analysis: Analysis results.
             file_hashes: Dict of file_path to content_hash from files phase.
             progress_callback: Optional async callback for progress updates.
+            file_summaries: Optional list of FileSummary objects for context.
 
         Returns:
-            List of generated directory pages.
+            Tuple of (list of generated directory pages, list of DirectorySummaries).
         """
+        from oya.generation.summaries import DirectorySummary, FileSummary
+
         pages = []
+        directory_summaries: list[DirectorySummary] = []
+        file_summaries = file_summaries or []
+
+        # Build a lookup of file summaries by file path for quick access
+        file_summary_lookup: dict[str, FileSummary] = {
+            fs.file_path: fs for fs in file_summaries if isinstance(fs, FileSummary)
+        }
 
         # Get unique directories and their direct files
         directories: dict[str, list[str]] = {}
@@ -613,8 +690,10 @@ class GenerationOrchestrator:
             ),
         )
 
-        # Helper to generate a single directory page with hash
-        async def generate_dir_page(dir_path: str, signature_hash: str) -> GeneratedPage:
+        # Helper to generate a single directory page with hash and return both page and summary
+        async def generate_dir_page(
+            dir_path: str, signature_hash: str
+        ) -> tuple[GeneratedPage, DirectorySummary]:
             dir_files = [
                 f for f in analysis["files"]
                 if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
@@ -623,26 +702,36 @@ class GenerationOrchestrator:
                 s for s in analysis["symbols"]
                 if s.get("file", "").startswith(dir_path + "/")
             ]
+            # Get file summaries for files in this directory
+            dir_file_summaries = [
+                file_summary_lookup[f]
+                for f in dir_files
+                if f in file_summary_lookup
+            ]
             # DirectoryGenerator.generate() returns (GeneratedPage, DirectorySummary)
-            page, _directory_summary = await self.directory_generator.generate(
+            page, directory_summary = await self.directory_generator.generate(
                 directory_path=dir_path,
                 file_list=dir_files,
                 symbols=dir_symbols,
                 architecture_context="",
+                file_summaries=dir_file_summaries,
             )
             # Add signature hash to the page for storage
             page.source_hash = signature_hash
-            return page
+            return page, directory_summary
 
         # Process directories in parallel batches
         completed = skipped_count
         for batch in batched(dirs_to_generate, self.parallel_limit):
             # Process batch concurrently
-            batch_pages = await asyncio.gather(*[
+            batch_results = await asyncio.gather(*[
                 generate_dir_page(dir_path, signature_hash)
                 for dir_path, signature_hash in batch
             ])
-            pages.extend(batch_pages)
+            # Unpack results into pages and summaries
+            for page, summary in batch_results:
+                pages.append(page)
+                directory_summaries.append(summary)
 
             # Report progress after batch completes
             completed += len(batch)
@@ -657,13 +746,13 @@ class GenerationOrchestrator:
                 ),
             )
 
-        return pages
+        return pages, directory_summaries
 
     async def _run_files(
         self,
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
-    ) -> tuple[list[GeneratedPage], dict[str, str]]:
+    ) -> tuple[list[GeneratedPage], dict[str, str], list]:
         """Run file generation phase with parallel processing and incremental support.
 
         Args:
@@ -671,10 +760,13 @@ class GenerationOrchestrator:
             progress_callback: Optional async callback for progress updates.
 
         Returns:
-            Tuple of (list of generated file pages, dict of file_path to content_hash).
+            Tuple of (list of generated file pages, dict of file_path to content_hash, list of FileSummaries).
         """
+        from oya.generation.summaries import FileSummary
+
         pages = []
         file_hashes: dict[str, str] = {}
+        file_summaries: list[FileSummary] = []
 
         # Generate page for each code file
         code_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs"}
@@ -710,8 +802,10 @@ class GenerationOrchestrator:
             ),
         )
 
-        # Helper to generate a single file page with hash
-        async def generate_file_page(file_path: str, content_hash: str) -> GeneratedPage:
+        # Helper to generate a single file page with hash and return both page and summary
+        async def generate_file_page(
+            file_path: str, content_hash: str
+        ) -> tuple[GeneratedPage, FileSummary]:
             content = analysis["file_contents"].get(file_path, "")
             ext = Path(file_path).suffix.lower()
             file_symbols = [
@@ -720,7 +814,7 @@ class GenerationOrchestrator:
             ]
             imports = self._extract_imports(content, ext)
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
-            page, _file_summary = await self.file_generator.generate(
+            page, file_summary = await self.file_generator.generate(
                 file_path=file_path,
                 content=content,
                 symbols=file_symbols,
@@ -729,17 +823,20 @@ class GenerationOrchestrator:
             )
             # Add source hash to the page for storage
             page.source_hash = content_hash
-            return page
+            return page, file_summary
 
         # Process files in parallel batches
         completed = skipped_count
         for batch in batched(files_to_generate, self.parallel_limit):
             # Process batch concurrently
-            batch_pages = await asyncio.gather(*[
+            batch_results = await asyncio.gather(*[
                 generate_file_page(file_path, content_hash)
                 for file_path, content_hash in batch
             ])
-            pages.extend(batch_pages)
+            # Unpack results into pages and summaries
+            for page, summary in batch_results:
+                pages.append(page)
+                file_summaries.append(summary)
 
             # Report progress after batch completes
             completed += len(batch)
@@ -754,7 +851,7 @@ class GenerationOrchestrator:
                 ),
             )
 
-        return pages, file_hashes
+        return pages, file_hashes, file_summaries
 
     def _extract_imports(self, content: str, ext: str) -> list[str]:
         """Extract import statements from file content.
