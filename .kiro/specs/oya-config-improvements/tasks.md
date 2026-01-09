@@ -23,17 +23,17 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - Review for code clarity and error handling
     - Extract constants if needed
 
-- [ ] 2. Startup initialization integration (TDD)
-  - [ ] 2.1 RED: Write failing unit test for startup initialization
+- [x] 2. Startup initialization integration (TDD)
+  - [x] 2.1 RED: Write failing unit test for startup initialization
     - Add test to verify lifespan handler calls initialize_workspace
     - Test should fail (lifespan handler not implemented yet)
     - _Requirements: 2.1_
-  - [ ] 2.2 GREEN: Add lifespan handler to `backend/src/oya/main.py`
+  - [x] 2.2 GREEN: Add lifespan handler to `backend/src/oya/main.py`
     - Import workspace initializer
     - Call `initialize_workspace()` on startup
     - Log success/failure
     - _Requirements: 2.1_
-  - [ ] 2.3 REFACTOR: Clean up startup code
+  - [x] 2.3 REFACTOR: Clean up startup code
 
 - [ ] 3. Relocate oyaignore file path (TDD)
   - [ ] 3.1 RED: Update FileFilter tests for new path
