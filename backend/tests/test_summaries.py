@@ -1021,3 +1021,180 @@ class TestDirectorySummaryPersistenceRoundTrip:
         assert result["purpose"] == data["purpose"]
         assert result["contains"] == data["contains"]
         assert result["role_in_system"] == data["role_in_system"]
+
+
+# Strategy for generating a list of FileSummaries with various layers
+@st.composite
+def file_summaries_for_layer_grouping_strategy(draw):
+    """Generate a list of FileSummaries for testing layer grouping.
+    
+    Ensures we have at least one file and files are distributed across layers.
+    """
+    # Generate between 1 and 20 file summaries
+    num_files = draw(st.integers(min_value=1, max_value=20))
+    
+    file_summaries = []
+    for i in range(num_files):
+        # Generate path components separately to ensure valid paths
+        dir_name = draw(st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789_-",
+            min_size=1,
+            max_size=20
+        ).filter(lambda x: x.strip()))
+        file_name = draw(st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789_",
+            min_size=1,
+            max_size=20
+        ).filter(lambda x: x.strip()))
+        
+        # Build a valid file path with guaranteed "/" and unique suffix
+        file_path = f"{dir_name}/{file_name}_{i}.py"
+        
+        purpose = draw(st.text(alphabet=YAML_SAFE_ALPHABET, min_size=1, max_size=100).filter(lambda x: x.strip()))
+        layer = draw(st.sampled_from(VALID_LAYERS))
+        key_abstractions = draw(st.lists(
+            st.text(alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", min_size=1, max_size=30).filter(lambda x: x.strip()),
+            min_size=0, max_size=3
+        ))
+        
+        file_summaries.append({
+            "file_path": file_path,
+            "purpose": purpose,
+            "layer": layer,
+            "key_abstractions": key_abstractions,
+            "internal_deps": [],
+            "external_deps": [],
+        })
+    
+    return file_summaries
+
+
+class TestSynthesisMapLayerGroupingCompleteness:
+    """Property 7: Synthesis_Map Layer Grouping Completeness
+    
+    For any set of File_Summaries with layer classifications, the resulting 
+    Synthesis_Map SHALL contain all files grouped under their respective layers, 
+    with no file appearing in multiple layers and no file missing from all layers.
+    
+    Validates: Requirements 3.2
+    """
+
+    @given(file_summaries_data=file_summaries_for_layer_grouping_strategy())
+    @settings(max_examples=100)
+    def test_all_files_appear_in_exactly_one_layer(self, file_summaries_data):
+        """Feature: bottom-up-generation, Property 7: Synthesis_Map Layer Grouping Completeness
+        
+        All files appear in exactly one layer - no duplicates, no missing files.
+        """
+        from oya.generation.summaries import FileSummary
+        from oya.generation.synthesis import SynthesisGenerator
+        
+        # Create FileSummary objects from generated data
+        file_summaries = [
+            FileSummary(
+                file_path=data["file_path"],
+                purpose=data["purpose"],
+                layer=data["layer"],
+                key_abstractions=data["key_abstractions"],
+                internal_deps=data["internal_deps"],
+                external_deps=data["external_deps"],
+            )
+            for data in file_summaries_data
+        ]
+        
+        # Create SynthesisGenerator and group files by layer
+        generator = SynthesisGenerator(llm_client=None)
+        synthesis_map = generator.group_files_by_layer(file_summaries)
+        
+        # Collect all file paths from all layers
+        all_files_in_layers = []
+        for layer_name, layer_info in synthesis_map.layers.items():
+            all_files_in_layers.extend(layer_info.files)
+        
+        # Get original file paths
+        original_file_paths = [fs.file_path for fs in file_summaries]
+        
+        # Property 1: No file should be missing from all layers
+        # Every original file should appear in some layer
+        for file_path in original_file_paths:
+            assert file_path in all_files_in_layers, f"File {file_path} is missing from all layers"
+        
+        # Property 2: No file should appear in multiple layers
+        # The count of files in layers should equal the count of unique files
+        assert len(all_files_in_layers) == len(set(all_files_in_layers)), \
+            "Some files appear in multiple layers"
+        
+        # Property 3: Total files in layers should equal original file count
+        assert len(all_files_in_layers) == len(original_file_paths), \
+            f"Expected {len(original_file_paths)} files, found {len(all_files_in_layers)} in layers"
+
+    @given(file_summaries_data=file_summaries_for_layer_grouping_strategy())
+    @settings(max_examples=100)
+    def test_files_grouped_under_correct_layer(self, file_summaries_data):
+        """Feature: bottom-up-generation, Property 7: Synthesis_Map Layer Grouping Completeness
+        
+        Each file appears under its correct layer classification.
+        """
+        from oya.generation.summaries import FileSummary
+        from oya.generation.synthesis import SynthesisGenerator
+        
+        # Create FileSummary objects from generated data
+        file_summaries = [
+            FileSummary(
+                file_path=data["file_path"],
+                purpose=data["purpose"],
+                layer=data["layer"],
+                key_abstractions=data["key_abstractions"],
+                internal_deps=data["internal_deps"],
+                external_deps=data["external_deps"],
+            )
+            for data in file_summaries_data
+        ]
+        
+        # Create SynthesisGenerator and group files by layer
+        generator = SynthesisGenerator(llm_client=None)
+        synthesis_map = generator.group_files_by_layer(file_summaries)
+        
+        # For each file summary, verify it's in the correct layer
+        for fs in file_summaries:
+            expected_layer = fs.layer
+            
+            # The file should be in the layer matching its classification
+            if expected_layer in synthesis_map.layers:
+                assert fs.file_path in synthesis_map.layers[expected_layer].files, \
+                    f"File {fs.file_path} with layer {expected_layer} not found in that layer"
+            else:
+                # If the layer doesn't exist in the map, that's a failure
+                assert False, f"Layer {expected_layer} not found in synthesis_map.layers"
+
+    @given(file_summaries_data=file_summaries_for_layer_grouping_strategy())
+    @settings(max_examples=100)
+    def test_only_valid_layers_in_synthesis_map(self, file_summaries_data):
+        """Feature: bottom-up-generation, Property 7: Synthesis_Map Layer Grouping Completeness
+        
+        Only valid layer names appear in the synthesis map.
+        """
+        from oya.generation.summaries import FileSummary, VALID_LAYERS
+        from oya.generation.synthesis import SynthesisGenerator
+        
+        # Create FileSummary objects from generated data
+        file_summaries = [
+            FileSummary(
+                file_path=data["file_path"],
+                purpose=data["purpose"],
+                layer=data["layer"],
+                key_abstractions=data["key_abstractions"],
+                internal_deps=data["internal_deps"],
+                external_deps=data["external_deps"],
+            )
+            for data in file_summaries_data
+        ]
+        
+        # Create SynthesisGenerator and group files by layer
+        generator = SynthesisGenerator(llm_client=None)
+        synthesis_map = generator.group_files_by_layer(file_summaries)
+        
+        # All layer names in the synthesis map should be valid
+        for layer_name in synthesis_map.layers.keys():
+            assert layer_name in VALID_LAYERS, \
+                f"Invalid layer name {layer_name} in synthesis map"
