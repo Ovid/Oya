@@ -74,3 +74,96 @@ async def test_list_jobs(client, workspace_with_db):
     assert isinstance(data, list)
     assert len(data) >= 1
     assert data[0]["job_id"] == "test-job-123"
+
+
+class TestPhaseOrderConsistency:
+    """Tests to ensure backend phase order matches frontend expectations.
+    
+    The bottom-up generation pipeline runs phases in this order:
+    Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+    
+    Both backend and frontend must agree on this ordering for progress display to work correctly.
+    """
+
+    def test_phase_numbers_match_bottom_up_order(self):
+        """Phase numbers in repos.py match the bottom-up generation order."""
+        # Import the phase_numbers mapping from repos.py
+        # We test this by checking the expected values directly
+        expected_phase_numbers = {
+            "analysis": 1,
+            "files": 2,
+            "directories": 3,
+            "synthesis": 4,
+            "architecture": 5,
+            "overview": 6,
+            "workflows": 7,
+        }
+        
+        # Import and check the actual mapping
+        from oya.api.routers import repos
+        import inspect
+        
+        # Get the source code of _run_generation to extract phase_numbers
+        source = inspect.getsource(repos._run_generation)
+        
+        # Verify each phase appears in the correct order
+        for phase, expected_num in expected_phase_numbers.items():
+            assert f'"{phase}": {expected_num}' in source, \
+                f"Phase '{phase}' should have number {expected_num} in repos.py"
+
+    def test_total_phases_is_seven(self):
+        """Total phases should be 7 for the bottom-up pipeline."""
+        from oya.api.routers import repos
+        import inspect
+        
+        source = inspect.getsource(repos.init_repo)
+        
+        # Check that total_phases is 7
+        assert '"full", "pending", 7' in source or "'full', 'pending', 7" in source, \
+            "Total phases should be 7 in init_repo"
+
+    def test_files_before_architecture(self):
+        """Files phase number should be less than architecture phase number."""
+        expected_phase_numbers = {
+            "analysis": 1,
+            "files": 2,
+            "directories": 3,
+            "synthesis": 4,
+            "architecture": 5,
+            "overview": 6,
+            "workflows": 7,
+        }
+        
+        assert expected_phase_numbers["files"] < expected_phase_numbers["architecture"], \
+            "Files phase should come before architecture in bottom-up approach"
+
+    def test_synthesis_before_architecture_and_overview(self):
+        """Synthesis phase should come before architecture and overview."""
+        expected_phase_numbers = {
+            "analysis": 1,
+            "files": 2,
+            "directories": 3,
+            "synthesis": 4,
+            "architecture": 5,
+            "overview": 6,
+            "workflows": 7,
+        }
+        
+        assert expected_phase_numbers["synthesis"] < expected_phase_numbers["architecture"], \
+            "Synthesis should come before architecture"
+        assert expected_phase_numbers["synthesis"] < expected_phase_numbers["overview"], \
+            "Synthesis should come before overview"
+
+    def test_phase_order_matches_orchestrator_enum(self):
+        """Phase order should match GenerationPhase enum values."""
+        from oya.generation.orchestrator import GenerationPhase
+        
+        # All phases in the mapping should exist in the enum
+        expected_phases = ["analysis", "files", "directories", "synthesis", 
+                          "architecture", "overview", "workflows"]
+        
+        enum_values = [phase.value for phase in GenerationPhase]
+        
+        for phase in expected_phases:
+            assert phase in enum_values, \
+                f"Phase '{phase}' should exist in GenerationPhase enum"

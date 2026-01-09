@@ -49,13 +49,13 @@ async def init_repo(
     """Initialize repository and start wiki generation."""
     job_id = str(uuid.uuid4())
 
-    # Record job in database (6 phases: analysis, overview, architecture, workflows, directories, files)
+    # Record job in database (7 phases: analysis, files, directories, synthesis, architecture, overview, workflows)
     db.execute(
         """
         INSERT INTO generations (id, type, status, started_at, total_phases)
         VALUES (?, ?, ?, datetime('now'), ?)
         """,
-        (job_id, "full", "pending", 6),
+        (job_id, "full", "pending", 7),
     )
     db.commit()
 
@@ -75,15 +75,16 @@ async def _run_generation(
     from oya.generation.orchestrator import GenerationOrchestrator
     from oya.llm.client import LLMClient
 
-    # Phase number mapping for progress tracking
-    # Note: Files runs before directories to compute content hashes for incremental regen
+    # Phase number mapping for progress tracking (bottom-up approach)
+    # Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
     phase_numbers = {
         "analysis": 1,
-        "overview": 2,
-        "architecture": 3,
-        "workflows": 4,
-        "files": 5,
-        "directories": 6,
+        "files": 2,
+        "directories": 3,
+        "synthesis": 4,
+        "architecture": 5,
+        "overview": 6,
+        "workflows": 7,
     }
 
     async def progress_callback(progress: GenerationProgress) -> None:
