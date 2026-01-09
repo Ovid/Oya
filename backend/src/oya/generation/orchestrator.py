@@ -1,12 +1,14 @@
 # backend/src/oya/generation/orchestrator.py
 """Generation orchestrator for wiki pipeline."""
 
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from itertools import islice
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Iterator
 
 from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
@@ -51,6 +53,21 @@ class GenerationProgress:
 ProgressCallback = Callable[[GenerationProgress], Coroutine[Any, Any, None]]
 
 
+def batched(iterable, n: int) -> Iterator[list]:
+    """Batch an iterable into chunks of size n.
+
+    Args:
+        iterable: Items to batch.
+        n: Batch size.
+
+    Yields:
+        Lists of up to n items.
+    """
+    it = iter(iterable)
+    while batch := list(islice(it, n)):
+        yield batch
+
+
 class GenerationOrchestrator:
     """Orchestrates the wiki generation pipeline.
 
@@ -65,6 +82,7 @@ class GenerationOrchestrator:
         db,
         wiki_path: Path,
         parser_registry: ParserRegistry | None = None,
+        parallel_limit: int = 10,
     ):
         """Initialize the orchestrator.
 
@@ -74,12 +92,14 @@ class GenerationOrchestrator:
             db: Database for recording pages.
             wiki_path: Path where wiki files will be saved.
             parser_registry: Optional parser registry for code analysis.
+            parallel_limit: Max concurrent LLM calls for file/directory generation.
         """
         self.llm_client = llm_client
         self.repo = repo
         self.db = db
         self.wiki_path = Path(wiki_path)
         self.parser_registry = parser_registry or ParserRegistry()
+        self.parallel_limit = parallel_limit
 
         # Initialize generators
         self.overview_generator = OverviewGenerator(llm_client, repo)
@@ -378,7 +398,7 @@ class GenerationOrchestrator:
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
     ) -> list[GeneratedPage]:
-        """Run directory generation phase.
+        """Run directory generation phase with parallel processing.
 
         Args:
             analysis: Analysis results.
@@ -412,38 +432,43 @@ class GenerationOrchestrator:
             ),
         )
 
-        # Generate page for each directory
-        for idx, dir_path in enumerate(sorted_dirs):
-            # Emit progress for this directory
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.DIRECTORIES,
-                    step=idx + 1,
-                    total_steps=total_dirs,
-                    message=f"Generating {dir_path} ({idx + 1}/{total_dirs})...",
-                ),
-            )
-
-            # Get files in this directory
+        # Helper to generate a single directory page
+        async def generate_dir_page(dir_path: str) -> GeneratedPage:
             dir_files = [
                 f for f in analysis["files"]
                 if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
             ]
-
-            # Get symbols in this directory
             dir_symbols = [
                 s for s in analysis["symbols"]
                 if s.get("file", "").startswith(dir_path + "/")
             ]
-
-            page = await self.directory_generator.generate(
+            return await self.directory_generator.generate(
                 directory_path=dir_path,
                 file_list=dir_files,
                 symbols=dir_symbols,
-                architecture_context="",  # Could be enhanced with architecture summary
+                architecture_context="",
             )
-            pages.append(page)
+
+        # Process directories in parallel batches
+        completed = 0
+        for batch in batched(sorted_dirs, self.parallel_limit):
+            # Process batch concurrently
+            batch_pages = await asyncio.gather(*[
+                generate_dir_page(dir_path) for dir_path in batch
+            ])
+            pages.extend(batch_pages)
+
+            # Report progress after batch completes
+            completed += len(batch)
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.DIRECTORIES,
+                    step=completed,
+                    total_steps=total_dirs,
+                    message=f"Generated {completed}/{total_dirs} directories...",
+                ),
+            )
 
         return pages
 
@@ -452,7 +477,7 @@ class GenerationOrchestrator:
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
     ) -> list[GeneratedPage]:
-        """Run file generation phase.
+        """Run file generation phase with parallel processing.
 
         Args:
             analysis: Analysis results.
@@ -466,7 +491,7 @@ class GenerationOrchestrator:
         # Generate page for each code file
         code_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs"}
 
-        # Filter to code files first, then limit
+        # Filter to code files first
         code_files = []
         for file_path in analysis["files"]:
             ext = Path(file_path).suffix.lower()
@@ -489,38 +514,43 @@ class GenerationOrchestrator:
             ),
         )
 
-        for idx, file_path in enumerate(code_files):
-            # Emit progress for this file
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.FILES,
-                    step=idx + 1,
-                    total_steps=total_files,
-                    message=f"Generating {file_path} ({idx + 1}/{total_files})...",
-                ),
-            )
-
+        # Helper to generate a single file page
+        async def generate_file_page(file_path: str) -> GeneratedPage:
             content = analysis["file_contents"].get(file_path, "")
             ext = Path(file_path).suffix.lower()
-
-            # Get symbols for this file
             file_symbols = [
                 s for s in analysis["symbols"]
                 if s.get("file") == file_path
             ]
-
-            # Extract imports (simple extraction)
             imports = self._extract_imports(content, ext)
-
-            page = await self.file_generator.generate(
+            return await self.file_generator.generate(
                 file_path=file_path,
                 content=content,
                 symbols=file_symbols,
                 imports=imports,
-                architecture_summary="",  # Could be enhanced
+                architecture_summary="",
             )
-            pages.append(page)
+
+        # Process files in parallel batches
+        completed = 0
+        for batch in batched(code_files, self.parallel_limit):
+            # Process batch concurrently
+            batch_pages = await asyncio.gather(*[
+                generate_file_page(file_path) for file_path in batch
+            ])
+            pages.extend(batch_pages)
+
+            # Report progress after batch completes
+            completed += len(batch)
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.FILES,
+                    step=completed,
+                    total_steps=total_files,
+                    message=f"Generated {completed}/{total_files} files...",
+                ),
+            )
 
         return pages
 

@@ -120,6 +120,7 @@ async def _run_generation(
             repo=repo,
             db=db,
             wiki_path=settings.wiki_path,
+            parallel_limit=settings.parallel_file_limit,
         )
 
         await orchestrator.run(progress_callback=progress_callback)
