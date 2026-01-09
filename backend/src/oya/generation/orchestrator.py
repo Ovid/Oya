@@ -623,7 +623,8 @@ class GenerationOrchestrator:
                 s for s in analysis["symbols"]
                 if s.get("file", "").startswith(dir_path + "/")
             ]
-            page = await self.directory_generator.generate(
+            # DirectoryGenerator.generate() returns (GeneratedPage, DirectorySummary)
+            page, _directory_summary = await self.directory_generator.generate(
                 directory_path=dir_path,
                 file_list=dir_files,
                 symbols=dir_symbols,

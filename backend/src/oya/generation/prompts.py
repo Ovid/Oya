@@ -150,6 +150,9 @@ DIRECTORY_TEMPLATE = PromptTemplate(
 ## Files in Directory
 {file_list}
 
+## File Summaries
+{file_summaries}
+
 ## Symbols Defined
 {symbols}
 
@@ -158,7 +161,20 @@ DIRECTORY_TEMPLATE = PromptTemplate(
 
 ---
 
-Create directory documentation that includes:
+IMPORTANT: You MUST start your response with a YAML summary block in the following format:
+
+```
+---
+directory_summary:
+  purpose: "One-sentence description of what this directory/module is responsible for"
+  contains:
+    - "file1.py"
+    - "file2.py"
+  role_in_system: "Description of how this directory fits into the overall architecture"
+---
+```
+
+After the YAML block, create directory documentation that includes:
 1. **Directory Purpose**: What this directory contains and why
 2. **File Overview**: Brief description of each file
 3. **Key Components**: Important classes, functions, or modules
@@ -311,6 +327,37 @@ def _format_package_info(package_info: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_file_summaries(file_summaries: list[Any]) -> str:
+    """Format a list of FileSummaries for inclusion in a prompt.
+
+    Args:
+        file_summaries: List of FileSummary objects.
+
+    Returns:
+        Formatted string representation of file summaries.
+    """
+    if not file_summaries:
+        return "No file summaries available."
+
+    lines = []
+    for summary in file_summaries:
+        lines.append(f"### {summary.file_path}")
+        lines.append(f"- **Purpose**: {summary.purpose}")
+        lines.append(f"- **Layer**: {summary.layer}")
+        if summary.key_abstractions:
+            abstractions = ", ".join(summary.key_abstractions)
+            lines.append(f"- **Key Abstractions**: {abstractions}")
+        if summary.internal_deps:
+            deps = ", ".join(summary.internal_deps)
+            lines.append(f"- **Internal Dependencies**: {deps}")
+        if summary.external_deps:
+            ext_deps = ", ".join(summary.external_deps)
+            lines.append(f"- **External Dependencies**: {ext_deps}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def get_overview_prompt(
     repo_name: str,
     readme_content: str,
@@ -398,6 +445,7 @@ def get_directory_prompt(
     file_list: list[str],
     symbols: list[dict[str, Any]],
     architecture_context: str,
+    file_summaries: list[Any] | None = None,
 ) -> str:
     """Generate a prompt for creating a directory page.
 
@@ -407,6 +455,7 @@ def get_directory_prompt(
         file_list: List of files in the directory.
         symbols: List of symbol dictionaries defined in the directory.
         architecture_context: Summary of how this directory fits in the architecture.
+        file_summaries: Optional list of FileSummary objects for files in the directory.
 
     Returns:
         The rendered prompt string.
@@ -417,6 +466,7 @@ def get_directory_prompt(
         repo_name=repo_name,
         directory_path=directory_path,
         file_list=file_list_str,
+        file_summaries=_format_file_summaries(file_summaries or []),
         symbols=_format_symbols(symbols),
         architecture_context=architecture_context or "No architecture context provided.",
     )
