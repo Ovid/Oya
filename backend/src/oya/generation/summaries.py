@@ -4,6 +4,7 @@ These models capture structured information extracted from file and directory
 documentation to enable synthesis into higher-level architecture understanding.
 """
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -72,6 +73,136 @@ class DirectorySummary:
     purpose: str
     contains: list[str] = field(default_factory=list)
     role_in_system: str = ""
+
+
+@dataclass
+class LayerInfo:
+    """Information about a code layer in the system architecture.
+    
+    Represents a logical grouping of code by responsibility (e.g., api, domain,
+    infrastructure) with associated directories and files.
+    
+    Attributes:
+        name: The layer name (e.g., "api", "domain", "infrastructure").
+        purpose: Description of what this layer is responsible for.
+        directories: List of directory paths belonging to this layer.
+        files: List of file paths belonging to this layer.
+    """
+    
+    name: str
+    purpose: str
+    directories: list[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ComponentInfo:
+    """Information about a key component in the codebase.
+    
+    Represents an important abstraction (class, function, module) that plays
+    a significant role in the system architecture.
+    
+    Attributes:
+        name: The component name (e.g., class or function name).
+        file: Path to the file containing this component.
+        role: Description of what role this component plays in the system.
+        layer: The architectural layer this component belongs to.
+    """
+    
+    name: str
+    file: str
+    role: str
+    layer: str
+
+
+@dataclass
+class SynthesisMap:
+    """Aggregated codebase understanding synthesized from file and directory summaries.
+    
+    Combines all File_Summaries and Directory_Summaries into a coherent map of the
+    codebase, including layer groupings, key components, and dependency relationships.
+    This serves as the primary context for generating Architecture and Overview pages.
+    
+    Attributes:
+        layers: Mapping of layer names to LayerInfo objects.
+        key_components: List of important components identified across the codebase.
+        dependency_graph: Mapping of component/layer names to their dependencies.
+        project_summary: LLM-generated overall summary of the project.
+    """
+    
+    layers: dict[str, LayerInfo] = field(default_factory=dict)
+    key_components: list[ComponentInfo] = field(default_factory=list)
+    dependency_graph: dict[str, list[str]] = field(default_factory=dict)
+    project_summary: str = ""
+    
+    def to_json(self) -> str:
+        """Serialize the SynthesisMap to a JSON string.
+        
+        Returns:
+            JSON string representation of the SynthesisMap.
+        """
+        data = {
+            "layers": {
+                name: {
+                    "name": layer.name,
+                    "purpose": layer.purpose,
+                    "directories": layer.directories,
+                    "files": layer.files,
+                }
+                for name, layer in self.layers.items()
+            },
+            "key_components": [
+                {
+                    "name": comp.name,
+                    "file": comp.file,
+                    "role": comp.role,
+                    "layer": comp.layer,
+                }
+                for comp in self.key_components
+            ],
+            "dependency_graph": self.dependency_graph,
+            "project_summary": self.project_summary,
+        }
+        return json.dumps(data, indent=2)
+    
+    @classmethod
+    def from_json(cls, json_str: str) -> "SynthesisMap":
+        """Deserialize a SynthesisMap from a JSON string.
+        
+        Args:
+            json_str: JSON string representation of a SynthesisMap.
+            
+        Returns:
+            A new SynthesisMap instance.
+        """
+        data = json.loads(json_str)
+        
+        layers = {
+            name: LayerInfo(
+                name=layer_data["name"],
+                purpose=layer_data["purpose"],
+                directories=layer_data.get("directories", []),
+                files=layer_data.get("files", []),
+            )
+            for name, layer_data in data.get("layers", {}).items()
+        }
+        
+        key_components = [
+            ComponentInfo(
+                name=comp["name"],
+                file=comp["file"],
+                role=comp["role"],
+                layer=comp["layer"],
+            )
+            for comp in data.get("key_components", [])
+        ]
+        
+        return cls(
+            layers=layers,
+            key_components=key_components,
+            dependency_graph=data.get("dependency_graph", {}),
+            project_summary=data.get("project_summary", ""),
+        )
 
 
 

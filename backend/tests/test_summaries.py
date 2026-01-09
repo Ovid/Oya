@@ -608,3 +608,197 @@ class TestDirectorySummaryFallbackOnParseFailure:
         # Fallback values
         assert summary.purpose == "Unknown"
 
+
+
+# Strategy for generating valid LayerInfo data
+@st.composite
+def layer_info_strategy(draw):
+    """Generate valid LayerInfo data."""
+    return {
+        "name": draw(st.sampled_from(VALID_LAYERS)),
+        "purpose": draw(st.text(alphabet=YAML_SAFE_ALPHABET, min_size=1, max_size=200).filter(lambda x: x.strip())),
+        "directories": draw(st.lists(
+            st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=50).filter(lambda x: x.strip()),
+            min_size=0, max_size=5
+        )),
+        "files": draw(st.lists(
+            st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=50).filter(lambda x: x.strip()),
+            min_size=0, max_size=10
+        )),
+    }
+
+
+# Strategy for generating valid ComponentInfo data
+@st.composite
+def component_info_strategy(draw):
+    """Generate valid ComponentInfo data."""
+    return {
+        "name": draw(st.text(alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", min_size=1, max_size=50).filter(lambda x: x.strip())),
+        "file": draw(st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=50).filter(lambda x: x.strip())),
+        "role": draw(st.text(alphabet=YAML_SAFE_ALPHABET, min_size=1, max_size=200).filter(lambda x: x.strip())),
+        "layer": draw(st.sampled_from(VALID_LAYERS)),
+    }
+
+
+# Strategy for generating valid SynthesisMap data
+@st.composite
+def synthesis_map_strategy(draw):
+    """Generate valid SynthesisMap data."""
+    # Generate layers dict with 1-6 layers
+    num_layers = draw(st.integers(min_value=1, max_value=6))
+    selected_layers = draw(st.permutations(VALID_LAYERS).map(lambda x: list(x)[:num_layers]))
+    
+    layers = {}
+    for layer_name in selected_layers:
+        layer_data = draw(layer_info_strategy())
+        layer_data["name"] = layer_name  # Ensure name matches key
+        layers[layer_name] = layer_data
+    
+    # Generate key_components list
+    key_components = draw(st.lists(component_info_strategy(), min_size=0, max_size=10))
+    
+    # Generate dependency_graph (layer -> list of dependent layers)
+    dependency_graph = {}
+    for layer_name in selected_layers:
+        # Each layer can depend on 0-3 other layers
+        possible_deps = [l for l in selected_layers if l != layer_name]
+        num_deps = draw(st.integers(min_value=0, max_value=min(3, len(possible_deps))))
+        if num_deps > 0 and possible_deps:
+            deps = draw(st.permutations(possible_deps).map(lambda x: list(x)[:num_deps]))
+            dependency_graph[layer_name] = deps
+        else:
+            dependency_graph[layer_name] = []
+    
+    # Generate project_summary
+    project_summary = draw(st.text(alphabet=YAML_SAFE_ALPHABET, min_size=1, max_size=500).filter(lambda x: x.strip()))
+    
+    return {
+        "layers": layers,
+        "key_components": key_components,
+        "dependency_graph": dependency_graph,
+        "project_summary": project_summary,
+    }
+
+
+class TestSynthesisMapJSONRoundTrip:
+    """Property 8: Synthesis_Map JSON Round-Trip
+    
+    For any valid Synthesis_Map, serializing to JSON and deserializing back 
+    SHALL produce an equivalent Synthesis_Map object.
+    
+    Validates: Requirements 3.5
+    """
+
+    @given(data=synthesis_map_strategy())
+    @settings(max_examples=100)
+    def test_synthesis_map_json_round_trip(self, data):
+        """Feature: bottom-up-generation, Property 8: Synthesis_Map JSON Round-Trip
+        
+        Serializing and deserializing a SynthesisMap produces an equivalent object.
+        """
+        from oya.generation.summaries import SynthesisMap, LayerInfo, ComponentInfo
+        
+        # Build the SynthesisMap from generated data
+        layers = {
+            name: LayerInfo(
+                name=layer_data["name"],
+                purpose=layer_data["purpose"],
+                directories=layer_data["directories"],
+                files=layer_data["files"],
+            )
+            for name, layer_data in data["layers"].items()
+        }
+        
+        key_components = [
+            ComponentInfo(
+                name=comp["name"],
+                file=comp["file"],
+                role=comp["role"],
+                layer=comp["layer"],
+            )
+            for comp in data["key_components"]
+        ]
+        
+        original = SynthesisMap(
+            layers=layers,
+            key_components=key_components,
+            dependency_graph=data["dependency_graph"],
+            project_summary=data["project_summary"],
+        )
+        
+        # Serialize to JSON
+        json_str = original.to_json()
+        
+        # Deserialize back
+        restored = SynthesisMap.from_json(json_str)
+        
+        # Verify equivalence
+        assert restored.project_summary == original.project_summary
+        assert restored.dependency_graph == original.dependency_graph
+        
+        # Verify layers
+        assert set(restored.layers.keys()) == set(original.layers.keys())
+        for layer_name, original_layer in original.layers.items():
+            restored_layer = restored.layers[layer_name]
+            assert restored_layer.name == original_layer.name
+            assert restored_layer.purpose == original_layer.purpose
+            assert restored_layer.directories == original_layer.directories
+            assert restored_layer.files == original_layer.files
+        
+        # Verify key_components
+        assert len(restored.key_components) == len(original.key_components)
+        for orig_comp, rest_comp in zip(original.key_components, restored.key_components):
+            assert rest_comp.name == orig_comp.name
+            assert rest_comp.file == orig_comp.file
+            assert rest_comp.role == orig_comp.role
+            assert rest_comp.layer == orig_comp.layer
+
+    @given(data=synthesis_map_strategy())
+    @settings(max_examples=100)
+    def test_synthesis_map_to_json_produces_valid_json(self, data):
+        """Feature: bottom-up-generation, Property 8: Synthesis_Map JSON Round-Trip
+        
+        to_json() produces valid JSON that can be parsed.
+        """
+        import json
+        from oya.generation.summaries import SynthesisMap, LayerInfo, ComponentInfo
+        
+        # Build the SynthesisMap from generated data
+        layers = {
+            name: LayerInfo(
+                name=layer_data["name"],
+                purpose=layer_data["purpose"],
+                directories=layer_data["directories"],
+                files=layer_data["files"],
+            )
+            for name, layer_data in data["layers"].items()
+        }
+        
+        key_components = [
+            ComponentInfo(
+                name=comp["name"],
+                file=comp["file"],
+                role=comp["role"],
+                layer=comp["layer"],
+            )
+            for comp in data["key_components"]
+        ]
+        
+        synthesis_map = SynthesisMap(
+            layers=layers,
+            key_components=key_components,
+            dependency_graph=data["dependency_graph"],
+            project_summary=data["project_summary"],
+        )
+        
+        # to_json() should produce valid JSON
+        json_str = synthesis_map.to_json()
+        
+        # Should be parseable as JSON
+        parsed = json.loads(json_str)
+        
+        # Should have expected top-level keys
+        assert "layers" in parsed
+        assert "key_components" in parsed
+        assert "dependency_graph" in parsed
+        assert "project_summary" in parsed
