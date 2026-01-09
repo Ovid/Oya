@@ -85,7 +85,7 @@ async def test_runs_full_generation(orchestrator):
                     with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock) as mock_dirs:
                         mock_dirs.return_value = []
                         with patch.object(orchestrator, "_run_files", new_callable=AsyncMock) as mock_files:
-                            mock_files.return_value = []
+                            mock_files.return_value = ([], {})
                             await orchestrator.run(progress_callback=progress_callback)
 
     # Should have progress events for each phase
@@ -118,7 +118,7 @@ async def test_emits_progress_events(orchestrator):
                     with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock) as mock_dirs:
                         mock_dirs.return_value = []
                         with patch.object(orchestrator, "_run_files", new_callable=AsyncMock) as mock_files:
-                            mock_files.return_value = []
+                            mock_files.return_value = ([], {})
                             await orchestrator.run(progress_callback=progress_callback)
 
     # Check progress events have expected fields
@@ -135,7 +135,8 @@ async def test_saves_pages_to_wiki_path(orchestrator, mock_llm_client):
         with patch.object(orchestrator, "_save_page", new_callable=AsyncMock) as mock_save:
             with patch.object(orchestrator, "_run_workflows", new_callable=AsyncMock):
                 with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock):
-                    with patch.object(orchestrator, "_run_files", new_callable=AsyncMock):
+                    with patch.object(orchestrator, "_run_files", new_callable=AsyncMock) as mock_files:
+                        mock_files.return_value = ([], {})
                         await orchestrator.run()
 
             # Should have saved overview and architecture pages

@@ -76,13 +76,14 @@ async def _run_generation(
     from oya.llm.client import LLMClient
 
     # Phase number mapping for progress tracking
+    # Note: Files runs before directories to compute content hashes for incremental regen
     phase_numbers = {
         "analysis": 1,
         "overview": 2,
         "architecture": 3,
         "workflows": 4,
-        "directories": 5,
-        "files": 6,
+        "files": 5,
+        "directories": 6,
     }
 
     async def progress_callback(progress: GenerationProgress) -> None:

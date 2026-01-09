@@ -24,7 +24,8 @@ const PHASES: Record<string, PhaseInfo> = {
 };
 
 // Ordered list of phases for progress display
-const PHASE_ORDER = ['analysis', 'overview', 'architecture', 'workflows', 'directories', 'files'];
+// Note: Files runs before directories to compute content hashes for incremental regen
+const PHASE_ORDER = ['analysis', 'overview', 'architecture', 'workflows', 'files', 'directories'];
 
 export function GenerationProgress({ jobId, onComplete, onError }: GenerationProgressProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('starting');

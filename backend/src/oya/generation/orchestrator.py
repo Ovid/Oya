@@ -2,6 +2,8 @@
 """Generation orchestrator for wiki pipeline."""
 
 import asyncio
+import hashlib
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -68,6 +70,33 @@ def batched(iterable, n: int) -> Iterator[list]:
         yield batch
 
 
+def compute_content_hash(content: str) -> str:
+    """Compute SHA-256 hash of content.
+
+    Args:
+        content: String content to hash.
+
+    Returns:
+        Hex digest of SHA-256 hash.
+    """
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def compute_directory_signature(file_hashes: list[tuple[str, str]]) -> str:
+    """Compute a signature hash for a directory based on its files.
+
+    Args:
+        file_hashes: List of (filename, content_hash) tuples for files in directory.
+
+    Returns:
+        Hex digest of SHA-256 hash of the sorted file hashes.
+    """
+    # Sort by filename for deterministic ordering
+    sorted_hashes = sorted(file_hashes, key=lambda x: x[0])
+    signature = "|".join(f"{name}:{hash}" for name, hash in sorted_hashes)
+    return hashlib.sha256(signature.encode("utf-8")).hexdigest()
+
+
 class GenerationOrchestrator:
     """Orchestrates the wiki generation pipeline.
 
@@ -110,6 +139,129 @@ class GenerationOrchestrator:
 
         # Workflow discovery helper
         self.workflow_discovery = WorkflowDiscovery()
+
+    def _get_existing_page_info(self, target: str, page_type: str) -> dict | None:
+        """Get existing page info from database for incremental check.
+
+        Args:
+            target: Target path (file or directory path).
+            page_type: Type of page ('file' or 'directory').
+
+        Returns:
+            Dict with 'source_hash' and 'generated_at' if page exists, None otherwise.
+        """
+        if not hasattr(self.db, "execute"):
+            return None
+
+        try:
+            cursor = self.db.execute(
+                """
+                SELECT metadata, generated_at FROM wiki_pages
+                WHERE target = ? AND type = ?
+                """,
+                (target, page_type),
+            )
+            row = cursor.fetchone()
+            if row:
+                metadata = json.loads(row[0]) if row[0] else {}
+                return {
+                    "source_hash": metadata.get("source_hash"),
+                    "generated_at": row[1],
+                }
+        except Exception:
+            pass
+        return None
+
+    def _has_new_notes(self, target: str, generated_at: str | None) -> bool:
+        """Check if there are notes created after the page was generated.
+
+        Args:
+            target: Target path to check for notes.
+            generated_at: Timestamp when the page was last generated.
+
+        Returns:
+            True if there are new notes, False otherwise.
+        """
+        if not generated_at or not hasattr(self.db, "execute"):
+            return False
+
+        try:
+            cursor = self.db.execute(
+                """
+                SELECT COUNT(*) FROM notes
+                WHERE target = ? AND created_at > ?
+                """,
+                (target, generated_at),
+            )
+            row = cursor.fetchone()
+            return row[0] > 0 if row else False
+        except Exception:
+            return False
+
+    def _should_regenerate_file(
+        self, file_path: str, content: str, file_hashes: dict[str, str]
+    ) -> tuple[bool, str]:
+        """Check if a file page needs regeneration.
+
+        Args:
+            file_path: Path to the source file.
+            content: Content of the source file.
+            file_hashes: Dict to store computed hashes (modified in place).
+
+        Returns:
+            Tuple of (should_regenerate, content_hash).
+        """
+        content_hash = compute_content_hash(content)
+        file_hashes[file_path] = content_hash
+
+        existing = self._get_existing_page_info(file_path, "file")
+        if not existing:
+            return True, content_hash
+
+        # Check if content changed
+        if existing.get("source_hash") != content_hash:
+            return True, content_hash
+
+        # Check if there are new notes
+        if self._has_new_notes(file_path, existing.get("generated_at")):
+            return True, content_hash
+
+        return False, content_hash
+
+    def _should_regenerate_directory(
+        self, dir_path: str, dir_files: list[str], file_hashes: dict[str, str]
+    ) -> tuple[bool, str]:
+        """Check if a directory page needs regeneration.
+
+        Args:
+            dir_path: Path to the directory.
+            dir_files: List of files in this directory.
+            file_hashes: Dict of file path to content hash.
+
+        Returns:
+            Tuple of (should_regenerate, signature_hash).
+        """
+        # Build signature from files in this directory
+        file_hash_pairs = [
+            (f.split("/")[-1], file_hashes.get(f, ""))
+            for f in dir_files
+            if f in file_hashes
+        ]
+        signature_hash = compute_directory_signature(file_hash_pairs)
+
+        existing = self._get_existing_page_info(dir_path, "directory")
+        if not existing:
+            return True, signature_hash
+
+        # Check if directory signature changed
+        if existing.get("source_hash") != signature_hash:
+            return True, signature_hash
+
+        # Check if there are new notes
+        if self._has_new_notes(dir_path, existing.get("generated_at")):
+            return True, signature_hash
+
+        return False, signature_hash
 
     async def run(
         self,
@@ -172,14 +324,16 @@ class GenerationOrchestrator:
         for page in workflow_pages:
             await self._save_page(page)
 
-        # Phase 5: Directories
-        directory_pages = await self._run_directories(analysis, progress_callback)
-        for page in directory_pages:
+        # Phase 5: Files (run before directories to compute content hashes)
+        file_pages, file_hashes = await self._run_files(analysis, progress_callback)
+        for page in file_pages:
             await self._save_page(page)
 
-        # Phase 6: Files
-        file_pages = await self._run_files(analysis, progress_callback)
-        for page in file_pages:
+        # Phase 6: Directories (uses file_hashes for signature computation)
+        directory_pages = await self._run_directories(
+            analysis, file_hashes, progress_callback
+        )
+        for page in directory_pages:
             await self._save_page(page)
 
         return job_id
@@ -396,12 +550,14 @@ class GenerationOrchestrator:
     async def _run_directories(
         self,
         analysis: dict,
+        file_hashes: dict[str, str],
         progress_callback: ProgressCallback | None = None,
     ) -> list[GeneratedPage]:
-        """Run directory generation phase with parallel processing.
+        """Run directory generation phase with parallel processing and incremental support.
 
         Args:
             analysis: Analysis results.
+            file_hashes: Dict of file_path to content_hash from files phase.
             progress_callback: Optional async callback for progress updates.
 
         Returns:
@@ -409,31 +565,56 @@ class GenerationOrchestrator:
         """
         pages = []
 
-        # Get unique directories
-        directories = set()
+        # Get unique directories and their direct files
+        directories: dict[str, list[str]] = {}
         for file_path in analysis["files"]:
             parts = file_path.split("/")
             for i in range(1, len(parts)):
                 dir_path = "/".join(parts[:i])
-                directories.add(dir_path)
+                if dir_path not in directories:
+                    directories[dir_path] = []
+                # Only add files directly in this directory (not in subdirs)
+                if i == len(parts) - 1 or (i < len(parts) - 1 and parts[i] != parts[-1]):
+                    continue
 
-        # Process all directories
-        sorted_dirs = sorted(directories)
-        total_dirs = len(sorted_dirs)
+        # Re-compute direct files for each directory
+        for file_path in analysis["files"]:
+            parts = file_path.split("/")
+            if len(parts) > 1:
+                parent_dir = "/".join(parts[:-1])
+                if parent_dir in directories:
+                    directories[parent_dir].append(file_path)
+
+        # Check which directories need regeneration
+        dirs_to_generate: list[tuple[str, str]] = []  # (dir_path, signature_hash)
+        skipped_count = 0
+
+        for dir_path in sorted(directories.keys()):
+            dir_files = directories[dir_path]
+            should_regen, signature_hash = self._should_regenerate_directory(
+                dir_path, dir_files, file_hashes
+            )
+            if should_regen:
+                dirs_to_generate.append((dir_path, signature_hash))
+            else:
+                skipped_count += 1
+
+        # Total includes both generated and skipped for accurate progress display
+        total_dirs = len(dirs_to_generate) + skipped_count
 
         # Emit initial progress with total count
         await self._emit_progress(
             progress_callback,
             GenerationProgress(
                 phase=GenerationPhase.DIRECTORIES,
-                step=0,
+                step=skipped_count,
                 total_steps=total_dirs,
-                message=f"Generating directory pages (0/{total_dirs})...",
+                message=f"Generating directory pages ({skipped_count} unchanged, 0/{len(dirs_to_generate)} generating)...",
             ),
         )
 
-        # Helper to generate a single directory page
-        async def generate_dir_page(dir_path: str) -> GeneratedPage:
+        # Helper to generate a single directory page with hash
+        async def generate_dir_page(dir_path: str, signature_hash: str) -> GeneratedPage:
             dir_files = [
                 f for f in analysis["files"]
                 if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
@@ -442,31 +623,36 @@ class GenerationOrchestrator:
                 s for s in analysis["symbols"]
                 if s.get("file", "").startswith(dir_path + "/")
             ]
-            return await self.directory_generator.generate(
+            page = await self.directory_generator.generate(
                 directory_path=dir_path,
                 file_list=dir_files,
                 symbols=dir_symbols,
                 architecture_context="",
             )
+            # Add signature hash to the page for storage
+            page.source_hash = signature_hash
+            return page
 
         # Process directories in parallel batches
-        completed = 0
-        for batch in batched(sorted_dirs, self.parallel_limit):
+        completed = skipped_count
+        for batch in batched(dirs_to_generate, self.parallel_limit):
             # Process batch concurrently
             batch_pages = await asyncio.gather(*[
-                generate_dir_page(dir_path) for dir_path in batch
+                generate_dir_page(dir_path, signature_hash)
+                for dir_path, signature_hash in batch
             ])
             pages.extend(batch_pages)
 
             # Report progress after batch completes
             completed += len(batch)
+            generated_so_far = completed - skipped_count
             await self._emit_progress(
                 progress_callback,
                 GenerationProgress(
                     phase=GenerationPhase.DIRECTORIES,
                     step=completed,
                     total_steps=total_dirs,
-                    message=f"Generated {completed}/{total_dirs} directories...",
+                    message=f"Generated {generated_so_far}/{len(dirs_to_generate)} directories ({skipped_count} unchanged)...",
                 ),
             )
 
@@ -476,46 +662,55 @@ class GenerationOrchestrator:
         self,
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
-    ) -> list[GeneratedPage]:
-        """Run file generation phase with parallel processing.
+    ) -> tuple[list[GeneratedPage], dict[str, str]]:
+        """Run file generation phase with parallel processing and incremental support.
 
         Args:
             analysis: Analysis results.
             progress_callback: Optional async callback for progress updates.
 
         Returns:
-            List of generated file pages.
+            Tuple of (list of generated file pages, dict of file_path to content_hash).
         """
         pages = []
+        file_hashes: dict[str, str] = {}
 
         # Generate page for each code file
         code_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs"}
 
-        # Filter to code files first
-        code_files = []
+        # Filter to code files and check which need regeneration
+        files_to_generate: list[tuple[str, str]] = []  # (file_path, content_hash)
+        skipped_count = 0
+
         for file_path in analysis["files"]:
             ext = Path(file_path).suffix.lower()
             if ext in code_extensions:
                 content = analysis["file_contents"].get(file_path, "")
                 if content:
-                    code_files.append(file_path)
+                    should_regen, content_hash = self._should_regenerate_file(
+                        file_path, content, file_hashes
+                    )
+                    if should_regen:
+                        files_to_generate.append((file_path, content_hash))
+                    else:
+                        skipped_count += 1
 
-        # Process all code files
-        total_files = len(code_files)
+        # Total includes both generated and skipped for accurate progress display
+        total_files = len(files_to_generate) + skipped_count
 
         # Emit initial progress with total count
         await self._emit_progress(
             progress_callback,
             GenerationProgress(
                 phase=GenerationPhase.FILES,
-                step=0,
+                step=skipped_count,
                 total_steps=total_files,
-                message=f"Generating file pages (0/{total_files})...",
+                message=f"Generating file pages ({skipped_count} unchanged, 0/{len(files_to_generate)} generating)...",
             ),
         )
 
-        # Helper to generate a single file page
-        async def generate_file_page(file_path: str) -> GeneratedPage:
+        # Helper to generate a single file page with hash
+        async def generate_file_page(file_path: str, content_hash: str) -> GeneratedPage:
             content = analysis["file_contents"].get(file_path, "")
             ext = Path(file_path).suffix.lower()
             file_symbols = [
@@ -523,36 +718,41 @@ class GenerationOrchestrator:
                 if s.get("file") == file_path
             ]
             imports = self._extract_imports(content, ext)
-            return await self.file_generator.generate(
+            page = await self.file_generator.generate(
                 file_path=file_path,
                 content=content,
                 symbols=file_symbols,
                 imports=imports,
                 architecture_summary="",
             )
+            # Add source hash to the page for storage
+            page.source_hash = content_hash
+            return page
 
         # Process files in parallel batches
-        completed = 0
-        for batch in batched(code_files, self.parallel_limit):
+        completed = skipped_count
+        for batch in batched(files_to_generate, self.parallel_limit):
             # Process batch concurrently
             batch_pages = await asyncio.gather(*[
-                generate_file_page(file_path) for file_path in batch
+                generate_file_page(file_path, content_hash)
+                for file_path, content_hash in batch
             ])
             pages.extend(batch_pages)
 
             # Report progress after batch completes
             completed += len(batch)
+            generated_so_far = completed - skipped_count
             await self._emit_progress(
                 progress_callback,
                 GenerationProgress(
                     phase=GenerationPhase.FILES,
                     step=completed,
                     total_steps=total_files,
-                    message=f"Generated {completed}/{total_files} files...",
+                    message=f"Generated {generated_so_far}/{len(files_to_generate)} files ({skipped_count} unchanged)...",
                 ),
             )
 
-        return pages
+        return pages, file_hashes
 
     def _extract_imports(self, content: str, ext: str) -> list[str]:
         """Extract import statements from file content.
@@ -596,16 +796,27 @@ class GenerationOrchestrator:
         # Write content
         page_path.write_text(page.content, encoding="utf-8")
 
+        # Build metadata JSON with source hash for incremental regeneration
+        metadata = {}
+        if page.source_hash:
+            metadata["source_hash"] = page.source_hash
+
         # Record in database (if method exists)
         if hasattr(self.db, "execute"):
             try:
                 self.db.execute(
                     """
                     INSERT OR REPLACE INTO wiki_pages
-                    (path, page_type, word_count, target, content)
-                    VALUES (?, ?, ?, ?, ?)
+                    (path, type, word_count, target, metadata, generated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
                     """,
-                    (page.path, page.page_type, page.word_count, page.target, page.content),
+                    (
+                        page.path,
+                        page.page_type,
+                        page.word_count,
+                        page.target,
+                        json.dumps(metadata) if metadata else None,
+                    ),
                 )
                 self.db.commit()
             except Exception:

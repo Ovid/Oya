@@ -17,6 +17,7 @@ class GeneratedPage:
         path: Relative path for the wiki page.
         word_count: Number of words in content.
         target: Optional target (file/directory path).
+        source_hash: Hash of source content (for incremental regeneration).
     """
 
     content: str
@@ -24,6 +25,7 @@ class GeneratedPage:
     path: str
     word_count: int
     target: str | None = None
+    source_hash: str | None = None
 
 
 class OverviewGenerator:
