@@ -1,6 +1,8 @@
 """FastAPI dependency injection functions."""
 
+import os
 from functools import lru_cache
+from pathlib import Path
 
 from oya.config import Settings, load_settings
 from oya.db.connection import Database
@@ -8,6 +10,63 @@ from oya.db.migrations import run_migrations
 from oya.llm.client import LLMClient
 from oya.repo.git_repo import GitRepo
 from oya.vectorstore.store import VectorStore
+
+
+def get_workspace_base_path() -> Path:
+    """Get the allowed base path for workspaces.
+    
+    Returns the WORKSPACE_BASE_PATH environment variable if set,
+    otherwise defaults to the user's home directory.
+    
+    Returns:
+        Path: The resolved base path for workspace validation.
+    """
+    base = os.getenv("WORKSPACE_BASE_PATH")
+    if base:
+        return Path(base).resolve()
+    return Path.home()
+
+
+def validate_workspace_path(
+    path: str, base_path: Path
+) -> tuple[bool, str, Path | None]:
+    """Validate a workspace path is safe and within allowed bounds.
+    
+    Performs security checks including:
+    - Path existence verification
+    - Directory type verification
+    - Base path containment (prevents path traversal attacks)
+    - Symlink resolution (ensures symlink targets are also within bounds)
+    
+    Args:
+        path: The requested workspace path string.
+        base_path: The allowed base path that workspaces must be under.
+        
+    Returns:
+        Tuple of (is_valid, error_message, resolved_path).
+        - is_valid: True if path passes all validation checks
+        - error_message: Empty string if valid, descriptive error otherwise
+        - resolved_path: The canonical resolved path if valid, None otherwise
+    """
+    try:
+        requested = Path(path).resolve()
+    except (ValueError, OSError) as e:
+        return False, f"Invalid path: {e}", None
+    
+    if not requested.exists():
+        return False, "Path does not exist", None
+    
+    if not requested.is_dir():
+        return False, "Path is not a directory", None
+    
+    # Security: ensure resolved path is under base_path
+    # This handles symlinks and .. traversal since we use resolve()
+    try:
+        requested.relative_to(base_path)
+    except ValueError:
+        return False, "Path is outside allowed workspace area", None
+    
+    return True, "", requested
 
 
 @lru_cache

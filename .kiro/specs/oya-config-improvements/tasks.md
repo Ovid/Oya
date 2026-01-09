@@ -48,11 +48,11 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - Update `.kiro/steering/structure.md` to reference `.oyawiki/.oyaignore`
     - _Requirements: 1.3_
 
-- [ ] 4. Checkpoint - Verify backend initialization works
+- [x] 4. Checkpoint - Verify backend initialization works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Path validation utility (TDD)
-  - [ ] 5.1 RED: Write failing property tests for path validation
+- [x] 5. Path validation utility (TDD)
+  - [x] 5.1 RED: Write failing property tests for path validation
     - Create tests for invalid path rejection
     - Create tests for base path security enforcement
     - Create tests for path canonicalization
@@ -60,12 +60,12 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - **Property 3: Base path security enforcement**
     - **Property 4: Path canonicalization security**
     - **Validates: Requirements 4.6, 4.7, 4.9, 4.11, 4.12, 4.13**
-  - [ ] 5.2 GREEN: Implement path validation in `backend/src/oya/api/deps.py`
+  - [x] 5.2 GREEN: Implement path validation in `backend/src/oya/api/deps.py`
     - Add `get_workspace_base_path()` function
     - Add `validate_workspace_path()` function with security checks
     - Handle symlink resolution and path canonicalization
     - _Requirements: 4.9, 4.10, 4.12, 4.13_
-  - [ ] 5.3 REFACTOR: Clean up path validation code
+  - [x] 5.3 REFACTOR: Clean up path validation code
 
 - [ ] 6. Workspace switching API (TDD)
   - [ ] 6.1 RED: Write failing unit tests for workspace switch endpoint
