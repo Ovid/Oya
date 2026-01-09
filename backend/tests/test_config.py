@@ -67,3 +67,39 @@ def test_oyawiki_paths(temp_workspace: Path, monkeypatch):
     assert settings.db_path == temp_workspace / ".oyawiki" / "meta" / "oya.db"
     assert settings.index_path == temp_workspace / ".oyawiki" / "meta" / "index"
     assert settings.cache_path == temp_workspace / ".oyawiki" / "meta" / "cache"
+
+
+def test_parallel_limit_defaults_for_ollama(temp_workspace: Path, monkeypatch):
+    """Ollama provider gets conservative parallel limit (2) by default."""
+    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+    monkeypatch.setenv("ACTIVE_PROVIDER", "ollama")
+    monkeypatch.delenv("PARALLEL_FILE_LIMIT", raising=False)
+
+    settings = load_settings()
+
+    assert settings.parallel_file_limit == 2
+
+
+def test_parallel_limit_defaults_for_cloud_providers(temp_workspace: Path, monkeypatch):
+    """Cloud providers get higher parallel limit (10) by default."""
+    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+    monkeypatch.delenv("PARALLEL_FILE_LIMIT", raising=False)
+
+    for provider in ["openai", "anthropic", "google"]:
+        load_settings.cache_clear()
+        monkeypatch.setenv("ACTIVE_PROVIDER", provider)
+
+        settings = load_settings()
+
+        assert settings.parallel_file_limit == 10, f"Expected 10 for {provider}"
+
+
+def test_parallel_limit_explicit_override(temp_workspace: Path, monkeypatch):
+    """Explicit PARALLEL_FILE_LIMIT overrides provider-based default."""
+    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+    monkeypatch.setenv("ACTIVE_PROVIDER", "ollama")
+    monkeypatch.setenv("PARALLEL_FILE_LIMIT", "5")
+
+    settings = load_settings()
+
+    assert settings.parallel_file_limit == 5

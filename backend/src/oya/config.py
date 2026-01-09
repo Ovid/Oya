@@ -158,6 +158,17 @@ def load_settings() -> Settings:
         }
         active_model = provider_defaults.get(active_provider, "llama2")
 
+    # Determine parallel limit based on provider
+    # Local models (Ollama) can't handle many concurrent requests efficiently
+    # Cloud APIs (OpenAI, Anthropic, Google) handle concurrency well
+    parallel_limit_env = os.getenv("PARALLEL_FILE_LIMIT")
+    if parallel_limit_env:
+        parallel_file_limit = int(parallel_limit_env)
+    elif active_provider == "ollama":
+        parallel_file_limit = 2  # Safe default for local models
+    else:
+        parallel_file_limit = 10  # Cloud APIs handle concurrency well
+
     return Settings(
         workspace_path=workspace_path,
         active_provider=active_provider,
@@ -167,6 +178,6 @@ def load_settings() -> Settings:
         google_api_key=os.getenv("GOOGLE_API_KEY"),
         ollama_endpoint=os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434"),
         max_file_size_kb=int(os.getenv("MAX_FILE_SIZE_KB", "1024")),
-        parallel_file_limit=int(os.getenv("PARALLEL_FILE_LIMIT", "10")),
+        parallel_file_limit=parallel_file_limit,
         chunk_size=int(os.getenv("CHUNK_SIZE", "4096")),
     )
