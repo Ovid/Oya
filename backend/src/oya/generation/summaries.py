@@ -53,6 +53,40 @@ class FileSummary:
             raise ValueError(
                 f"Invalid layer '{self.layer}'. Must be one of: {', '.join(sorted(VALID_LAYERS))}"
             )
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the FileSummary to a dictionary.
+        
+        Returns:
+            Dictionary representation of the FileSummary for JSON storage.
+        """
+        return {
+            "file_path": self.file_path,
+            "purpose": self.purpose,
+            "layer": self.layer,
+            "key_abstractions": self.key_abstractions,
+            "internal_deps": self.internal_deps,
+            "external_deps": self.external_deps,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FileSummary":
+        """Deserialize a FileSummary from a dictionary.
+        
+        Args:
+            data: Dictionary representation of a FileSummary.
+            
+        Returns:
+            A new FileSummary instance.
+        """
+        return cls(
+            file_path=data.get("file_path", ""),
+            purpose=data.get("purpose", "Unknown"),
+            layer=data.get("layer", "utility"),
+            key_abstractions=data.get("key_abstractions", []),
+            internal_deps=data.get("internal_deps", []),
+            external_deps=data.get("external_deps", []),
+        )
 
 
 @dataclass
@@ -73,6 +107,36 @@ class DirectorySummary:
     purpose: str
     contains: list[str] = field(default_factory=list)
     role_in_system: str = ""
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the DirectorySummary to a dictionary.
+        
+        Returns:
+            Dictionary representation of the DirectorySummary for JSON storage.
+        """
+        return {
+            "directory_path": self.directory_path,
+            "purpose": self.purpose,
+            "contains": self.contains,
+            "role_in_system": self.role_in_system,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DirectorySummary":
+        """Deserialize a DirectorySummary from a dictionary.
+        
+        Args:
+            data: Dictionary representation of a DirectorySummary.
+            
+        Returns:
+            A new DirectorySummary instance.
+        """
+        return cls(
+            directory_path=data.get("directory_path", ""),
+            purpose=data.get("purpose", "Unknown"),
+            contains=data.get("contains", []),
+            role_in_system=data.get("role_in_system", ""),
+        )
 
 
 @dataclass

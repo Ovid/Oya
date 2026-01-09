@@ -802,3 +802,224 @@ class TestSynthesisMapJSONRoundTrip:
         assert "key_components" in parsed
         assert "dependency_graph" in parsed
         assert "project_summary" in parsed
+
+
+class TestFileSummaryPersistenceRoundTrip:
+    """Property 3: File_Summary Persistence Round-Trip
+    
+    For any File_Summary generated and persisted to the database, querying the 
+    database for that file's metadata and deserializing SHALL produce an 
+    equivalent File_Summary object.
+    
+    Validates: Requirements 1.8
+    """
+
+    @given(data=file_summary_strategy())
+    @settings(max_examples=100)
+    def test_file_summary_dict_round_trip(self, data):
+        """Feature: bottom-up-generation, Property 3: File_Summary Persistence Round-Trip
+        
+        Serializing a FileSummary to dict and deserializing produces equivalent object.
+        """
+        from oya.generation.summaries import FileSummary
+        
+        # Create original FileSummary
+        original = FileSummary(
+            file_path=data["file_path"],
+            purpose=data["purpose"],
+            layer=data["layer"],
+            key_abstractions=data["key_abstractions"],
+            internal_deps=data["internal_deps"],
+            external_deps=data["external_deps"],
+        )
+        
+        # Serialize to dict (for JSON storage in metadata column)
+        serialized = original.to_dict()
+        
+        # Deserialize back
+        restored = FileSummary.from_dict(serialized)
+        
+        # Verify equivalence
+        assert restored.file_path == original.file_path
+        assert restored.purpose == original.purpose
+        assert restored.layer == original.layer
+        assert restored.key_abstractions == original.key_abstractions
+        assert restored.internal_deps == original.internal_deps
+        assert restored.external_deps == original.external_deps
+
+    @given(data=file_summary_strategy())
+    @settings(max_examples=100)
+    def test_file_summary_json_round_trip(self, data):
+        """Feature: bottom-up-generation, Property 3: File_Summary Persistence Round-Trip
+        
+        Serializing a FileSummary to JSON and deserializing produces equivalent object.
+        """
+        import json
+        from oya.generation.summaries import FileSummary
+        
+        # Create original FileSummary
+        original = FileSummary(
+            file_path=data["file_path"],
+            purpose=data["purpose"],
+            layer=data["layer"],
+            key_abstractions=data["key_abstractions"],
+            internal_deps=data["internal_deps"],
+            external_deps=data["external_deps"],
+        )
+        
+        # Serialize to dict, then to JSON (simulating database storage)
+        serialized_dict = original.to_dict()
+        json_str = json.dumps(serialized_dict)
+        
+        # Deserialize from JSON back to dict, then to FileSummary
+        restored_dict = json.loads(json_str)
+        restored = FileSummary.from_dict(restored_dict)
+        
+        # Verify equivalence
+        assert restored.file_path == original.file_path
+        assert restored.purpose == original.purpose
+        assert restored.layer == original.layer
+        assert restored.key_abstractions == original.key_abstractions
+        assert restored.internal_deps == original.internal_deps
+        assert restored.external_deps == original.external_deps
+
+    @given(data=file_summary_strategy())
+    @settings(max_examples=100)
+    def test_file_summary_to_dict_produces_valid_dict(self, data):
+        """Feature: bottom-up-generation, Property 3: File_Summary Persistence Round-Trip
+        
+        to_dict() produces a dict with all required keys.
+        """
+        from oya.generation.summaries import FileSummary
+        
+        summary = FileSummary(
+            file_path=data["file_path"],
+            purpose=data["purpose"],
+            layer=data["layer"],
+            key_abstractions=data["key_abstractions"],
+            internal_deps=data["internal_deps"],
+            external_deps=data["external_deps"],
+        )
+        
+        result = summary.to_dict()
+        
+        # Should be a dict with all required keys
+        assert isinstance(result, dict)
+        assert "file_path" in result
+        assert "purpose" in result
+        assert "layer" in result
+        assert "key_abstractions" in result
+        assert "internal_deps" in result
+        assert "external_deps" in result
+        
+        # Values should match
+        assert result["file_path"] == data["file_path"]
+        assert result["purpose"] == data["purpose"]
+        assert result["layer"] == data["layer"]
+        assert result["key_abstractions"] == data["key_abstractions"]
+        assert result["internal_deps"] == data["internal_deps"]
+        assert result["external_deps"] == data["external_deps"]
+
+
+
+class TestDirectorySummaryPersistenceRoundTrip:
+    """Property 6: Directory_Summary Persistence Round-Trip
+    
+    For any Directory_Summary generated and persisted to the database, querying 
+    the database for that directory's metadata and deserializing SHALL produce 
+    an equivalent Directory_Summary object.
+    
+    Validates: Requirements 2.7
+    """
+
+    @given(data=directory_summary_strategy())
+    @settings(max_examples=100)
+    def test_directory_summary_dict_round_trip(self, data):
+        """Feature: bottom-up-generation, Property 6: Directory_Summary Persistence Round-Trip
+        
+        Serializing a DirectorySummary to dict and deserializing produces equivalent object.
+        """
+        from oya.generation.summaries import DirectorySummary
+        
+        # Create original DirectorySummary
+        original = DirectorySummary(
+            directory_path=data["directory_path"],
+            purpose=data["purpose"],
+            contains=data["contains"],
+            role_in_system=data["role_in_system"],
+        )
+        
+        # Serialize to dict (for JSON storage in metadata column)
+        serialized = original.to_dict()
+        
+        # Deserialize back
+        restored = DirectorySummary.from_dict(serialized)
+        
+        # Verify equivalence
+        assert restored.directory_path == original.directory_path
+        assert restored.purpose == original.purpose
+        assert restored.contains == original.contains
+        assert restored.role_in_system == original.role_in_system
+
+    @given(data=directory_summary_strategy())
+    @settings(max_examples=100)
+    def test_directory_summary_json_round_trip(self, data):
+        """Feature: bottom-up-generation, Property 6: Directory_Summary Persistence Round-Trip
+        
+        Serializing a DirectorySummary to JSON and deserializing produces equivalent object.
+        """
+        import json
+        from oya.generation.summaries import DirectorySummary
+        
+        # Create original DirectorySummary
+        original = DirectorySummary(
+            directory_path=data["directory_path"],
+            purpose=data["purpose"],
+            contains=data["contains"],
+            role_in_system=data["role_in_system"],
+        )
+        
+        # Serialize to dict, then to JSON (simulating database storage)
+        serialized_dict = original.to_dict()
+        json_str = json.dumps(serialized_dict)
+        
+        # Deserialize from JSON back to dict, then to DirectorySummary
+        restored_dict = json.loads(json_str)
+        restored = DirectorySummary.from_dict(restored_dict)
+        
+        # Verify equivalence
+        assert restored.directory_path == original.directory_path
+        assert restored.purpose == original.purpose
+        assert restored.contains == original.contains
+        assert restored.role_in_system == original.role_in_system
+
+    @given(data=directory_summary_strategy())
+    @settings(max_examples=100)
+    def test_directory_summary_to_dict_produces_valid_dict(self, data):
+        """Feature: bottom-up-generation, Property 6: Directory_Summary Persistence Round-Trip
+        
+        to_dict() produces a dict with all required keys.
+        """
+        from oya.generation.summaries import DirectorySummary
+        
+        summary = DirectorySummary(
+            directory_path=data["directory_path"],
+            purpose=data["purpose"],
+            contains=data["contains"],
+            role_in_system=data["role_in_system"],
+        )
+        
+        result = summary.to_dict()
+        
+        # Should be a dict with all required keys
+        assert isinstance(result, dict)
+        assert "directory_path" in result
+        assert "purpose" in result
+        assert "contains" in result
+        assert "role_in_system" in result
+        
+        # Values should match
+        assert result["directory_path"] == data["directory_path"]
+        assert result["purpose"] == data["purpose"]
+        assert result["contains"] == data["contains"]
+        assert result["role_in_system"] == data["role_in_system"]
