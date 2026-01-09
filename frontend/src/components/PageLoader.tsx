@@ -102,11 +102,12 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     );
   }
 
-  // Show generation progress if a job is running
-  if (generatingJobId) {
+  // Show generation progress if a job is running (either local or global)
+  const activeJobId = generatingJobId || (state.currentJob?.status === 'running' ? state.currentJob.job_id : null);
+  if (activeJobId) {
     return (
       <GenerationProgress
-        jobId={generatingJobId}
+        jobId={activeJobId}
         onComplete={handleGenerationComplete}
         onError={handleGenerationError}
       />
