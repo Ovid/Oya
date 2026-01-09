@@ -6,12 +6,20 @@ documentation to enable synthesis into higher-level architecture understanding.
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 import yaml
 
 
 # Valid layer classifications for code files
-VALID_LAYERS = frozenset(["api", "domain", "infrastructure", "utility", "config", "test"])
+VALID_LAYERS: frozenset[str] = frozenset([
+    "api", 
+    "domain", 
+    "infrastructure", 
+    "utility", 
+    "config", 
+    "test"
+])
 
 
 @dataclass
@@ -81,6 +89,52 @@ class SummaryParser:
         re.MULTILINE | re.DOTALL
     )
     
+    def _extract_yaml_block(self, markdown: str) -> tuple[str | None, str]:
+        """Extract YAML content from markdown and return clean markdown.
+        
+        Args:
+            markdown: The full markdown content potentially containing a YAML block.
+            
+        Returns:
+            A tuple of (yaml_content, clean_markdown) where yaml_content is None
+            if no valid YAML block was found.
+        """
+        match = self.YAML_BLOCK_PATTERN.search(markdown)
+        
+        if not match:
+            return None, markdown
+        
+        yaml_content = match.group(1)
+        clean_markdown = self.YAML_BLOCK_PATTERN.sub('', markdown).strip()
+        
+        return yaml_content, clean_markdown
+    
+    def _parse_yaml_safely(self, yaml_content: str) -> dict[str, Any] | None:
+        """Safely parse YAML content, returning None on failure.
+        
+        Args:
+            yaml_content: Raw YAML string to parse.
+            
+        Returns:
+            Parsed dict or None if parsing fails.
+        """
+        try:
+            data = yaml.safe_load(yaml_content)
+            return data if isinstance(data, dict) else None
+        except yaml.YAMLError:
+            return None
+    
+    def _ensure_list(self, value: Any) -> list[str]:
+        """Ensure a value is a list of strings.
+        
+        Args:
+            value: Any value that should be a list.
+            
+        Returns:
+            The value as a list, or empty list if not a list.
+        """
+        return value if isinstance(value, list) else []
+    
     def parse_file_summary(
         self, 
         markdown: str, 
@@ -100,64 +154,39 @@ class SummaryParser:
             A tuple of (clean_markdown, FileSummary) where clean_markdown has
             the YAML block removed.
         """
-        # Try to extract YAML block
-        match = self.YAML_BLOCK_PATTERN.search(markdown)
+        yaml_content, clean_markdown = self._extract_yaml_block(markdown)
         
-        if not match:
-            # No YAML block found, return fallback
+        if yaml_content is None:
             return markdown, self._fallback_file_summary(file_path)
         
-        yaml_content = match.group(1)
+        data = self._parse_yaml_safely(yaml_content)
         
-        try:
-            data = yaml.safe_load(yaml_content)
-            
-            if not isinstance(data, dict) or 'file_summary' not in data:
-                return markdown, self._fallback_file_summary(file_path)
-            
-            summary_data = data['file_summary']
-            
-            # Ensure summary_data is a dict
-            if not isinstance(summary_data, dict):
-                return markdown, self._fallback_file_summary(file_path)
-            
-            # Extract fields with defaults
-            purpose = summary_data.get('purpose', 'Unknown')
-            layer = summary_data.get('layer', 'utility')
-            
-            # Validate layer
-            if layer not in VALID_LAYERS:
-                layer = 'utility'
-            
-            key_abstractions = summary_data.get('key_abstractions', [])
-            if not isinstance(key_abstractions, list):
-                key_abstractions = []
-            
-            internal_deps = summary_data.get('internal_deps', [])
-            if not isinstance(internal_deps, list):
-                internal_deps = []
-            
-            external_deps = summary_data.get('external_deps', [])
-            if not isinstance(external_deps, list):
-                external_deps = []
-            
-            summary = FileSummary(
-                file_path=file_path,
-                purpose=purpose,
-                layer=layer,
-                key_abstractions=key_abstractions,
-                internal_deps=internal_deps,
-                external_deps=external_deps,
-            )
-            
-            # Remove YAML block from markdown
-            clean_markdown = self.YAML_BLOCK_PATTERN.sub('', markdown).strip()
-            
-            return clean_markdown, summary
-            
-        except yaml.YAMLError:
-            # Malformed YAML, return fallback
+        if data is None or 'file_summary' not in data:
             return markdown, self._fallback_file_summary(file_path)
+        
+        summary_data = data['file_summary']
+        
+        if not isinstance(summary_data, dict):
+            return markdown, self._fallback_file_summary(file_path)
+        
+        # Extract and validate fields
+        purpose = summary_data.get('purpose', 'Unknown')
+        layer = summary_data.get('layer', 'utility')
+        
+        # Validate layer, default to utility if invalid
+        if layer not in VALID_LAYERS:
+            layer = 'utility'
+        
+        summary = FileSummary(
+            file_path=file_path,
+            purpose=purpose,
+            layer=layer,
+            key_abstractions=self._ensure_list(summary_data.get('key_abstractions', [])),
+            internal_deps=self._ensure_list(summary_data.get('internal_deps', [])),
+            external_deps=self._ensure_list(summary_data.get('external_deps', [])),
+        )
+        
+        return clean_markdown, summary
     
     def _fallback_file_summary(self, file_path: str) -> FileSummary:
         """Create a fallback FileSummary with default values.
@@ -192,51 +221,29 @@ class SummaryParser:
             A tuple of (clean_markdown, DirectorySummary) where clean_markdown has
             the YAML block removed.
         """
-        # Try to extract YAML block
-        match = self.YAML_BLOCK_PATTERN.search(markdown)
+        yaml_content, clean_markdown = self._extract_yaml_block(markdown)
         
-        if not match:
-            # No YAML block found, return fallback
+        if yaml_content is None:
             return markdown, self._fallback_directory_summary(directory_path)
         
-        yaml_content = match.group(1)
+        data = self._parse_yaml_safely(yaml_content)
         
-        try:
-            data = yaml.safe_load(yaml_content)
-            
-            if not isinstance(data, dict) or 'directory_summary' not in data:
-                return markdown, self._fallback_directory_summary(directory_path)
-            
-            summary_data = data['directory_summary']
-            
-            # Ensure summary_data is a dict
-            if not isinstance(summary_data, dict):
-                return markdown, self._fallback_directory_summary(directory_path)
-            
-            # Extract fields with defaults
-            purpose = summary_data.get('purpose', 'Unknown')
-            
-            contains = summary_data.get('contains', [])
-            if not isinstance(contains, list):
-                contains = []
-            
-            role_in_system = summary_data.get('role_in_system', '')
-            
-            summary = DirectorySummary(
-                directory_path=directory_path,
-                purpose=purpose,
-                contains=contains,
-                role_in_system=role_in_system,
-            )
-            
-            # Remove YAML block from markdown
-            clean_markdown = self.YAML_BLOCK_PATTERN.sub('', markdown).strip()
-            
-            return clean_markdown, summary
-            
-        except yaml.YAMLError:
-            # Malformed YAML, return fallback
+        if data is None or 'directory_summary' not in data:
             return markdown, self._fallback_directory_summary(directory_path)
+        
+        summary_data = data['directory_summary']
+        
+        if not isinstance(summary_data, dict):
+            return markdown, self._fallback_directory_summary(directory_path)
+        
+        summary = DirectorySummary(
+            directory_path=directory_path,
+            purpose=summary_data.get('purpose', 'Unknown'),
+            contains=self._ensure_list(summary_data.get('contains', [])),
+            role_in_system=summary_data.get('role_in_system', ''),
+        )
+        
+        return clean_markdown, summary
     
     def _fallback_directory_summary(self, directory_path: str) -> DirectorySummary:
         """Create a fallback DirectorySummary with default values.
