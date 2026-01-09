@@ -3,7 +3,7 @@
 from oya.db.connection import Database
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS generations (
     commit_hash TEXT,  -- Git commit that was indexed
     current_phase TEXT,  -- For progress tracking
     total_phases INTEGER,
+    current_step INTEGER,  -- Step within current phase (e.g., file 3 of 20)
+    total_steps INTEGER,  -- Total steps in current phase
     error_message TEXT,
     metadata TEXT  -- JSON for additional data
 );
@@ -114,6 +116,16 @@ def run_migrations(db: Database) -> None:
         # Apply schema using executescript which handles multiple statements
         # Note: executescript auto-commits, so we handle the version insert separately
         db.executescript(SCHEMA_SQL)
+
+        # Version 3 migration: Add step tracking columns to generations table
+        if current_version >= 1 and current_version < 3:
+            try:
+                db.execute("ALTER TABLE generations ADD COLUMN current_step INTEGER")
+                db.execute("ALTER TABLE generations ADD COLUMN total_steps INTEGER")
+                db.commit()
+            except Exception:
+                # Columns may already exist if schema was recreated
+                pass
 
         # Record schema version
         db.execute(

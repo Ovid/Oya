@@ -30,8 +30,12 @@ DEFAULT_EXCLUDES = [
     # OS
     ".DS_Store",
     "Thumbs.db",
-    # Oya artifacts
-    ".coretechs",
+    # Oya artifacts (but NOT .coretechs/notes/ - those are user corrections)
+    ".coretechs/wiki",
+    ".coretechs/meta",
+    ".coretechs/index",
+    ".coretechs/cache",
+    ".coretechs/config",
 ]
 
 
@@ -87,6 +91,15 @@ class FileFilter:
                 for part in parts:
                     if fnmatch.fnmatch(part, dir_pattern):
                         return True
+            # Handle path patterns containing "/" (e.g., ".coretechs/wiki")
+            # These should match as path prefixes
+            elif "/" in pattern:
+                # Check if path starts with the pattern (as a directory prefix)
+                if path.startswith(pattern + "/") or path == pattern:
+                    return True
+                # Also support glob patterns in path-based excludes
+                if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(path, pattern + "/*"):
+                    return True
             else:
                 # Check each path component
                 for part in parts:

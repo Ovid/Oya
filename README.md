@@ -1,8 +1,8 @@
-# Oya
+# Ọya
 
-A local-first, editable wiki generator for codebases. Oya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
+A local-first, editable wiki generator for codebases. Ọya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
 
-# Who is Oya?
+# Who is Ọya?
 
 Ọya (Yorùbá: Ọya, also known as Oyá, Oiá, Yànsàn-án, Yansã, Iyámsá, or Iansã)
 is one of the principal female deities of the Yoruba pantheon. She is the
@@ -66,7 +66,7 @@ npm run dev
 
 ## Configuration
 
-Oya uses environment variables for configuration:
+Ọya uses environment variables for configuration:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -136,7 +136,7 @@ oya/
 
 ## Q&A Modes
 
-Oya supports two Q&A modes:
+Ọya supports two Q&A modes:
 
 - **Evidence-Gated (default)** - Only answers when sufficient evidence exists in the codebase. Refuses to answer speculative questions.
 - **Loose Mode** - Always attempts to answer, but includes a warning that the response may be speculative.

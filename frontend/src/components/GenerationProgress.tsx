@@ -33,6 +33,8 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
   const [currentPhase, setCurrentPhase] = useState<string>('starting');
   const [currentPhaseNum, setCurrentPhaseNum] = useState<number>(0);
   const [totalPhases, setTotalPhases] = useState<number>(6);
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [totalSteps, setTotalSteps] = useState<number>(0);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [startTime] = useState<Date>(new Date());
   const [elapsed, setElapsed] = useState<number>(0);
@@ -75,7 +77,18 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
             lastPhaseRef.current = phaseName;
             setCurrentPhase(phaseName);
             setCurrentPhaseNum(phaseNum);
+            // Reset step tracking when phase changes
+            setCurrentStep(0);
+            setTotalSteps(0);
           }
+        }
+
+        // Update step tracking
+        if (event.current_step !== null && event.current_step !== undefined) {
+          setCurrentStep(event.current_step);
+        }
+        if (event.total_steps !== null && event.total_steps !== undefined) {
+          setTotalSteps(event.total_steps);
         }
 
         if (event.total_phases) {
@@ -141,7 +154,7 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
             </svg>
           </div>
-          <div className="ml-3">
+          <div className="ml-3 flex-grow">
             <h3 className="text-sm font-medium text-indigo-800 dark:text-indigo-200">
               {phaseInfo.name}
             </h3>
@@ -150,6 +163,22 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
             </p>
           </div>
         </div>
+
+        {/* Step progress bar (shown for directories and files phases) */}
+        {totalSteps > 0 && (currentPhase === 'directories' || currentPhase === 'files') && (
+          <div className="mt-4">
+            <div className="flex justify-between text-xs text-indigo-600 dark:text-indigo-300 mb-1">
+              <span>{currentPhase === 'directories' ? 'Directory' : 'File'} {currentStep} of {totalSteps}</span>
+              <span>{totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0}%</span>
+            </div>
+            <div className="h-1.5 bg-indigo-200 dark:bg-indigo-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-500 dark:bg-indigo-400 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${totalSteps > 0 ? (currentStep / totalSteps) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Phase log */}

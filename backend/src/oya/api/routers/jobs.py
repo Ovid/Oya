@@ -118,7 +118,8 @@ async def stream_job_progress(
             # Get current job status
             cursor = db.execute(
                 """
-                SELECT id, status, current_phase, total_phases, error_message
+                SELECT id, status, current_phase, total_phases,
+                       current_step, total_steps, error_message
                 FROM generations WHERE id = ?
                 """,
                 (job_id,),
@@ -136,6 +137,8 @@ async def stream_job_progress(
                 "status": status,
                 "phase": row["current_phase"],
                 "total_phases": row["total_phases"],
+                "current_step": row["current_step"],
+                "total_steps": row["total_steps"],
             }
 
             if status == "completed":

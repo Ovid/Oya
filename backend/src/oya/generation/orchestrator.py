@@ -153,26 +153,12 @@ class GenerationOrchestrator:
             await self._save_page(page)
 
         # Phase 5: Directories
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.DIRECTORIES,
-                message="Generating directory pages...",
-            ),
-        )
-        directory_pages = await self._run_directories(analysis)
+        directory_pages = await self._run_directories(analysis, progress_callback)
         for page in directory_pages:
             await self._save_page(page)
 
         # Phase 6: Files
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.FILES,
-                message="Generating file pages...",
-            ),
-        )
-        file_pages = await self._run_files(analysis)
+        file_pages = await self._run_files(analysis, progress_callback)
         for page in file_pages:
             await self._save_page(page)
 
@@ -387,11 +373,16 @@ class GenerationOrchestrator:
 
         return pages
 
-    async def _run_directories(self, analysis: dict) -> list[GeneratedPage]:
+    async def _run_directories(
+        self,
+        analysis: dict,
+        progress_callback: ProgressCallback | None = None,
+    ) -> list[GeneratedPage]:
         """Run directory generation phase.
 
         Args:
             analysis: Analysis results.
+            progress_callback: Optional async callback for progress updates.
 
         Returns:
             List of generated directory pages.
@@ -406,8 +397,34 @@ class GenerationOrchestrator:
                 dir_path = "/".join(parts[:i])
                 directories.add(dir_path)
 
+        # Limit to 20 directories
+        sorted_dirs = sorted(directories)[:20]
+        total_dirs = len(sorted_dirs)
+
+        # Emit initial progress with total count
+        await self._emit_progress(
+            progress_callback,
+            GenerationProgress(
+                phase=GenerationPhase.DIRECTORIES,
+                step=0,
+                total_steps=total_dirs,
+                message=f"Generating directory pages (0/{total_dirs})...",
+            ),
+        )
+
         # Generate page for each directory
-        for dir_path in sorted(directories)[:20]:  # Limit to 20 directories
+        for idx, dir_path in enumerate(sorted_dirs):
+            # Emit progress for this directory
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.DIRECTORIES,
+                    step=idx + 1,
+                    total_steps=total_dirs,
+                    message=f"Generating {dir_path} ({idx + 1}/{total_dirs})...",
+                ),
+            )
+
             # Get files in this directory
             dir_files = [
                 f for f in analysis["files"]
@@ -430,11 +447,16 @@ class GenerationOrchestrator:
 
         return pages
 
-    async def _run_files(self, analysis: dict) -> list[GeneratedPage]:
+    async def _run_files(
+        self,
+        analysis: dict,
+        progress_callback: ProgressCallback | None = None,
+    ) -> list[GeneratedPage]:
         """Run file generation phase.
 
         Args:
             analysis: Analysis results.
+            progress_callback: Optional async callback for progress updates.
 
         Returns:
             List of generated file pages.
@@ -444,15 +466,44 @@ class GenerationOrchestrator:
         # Generate page for each code file
         code_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs"}
 
-        for file_path in analysis["files"][:30]:  # Limit to 30 files
-            # Check if it's a code file
+        # Filter to code files first, then limit
+        code_files = []
+        for file_path in analysis["files"]:
             ext = Path(file_path).suffix.lower()
-            if ext not in code_extensions:
-                continue
+            if ext in code_extensions:
+                content = analysis["file_contents"].get(file_path, "")
+                if content:
+                    code_files.append(file_path)
+
+        # Limit to 30 files
+        code_files = code_files[:30]
+        total_files = len(code_files)
+
+        # Emit initial progress with total count
+        await self._emit_progress(
+            progress_callback,
+            GenerationProgress(
+                phase=GenerationPhase.FILES,
+                step=0,
+                total_steps=total_files,
+                message=f"Generating file pages (0/{total_files})...",
+            ),
+        )
+
+        for idx, file_path in enumerate(code_files):
+            # Emit progress for this file
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.FILES,
+                    step=idx + 1,
+                    total_steps=total_files,
+                    message=f"Generating {file_path} ({idx + 1}/{total_files})...",
+                ),
+            )
 
             content = analysis["file_contents"].get(file_path, "")
-            if not content:
-                continue
+            ext = Path(file_path).suffix.lower()
 
             # Get symbols for this file
             file_symbols = [

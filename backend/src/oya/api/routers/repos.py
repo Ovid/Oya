@@ -92,10 +92,11 @@ async def _run_generation(
         db.execute(
             """
             UPDATE generations
-            SET current_phase = ?, status = 'running'
+            SET current_phase = ?, status = 'running',
+                current_step = ?, total_steps = ?
             WHERE id = ?
             """,
-            (f"{phase_num}:{phase_name}", job_id),
+            (f"{phase_num}:{phase_name}", progress.step, progress.total_steps, job_id),
         )
         db.commit()
 
