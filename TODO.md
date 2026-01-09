@@ -1,5 +1,8 @@
 # TODO
 
+* The wiki generation might overprioritize docs over code. I'm not sure. Check
+  if this is the case.
+* Config files for removing hard-coded data.
 * Auto-create .oyaignore with appropriate files.
 * Templates for doc creation? Not sure if they're used, but would standardize
 * some output. Not sure if they're appropriate.
