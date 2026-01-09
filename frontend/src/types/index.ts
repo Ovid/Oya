@@ -32,6 +32,7 @@ export interface WikiPage {
   page_type: 'overview' | 'architecture' | 'workflow' | 'directory' | 'file';
   path: string;
   word_count: number;
+  source_path: string | null;
 }
 
 export interface WikiTree {

@@ -127,3 +127,76 @@ async def test_get_wiki_tree(client, workspace_with_wiki):
     assert "workflows" in data
     assert "directories" in data
     assert "files" in data
+
+
+class TestSourcePathExtraction:
+    """Tests for source_path extraction from wiki page content."""
+
+    async def test_file_page_extracts_source_path_from_backticks(self, client, workspace_with_wiki):
+        """File page extracts source_path from backtick-quoted title."""
+        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
+        (wiki_path / "lib-utils-py.md").write_text("# `lib/utils.py`\n\nUtility functions.")
+
+        response = await client.get("/api/wiki/files/lib-utils-py")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source_path"] == "lib/utils.py"
+
+    async def test_file_page_extracts_source_path_from_double_quotes(self, client, workspace_with_wiki):
+        """File page extracts source_path from double-quoted title."""
+        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
+        (wiki_path / "src-app-ts.md").write_text('# "src/app.ts"\n\nMain app.')
+
+        response = await client.get("/api/wiki/files/src-app-ts")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source_path"] == "src/app.ts"
+
+    async def test_file_page_extracts_source_path_from_single_quotes(self, client, workspace_with_wiki):
+        """File page extracts source_path from single-quoted title."""
+        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
+        (wiki_path / "config-json.md").write_text("# 'config.json'\n\nConfiguration.")
+
+        response = await client.get("/api/wiki/files/config-json")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source_path"] == "config.json"
+
+    async def test_directory_page_extracts_source_path(self, client, workspace_with_wiki):
+        """Directory page extracts source_path from title."""
+        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "directories"
+        (wiki_path / "src-components.md").write_text("# `src/components`\n\nReact components.")
+
+        response = await client.get("/api/wiki/directories/src-components")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source_path"] == "src/components"
+
+    async def test_file_page_without_quoted_title_returns_null_source_path(self, client, workspace_with_wiki):
+        """File page without quoted title returns null source_path."""
+        # The existing src-main-py.md has "# src/main.py" without backticks
+        response = await client.get("/api/wiki/files/src-main-py")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source_path"] is None
+
+    async def test_overview_page_has_null_source_path(self, client, workspace_with_wiki):
+        """Overview page has null source_path."""
+        response = await client.get("/api/wiki/overview")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source_path"] is None
+
+    async def test_architecture_page_has_null_source_path(self, client, workspace_with_wiki):
+        """Architecture page has null source_path."""
+        response = await client.get("/api/wiki/architecture")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source_path"] is None

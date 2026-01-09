@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createNote } from '../api/client';
 import type { NoteScope, Note } from '../types';
 
@@ -22,6 +22,15 @@ export function NoteEditor({
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sync state when editor opens with new defaults
+  useEffect(() => {
+    if (isOpen) {
+      setScope(defaultScope);
+      setTarget(defaultTarget);
+      setError(null);
+    }
+  }, [isOpen, defaultScope, defaultTarget]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

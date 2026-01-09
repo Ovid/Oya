@@ -3,6 +3,8 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { RightSidebar } from './RightSidebar';
 import { QADock } from './QADock';
+import { NoteEditor } from './NoteEditor';
+import { useApp } from '../context/AppContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -11,6 +13,8 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  const { state, closeNoteEditor, refreshTree } = useApp();
+  const { noteEditor } = state;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -48,6 +52,15 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Q&A Dock */}
       <QADock />
+
+      {/* Note Editor */}
+      <NoteEditor
+        isOpen={noteEditor.isOpen}
+        onClose={closeNoteEditor}
+        onNoteCreated={() => refreshTree()}
+        defaultScope={noteEditor.defaultScope}
+        defaultTarget={noteEditor.defaultTarget}
+      />
     </div>
   );
 }

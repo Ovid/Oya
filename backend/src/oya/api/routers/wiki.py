@@ -16,6 +16,7 @@ class WikiPage(BaseModel):
     page_type: str
     path: str
     word_count: int
+    source_path: str | None = None  # Original file/directory path for notes
 
 
 class WikiTree(BaseModel):
@@ -32,7 +33,7 @@ async def get_overview(
     settings: Settings = Depends(get_settings),
 ) -> WikiPage:
     """Get the overview page."""
-    return _get_page(settings.wiki_path, "overview.md", "overview")
+    return _get_page(settings.wiki_path, "overview.md", "overview", None)
 
 
 @router.get("/architecture", response_model=WikiPage)
@@ -40,7 +41,7 @@ async def get_architecture(
     settings: Settings = Depends(get_settings),
 ) -> WikiPage:
     """Get the architecture page."""
-    return _get_page(settings.wiki_path, "architecture.md", "architecture")
+    return _get_page(settings.wiki_path, "architecture.md", "architecture", None)
 
 
 @router.get("/workflows/{slug}", response_model=WikiPage)
@@ -49,7 +50,7 @@ async def get_workflow(
     settings: Settings = Depends(get_settings),
 ) -> WikiPage:
     """Get a workflow page."""
-    return _get_page(settings.wiki_path, f"workflows/{slug}.md", "workflow")
+    return _get_page(settings.wiki_path, f"workflows/{slug}.md", "workflow", slug)
 
 
 @router.get("/directories/{slug}", response_model=WikiPage)
@@ -58,7 +59,7 @@ async def get_directory(
     settings: Settings = Depends(get_settings),
 ) -> WikiPage:
     """Get a directory page."""
-    return _get_page(settings.wiki_path, f"directories/{slug}.md", "directory")
+    return _get_page(settings.wiki_path, f"directories/{slug}.md", "directory", slug)
 
 
 @router.get("/files/{slug}", response_model=WikiPage)
@@ -67,7 +68,7 @@ async def get_file(
     settings: Settings = Depends(get_settings),
 ) -> WikiPage:
     """Get a file page."""
-    return _get_page(settings.wiki_path, f"files/{slug}.md", "file")
+    return _get_page(settings.wiki_path, f"files/{slug}.md", "file", slug)
 
 
 @router.get("/tree", response_model=WikiTree)
@@ -105,7 +106,7 @@ async def get_wiki_tree(
     )
 
 
-def _get_page(wiki_path: Path, relative_path: str, page_type: str) -> WikiPage:
+def _get_page(wiki_path: Path, relative_path: str, page_type: str, slug: str | None = None) -> WikiPage:
     """Get a wiki page by path."""
     full_path = wiki_path / relative_path
 
@@ -115,9 +116,23 @@ def _get_page(wiki_path: Path, relative_path: str, page_type: str) -> WikiPage:
     content = full_path.read_text(encoding="utf-8")
     word_count = len(content.split())
 
+    # Extract source path from content title for file/directory pages
+    source_path = None
+    if page_type in ("file", "directory") and slug:
+        # Try to extract from first heading (e.g., "# `lib/MooseX/Extended.pm`")
+        for line in content.split("\n"):
+            if line.startswith("# "):
+                # Extract path from backticks or quotes
+                import re
+                match = re.search(r'[`"\']([^`"\']+)[`"\']', line)
+                if match:
+                    source_path = match.group(1)
+                break
+
     return WikiPage(
         content=content,
         page_type=page_type,
         path=relative_path,
         word_count=word_count,
+        source_path=source_path,
     )

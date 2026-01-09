@@ -1,8 +1,30 @@
 import { useApp } from '../context/AppContext';
 
 export function RightSidebar() {
-  const { state, startGeneration } = useApp();
+  const { state, startGeneration, openNoteEditor } = useApp();
   const { currentPage, repoStatus } = state;
+
+  // Determine scope and target based on current page
+  const handleAddCorrection = () => {
+    if (!currentPage) return;
+    
+    const pageType = currentPage.page_type;
+    let scope: 'general' | 'file' | 'directory' | 'workflow' = 'general';
+    let target = '';
+
+    if (pageType === 'file') {
+      scope = 'file';
+      target = currentPage.source_path || currentPage.path || '';
+    } else if (pageType === 'directory') {
+      scope = 'directory';
+      target = currentPage.source_path || currentPage.path || '';
+    } else if (pageType === 'workflow') {
+      scope = 'workflow';
+      target = currentPage.source_path || currentPage.path || '';
+    }
+
+    openNoteEditor(scope, target);
+  };
 
   // Extract headings from markdown for TOC
   const headings = currentPage?.content
@@ -40,7 +62,10 @@ export function RightSidebar() {
         </h3>
         <div className="space-y-2">
           {currentPage && (
-            <button className="w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center">
+            <button
+              onClick={handleAddCorrection}
+              className="w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center"
+            >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>

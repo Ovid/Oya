@@ -1,6 +1,12 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
-import type { RepoStatus, WikiTree, WikiPage, JobStatus } from '../types';
+import type { RepoStatus, WikiTree, WikiPage, JobStatus, NoteScope } from '../types';
 import * as api from '../api/client';
+
+interface NoteEditorState {
+  isOpen: boolean;
+  defaultScope: NoteScope;
+  defaultTarget: string;
+}
 
 interface AppState {
   repoStatus: RepoStatus | null;
@@ -9,6 +15,7 @@ interface AppState {
   currentJob: JobStatus | null;
   isLoading: boolean;
   error: string | null;
+  noteEditor: NoteEditorState;
 }
 
 type Action =
@@ -17,7 +24,9 @@ type Action =
   | { type: 'SET_REPO_STATUS'; payload: RepoStatus }
   | { type: 'SET_WIKI_TREE'; payload: WikiTree }
   | { type: 'SET_CURRENT_PAGE'; payload: WikiPage | null }
-  | { type: 'SET_CURRENT_JOB'; payload: JobStatus | null };
+  | { type: 'SET_CURRENT_JOB'; payload: JobStatus | null }
+  | { type: 'OPEN_NOTE_EDITOR'; payload: { scope: NoteScope; target: string } }
+  | { type: 'CLOSE_NOTE_EDITOR' };
 
 const initialState: AppState = {
   repoStatus: null,
@@ -26,6 +35,11 @@ const initialState: AppState = {
   currentJob: null,
   isLoading: true,
   error: null,
+  noteEditor: {
+    isOpen: false,
+    defaultScope: 'general',
+    defaultTarget: '',
+  },
 };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -42,6 +56,20 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, currentPage: action.payload };
     case 'SET_CURRENT_JOB':
       return { ...state, currentJob: action.payload };
+    case 'OPEN_NOTE_EDITOR':
+      return {
+        ...state,
+        noteEditor: {
+          isOpen: true,
+          defaultScope: action.payload.scope,
+          defaultTarget: action.payload.target,
+        },
+      };
+    case 'CLOSE_NOTE_EDITOR':
+      return {
+        ...state,
+        noteEditor: { ...state.noteEditor, isOpen: false },
+      };
     default:
       return state;
   }
@@ -53,6 +81,8 @@ interface AppContextValue {
   refreshStatus: () => Promise<void>;
   refreshTree: () => Promise<void>;
   startGeneration: () => Promise<string | null>;
+  openNoteEditor: (scope?: NoteScope, target?: string) => void;
+  closeNoteEditor: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -96,6 +126,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const openNoteEditor = (scope: NoteScope = 'general', target: string = '') => {
+    dispatch({ type: 'OPEN_NOTE_EDITOR', payload: { scope, target } });
+  };
+
+  const closeNoteEditor = () => {
+    dispatch({ type: 'CLOSE_NOTE_EDITOR' });
+  };
+
   // Initial data load
   useEffect(() => {
     const init = async () => {
@@ -108,7 +146,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ state, dispatch, refreshStatus, refreshTree, startGeneration }}>
+    <AppContext.Provider value={{ state, dispatch, refreshStatus, refreshTree, startGeneration, openNoteEditor, closeNoteEditor }}>
       {children}
     </AppContext.Provider>
   );
