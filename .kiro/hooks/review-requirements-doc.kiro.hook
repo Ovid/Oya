@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Requirements Review",
+  "description": "Analyzes requirements.md files when edited to identify missing requirements, ambiguous language, conflicting requirements, and potentially bad ideas",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Please review the requirements.md file that was just edited and provide feedback on:\n\n1. **Missing Requirements**: Identify any requirements that seem to be missing but would typically be expected for this type of project. Consider edge cases, error handling, security, performance, and user experience aspects.\n\n2. **Ambiguous Requirements**: Point out any requirements that are vague, unclear, or could be interpreted in multiple ways. Suggest more specific wording.\n\n3. **Conflicting Requirements**: Identify any requirements that contradict each other or could cause implementation issues when combined.\n\n4. **Bad Ideas**: Flag any requirements that seem problematic from a technical, UX, security, or maintainability perspective. Explain why and suggest alternatives.\n\nFormat your response with clear sections and be specific about which requirement each issue relates to. Present each finding one-by-one, presenting resolution options from best to worst. Allow the user to resolve before moving on "
+  }
+}
