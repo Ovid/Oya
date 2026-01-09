@@ -1,11 +1,15 @@
 # backend/src/oya/generation/architecture.py
 """Architecture page generator."""
 
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_architecture_prompt
+
+if TYPE_CHECKING:
+    from oya.generation.summaries import SynthesisMap
 
 
 class ArchitectureGenerator:
@@ -34,7 +38,7 @@ class ArchitectureGenerator:
         file_tree: str,
         key_symbols: list[dict[str, Any]] | None = None,
         dependencies: list[str] | None = None,
-        synthesis_map: Any = None,
+        synthesis_map: SynthesisMap | None = None,
     ) -> GeneratedPage:
         """Generate the architecture page.
 

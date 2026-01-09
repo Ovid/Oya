@@ -1,11 +1,15 @@
 # backend/src/oya/generation/overview.py
 """Overview page generator."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from oya.generation.prompts import SYSTEM_PROMPT, get_overview_prompt
+
+if TYPE_CHECKING:
+    from oya.generation.summaries import SynthesisMap
 
 
 @dataclass
@@ -54,8 +58,8 @@ class OverviewGenerator:
         self,
         readme_content: str | None,
         file_tree: str,
-        package_info: dict,
-        synthesis_map: Any = None,
+        package_info: dict[str, Any],
+        synthesis_map: SynthesisMap | None = None,
     ) -> GeneratedPage:
         """Generate the overview page.
 
