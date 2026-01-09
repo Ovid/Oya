@@ -192,7 +192,31 @@ FILE_TEMPLATE = PromptTemplate(
 
 ---
 
-Create file documentation that includes:
+IMPORTANT: You MUST start your response with a YAML summary block in the following format:
+
+```
+---
+file_summary:
+  purpose: "One-sentence description of what this file does"
+  layer: <one of: api, domain, infrastructure, utility, config, test>
+  key_abstractions:
+    - "ClassName or function_name"
+  internal_deps:
+    - "path/to/other/file.py"
+  external_deps:
+    - "library_name"
+---
+```
+
+Layer classification guide:
+- api: REST endpoints, request handlers, API routes
+- domain: Core business logic, services, use cases
+- infrastructure: Database, external services, I/O operations
+- utility: Helper functions, shared utilities, common tools
+- config: Configuration, settings, environment handling
+- test: Test files, test utilities, fixtures
+
+After the YAML block, create file documentation that includes:
 1. **File Purpose**: What this file does and its role in the project
 2. **Classes**: Document each class with its purpose and methods
 3. **Functions**: Document each function with parameters and return values

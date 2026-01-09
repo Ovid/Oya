@@ -6,6 +6,7 @@ from pathlib import Path
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_file_prompt
+from oya.generation.summaries import FileSummary, SummaryParser
 
 
 # Extension to language mapping for syntax highlighting
@@ -46,6 +47,7 @@ class FileGenerator:
         """
         self.llm_client = llm_client
         self.repo = repo
+        self._parser = SummaryParser()
 
     async def generate(
         self,
@@ -54,7 +56,7 @@ class FileGenerator:
         symbols: list[dict],
         imports: list[str],
         architecture_summary: str,
-    ) -> GeneratedPage:
+    ) -> tuple[GeneratedPage, FileSummary]:
         """Generate documentation for a file.
 
         Args:
@@ -65,7 +67,7 @@ class FileGenerator:
             architecture_summary: Summary of how this file fits in the architecture.
 
         Returns:
-            GeneratedPage with file documentation content.
+            Tuple of (GeneratedPage with file documentation, FileSummary extracted from output).
         """
         language = self._detect_language(file_path)
 
@@ -83,16 +85,23 @@ class FileGenerator:
             system_prompt=SYSTEM_PROMPT,
         )
 
-        word_count = len(generated_content.split())
+        # Parse the YAML summary block and get clean markdown
+        clean_content, file_summary = self._parser.parse_file_summary(
+            generated_content, file_path
+        )
+
+        word_count = len(clean_content.split())
         slug = self._path_to_slug(file_path)
 
-        return GeneratedPage(
-            content=generated_content,
+        page = GeneratedPage(
+            content=clean_content,
             page_type="file",
             path=f"files/{slug}.md",
             word_count=word_count,
             target=file_path,
         )
+
+        return page, file_summary
 
     def _detect_language(self, file_path: str) -> str:
         """Detect the programming language from the file extension.

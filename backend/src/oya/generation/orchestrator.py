@@ -718,7 +718,8 @@ class GenerationOrchestrator:
                 if s.get("file") == file_path
             ]
             imports = self._extract_imports(content, ext)
-            page = await self.file_generator.generate(
+            # FileGenerator.generate() returns (GeneratedPage, FileSummary)
+            page, _file_summary = await self.file_generator.generate(
                 file_path=file_path,
                 content=content,
                 symbols=file_symbols,
