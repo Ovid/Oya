@@ -6,7 +6,7 @@ providing sensible defaults, and computing derived paths for
 the .coretechs directory structure.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional

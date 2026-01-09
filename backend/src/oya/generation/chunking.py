@@ -139,7 +139,6 @@ def chunk_by_symbols(
         return []
 
     lines = content.split("\n")
-    total_lines = len(lines)
 
     # Sort symbols by start_line
     sorted_symbols = sorted(symbols, key=lambda s: s.get("start_line", 0))
@@ -157,8 +156,6 @@ def chunk_by_symbols(
 
         # Extract symbol content (convert to 0-indexed for list access)
         symbol_lines = lines[start_line - 1 : end_line]
-        symbol_content = "\n".join(symbol_lines)
-        symbol_tokens = estimate_tokens(symbol_content)
 
         # Check if adding this symbol would exceed the token limit
         if current_content_lines:

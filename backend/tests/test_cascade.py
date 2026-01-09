@@ -6,9 +6,7 @@ These tests verify that changes to files cascade appropriately through the
 generation pipeline, triggering regeneration of dependent documentation.
 """
 
-import hashlib
-from unittest.mock import MagicMock, AsyncMock, patch
-from pathlib import Path
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 from hypothesis import given, settings, strategies as st, HealthCheck
@@ -245,7 +243,7 @@ class TestFileChangeCascade:
         
         # New files should always trigger regeneration
         assert should_regen is True, (
-            f"New file (no previous record) should trigger regeneration."
+            "New file (no previous record) should trigger regeneration."
         )
         
         # The returned hash should be computed correctly
@@ -1062,7 +1060,6 @@ class TestHighLevelDocsCascadeEndToEnd:
         
         Requirements: 7.3
         """
-        from oya.generation.summaries import FileSummary, SynthesisMap
         from oya.generation.overview import GeneratedPage
         
         orchestrator = GenerationOrchestrator(
@@ -1488,6 +1485,6 @@ class TestNoChangeSkip:
         
         # Property: files with new notes SHOULD be regenerated even if content unchanged
         assert len(files_needing_regen) > 0, (
-            f"Files with new notes should be regenerated even if content is unchanged. "
-            f"Expected at least one file to need regeneration."
+            "Files with new notes should be regenerated even if content is unchanged. "
+            "Expected at least one file to need regeneration."
         )
