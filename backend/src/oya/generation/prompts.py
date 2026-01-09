@@ -127,6 +127,42 @@ Format the output as clean Markdown suitable for a wiki page."""
 )
 
 
+OVERVIEW_SYNTHESIS_TEMPLATE = PromptTemplate(
+    """Generate a comprehensive overview page for the repository "{repo_name}".
+
+## Project Summary (from code analysis)
+{project_summary}
+
+## System Layers
+{layers}
+
+## Key Components
+{key_components}
+
+## README Content (supplementary)
+{readme_content}
+
+## Project Structure
+```
+{file_tree}
+```
+
+## Package Information
+{package_info}
+
+---
+
+Create a documentation overview that includes:
+1. **Project Summary**: Use the project summary from code analysis as the primary source. If README content is available, incorporate any additional context it provides.
+2. **Key Features**: Main capabilities and features based on the key components and layer structure
+3. **Getting Started**: How to install and run the project (use README if available, otherwise infer from package info)
+4. **Project Structure**: Overview of the directory organization based on the system layers
+5. **Technology Stack**: Languages, frameworks, and key dependencies
+
+Format the output as clean Markdown suitable for a wiki page."""
+)
+
+
 # =============================================================================
 # Architecture Template
 # =============================================================================
@@ -555,18 +591,37 @@ def get_overview_prompt(
     readme_content: str,
     file_tree: str,
     package_info: dict[str, Any],
+    synthesis_map: Any = None,
 ) -> str:
     """Generate a prompt for creating an overview page.
+
+    Supports two modes:
+    1. Legacy mode: Uses README as primary context
+    2. Synthesis mode: Uses SynthesisMap as primary context with README as supplementary
 
     Args:
         repo_name: Name of the repository.
         readme_content: Content of the README file.
         file_tree: String representation of the file tree.
         package_info: Dictionary of package metadata.
+        synthesis_map: SynthesisMap object with layer and component info (preferred).
 
     Returns:
         The rendered prompt string.
     """
+    # Use synthesis-based template if synthesis_map is provided
+    if synthesis_map is not None:
+        return OVERVIEW_SYNTHESIS_TEMPLATE.render(
+            repo_name=repo_name,
+            project_summary=synthesis_map.project_summary or "No project summary available.",
+            layers=_format_synthesis_layers(synthesis_map),
+            key_components=_format_synthesis_key_components(synthesis_map),
+            readme_content=readme_content or "No README found.",
+            file_tree=file_tree,
+            package_info=_format_package_info(package_info),
+        )
+
+    # Fall back to legacy template without synthesis_map
     return OVERVIEW_TEMPLATE.render(
         repo_name=repo_name,
         readme_content=readme_content or "No README found.",

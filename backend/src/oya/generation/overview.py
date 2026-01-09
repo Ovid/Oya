@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from oya.generation.prompts import SYSTEM_PROMPT, get_overview_prompt
 
@@ -33,6 +34,10 @@ class OverviewGenerator:
 
     The overview page provides a high-level introduction to the
     repository, including purpose, tech stack, and getting started.
+
+    Supports two modes:
+    1. Legacy mode: Uses README as primary context
+    2. Synthesis mode: Uses SynthesisMap as primary context with README as supplementary
     """
 
     def __init__(self, llm_client, repo):
@@ -50,13 +55,19 @@ class OverviewGenerator:
         readme_content: str | None,
         file_tree: str,
         package_info: dict,
+        synthesis_map: Any = None,
     ) -> GeneratedPage:
         """Generate the overview page.
+
+        Supports two modes:
+        1. Legacy mode: Uses README as primary context
+        2. Synthesis mode: Uses SynthesisMap as primary context with README as supplementary
 
         Args:
             readme_content: Content of README file (if any).
             file_tree: String representation of file structure.
             package_info: Package metadata dict.
+            synthesis_map: SynthesisMap with layer and component info (preferred).
 
         Returns:
             GeneratedPage with overview content.
@@ -68,6 +79,7 @@ class OverviewGenerator:
             readme_content=readme_content or "",
             file_tree=file_tree,
             package_info=package_info,
+            synthesis_map=synthesis_map,
         )
 
         content = await self.llm_client.generate(
