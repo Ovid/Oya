@@ -30,12 +30,18 @@ Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
 - Node.js 18+ (for frontend development)
 - Python 3.11+ (for backend development)
 
+
 ### Running with Docker
 
 ```bash
 # Clone the repository
 git clone https://github.com/your-org/oya.git
 cd oya
+
+# Set LLM providers and repo to generate docs for
+# Yes, this is terrible. We'll fix it later after
+# core features are stable.
+- Copy `.env.example` to `.env` and edit.
 
 # Start the services
 docker-compose up
