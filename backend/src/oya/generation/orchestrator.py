@@ -858,25 +858,62 @@ class GenerationOrchestrator:
         file_hashes: dict[str, str] = {}
         file_summaries: list[FileSummary] = []
 
-        # Generate page for each code file
-        code_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs"}
+        # Generate page for each source file
+        # Use denylist approach: document everything EXCEPT known non-code files
+        # This ensures we support any programming language without maintaining an allowlist
+        non_code_extensions = {
+            # Documentation
+            ".md", ".rst", ".txt", ".adoc", ".asciidoc",
+            # Data/config formats
+            ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+            ".xml", ".csv", ".tsv",
+            # Lock files
+            ".lock",
+            # Images (shouldn't be here, but just in case binary detection missed them)
+            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
+            # Other non-code
+            ".log", ".pid", ".env", ".env.example",
+        }
+        non_code_names = {
+            # Common non-code files (case-insensitive matching below)
+            "readme", "readme.md", "readme.rst", "readme.txt",
+            "license", "license.md", "license.txt", "copying",
+            "changelog", "changelog.md", "changes", "changes.md", "history.md",
+            "contributing", "contributing.md",
+            "authors", "authors.md", "contributors",
+            "makefile", "dockerfile", "vagrantfile",
+            "gemfile", "gemfile.lock",
+            "package.json", "package-lock.json",
+            "composer.json", "composer.lock",
+            "cargo.toml", "cargo.lock",
+            "pyproject.toml", "poetry.lock", "pipfile", "pipfile.lock",
+            "requirements.txt", "setup.py", "setup.cfg",
+            ".gitignore", ".gitattributes", ".dockerignore",
+            ".editorconfig", ".prettierrc", ".eslintrc",
+        }
 
-        # Filter to code files and check which need regeneration
+        # Filter to source files and check which need regeneration
         files_to_generate: list[tuple[str, str]] = []  # (file_path, content_hash)
         skipped_count = 0
 
         for file_path in analysis["files"]:
             ext = Path(file_path).suffix.lower()
-            if ext in code_extensions:
-                content = analysis["file_contents"].get(file_path, "")
-                if content:
-                    should_regen, content_hash = self._should_regenerate_file(
-                        file_path, content, file_hashes
-                    )
-                    if should_regen:
-                        files_to_generate.append((file_path, content_hash))
-                    else:
-                        skipped_count += 1
+            filename = Path(file_path).name.lower()
+
+            # Skip known non-code files
+            if ext in non_code_extensions or filename in non_code_names:
+                continue
+
+            # Process all other text files as source code
+            content = analysis["file_contents"].get(file_path, "")
+            if content:
+                should_regen, content_hash = self._should_regenerate_file(
+                    file_path, content, file_hashes
+                )
+                if should_regen:
+                    files_to_generate.append((file_path, content_hash))
+                else:
+                    skipped_count += 1
 
         # Total includes both generated and skipped for accurate progress display
         total_files = len(files_to_generate) + skipped_count

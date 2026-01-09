@@ -2,39 +2,42 @@ import { NavLink } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Disclosure } from '@headlessui/react';
 
-// Known file extensions to help reconstruct filenames from slugs
-const FILE_EXTENSIONS = ['py', 'js', 'ts', 'tsx', 'jsx', 'java', 'go', 'rs', 'rb', 'php', 'c', 'cpp', 'h', 'hpp', 'cs', 'swift', 'kt', 'scala', 'md', 'json', 'yaml', 'yml', 'toml', 'xml', 'html', 'css', 'scss', 'less'];
+// Common file extensions - used to identify where the extension starts in a slug
+// This list should be comprehensive to handle various programming languages
+const FILE_EXTENSIONS = new Set([
+  // Common languages
+  'py', 'js', 'ts', 'tsx', 'jsx', 'java', 'go', 'rs', 'rb', 'php', 'c', 'cpp', 'h', 'hpp', 'cs', 'swift', 'kt', 'scala',
+  // Perl
+  'pl', 'pm', 'pod', 't',
+  // Web
+  'html', 'css', 'scss', 'less', 'sass', 'vue', 'svelte',
+  // Config/data
+  'md', 'json', 'yaml', 'yml', 'toml', 'xml', 'ini', 'cfg', 'conf',
+  // Shell
+  'sh', 'bash', 'zsh', 'fish',
+  // Other
+  'sql', 'graphql', 'proto', 'ex', 'exs', 'erl', 'hrl', 'clj', 'cljs', 'lua', 'r', 'jl', 'nim', 'zig', 'v', 'dart', 'groovy'
+]);
 
 /**
- * Convert a file slug back to a display name.
+ * Convert a file slug back to a full relative path.
  * Slugs are created by replacing / and . with -, so we need to reconstruct.
- * e.g., "backend-src-oya-main-py" -> "main.py"
- */
-function slugToFilename(slug: string): string {
-  const parts = slug.split('-');
-
-  // Check if last part is a known extension
-  const lastPart = parts[parts.length - 1];
-  if (FILE_EXTENSIONS.includes(lastPart) && parts.length >= 2) {
-    // Reconstruct filename: second-to-last part + . + extension
-    const namePart = parts[parts.length - 2];
-    return `${namePart}.${lastPart}`;
-  }
-
-  // Fallback: just return the last part
-  return lastPart || slug;
-}
-
-/**
- * Convert a file slug back to a full path for the title tooltip.
- * e.g., "backend-src-oya-main-py" -> "backend/src/oya/main.py"
+ * e.g., "lib-mymodule-foo-pm" -> "lib/MyModule/Foo.pm"
+ * 
+ * Note: We cannot perfectly reconstruct the original path because:
+ * 1. The slug is lowercased, so we lose case information
+ * 2. Both / and . become -, so we need to guess which - was originally a .
+ * 
+ * We use the known file extensions to identify where the extension starts.
  */
 function slugToPath(slug: string): string {
   const parts = slug.split('-');
-
+  
+  if (parts.length === 0) return slug;
+  
   // Check if last part is a known extension
   const lastPart = parts[parts.length - 1];
-  if (FILE_EXTENSIONS.includes(lastPart) && parts.length >= 2) {
+  if (FILE_EXTENSIONS.has(lastPart) && parts.length >= 2) {
     // Join all but last with /, then add .extension
     const pathParts = parts.slice(0, -1);
     return pathParts.join('/') + '.' + lastPart;
@@ -147,17 +150,20 @@ export function Sidebar() {
                 Files ({wikiTree.files.length})
               </Disclosure.Button>
               <Disclosure.Panel className="pl-6 max-h-64 overflow-y-auto">
-                {wikiTree.files.map((slug) => (
-                  <NavLink
-                    key={slug}
-                    to={`/files/${slug}`}
-                    className={linkClass}
-                  >
-                    <span className="truncate block" title={slugToPath(slug)}>
-                      {slugToFilename(slug)}
-                    </span>
-                  </NavLink>
-                ))}
+                {wikiTree.files.map((slug) => {
+                  const fullPath = slugToPath(slug);
+                  return (
+                    <NavLink
+                      key={slug}
+                      to={`/files/${slug}`}
+                      className={linkClass}
+                    >
+                      <span className="truncate block" title={fullPath}>
+                        {fullPath}
+                      </span>
+                    </NavLink>
+                  );
+                })}
               </Disclosure.Panel>
             </>
           )}
