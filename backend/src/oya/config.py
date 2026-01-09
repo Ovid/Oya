@@ -3,7 +3,7 @@
 
 This module handles loading settings from environment variables,
 providing sensible defaults, and computing derived paths for
-the .coretechs directory structure.
+the .oyawiki directory structure.
 """
 
 from dataclasses import dataclass
@@ -42,39 +42,39 @@ class Settings:
     chunk_size: int = 4096
 
     @property
-    def coretechs_path(self) -> Path:
-        """Path to .coretechs directory."""
-        return self.workspace_path / ".coretechs"
+    def oyawiki_path(self) -> Path:
+        """Path to .oyawiki directory."""
+        return self.workspace_path / ".oyawiki"
 
     @property
     def wiki_path(self) -> Path:
         """Path to wiki subdirectory."""
-        return self.coretechs_path / "wiki"
+        return self.oyawiki_path / "wiki"
 
     @property
     def notes_path(self) -> Path:
         """Path to notes subdirectory."""
-        return self.coretechs_path / "notes"
+        return self.oyawiki_path / "notes"
 
     @property
     def db_path(self) -> Path:
         """Path to SQLite database file."""
-        return self.coretechs_path / "meta" / "oya.db"
+        return self.oyawiki_path / "meta" / "oya.db"
 
     @property
     def index_path(self) -> Path:
         """Path to search index directory."""
-        return self.coretechs_path / "meta" / "index"
+        return self.oyawiki_path / "meta" / "index"
 
     @property
     def cache_path(self) -> Path:
         """Path to cache directory."""
-        return self.coretechs_path / "meta" / "cache"
+        return self.oyawiki_path / "meta" / "cache"
 
     @property
     def chroma_path(self) -> Path:
         """Path to ChromaDB vector store directory."""
-        return self.coretechs_path / "meta" / "chroma"
+        return self.oyawiki_path / "meta" / "chroma"
 
     @property
     def llm_provider(self) -> str:

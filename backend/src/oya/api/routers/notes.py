@@ -28,7 +28,7 @@ async def create_note(
 ) -> Note:
     """Create a new correction note.
 
-    Creates a markdown file in .coretechs/notes/ with frontmatter metadata
+    Creates a markdown file in .oyawiki/notes/ with frontmatter metadata
     and registers the note in the database.
     """
     return service.create(note_data)

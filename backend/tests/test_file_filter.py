@@ -140,55 +140,55 @@ def test_oyaignore_directory_without_trailing_slash(temp_repo: Path):
 
 
 def test_path_pattern_with_slash_excludes_subdirectory(temp_repo: Path):
-    """Path patterns with / (like .coretechs/wiki) exclude that specific subdirectory."""
-    # Create .coretechs structure
-    (temp_repo / ".coretechs").mkdir()
-    (temp_repo / ".coretechs" / "wiki").mkdir()
-    (temp_repo / ".coretechs" / "wiki" / "overview.md").write_text("wiki content")
-    (temp_repo / ".coretechs" / "notes").mkdir()
-    (temp_repo / ".coretechs" / "notes" / "correction.md").write_text("user correction")
-    (temp_repo / ".coretechs" / "cache").mkdir()
-    (temp_repo / ".coretechs" / "cache" / "data.json").write_text("{}")
+    """Path patterns with / (like .oyawiki/wiki) exclude that specific subdirectory."""
+    # Create .oyawiki structure
+    (temp_repo / ".oyawiki").mkdir()
+    (temp_repo / ".oyawiki" / "wiki").mkdir()
+    (temp_repo / ".oyawiki" / "wiki" / "overview.md").write_text("wiki content")
+    (temp_repo / ".oyawiki" / "notes").mkdir()
+    (temp_repo / ".oyawiki" / "notes" / "correction.md").write_text("user correction")
+    (temp_repo / ".oyawiki" / "cache").mkdir()
+    (temp_repo / ".oyawiki" / "cache" / "data.json").write_text("{}")
 
     # Use extra_excludes to test path patterns with /
     filter = FileFilter(
         temp_repo,
-        extra_excludes=[".coretechs/wiki", ".coretechs/cache"],
+        extra_excludes=[".oyawiki/wiki", ".oyawiki/cache"],
     )
     files = filter.get_files()
 
     # Wiki and cache should be excluded
-    assert not any(".coretechs/wiki" in f for f in files)
-    assert not any(".coretechs/cache" in f for f in files)
+    assert not any(".oyawiki/wiki" in f for f in files)
+    assert not any(".oyawiki/cache" in f for f in files)
     # But notes should be included
-    assert ".coretechs/notes/correction.md" in files
+    assert ".oyawiki/notes/correction.md" in files
 
 
-def test_default_excludes_coretechs_subdirs_but_not_notes(temp_repo: Path):
-    """DEFAULT_EXCLUDES excludes .coretechs subdirs but NOT notes."""
-    # Create .coretechs structure
-    (temp_repo / ".coretechs").mkdir()
-    (temp_repo / ".coretechs" / "wiki").mkdir()
-    (temp_repo / ".coretechs" / "wiki" / "overview.md").write_text("wiki content")
-    (temp_repo / ".coretechs" / "meta").mkdir()
-    (temp_repo / ".coretechs" / "meta" / "metadata.json").write_text("{}")
-    (temp_repo / ".coretechs" / "index").mkdir()
-    (temp_repo / ".coretechs" / "index" / "search.idx").write_text("index")
-    (temp_repo / ".coretechs" / "cache").mkdir()
-    (temp_repo / ".coretechs" / "cache" / "temp.json").write_text("{}")
-    (temp_repo / ".coretechs" / "config").mkdir()
-    (temp_repo / ".coretechs" / "config" / "settings.toml").write_text("config")
-    (temp_repo / ".coretechs" / "notes").mkdir()
-    (temp_repo / ".coretechs" / "notes" / "user_correction.md").write_text("correction")
+def test_default_excludes_oyawiki_subdirs_but_not_notes(temp_repo: Path):
+    """DEFAULT_EXCLUDES excludes .oyawiki subdirs but NOT notes."""
+    # Create .oyawiki structure
+    (temp_repo / ".oyawiki").mkdir()
+    (temp_repo / ".oyawiki" / "wiki").mkdir()
+    (temp_repo / ".oyawiki" / "wiki" / "overview.md").write_text("wiki content")
+    (temp_repo / ".oyawiki" / "meta").mkdir()
+    (temp_repo / ".oyawiki" / "meta" / "metadata.json").write_text("{}")
+    (temp_repo / ".oyawiki" / "index").mkdir()
+    (temp_repo / ".oyawiki" / "index" / "search.idx").write_text("index")
+    (temp_repo / ".oyawiki" / "cache").mkdir()
+    (temp_repo / ".oyawiki" / "cache" / "temp.json").write_text("{}")
+    (temp_repo / ".oyawiki" / "config").mkdir()
+    (temp_repo / ".oyawiki" / "config" / "settings.toml").write_text("config")
+    (temp_repo / ".oyawiki" / "notes").mkdir()
+    (temp_repo / ".oyawiki" / "notes" / "user_correction.md").write_text("correction")
 
     filter = FileFilter(temp_repo)
     files = filter.get_files()
 
     # Generated/ephemeral dirs should be excluded
-    assert not any(".coretechs/wiki" in f for f in files)
-    assert not any(".coretechs/meta" in f for f in files)
-    assert not any(".coretechs/index" in f for f in files)
-    assert not any(".coretechs/cache" in f for f in files)
-    assert not any(".coretechs/config" in f for f in files)
+    assert not any(".oyawiki/wiki" in f for f in files)
+    assert not any(".oyawiki/meta" in f for f in files)
+    assert not any(".oyawiki/index" in f for f in files)
+    assert not any(".oyawiki/cache" in f for f in files)
+    assert not any(".oyawiki/config" in f for f in files)
     # But notes should be INCLUDED (user corrections guide analysis)
-    assert ".coretechs/notes/user_correction.md" in files
+    assert ".oyawiki/notes/user_correction.md" in files

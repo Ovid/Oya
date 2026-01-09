@@ -423,7 +423,7 @@ def save_synthesis_map(synthesis_map: SynthesisMap, meta_path: str) -> str:
 
     Args:
         synthesis_map: The SynthesisMap to save.
-        meta_path: Path to the .coretechs/meta directory.
+        meta_path: Path to the .oyawiki/meta directory.
 
     Returns:
         Path to the saved synthesis.json file.
@@ -461,7 +461,7 @@ def load_synthesis_map(meta_path: str) -> tuple[SynthesisMap | None, str | None]
     """Load a SynthesisMap from synthesis.json in the meta directory.
 
     Args:
-        meta_path: Path to the .coretechs/meta directory.
+        meta_path: Path to the .oyawiki/meta directory.
 
     Returns:
         Tuple of (SynthesisMap, synthesis_hash) or (None, None) if not found.

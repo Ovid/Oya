@@ -55,15 +55,15 @@ def test_settings_defaults(temp_workspace: Path, monkeypatch):
     assert settings.active_model == "llama2"
 
 
-def test_coretechs_paths(temp_workspace: Path, monkeypatch):
-    """Coretechs subdirectory paths are computed correctly."""
+def test_oyawiki_paths(temp_workspace: Path, monkeypatch):
+    """Oyawiki subdirectory paths are computed correctly."""
     monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
 
     settings = load_settings()
 
-    assert settings.coretechs_path == temp_workspace / ".coretechs"
-    assert settings.wiki_path == temp_workspace / ".coretechs" / "wiki"
-    assert settings.notes_path == temp_workspace / ".coretechs" / "notes"
-    assert settings.db_path == temp_workspace / ".coretechs" / "meta" / "oya.db"
-    assert settings.index_path == temp_workspace / ".coretechs" / "meta" / "index"
-    assert settings.cache_path == temp_workspace / ".coretechs" / "meta" / "cache"
+    assert settings.oyawiki_path == temp_workspace / ".oyawiki"
+    assert settings.wiki_path == temp_workspace / ".oyawiki" / "wiki"
+    assert settings.notes_path == temp_workspace / ".oyawiki" / "notes"
+    assert settings.db_path == temp_workspace / ".oyawiki" / "meta" / "oya.db"
+    assert settings.index_path == temp_workspace / ".oyawiki" / "meta" / "index"
+    assert settings.cache_path == temp_workspace / ".oyawiki" / "meta" / "cache"

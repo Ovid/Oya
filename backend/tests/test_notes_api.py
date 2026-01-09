@@ -24,11 +24,11 @@ def workspace(tmp_path, monkeypatch):
     subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=workspace, capture_output=True)
 
-    # Create .coretechs structure
-    coretechs = workspace / ".coretechs"
-    coretechs.mkdir()
-    (coretechs / "notes").mkdir()
-    (coretechs / "meta").mkdir()
+    # Create .oyawiki structure
+    oyawiki = workspace / ".oyawiki"
+    oyawiki.mkdir()
+    (oyawiki / "notes").mkdir()
+    (oyawiki / "meta").mkdir()
 
     monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 

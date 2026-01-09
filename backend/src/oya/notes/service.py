@@ -25,7 +25,7 @@ class NotesService:
         """Initialize notes service.
 
         Args:
-            notes_path: Path to .coretechs/notes directory.
+            notes_path: Path to .oyawiki/notes directory.
             db: Database connection.
         """
         self._notes_path = notes_path

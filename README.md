@@ -2,6 +2,10 @@
 
 A local-first, editable wiki generator for codebases. Ọya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
 
+# ALPHA CODE!
+
+This is not suitable for production.
+
 # Who is Ọya?
 
 Ọya (Yorùbá: Ọya, also known as Oyá, Oiá, Yànsàn-án, Yansã, Iyámsá, or Iansã)
@@ -15,7 +19,7 @@ Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
 - **Automatic Wiki Generation** - Generates overview, architecture, workflow, directory, and file documentation from your codebase
 - **Evidence-Gated Q&A** - Ask questions about your code with answers backed by citations
 - **Human Corrections** - Add notes to fix AI mistakes; corrections are treated as ground truth in regeneration
-- **Local-First** - All data stays in your repo under `.coretechs/`
+- **Local-First** - All data stays in your repo under `.oyawiki/`
 - **Multi-Provider LLM Support** - Works with OpenAI, Anthropic, Google, or local Ollama
 
 ## Quick Start
@@ -148,7 +152,7 @@ When the AI generates incorrect documentation:
 1. Click "Add Correction" on any wiki page
 2. Select the scope (file, directory, workflow, or general)
 3. Write your correction in Markdown
-4. Save - the note is stored in `.coretechs/notes/`
+4. Save - the note is stored in `.oyawiki/notes/`
 
 Notes are treated as ground truth during regeneration. The LLM is instructed to integrate corrections naturally into the documentation.
 

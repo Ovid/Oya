@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS generations (
 -- Stores metadata about each generated wiki page
 CREATE TABLE IF NOT EXISTS wiki_pages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    path TEXT NOT NULL UNIQUE,  -- File path relative to .coretechs/wiki/
+    path TEXT NOT NULL UNIQUE,  -- File path relative to .oyawiki/wiki/
     type TEXT NOT NULL,  -- 'overview', 'architecture', 'workflow', 'directory', 'file'
     target TEXT,  -- Target path for file/directory pages
     generated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS wiki_pages (
 -- Tracks all correction notes with their scope and targeting
 CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filepath TEXT NOT NULL UNIQUE,  -- Path relative to .coretechs/notes/
+    filepath TEXT NOT NULL UNIQUE,  -- Path relative to .oyawiki/notes/
     scope TEXT NOT NULL,  -- 'file', 'directory', 'workflow', 'general'
     target TEXT,  -- Target path or identifier
     content TEXT,  -- Note content (for search and display)

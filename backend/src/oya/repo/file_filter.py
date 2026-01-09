@@ -30,12 +30,12 @@ DEFAULT_EXCLUDES = [
     # OS
     ".DS_Store",
     "Thumbs.db",
-    # Oya artifacts (but NOT .coretechs/notes/ - those are user corrections)
-    ".coretechs/wiki",
-    ".coretechs/meta",
-    ".coretechs/index",
-    ".coretechs/cache",
-    ".coretechs/config",
+    # Oya artifacts (but NOT .oyawiki/notes/ - those are user corrections)
+    ".oyawiki/wiki",
+    ".oyawiki/meta",
+    ".oyawiki/index",
+    ".oyawiki/cache",
+    ".oyawiki/config",
 ]
 
 
@@ -91,7 +91,7 @@ class FileFilter:
                 for part in parts:
                     if fnmatch.fnmatch(part, dir_pattern):
                         return True
-            # Handle path patterns containing "/" (e.g., ".coretechs/wiki")
+            # Handle path patterns containing "/" (e.g., ".oyawiki/wiki")
             # These should match as path prefixes
             elif "/" in pattern:
                 # Check if path starts with the pattern (as a directory prefix)

@@ -13,19 +13,20 @@ interface PhaseInfo {
   description: string;
 }
 
-const PHASES: Record<string, PhaseInfo> = {
+export const PHASES: Record<string, PhaseInfo> = {
   'starting': { name: 'Starting', description: 'Initializing generation...' },
   'analysis': { name: 'Analysis', description: 'Scanning repository and parsing code...' },
-  'overview': { name: 'Overview', description: 'Generating project overview page...' },
-  'architecture': { name: 'Architecture', description: 'Analyzing and documenting architecture...' },
-  'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
-  'directories': { name: 'Directories', description: 'Generating directory documentation...' },
   'files': { name: 'Files', description: 'Generating file-level documentation...' },
+  'directories': { name: 'Directories', description: 'Generating directory documentation...' },
+  'synthesis': { name: 'Synthesis', description: 'Synthesizing codebase understanding...' },
+  'architecture': { name: 'Architecture', description: 'Analyzing and documenting architecture...' },
+  'overview': { name: 'Overview', description: 'Generating project overview page...' },
+  'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
 };
 
-// Ordered list of phases for progress display
-// Note: Files runs before directories to compute content hashes for incremental regen
-const PHASE_ORDER = ['analysis', 'overview', 'architecture', 'workflows', 'files', 'directories'];
+// Ordered list of phases for progress display (bottom-up approach)
+// Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+export const PHASE_ORDER = ['analysis', 'files', 'directories', 'synthesis', 'architecture', 'overview', 'workflows'];
 
 export function GenerationProgress({ jobId, onComplete, onError }: GenerationProgressProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('starting');

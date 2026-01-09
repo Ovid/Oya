@@ -18,7 +18,7 @@ def tmp_workspace(tmp_path):
     """Create temporary workspace with notes directory."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    notes_path = workspace / ".coretechs" / "notes"
+    notes_path = workspace / ".oyawiki" / "notes"
     notes_path.mkdir(parents=True)
     return workspace
 
@@ -34,7 +34,7 @@ def mock_db():
 @pytest.fixture
 def notes_service(tmp_workspace, mock_db):
     """Create notes service for testing."""
-    notes_path = tmp_workspace / ".coretechs" / "notes"
+    notes_path = tmp_workspace / ".oyawiki" / "notes"
     return NotesService(notes_path, mock_db)
 
 
@@ -52,7 +52,7 @@ class TestNotesServiceCreate:
         note = notes_service.create(note_data)
 
         # Check file exists
-        notes_path = tmp_workspace / ".coretechs" / "notes"
+        notes_path = tmp_workspace / ".oyawiki" / "notes"
         files = list(notes_path.glob("*.md"))
         assert len(files) == 1
 
@@ -72,7 +72,7 @@ class TestNotesServiceCreate:
 
         note = notes_service.create(note_data)
 
-        notes_path = tmp_workspace / ".coretechs" / "notes"
+        notes_path = tmp_workspace / ".oyawiki" / "notes"
         files = list(notes_path.glob("*.md"))
         filename = files[0].name
 
@@ -91,7 +91,7 @@ class TestNotesServiceCreate:
 
         note = notes_service.create(note_data)
 
-        notes_path = tmp_workspace / ".coretechs" / "notes"
+        notes_path = tmp_workspace / ".oyawiki" / "notes"
         files = list(notes_path.glob("*.md"))
         content = files[0].read_text()
 
@@ -207,7 +207,7 @@ class TestNotesServiceGet:
     def test_gets_note_by_id(self, notes_service, mock_db, tmp_workspace):
         """Gets note by ID returns full content."""
         # Create a note file
-        notes_path = tmp_workspace / ".coretechs" / "notes"
+        notes_path = tmp_workspace / ".oyawiki" / "notes"
         (notes_path / "test-note.md").write_text("""---
 scope: file
 target: src/main.py
@@ -248,7 +248,7 @@ class TestNotesServiceDelete:
     def test_deletes_note_file(self, notes_service, tmp_workspace, mock_db):
         """Deleting a note removes the file."""
         # Create a note file
-        notes_path = tmp_workspace / ".coretechs" / "notes"
+        notes_path = tmp_workspace / ".oyawiki" / "notes"
         note_file = notes_path / "test-note.md"
         note_file.write_text("Test content")
 
@@ -269,7 +269,7 @@ class TestNotesServiceDelete:
 
     def test_deletes_database_record(self, notes_service, mock_db, tmp_workspace):
         """Deleting a note removes database record."""
-        notes_path = tmp_workspace / ".coretechs" / "notes"
+        notes_path = tmp_workspace / ".oyawiki" / "notes"
         (notes_path / "test.md").write_text("Test")
 
         mock_db.execute.return_value.fetchone.return_value = {
