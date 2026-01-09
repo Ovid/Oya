@@ -397,8 +397,8 @@ class GenerationOrchestrator:
                 dir_path = "/".join(parts[:i])
                 directories.add(dir_path)
 
-        # Limit to 20 directories
-        sorted_dirs = sorted(directories)[:20]
+        # Process all directories
+        sorted_dirs = sorted(directories)
         total_dirs = len(sorted_dirs)
 
         # Emit initial progress with total count
@@ -475,8 +475,7 @@ class GenerationOrchestrator:
                 if content:
                     code_files.append(file_path)
 
-        # Limit to 30 files
-        code_files = code_files[:30]
+        # Process all code files
         total_files = len(code_files)
 
         # Emit initial progress with total count
