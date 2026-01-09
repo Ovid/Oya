@@ -1,5 +1,17 @@
 # backend/src/oya/generation/orchestrator.py
-"""Generation orchestrator for wiki pipeline."""
+"""Generation orchestrator for wiki pipeline.
+
+This module provides the GenerationOrchestrator class that coordinates all phases
+of wiki generation in a bottom-up approach:
+
+1. Analysis - Parse repository files and extract symbols
+2. Files - Generate documentation for individual files, extracting FileSummaries
+3. Directories - Generate documentation for directories using FileSummaries
+4. Synthesis - Combine summaries into a SynthesisMap
+5. Architecture - Generate architecture documentation using SynthesisMap
+6. Overview - Generate project overview using SynthesisMap
+7. Workflows - Generate workflow documentation from entry points
+"""
 
 import asyncio
 import hashlib
@@ -16,6 +28,7 @@ from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
 from oya.generation.overview import GeneratedPage, OverviewGenerator
+from oya.generation.summaries import DirectorySummary, FileSummary, SynthesisMap
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
 from oya.parsing.registry import ParserRegistry
@@ -102,8 +115,20 @@ def compute_directory_signature(file_hashes: list[tuple[str, str]]) -> str:
 class GenerationOrchestrator:
     """Orchestrates the wiki generation pipeline.
 
-    Coordinates all generation phases in sequence:
-    Analysis -> Overview -> Architecture -> Workflows -> Directories -> Files
+    Coordinates all generation phases in the bottom-up sequence:
+    Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+
+    This ordering ensures that high-level documentation (Architecture, Overview)
+    is informed by actual code understanding from lower-level summaries.
+
+    Attributes:
+        llm_client: LLM client for generation.
+        repo: Repository wrapper for file access.
+        db: Database for recording pages.
+        wiki_path: Path where wiki files will be saved.
+        parser_registry: Parser registry for code analysis.
+        parallel_limit: Max concurrent LLM calls for file/directory generation.
+        meta_path: Path for synthesis storage.
     """
 
     def __init__(
@@ -277,6 +302,12 @@ class GenerationOrchestrator:
 
         Pipeline order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
 
+        This bottom-up approach ensures that:
+        - File documentation is generated first, extracting structured summaries
+        - Directory documentation uses file summaries for context
+        - Synthesis combines all summaries into a coherent codebase map
+        - Architecture and Overview use the synthesis map for accurate context
+
         Args:
             progress_callback: Optional async callback for progress updates.
 
@@ -447,7 +478,7 @@ class GenerationOrchestrator:
     async def _run_overview(
         self,
         analysis: dict,
-        synthesis_map=None,
+        synthesis_map: SynthesisMap | None = None,
     ) -> GeneratedPage:
         """Run overview generation phase.
 
@@ -484,12 +515,11 @@ class GenerationOrchestrator:
         Returns:
             Package info dictionary.
         """
-        package_info = {}
+        package_info: dict[str, Any] = {}
 
         # Try package.json
         if "package.json" in file_contents:
             try:
-                import json
                 data = json.loads(file_contents["package.json"])
                 package_info["name"] = data.get("name", "")
                 package_info["version"] = data.get("version", "")
@@ -517,7 +547,7 @@ class GenerationOrchestrator:
     async def _run_architecture(
         self,
         analysis: dict,
-        synthesis_map=None,
+        synthesis_map: SynthesisMap | None = None,
     ) -> GeneratedPage:
         """Run architecture generation phase.
 
@@ -588,9 +618,9 @@ class GenerationOrchestrator:
 
     async def _run_synthesis(
         self,
-        file_summaries: list,
-        directory_summaries: list,
-    ):
+        file_summaries: list[FileSummary],
+        directory_summaries: list[DirectorySummary],
+    ) -> SynthesisMap:
         """Run synthesis phase to combine summaries into a SynthesisMap.
 
         Args:
@@ -600,8 +630,6 @@ class GenerationOrchestrator:
         Returns:
             SynthesisMap containing aggregated codebase understanding.
         """
-        from oya.generation.summaries import SynthesisMap
-
         # Generate the synthesis map
         synthesis_map = await self.synthesis_generator.generate(
             file_summaries=file_summaries,
@@ -618,8 +646,8 @@ class GenerationOrchestrator:
         analysis: dict,
         file_hashes: dict[str, str],
         progress_callback: ProgressCallback | None = None,
-        file_summaries: list | None = None,
-    ) -> tuple[list[GeneratedPage], list]:
+        file_summaries: list[FileSummary] | None = None,
+    ) -> tuple[list[GeneratedPage], list[DirectorySummary]]:
         """Run directory generation phase with parallel processing and incremental support.
 
         Args:
@@ -631,9 +659,7 @@ class GenerationOrchestrator:
         Returns:
             Tuple of (list of generated directory pages, list of DirectorySummaries).
         """
-        from oya.generation.summaries import DirectorySummary, FileSummary
-
-        pages = []
+        pages: list[GeneratedPage] = []
         directory_summaries: list[DirectorySummary] = []
         file_summaries = file_summaries or []
 
@@ -752,7 +778,7 @@ class GenerationOrchestrator:
         self,
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
-    ) -> tuple[list[GeneratedPage], dict[str, str], list]:
+    ) -> tuple[list[GeneratedPage], dict[str, str], list[FileSummary]]:
         """Run file generation phase with parallel processing and incremental support.
 
         Args:
@@ -762,9 +788,7 @@ class GenerationOrchestrator:
         Returns:
             Tuple of (list of generated file pages, dict of file_path to content_hash, list of FileSummaries).
         """
-        from oya.generation.summaries import FileSummary
-
-        pages = []
+        pages: list[GeneratedPage] = []
         file_hashes: dict[str, str] = {}
         file_summaries: list[FileSummary] = []
 
