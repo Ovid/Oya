@@ -187,7 +187,6 @@ YAML_SAFE_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 def yaml_file_summary_markdown_strategy(draw):
     """Generate markdown content with a valid YAML file_summary block."""
     # Generate valid FileSummary data using YAML-safe characters
-    file_path = draw(st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=50).filter(lambda x: x.strip()))
     purpose = draw(st.text(alphabet=YAML_SAFE_ALPHABET, min_size=1, max_size=100).filter(lambda x: x.strip()))
     layer = draw(st.sampled_from(VALID_LAYERS))
     key_abstractions = draw(st.lists(
@@ -253,7 +252,6 @@ def yaml_file_summary_markdown_strategy(draw):
 def yaml_directory_summary_markdown_strategy(draw):
     """Generate markdown content with a valid YAML directory_summary block."""
     # Generate valid DirectorySummary data using YAML-safe characters
-    directory_path = draw(st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=50).filter(lambda x: x.strip()))
     purpose = draw(st.text(alphabet=YAML_SAFE_ALPHABET, min_size=1, max_size=100).filter(lambda x: x.strip()))
     contains = draw(st.lists(
         st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=50).filter(lambda x: x.strip()),
@@ -661,7 +659,7 @@ def synthesis_map_strategy(draw):
     dependency_graph = {}
     for layer_name in selected_layers:
         # Each layer can depend on 0-3 other layers
-        possible_deps = [l for l in selected_layers if l != layer_name]
+        possible_deps = [layer for layer in selected_layers if layer != layer_name]
         num_deps = draw(st.integers(min_value=0, max_value=min(3, len(possible_deps))))
         if num_deps > 0 and possible_deps:
             deps = draw(st.permutations(possible_deps).map(lambda x: list(x)[:num_deps]))
