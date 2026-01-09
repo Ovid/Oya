@@ -427,8 +427,12 @@ def get_workflow_prompt(
     Returns:
         The rendered prompt string.
     """
-    entry_points_str = "\n".join(f"- {ep}" for ep in entry_points) if entry_points else "No entry points defined."
-    related_files_str = "\n".join(f"- {f}" for f in related_files) if related_files else "No related files."
+    entry_points_str = (
+        "\n".join(f"- {ep}" for ep in entry_points) if entry_points else "No entry points defined."
+    )
+    related_files_str = (
+        "\n".join(f"- {f}" for f in related_files) if related_files else "No related files."
+    )
 
     return WORKFLOW_TEMPLATE.render(
         repo_name=repo_name,
@@ -460,7 +464,9 @@ def get_directory_prompt(
     Returns:
         The rendered prompt string.
     """
-    file_list_str = "\n".join(f"- {f}" for f in file_list) if file_list else "No files in directory."
+    file_list_str = (
+        "\n".join(f"- {f}" for f in file_list) if file_list else "No files in directory."
+    )
 
     return DIRECTORY_TEMPLATE.render(
         repo_name=repo_name,
@@ -523,7 +529,9 @@ def _format_notes(notes: list[dict[str, Any]]) -> str:
         return ""
 
     lines = ["## Developer Corrections (Ground Truth)", ""]
-    lines.append("The following corrections have been provided by developers and MUST be incorporated:")
+    lines.append(
+        "The following corrections have been provided by developers and MUST be incorporated:"
+    )
     lines.append("")
 
     for i, note in enumerate(notes, 1):
@@ -593,11 +601,13 @@ def get_notes_for_target(
         cursor = db.execute(sql, (scope, target))
         notes = []
         for row in cursor.fetchall():
-            notes.append({
-                "content": row["content"],
-                "author": row["author"],
-                "created_at": row["created_at"],
-            })
+            notes.append(
+                {
+                    "content": row["content"],
+                    "author": row["author"],
+                    "created_at": row["created_at"],
+                }
+            )
         return notes
     except Exception:
         return []
