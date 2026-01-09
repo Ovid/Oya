@@ -1,4 +1,5 @@
 import { useApp } from '../context/AppContext';
+import { DirectoryPicker } from './DirectoryPicker';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
@@ -6,8 +7,21 @@ interface TopBarProps {
 }
 
 export function TopBar({ onToggleSidebar, onToggleRightSidebar }: TopBarProps) {
-  const { state, startGeneration, toggleDarkMode } = useApp();
-  const { repoStatus, currentJob, isLoading, darkMode } = state;
+  const { state, startGeneration, toggleDarkMode, switchWorkspace } = useApp();
+  const { repoStatus, currentJob, isLoading, darkMode, noteEditor } = state;
+
+  const isGenerating = currentJob?.status === 'running';
+  const hasUnsavedChanges = noteEditor.isDirty;
+
+  const handleWorkspaceSwitch = async (path: string) => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm(
+        'You have unsaved changes. Are you sure you want to switch workspaces?'
+      );
+      if (!confirmed) return;
+    }
+    await switchWorkspace(path);
+  };
 
   const getStatusBadge = () => {
     if (isLoading) {
@@ -19,7 +33,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar }: TopBarProps) {
       );
     }
 
-    if (currentJob?.status === 'running') {
+    if (isGenerating) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
           <span className="animate-pulse mr-1">●</span>
@@ -61,9 +75,12 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar }: TopBarProps) {
           <div className="flex items-center space-x-2">
             <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Oya</span>
             {repoStatus && (
-              <span className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
-                {repoStatus.path.split('/').pop()}
-              </span>
+              <DirectoryPicker
+                currentPath={repoStatus.path}
+                onSwitch={handleWorkspaceSwitch}
+                disabled={isGenerating}
+                disabledReason={isGenerating ? 'Cannot switch during generation' : undefined}
+              />
             )}
           </div>
         </div>

@@ -140,14 +140,14 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - _Requirements: 3.3, 3.4, 3.5, 3.6_
   - [x] 10.3 REFACTOR: Clean up AppContext code
 
-- [ ] 11. TopBar integration (TDD)
-  - [ ] 11.1 RED: Write failing unit tests for TopBar with DirectoryPicker
+- [x] 11. TopBar integration (TDD)
+  - [x] 11.1 RED: Write failing unit tests for TopBar with DirectoryPicker
     - Test DirectoryPicker is rendered
     - Test disabled during generation
     - Test confirmation prompt when noteEditor.isDirty is true
     - Tests should fail (integration not done yet)
     - _Requirements: 3.6, 3.10_
-  - [ ] 11.2 GREEN: Update `frontend/src/components/TopBar.tsx`
+  - [x] 11.2 GREEN: Update `frontend/src/components/TopBar.tsx`
     - Import and render DirectoryPicker
     - Pass current path from repoStatus
     - Pass switchWorkspace handler
@@ -156,7 +156,7 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - Add confirmation dialog for unsaved changes
     - Export DirectoryPicker from `frontend/src/components/index.ts`
     - _Requirements: 3.1, 3.6, 3.10, 3.11_
-  - [ ] 11.3 REFACTOR: Clean up TopBar integration
+  - [x] 11.3 REFACTOR: Clean up TopBar integration
 
 - [ ] 12. Final checkpoint - Full integration verification
   - Ensure all tests pass, ask the user if questions arise.
