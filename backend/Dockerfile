@@ -8,12 +8,10 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Copy source and install
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
-
-# Copy source
 COPY src/ src/
+RUN pip install --no-cache-dir .
 
 # Run uvicorn
 CMD ["uvicorn", "oya.main:app", "--host", "0.0.0.0", "--port", "8000"]

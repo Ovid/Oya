@@ -16,7 +16,7 @@ def workspace_with_wiki(tmp_path, monkeypatch):
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
 
     # Create wiki structure
-    wiki_path = workspace / ".coretechs" / "wiki"
+    wiki_path = workspace / ".oyawiki" / "wiki"
     wiki_path.mkdir(parents=True)
 
     # Create overview

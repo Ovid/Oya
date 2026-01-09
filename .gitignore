@@ -18,9 +18,12 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
+.hypothesis/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+.env

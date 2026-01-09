@@ -1,13 +1,25 @@
-# Oya
+# Ọya
 
-A local-first, editable wiki generator for codebases. Oya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
+A local-first, editable wiki generator for codebases. Ọya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
+
+# ALPHA CODE!
+
+This is not suitable for production.
+
+# Who is Ọya?
+
+Ọya (Yorùbá: Ọya, also known as Oyá, Oiá, Yànsàn-án, Yansã, Iyámsá, or Iansã)
+is one of the principal female deities of the Yoruba pantheon. She is the
+orisha of winds, lightning, and storms, and is the only orisha capable
+of controlling the Eégún (spirits of the dead), a power given to her by Babalú
+Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
 
 ## Features
 
 - **Automatic Wiki Generation** - Generates overview, architecture, workflow, directory, and file documentation from your codebase
 - **Evidence-Gated Q&A** - Ask questions about your code with answers backed by citations
 - **Human Corrections** - Add notes to fix AI mistakes; corrections are treated as ground truth in regeneration
-- **Local-First** - All data stays in your repo under `.coretechs/`
+- **Local-First** - All data stays in your repo under `.oyawiki/`
 - **Multi-Provider LLM Support** - Works with OpenAI, Anthropic, Google, or local Ollama
 
 ## Quick Start
@@ -58,7 +70,7 @@ npm run dev
 
 ## Configuration
 
-Oya uses environment variables for configuration:
+Ọya uses environment variables for configuration:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -128,7 +140,7 @@ oya/
 
 ## Q&A Modes
 
-Oya supports two Q&A modes:
+Ọya supports two Q&A modes:
 
 - **Evidence-Gated (default)** - Only answers when sufficient evidence exists in the codebase. Refuses to answer speculative questions.
 - **Loose Mode** - Always attempts to answer, but includes a warning that the response may be speculative.
@@ -140,7 +152,7 @@ When the AI generates incorrect documentation:
 1. Click "Add Correction" on any wiki page
 2. Select the scope (file, directory, workflow, or general)
 3. Write your correction in Markdown
-4. Save - the note is stored in `.coretechs/notes/`
+4. Save - the note is stored in `.oyawiki/notes/`
 
 Notes are treated as ground truth during regeneration. The LLM is instructed to integrate corrections naturally into the documentation.
 

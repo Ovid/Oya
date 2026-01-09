@@ -1,10 +1,15 @@
 # backend/src/oya/generation/architecture.py
 """Architecture page generator."""
 
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_architecture_prompt
+
+if TYPE_CHECKING:
+    from oya.generation.summaries import SynthesisMap
 
 
 class ArchitectureGenerator:
@@ -12,6 +17,10 @@ class ArchitectureGenerator:
 
     The architecture page provides system design documentation
     including component relationships, data flow, and diagrams.
+
+    Supports two modes:
+    1. Legacy mode: Uses key_symbols for architecture context
+    2. Synthesis mode: Uses SynthesisMap for richer architecture context (preferred)
     """
 
     def __init__(self, llm_client, repo):
@@ -27,15 +36,21 @@ class ArchitectureGenerator:
     async def generate(
         self,
         file_tree: str,
-        key_symbols: list[dict],
-        dependencies: list[str],
+        key_symbols: list[dict[str, Any]] | None = None,
+        dependencies: list[str] | None = None,
+        synthesis_map: SynthesisMap | None = None,
     ) -> GeneratedPage:
         """Generate the architecture page.
 
+        Supports two modes:
+        1. Legacy mode: Uses key_symbols for architecture context
+        2. Synthesis mode: Uses SynthesisMap for richer architecture context
+
         Args:
             file_tree: String representation of file structure.
-            key_symbols: Important symbols across the codebase.
+            key_symbols: Important symbols across the codebase (legacy mode).
             dependencies: List of project dependencies.
+            synthesis_map: SynthesisMap with layer and component info (preferred).
 
         Returns:
             GeneratedPage with architecture content.
@@ -46,7 +61,8 @@ class ArchitectureGenerator:
             repo_name=repo_name,
             file_tree=file_tree,
             key_symbols=key_symbols,
-            dependencies=dependencies,
+            dependencies=dependencies or [],
+            synthesis_map=synthesis_map,
         )
 
         content = await self.llm_client.generate(

@@ -1,6 +1,77 @@
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import mermaid from 'mermaid';
 import type { WikiPage } from '../types';
+
+// Initialize mermaid with a readable theme
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  themeVariables: {
+    // Use high contrast colors
+    primaryColor: '#818cf8',      // indigo-400
+    primaryTextColor: '#1f2937',  // gray-800
+    primaryBorderColor: '#6366f1', // indigo-500
+    lineColor: '#6b7280',         // gray-500
+    secondaryColor: '#e0e7ff',    // indigo-100
+    tertiaryColor: '#f3f4f6',     // gray-100
+    background: '#ffffff',
+    mainBkg: '#ffffff',
+    secondBkg: '#f9fafb',
+    nodeTextColor: '#1f2937',
+    textColor: '#1f2937',
+  },
+  flowchart: {
+    htmlLabels: true,
+    curve: 'basis',
+  },
+});
+
+interface MermaidDiagramProps {
+  chart: string;
+}
+
+function MermaidDiagram({ chart }: MermaidDiagramProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const renderChart = async () => {
+      if (!containerRef.current) return;
+
+      try {
+        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+        const { svg } = await mermaid.render(id, chart);
+        setSvg(svg);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to render diagram');
+        setSvg('');
+      }
+    };
+
+    renderChart();
+  }, [chart]);
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+        <p className="text-sm text-red-600 dark:text-red-400">Failed to render diagram: {error}</p>
+        <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 overflow-auto">{chart}</pre>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="my-4 p-4 bg-white dark:bg-gray-100 rounded-lg overflow-x-auto border border-gray-200"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
 
 interface WikiContentProps {
   page: WikiPage;
@@ -25,10 +96,16 @@ export function WikiContent({ page }: WikiContentProps) {
             const id = String(children).toLowerCase().replace(/[^\w]+/g, '-');
             return <h3 id={id}>{children}</h3>;
           },
-          // Code blocks with syntax highlighting placeholder
+          // Code blocks with syntax highlighting and Mermaid support
           code: ({ className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || '');
+            const language = match ? match[1] : null;
             const isInline = !match;
+
+            // Handle Mermaid diagrams
+            if (language === 'mermaid') {
+              return <MermaidDiagram chart={String(children).trim()} />;
+            }
 
             if (isInline) {
               return (

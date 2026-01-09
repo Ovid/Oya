@@ -13,7 +13,7 @@ Oya is a **Python (FastAPI) backend + React (Vite) frontend** system running via
 ### Backend Service (`oya-backend`)
 - FastAPI application (Python 3.11+)
 - Embedded ChromaDB for vector storage
-- SQLite (`.coretechs/meta/oya.db`) for metadata, job tracking, and FTS5 search
+- SQLite (`.oyawiki/meta/oya.db`) for metadata, job tracking, and FTS5 search
 - GitPython for repository operations
 - LiteLLM for multi-provider LLM access
 - Language-specific parsers (Python `ast`, TypeScript compiler API, Java parser, Node/JS parser) with Tree-sitter fallback
@@ -31,9 +31,9 @@ Oya is a **Python (FastAPI) backend + React (Vite) frontend** system running via
 ### Data Flow
 1. User mounts local repo as Docker volume → `/workspace`
 2. Backend indexes repo → creates embeddings (ChromaDB) + metadata (SQLite)
-3. Backend generates wiki hierarchically → saves to `.coretechs/wiki/`
+3. Backend generates wiki hierarchically → saves to `.oyawiki/wiki/`
 4. Frontend requests wiki pages via API → renders with citations
-5. User adds corrections → saved as notes in `.coretechs/notes/` → triggers targeted regeneration
+5. User adds corrections → saved as notes in `.oyawiki/notes/` → triggers targeted regeneration
 6. Q&A queries → semantic search (ChromaDB) + full-text (SQLite FTS5) → LLM with evidence gating
 
 ---
@@ -44,7 +44,7 @@ Oya is a **Python (FastAPI) backend + React (Vite) frontend** system running via
 
 ```
 <user-repo>/
-├── .coretechs/
+├── .oyawiki/
 │   ├── .gitignore              # Ignores ephemeral data
 │   ├── meta/
 │   │   └── oya.db             # SQLite: metadata, jobs, search index
@@ -207,7 +207,7 @@ The login function actually uses OAuth2, not JWT as the AI suggested...
 3. **On save:**
    - Generate note filename: `{ISO-timestamp}-{scope}-{slug}.md`
    - Add frontmatter with metadata (datetime, author from git config, git context, scope, target)
-   - Write to `.coretechs/notes/`
+   - Write to `.oyawiki/notes/`
    - Create SQLite entry linking note to target
 
 4. **Trigger targeted regeneration:**
@@ -379,7 +379,7 @@ The login function actually uses OAuth2, not JWT as the AI suggested...
 
 ### Configuration System
 
-#### `.coretechs/config/settings.json` (committable)
+#### `.oyawiki/config/settings.json` (committable)
 ```json
 {
   "repo": {
@@ -403,7 +403,7 @@ The login function actually uses OAuth2, not JWT as the AI suggested...
 }
 ```
 
-#### `.coretechs/config/secrets.env` (gitignored)
+#### `.oyawiki/config/secrets.env` (gitignored)
 ```bash
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
@@ -455,11 +455,11 @@ services:
       - "8000:8000"
     volumes:
       - ${REPO_PATH}:/workspace
-      - ./.coretechs:/workspace/.coretechs
+      - ./.oyawiki:/workspace/.oyawiki
     environment:
       - WORKSPACE_PATH=/workspace
     env_file:
-      - .coretechs/config/secrets.env
+      - .oyawiki/config/secrets.env
 
   frontend:
     build: ./frontend
@@ -474,7 +474,7 @@ services:
 #### User workflow
 1. Clone Oya repo
 2. Create `.env` with `REPO_PATH=/path/to/their/repo`
-3. Add LLM keys to `.coretechs/config/secrets.env`
+3. Add LLM keys to `.oyawiki/config/secrets.env`
 4. Run `docker-compose up`
 5. Open `http://localhost:3000`
 6. Initialize repo from UI
@@ -482,7 +482,7 @@ services:
 ### Security Considerations
 - Backend binds to `localhost` only (no external access)
 - Secrets never logged or exposed in API responses
-- `.coretechs/config/secrets.env` is gitignored by default
+- `.oyawiki/config/secrets.env` is gitignored by default
 - No authentication needed (local single-user)
 
 ---

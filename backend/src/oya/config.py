@@ -3,10 +3,10 @@
 
 This module handles loading settings from environment variables,
 providing sensible defaults, and computing derived paths for
-the .coretechs directory structure.
+the .oyawiki directory structure.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -42,39 +42,39 @@ class Settings:
     chunk_size: int = 4096
 
     @property
-    def coretechs_path(self) -> Path:
-        """Path to .coretechs directory."""
-        return self.workspace_path / ".coretechs"
+    def oyawiki_path(self) -> Path:
+        """Path to .oyawiki directory."""
+        return self.workspace_path / ".oyawiki"
 
     @property
     def wiki_path(self) -> Path:
         """Path to wiki subdirectory."""
-        return self.coretechs_path / "wiki"
+        return self.oyawiki_path / "wiki"
 
     @property
     def notes_path(self) -> Path:
         """Path to notes subdirectory."""
-        return self.coretechs_path / "notes"
+        return self.oyawiki_path / "notes"
 
     @property
     def db_path(self) -> Path:
         """Path to SQLite database file."""
-        return self.coretechs_path / "meta" / "oya.db"
+        return self.oyawiki_path / "meta" / "oya.db"
 
     @property
     def index_path(self) -> Path:
         """Path to search index directory."""
-        return self.coretechs_path / "meta" / "index"
+        return self.oyawiki_path / "meta" / "index"
 
     @property
     def cache_path(self) -> Path:
         """Path to cache directory."""
-        return self.coretechs_path / "meta" / "cache"
+        return self.oyawiki_path / "meta" / "cache"
 
     @property
     def chroma_path(self) -> Path:
         """Path to ChromaDB vector store directory."""
-        return self.coretechs_path / "meta" / "chroma"
+        return self.oyawiki_path / "meta" / "chroma"
 
     @property
     def llm_provider(self) -> str:
@@ -158,6 +158,17 @@ def load_settings() -> Settings:
         }
         active_model = provider_defaults.get(active_provider, "llama2")
 
+    # Determine parallel limit based on provider
+    # Local models (Ollama) can't handle many concurrent requests efficiently
+    # Cloud APIs (OpenAI, Anthropic, Google) handle concurrency well
+    parallel_limit_env = os.getenv("PARALLEL_FILE_LIMIT")
+    if parallel_limit_env:
+        parallel_file_limit = int(parallel_limit_env)
+    elif active_provider == "ollama":
+        parallel_file_limit = 2  # Safe default for local models
+    else:
+        parallel_file_limit = 10  # Cloud APIs handle concurrency well
+
     return Settings(
         workspace_path=workspace_path,
         active_provider=active_provider,
@@ -167,6 +178,6 @@ def load_settings() -> Settings:
         google_api_key=os.getenv("GOOGLE_API_KEY"),
         ollama_endpoint=os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434"),
         max_file_size_kb=int(os.getenv("MAX_FILE_SIZE_KB", "1024")),
-        parallel_file_limit=int(os.getenv("PARALLEL_FILE_LIMIT", "10")),
+        parallel_file_limit=parallel_file_limit,
         chunk_size=int(os.getenv("CHUNK_SIZE", "4096")),
     )

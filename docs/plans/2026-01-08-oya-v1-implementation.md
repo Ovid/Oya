@@ -313,7 +313,7 @@ services:
       - "8000:8000"
     volumes:
       - ${REPO_PATH:-.}:/workspace:ro
-      - oya-data:/workspace/.coretechs
+      - oya-data:/workspace/.oyawiki
     environment:
       - WORKSPACE_PATH=/workspace
     env_file:
@@ -548,7 +548,7 @@ CREATE TABLE IF NOT EXISTS wiki_pages (
 -- Human correction notes
 CREATE TABLE IF NOT EXISTS notes (
     id TEXT PRIMARY KEY,
-    filepath TEXT NOT NULL,  -- Path in .coretechs/notes/
+    filepath TEXT NOT NULL,  -- Path in .oyawiki/notes/
     scope TEXT NOT NULL,  -- file, directory, workflow, architecture, general
     target TEXT,  -- Path or slug this note applies to
     created_at TEXT NOT NULL,
@@ -674,16 +674,16 @@ def test_settings_defaults(temp_workspace: Path, monkeypatch):
     assert settings.active_model == "llama2"
 
 
-def test_coretechs_paths(temp_workspace: Path, monkeypatch):
+def test_oyawiki_paths(temp_workspace: Path, monkeypatch):
     """Coretechs subdirectory paths are computed correctly."""
     monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
 
     settings = load_settings()
 
-    assert settings.coretechs_path == temp_workspace / ".coretechs"
-    assert settings.wiki_path == temp_workspace / ".coretechs" / "wiki"
-    assert settings.notes_path == temp_workspace / ".coretechs" / "notes"
-    assert settings.db_path == temp_workspace / ".coretechs" / "meta" / "oya.db"
+    assert settings.oyawiki_path == temp_workspace / ".oyawiki"
+    assert settings.wiki_path == temp_workspace / ".oyawiki" / "wiki"
+    assert settings.notes_path == temp_workspace / ".oyawiki" / "notes"
+    assert settings.db_path == temp_workspace / ".oyawiki" / "meta" / "oya.db"
 ```
 
 **Step 2: Run test to verify it fails**
@@ -727,34 +727,34 @@ class Settings:
     chunk_size: int = 1000
 
     @property
-    def coretechs_path(self) -> Path:
-        """Path to .coretechs directory."""
-        return self.workspace_path / ".coretechs"
+    def oyawiki_path(self) -> Path:
+        """Path to .oyawiki directory."""
+        return self.workspace_path / ".oyawiki"
 
     @property
     def wiki_path(self) -> Path:
         """Path to wiki directory."""
-        return self.coretechs_path / "wiki"
+        return self.oyawiki_path / "wiki"
 
     @property
     def notes_path(self) -> Path:
         """Path to notes directory."""
-        return self.coretechs_path / "notes"
+        return self.oyawiki_path / "notes"
 
     @property
     def db_path(self) -> Path:
         """Path to SQLite database."""
-        return self.coretechs_path / "meta" / "oya.db"
+        return self.oyawiki_path / "meta" / "oya.db"
 
     @property
     def index_path(self) -> Path:
         """Path to ChromaDB index."""
-        return self.coretechs_path / "index"
+        return self.oyawiki_path / "index"
 
     @property
     def cache_path(self) -> Path:
         """Path to cache directory."""
-        return self.coretechs_path / "cache"
+        return self.oyawiki_path / "cache"
 
 
 @lru_cache
@@ -1697,7 +1697,7 @@ DEFAULT_EXCLUDES = [
     "Thumbs.db",
 
     # Oya artifacts
-    ".coretechs",
+    ".oyawiki",
 ]
 
 
@@ -5992,7 +5992,7 @@ def orchestrator(mock_llm_client, mock_repo, mock_db):
         llm_client=mock_llm_client,
         repo=mock_repo,
         db=mock_db,
-        wiki_path=Path("/workspace/my-project/.coretechs/wiki"),
+        wiki_path=Path("/workspace/my-project/.oyawiki/wiki"),
     )
 
 
@@ -6987,7 +6987,7 @@ def workspace_with_wiki(tmp_path, monkeypatch):
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
 
     # Create wiki structure
-    wiki_path = workspace / ".coretechs" / "wiki"
+    wiki_path = workspace / ".oyawiki" / "wiki"
     wiki_path.mkdir(parents=True)
 
     # Create overview
@@ -7623,7 +7623,7 @@ def workspace_with_content(tmp_path, monkeypatch):
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
 
     # Create wiki with content
-    wiki = workspace / ".coretechs" / "wiki"
+    wiki = workspace / ".oyawiki" / "wiki"
     wiki.mkdir(parents=True)
     (wiki / "overview.md").write_text("# Authentication System\n\nThis handles user login and OAuth.")
     (wiki / "architecture.md").write_text("# Architecture\n\nThe system uses FastAPI.")

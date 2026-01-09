@@ -16,7 +16,7 @@ def workspace_with_content(tmp_path, monkeypatch):
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
 
     # Create wiki with content
-    wiki = workspace / ".coretechs" / "wiki"
+    wiki = workspace / ".oyawiki" / "wiki"
     wiki.mkdir(parents=True)
     (wiki / "overview.md").write_text("# Authentication System\n\nThis handles user login and OAuth.")
     (wiki / "architecture.md").write_text("# Architecture\n\nThe system uses FastAPI.")

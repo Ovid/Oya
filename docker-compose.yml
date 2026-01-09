@@ -1,13 +1,10 @@
-version: '3.9'
-
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     volumes:
-      - ${REPO_PATH:-.}:/workspace:ro
-      - oya-data:/workspace/.coretechs
+      - ${REPO_PATH:-.}:/workspace
     environment:
       - WORKSPACE_PATH=/workspace
     env_file:
@@ -16,11 +13,8 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "5173:3000"
     depends_on:
       - backend
     environment:
       - VITE_API_URL=http://localhost:8000
-
-volumes:
-  oya-data:

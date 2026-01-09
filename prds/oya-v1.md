@@ -25,7 +25,7 @@ Developers need a **local-first, Dockerized system** that explains a codebase in
 
 ### **Proposed Solution**
 
-**Oya** is a **Python backend \+ React frontend** application that runs entirely via Docker and generates a browsable “wiki” for a git repository. Unlike DeepWiki, Oya is **editable** through in-UI corrections that are saved as markdown notes inside the repository (`.coretechs/notes/`) and treated as higher-priority truth for future generations and Q\&A.
+**Oya** is a **Python backend \+ React frontend** application that runs entirely via Docker and generates a browsable “wiki” for a git repository. Unlike DeepWiki, Oya is **editable** through in-UI corrections that are saved as markdown notes inside the repository (`.oyawiki/notes/`) and treated as higher-priority truth for future generations and Q\&A.
 
 Oya provides:
 
@@ -70,7 +70,7 @@ Oya provides:
 * Mermaid diagrams with polished rendering and editing
 * Progress indicators with timestamps
 * Multi-provider LLM support \+ Ollama fallback
-* Repo-native artifacts under `.coretechs/`
+* Repo-native artifacts under `.oyawiki/`
 * Open-source, permissively licensed dependencies only
 
 ### **Out of Scope**
@@ -126,7 +126,7 @@ Oya provides:
 * Markdown editor opens with guidance.
 * Scope auto-selected (file, directory, workflow, architecture, general).
 * On save:
-  * Note is written to `.coretechs/notes/`
+  * Note is written to `.oyawiki/notes/`
   * Targeted regeneration occurs
   * User is asked: “Is this correct?” with a summary/diff
 
@@ -149,7 +149,7 @@ Oya provides:
 | F2    | Backend                    | Python backend (FastAPI recommended).                                       |
 | F3    | Frontend                   | React frontend (TypeScript recommended).                                    |
 | F4    | Repo ingestion             | GitHub URL or local git repo path.                                          |
-| F5    | Artifact isolation         | All artifacts stored under `.coretechs/` where feasible.                    |
+| F5    | Artifact isolation         | All artifacts stored under `.oyawiki/` where feasible.                    |
 | F6    | Wiki generation            | Overview, Architecture, Workflows, Directories, Files.                      |
 | F7    | Landing page               | Default landing page is **Overview**.                                       |
 | F8    | Last updated               | Show generation datetime \+ HEAD commit hash and commit time.               |
@@ -191,7 +191,7 @@ Oya provides:
 
 ### **7.1 Directory Layout**
 
-`.coretechs/`  
+`.oyawiki/`  
   `.gitignore  (committable)`
   `wiki/        (committable)`  
   `notes/       (committable)`  
@@ -259,8 +259,8 @@ Markdown with frontmatter including:
 
 ## **11\. Glossary**
 
-* **Wiki:** Generated documentation under `.coretechs/wiki/`  
-* **Notes:** Human corrections under `.coretechs/notes/`  
+* **Wiki:** Generated documentation under `.oyawiki/wiki/`  
+* **Notes:** Human corrections under `.oyawiki/notes/`  
 * **Evidence-gated:** Answers only when sufficient sources exist  
 * **Loose mode:** Best-effort answers with explicit warning  
 * **Provenance viewer:** UI showing cited sources

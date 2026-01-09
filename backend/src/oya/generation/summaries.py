@@ -1,0 +1,457 @@
+"""Summary data models for bottom-up wiki generation.
+
+These models capture structured information extracted from file and directory
+documentation to enable synthesis into higher-level architecture understanding.
+"""
+
+import json
+import re
+from dataclasses import dataclass, field
+from typing import Any
+
+import yaml
+
+
+# Valid layer classifications for code files
+VALID_LAYERS: frozenset[str] = frozenset(
+    ["api", "domain", "infrastructure", "utility", "config", "test"]
+)
+
+
+def path_to_slug(path: str, include_extension: bool = True) -> str:
+    """Convert a file or directory path to a URL-safe slug.
+
+    Args:
+        path: File or directory path to convert.
+        include_extension: If True, replace dots with dashes (for file paths).
+                          If False, preserve dots (for directory paths).
+
+    Returns:
+        URL-safe slug string.
+    """
+    slug = path.replace("/", "-").replace("\\", "-")
+    if include_extension:
+        slug = slug.replace(".", "-")
+    slug = re.sub(r"[^a-z0-9-]", "", slug.lower())
+    slug = re.sub(r"-+", "-", slug)
+    return slug.strip("-")
+
+
+@dataclass
+class FileSummary:
+    """Structured summary extracted from file documentation.
+
+    Captures the essential information about a source file including its purpose,
+    architectural layer, key abstractions, and dependencies.
+
+    Attributes:
+        file_path: Path to the source file relative to repository root.
+        purpose: One-sentence description of what the file does.
+        layer: Classification of code responsibility (api, domain, infrastructure,
+               utility, config, or test).
+        key_abstractions: Primary classes, functions, or types defined in the file.
+        internal_deps: Paths to other files in the repository that this file depends on.
+        external_deps: External libraries or packages the file imports.
+    """
+
+    file_path: str
+    purpose: str
+    layer: str
+    key_abstractions: list[str] = field(default_factory=list)
+    internal_deps: list[str] = field(default_factory=list)
+    external_deps: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Validate layer field after initialization."""
+        if self.layer not in VALID_LAYERS:
+            raise ValueError(
+                f"Invalid layer '{self.layer}'. Must be one of: {', '.join(sorted(VALID_LAYERS))}"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the FileSummary to a dictionary.
+
+        Returns:
+            Dictionary representation of the FileSummary for JSON storage.
+        """
+        return {
+            "file_path": self.file_path,
+            "purpose": self.purpose,
+            "layer": self.layer,
+            "key_abstractions": self.key_abstractions,
+            "internal_deps": self.internal_deps,
+            "external_deps": self.external_deps,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FileSummary":
+        """Deserialize a FileSummary from a dictionary.
+
+        Args:
+            data: Dictionary representation of a FileSummary.
+
+        Returns:
+            A new FileSummary instance.
+        """
+        return cls(
+            file_path=data.get("file_path", ""),
+            purpose=data.get("purpose", "Unknown"),
+            layer=data.get("layer", "utility"),
+            key_abstractions=data.get("key_abstractions", []),
+            internal_deps=data.get("internal_deps", []),
+            external_deps=data.get("external_deps", []),
+        )
+
+
+@dataclass
+class DirectorySummary:
+    """Structured summary extracted from directory documentation.
+
+    Captures the essential information about a directory/module including its purpose,
+    contained files, and role in the overall system architecture.
+
+    Attributes:
+        directory_path: Path to the directory relative to repository root.
+        purpose: One-sentence description of what the directory/module is responsible for.
+        contains: List of files contained in the directory.
+        role_in_system: Description of how this directory fits into the overall architecture.
+    """
+
+    directory_path: str
+    purpose: str
+    contains: list[str] = field(default_factory=list)
+    role_in_system: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the DirectorySummary to a dictionary.
+
+        Returns:
+            Dictionary representation of the DirectorySummary for JSON storage.
+        """
+        return {
+            "directory_path": self.directory_path,
+            "purpose": self.purpose,
+            "contains": self.contains,
+            "role_in_system": self.role_in_system,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DirectorySummary":
+        """Deserialize a DirectorySummary from a dictionary.
+
+        Args:
+            data: Dictionary representation of a DirectorySummary.
+
+        Returns:
+            A new DirectorySummary instance.
+        """
+        return cls(
+            directory_path=data.get("directory_path", ""),
+            purpose=data.get("purpose", "Unknown"),
+            contains=data.get("contains", []),
+            role_in_system=data.get("role_in_system", ""),
+        )
+
+
+@dataclass
+class LayerInfo:
+    """Information about a code layer in the system architecture.
+
+    Represents a logical grouping of code by responsibility (e.g., api, domain,
+    infrastructure) with associated directories and files.
+
+    Attributes:
+        name: The layer name (e.g., "api", "domain", "infrastructure").
+        purpose: Description of what this layer is responsible for.
+        directories: List of directory paths belonging to this layer.
+        files: List of file paths belonging to this layer.
+    """
+
+    name: str
+    purpose: str
+    directories: list[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ComponentInfo:
+    """Information about a key component in the codebase.
+
+    Represents an important abstraction (class, function, module) that plays
+    a significant role in the system architecture.
+
+    Attributes:
+        name: The component name (e.g., class or function name).
+        file: Path to the file containing this component.
+        role: Description of what role this component plays in the system.
+        layer: The architectural layer this component belongs to.
+    """
+
+    name: str
+    file: str
+    role: str
+    layer: str
+
+
+@dataclass
+class SynthesisMap:
+    """Aggregated codebase understanding synthesized from file and directory summaries.
+
+    Combines all File_Summaries and Directory_Summaries into a coherent map of the
+    codebase, including layer groupings, key components, and dependency relationships.
+    This serves as the primary context for generating Architecture and Overview pages.
+
+    Attributes:
+        layers: Mapping of layer names to LayerInfo objects.
+        key_components: List of important components identified across the codebase.
+        dependency_graph: Mapping of component/layer names to their dependencies.
+        project_summary: LLM-generated overall summary of the project.
+    """
+
+    layers: dict[str, LayerInfo] = field(default_factory=dict)
+    key_components: list[ComponentInfo] = field(default_factory=list)
+    dependency_graph: dict[str, list[str]] = field(default_factory=dict)
+    project_summary: str = ""
+
+    def to_json(self) -> str:
+        """Serialize the SynthesisMap to a JSON string.
+
+        Returns:
+            JSON string representation of the SynthesisMap.
+        """
+        data = {
+            "layers": {
+                name: {
+                    "name": layer.name,
+                    "purpose": layer.purpose,
+                    "directories": layer.directories,
+                    "files": layer.files,
+                }
+                for name, layer in self.layers.items()
+            },
+            "key_components": [
+                {
+                    "name": comp.name,
+                    "file": comp.file,
+                    "role": comp.role,
+                    "layer": comp.layer,
+                }
+                for comp in self.key_components
+            ],
+            "dependency_graph": self.dependency_graph,
+            "project_summary": self.project_summary,
+        }
+        return json.dumps(data, indent=2)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "SynthesisMap":
+        """Deserialize a SynthesisMap from a JSON string.
+
+        Args:
+            json_str: JSON string representation of a SynthesisMap.
+
+        Returns:
+            A new SynthesisMap instance.
+        """
+        data = json.loads(json_str)
+
+        layers = {
+            name: LayerInfo(
+                name=layer_data["name"],
+                purpose=layer_data["purpose"],
+                directories=layer_data.get("directories", []),
+                files=layer_data.get("files", []),
+            )
+            for name, layer_data in data.get("layers", {}).items()
+        }
+
+        key_components = [
+            ComponentInfo(
+                name=comp["name"],
+                file=comp["file"],
+                role=comp["role"],
+                layer=comp["layer"],
+            )
+            for comp in data.get("key_components", [])
+        ]
+
+        return cls(
+            layers=layers,
+            key_components=key_components,
+            dependency_graph=data.get("dependency_graph", {}),
+            project_summary=data.get("project_summary", ""),
+        )
+
+
+class SummaryParser:
+    """Parses structured summaries from LLM-generated markdown.
+
+    Extracts YAML summary blocks from markdown content and converts them
+    to FileSummary or DirectorySummary objects. The YAML block is stripped
+    from the returned markdown content.
+    """
+
+    # Regex pattern to match YAML blocks delimited by ---
+    YAML_BLOCK_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.MULTILINE | re.DOTALL)
+
+    def _extract_yaml_block(self, markdown: str) -> tuple[str | None, str]:
+        """Extract YAML content from markdown and return clean markdown.
+
+        Args:
+            markdown: The full markdown content potentially containing a YAML block.
+
+        Returns:
+            A tuple of (yaml_content, clean_markdown) where yaml_content is None
+            if no valid YAML block was found.
+        """
+        match = self.YAML_BLOCK_PATTERN.search(markdown)
+
+        if not match:
+            return None, markdown
+
+        yaml_content = match.group(1)
+        clean_markdown = self.YAML_BLOCK_PATTERN.sub("", markdown).strip()
+
+        return yaml_content, clean_markdown
+
+    def _parse_yaml_safely(self, yaml_content: str) -> dict[str, Any] | None:
+        """Safely parse YAML content, returning None on failure.
+
+        Args:
+            yaml_content: Raw YAML string to parse.
+
+        Returns:
+            Parsed dict or None if parsing fails.
+        """
+        try:
+            data = yaml.safe_load(yaml_content)
+            return data if isinstance(data, dict) else None
+        except yaml.YAMLError:
+            return None
+
+    def _ensure_list(self, value: Any) -> list[str]:
+        """Ensure a value is a list of strings.
+
+        Args:
+            value: Any value that should be a list.
+
+        Returns:
+            The value as a list, or empty list if not a list.
+        """
+        return value if isinstance(value, list) else []
+
+    def parse_file_summary(self, markdown: str, file_path: str) -> tuple[str, FileSummary]:
+        """Parse File_Summary from markdown, return (clean_markdown, summary).
+
+        Extracts the YAML block containing file_summary data from the markdown,
+        parses it into a FileSummary object, and returns the markdown with the
+        YAML block removed.
+
+        Args:
+            markdown: The full markdown content potentially containing a YAML block.
+            file_path: The path to the file being summarized.
+
+        Returns:
+            A tuple of (clean_markdown, FileSummary) where clean_markdown has
+            the YAML block removed.
+        """
+        yaml_content, clean_markdown = self._extract_yaml_block(markdown)
+
+        if yaml_content is None:
+            return markdown, self._fallback_file_summary(file_path)
+
+        data = self._parse_yaml_safely(yaml_content)
+
+        if data is None or "file_summary" not in data:
+            return markdown, self._fallback_file_summary(file_path)
+
+        summary_data = data["file_summary"]
+
+        if not isinstance(summary_data, dict):
+            return markdown, self._fallback_file_summary(file_path)
+
+        # Extract and validate fields
+        purpose = summary_data.get("purpose", "Unknown")
+        layer = summary_data.get("layer", "utility")
+
+        # Validate layer, default to utility if invalid
+        if layer not in VALID_LAYERS:
+            layer = "utility"
+
+        summary = FileSummary(
+            file_path=file_path,
+            purpose=purpose,
+            layer=layer,
+            key_abstractions=self._ensure_list(summary_data.get("key_abstractions", [])),
+            internal_deps=self._ensure_list(summary_data.get("internal_deps", [])),
+            external_deps=self._ensure_list(summary_data.get("external_deps", [])),
+        )
+
+        return clean_markdown, summary
+
+    def _fallback_file_summary(self, file_path: str) -> FileSummary:
+        """Create a fallback FileSummary with default values.
+
+        Used when YAML parsing fails or no YAML block is found.
+        """
+        return FileSummary(
+            file_path=file_path,
+            purpose="Unknown",
+            layer="utility",
+            key_abstractions=[],
+            internal_deps=[],
+            external_deps=[],
+        )
+
+    def parse_directory_summary(
+        self, markdown: str, directory_path: str
+    ) -> tuple[str, DirectorySummary]:
+        """Parse Directory_Summary from markdown, return (clean_markdown, summary).
+
+        Extracts the YAML block containing directory_summary data from the markdown,
+        parses it into a DirectorySummary object, and returns the markdown with the
+        YAML block removed.
+
+        Args:
+            markdown: The full markdown content potentially containing a YAML block.
+            directory_path: The path to the directory being summarized.
+
+        Returns:
+            A tuple of (clean_markdown, DirectorySummary) where clean_markdown has
+            the YAML block removed.
+        """
+        yaml_content, clean_markdown = self._extract_yaml_block(markdown)
+
+        if yaml_content is None:
+            return markdown, self._fallback_directory_summary(directory_path)
+
+        data = self._parse_yaml_safely(yaml_content)
+
+        if data is None or "directory_summary" not in data:
+            return markdown, self._fallback_directory_summary(directory_path)
+
+        summary_data = data["directory_summary"]
+
+        if not isinstance(summary_data, dict):
+            return markdown, self._fallback_directory_summary(directory_path)
+
+        summary = DirectorySummary(
+            directory_path=directory_path,
+            purpose=summary_data.get("purpose", "Unknown"),
+            contains=self._ensure_list(summary_data.get("contains", [])),
+            role_in_system=summary_data.get("role_in_system", ""),
+        )
+
+        return clean_markdown, summary
+
+    def _fallback_directory_summary(self, directory_path: str) -> DirectorySummary:
+        """Create a fallback DirectorySummary with default values.
+
+        Used when YAML parsing fails or no YAML block is found.
+        """
+        return DirectorySummary(
+            directory_path=directory_path,
+            purpose="Unknown",
+            contains=[],
+            role_in_system="",
+        )

@@ -62,6 +62,8 @@ export interface ProgressEvent {
   status: string;
   phase: string | null;
   total_phases: number | null;
+  current_step: number | null;
+  total_steps: number | null;
   error?: string;
 }
 
