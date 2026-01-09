@@ -6,3 +6,4 @@ export { WikiContent } from './WikiContent';
 export { PageLoader } from './PageLoader';
 export { QADock } from './QADock';
 export { NoteEditor } from './NoteEditor';
+export { DirectoryPicker } from './DirectoryPicker';

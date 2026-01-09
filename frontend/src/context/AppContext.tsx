@@ -4,6 +4,7 @@ import * as api from '../api/client';
 
 interface NoteEditorState {
   isOpen: boolean;
+  isDirty: boolean;
   defaultScope: NoteScope;
   defaultTarget: string;
 }
@@ -28,6 +29,7 @@ type Action =
   | { type: 'SET_CURRENT_JOB'; payload: JobStatus | null }
   | { type: 'OPEN_NOTE_EDITOR'; payload: { scope: NoteScope; target: string } }
   | { type: 'CLOSE_NOTE_EDITOR' }
+  | { type: 'SET_NOTE_EDITOR_DIRTY'; payload: boolean }
   | { type: 'SET_DARK_MODE'; payload: boolean };
 
 function getInitialDarkMode(): boolean {
@@ -46,6 +48,7 @@ const initialState: AppState = {
   error: null,
   noteEditor: {
     isOpen: false,
+    isDirty: false,
     defaultScope: 'general',
     defaultTarget: '',
   },
@@ -70,6 +73,7 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         noteEditor: {
+          ...state.noteEditor,
           isOpen: true,
           defaultScope: action.payload.scope,
           defaultTarget: action.payload.target,
@@ -78,7 +82,12 @@ function appReducer(state: AppState, action: Action): AppState {
     case 'CLOSE_NOTE_EDITOR':
       return {
         ...state,
-        noteEditor: { ...state.noteEditor, isOpen: false },
+        noteEditor: { ...state.noteEditor, isOpen: false, isDirty: false },
+      };
+    case 'SET_NOTE_EDITOR_DIRTY':
+      return {
+        ...state,
+        noteEditor: { ...state.noteEditor, isDirty: action.payload },
       };
     case 'SET_DARK_MODE':
       return { ...state, darkMode: action.payload };
@@ -96,6 +105,8 @@ interface AppContextValue {
   openNoteEditor: (scope?: NoteScope, target?: string) => void;
   closeNoteEditor: () => void;
   toggleDarkMode: () => void;
+  switchWorkspace: (path: string) => Promise<void>;
+  setNoteEditorDirty: (isDirty: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -153,6 +164,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_DARK_MODE', payload: newValue });
   };
 
+  const switchWorkspace = async (path: string) => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+    
+    try {
+      const result = await api.switchWorkspace(path);
+      dispatch({ type: 'SET_REPO_STATUS', payload: result.status });
+      dispatch({ type: 'SET_CURRENT_PAGE', payload: null });
+      await refreshTree();
+    } catch (err) {
+      const message = err instanceof api.ApiError 
+        ? err.message 
+        : 'Failed to switch workspace';
+      dispatch({ type: 'SET_ERROR', payload: message });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const setNoteEditorDirty = (isDirty: boolean) => {
+    dispatch({ type: 'SET_NOTE_EDITOR_DIRTY', payload: isDirty });
+  };
+
   // Apply dark mode class to document
   useEffect(() => {
     if (state.darkMode) {
@@ -173,8 +208,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
+  const contextValue: AppContextValue = {
+    state,
+    dispatch,
+    refreshStatus,
+    refreshTree,
+    startGeneration,
+    openNoteEditor,
+    closeNoteEditor,
+    toggleDarkMode,
+    switchWorkspace,
+    setNoteEditorDirty,
+  };
+
   return (
-    <AppContext.Provider value={{ state, dispatch, refreshStatus, refreshTree, startGeneration, openNoteEditor, closeNoteEditor, toggleDarkMode }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

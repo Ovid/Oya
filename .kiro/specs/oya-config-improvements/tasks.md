@@ -100,15 +100,15 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - _Requirements: 3.3, 4.1_
   - [x] 8.3 REFACTOR: Clean up API client code
 
-- [ ] 9. DirectoryPicker component (TDD)
-  - [ ] 9.1 RED: Write failing unit tests for DirectoryPicker
+- [x] 9. DirectoryPicker component (TDD)
+  - [x] 9.1 RED: Write failing unit tests for DirectoryPicker
     - Test renders current path
     - Test click shows input
     - Test submit calls onSwitch
     - Test disabled state
     - Tests should fail (component doesn't exist yet)
     - _Requirements: 3.1, 3.2, 3.8, 3.9, 3.10_
-  - [ ] 9.2 GREEN: Create `frontend/src/components/DirectoryPicker.tsx`
+  - [x] 9.2 GREEN: Create `frontend/src/components/DirectoryPicker.tsx`
     - Display current workspace path
     - Toggle to edit mode on click
     - Text input for new path
@@ -117,17 +117,17 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - Error display for failures
     - Disabled state when generation in progress
     - _Requirements: 3.1, 3.2, 3.7, 3.8, 3.9, 3.10_
-  - [ ] 9.3 REFACTOR: Clean up DirectoryPicker component
+  - [x] 9.3 REFACTOR: Clean up DirectoryPicker component
 
-- [ ] 10. AppContext workspace switching (TDD)
-  - [ ] 10.1 RED: Write failing unit tests for switchWorkspace action and dirty state
+- [x] 10. AppContext workspace switching (TDD)
+  - [x] 10.1 RED: Write failing unit tests for switchWorkspace action and dirty state
     - Test successful switch updates state
     - Test clears current page
     - Test error handling
     - Test setNoteEditorDirty updates isDirty state
     - Tests should fail (action doesn't exist yet)
     - _Requirements: 3.4, 3.5, 3.6_
-  - [ ] 10.2 GREEN: Add `switchWorkspace` action and dirty tracking to `frontend/src/context/AppContext.tsx`
+  - [x] 10.2 GREEN: Add `switchWorkspace` action and dirty tracking to `frontend/src/context/AppContext.tsx`
     - Add `isDirty` field to NoteEditorState interface
     - Add `SET_NOTE_EDITOR_DIRTY` action type
     - Add `setNoteEditorDirty` function to context
@@ -138,7 +138,7 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - Refresh wiki tree
     - Handle errors
     - _Requirements: 3.3, 3.4, 3.5, 3.6_
-  - [ ] 10.3 REFACTOR: Clean up AppContext code
+  - [x] 10.3 REFACTOR: Clean up AppContext code
 
 - [ ] 11. TopBar integration (TDD)
   - [ ] 11.1 RED: Write failing unit tests for TopBar with DirectoryPicker
