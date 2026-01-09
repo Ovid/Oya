@@ -117,6 +117,10 @@ class SummaryParser:
             
             summary_data = data['file_summary']
             
+            # Ensure summary_data is a dict
+            if not isinstance(summary_data, dict):
+                return markdown, self._fallback_file_summary(file_path)
+            
             # Extract fields with defaults
             purpose = summary_data.get('purpose', 'Unknown')
             layer = summary_data.get('layer', 'utility')
@@ -204,6 +208,10 @@ class SummaryParser:
                 return markdown, self._fallback_directory_summary(directory_path)
             
             summary_data = data['directory_summary']
+            
+            # Ensure summary_data is a dict
+            if not isinstance(summary_data, dict):
+                return markdown, self._fallback_directory_summary(directory_path)
             
             # Extract fields with defaults
             purpose = summary_data.get('purpose', 'Unknown')

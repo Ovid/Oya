@@ -356,3 +356,255 @@ class TestYAMLParsingAndStripping:
         
         # Clean markdown should contain the original content (stripped)
         assert clean_markdown.strip() == data["expected_clean_markdown"].strip()
+
+
+# Strategy for generating malformed YAML content
+@st.composite
+def malformed_yaml_strategy(draw):
+    """Generate various types of malformed YAML content."""
+    malformed_type = draw(st.sampled_from([
+        "missing_closing_delimiter",
+        "invalid_yaml_syntax",
+        "missing_summary_key",
+        "wrong_summary_type",
+        "empty_yaml_block",
+        "no_yaml_block",
+        "truncated_yaml",
+    ]))
+    
+    if malformed_type == "missing_closing_delimiter":
+        # YAML block without closing ---
+        return "---\nfile_summary:\n  purpose: test\n  layer: api\n\nSome markdown content"
+    
+    elif malformed_type == "invalid_yaml_syntax":
+        # Invalid YAML syntax (bad indentation, missing colons, etc.)
+        return "---\nfile_summary\n  purpose test\n  layer: : api\n---\n\nSome markdown content"
+    
+    elif malformed_type == "missing_summary_key":
+        # Valid YAML but missing file_summary key
+        return "---\nother_key:\n  purpose: test\n  layer: api\n---\n\nSome markdown content"
+    
+    elif malformed_type == "wrong_summary_type":
+        # file_summary is not a dict
+        return "---\nfile_summary: just a string\n---\n\nSome markdown content"
+    
+    elif malformed_type == "empty_yaml_block":
+        # Empty YAML block
+        return "---\n---\n\nSome markdown content"
+    
+    elif malformed_type == "no_yaml_block":
+        # No YAML block at all, just markdown
+        markdown = draw(st.text(alphabet=YAML_SAFE_ALPHABET + "#*[]()!", min_size=1, max_size=200).filter(lambda x: x.strip()))
+        return markdown
+    
+    elif malformed_type == "truncated_yaml":
+        # Truncated/incomplete YAML
+        return "---\nfile_summary:\n  purpose: test\n  layer:"
+    
+    return "Just plain markdown without any YAML"
+
+
+class TestFileSummaryFallbackOnParseFailure:
+    """Property 2: File_Summary Fallback on Parse Failure
+    
+    For any malformed or missing YAML summary block in LLM output, the parser 
+    SHALL return a fallback File_Summary with purpose="Unknown" and layer="utility", 
+    and the system SHALL not raise an exception.
+    
+    Validates: Requirements 1.7, 8.3
+    """
+
+    @given(malformed_content=malformed_yaml_strategy())
+    @settings(max_examples=100)
+    def test_malformed_yaml_returns_fallback_file_summary(self, malformed_content):
+        """Feature: bottom-up-generation, Property 2: File_Summary Fallback on Parse Failure
+        
+        Malformed YAML returns fallback with purpose="Unknown", layer="utility".
+        """
+        from oya.generation.summaries import SummaryParser
+        
+        parser = SummaryParser()
+        file_path = "test/malformed_file.py"
+        
+        # Should not raise an exception
+        clean_markdown, summary = parser.parse_file_summary(malformed_content, file_path)
+        
+        # Summary should be a valid FileSummary with fallback values
+        assert summary is not None
+        assert summary.file_path == file_path
+        assert summary.purpose == "Unknown"
+        assert summary.layer == "utility"
+        assert summary.key_abstractions == []
+        assert summary.internal_deps == []
+        assert summary.external_deps == []
+
+    @given(file_path=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=100).filter(lambda x: x.strip()))
+    @settings(max_examples=100)
+    def test_fallback_preserves_file_path(self, file_path):
+        """Feature: bottom-up-generation, Property 2: File_Summary Fallback on Parse Failure
+        
+        Fallback summary preserves the original file_path.
+        """
+        from oya.generation.summaries import SummaryParser
+        
+        parser = SummaryParser()
+        # Content with no valid YAML
+        content = "# Just some markdown\n\nNo YAML here."
+        
+        clean_markdown, summary = parser.parse_file_summary(content, file_path)
+        
+        # File path should be preserved in fallback
+        assert summary.file_path == file_path
+        assert summary.purpose == "Unknown"
+        assert summary.layer == "utility"
+
+    @given(
+        random_garbage=st.binary(min_size=1, max_size=500).map(
+            lambda b: b.decode('utf-8', errors='replace')
+        )
+    )
+    @settings(max_examples=100)
+    def test_random_garbage_returns_fallback(self, random_garbage):
+        """Feature: bottom-up-generation, Property 2: File_Summary Fallback on Parse Failure
+        
+        Random garbage input returns fallback without raising exceptions.
+        """
+        from oya.generation.summaries import SummaryParser
+        
+        parser = SummaryParser()
+        file_path = "test/garbage.py"
+        
+        # Should not raise an exception even with garbage input
+        clean_markdown, summary = parser.parse_file_summary(random_garbage, file_path)
+        
+        # Should return a valid fallback summary
+        assert summary is not None
+        assert summary.file_path == file_path
+        # Fallback values
+        assert summary.purpose == "Unknown"
+        assert summary.layer == "utility"
+
+
+
+# Strategy for generating malformed YAML content for directory summaries
+@st.composite
+def malformed_directory_yaml_strategy(draw):
+    """Generate various types of malformed YAML content for directory summaries."""
+    malformed_type = draw(st.sampled_from([
+        "missing_closing_delimiter",
+        "invalid_yaml_syntax",
+        "missing_summary_key",
+        "wrong_summary_type",
+        "empty_yaml_block",
+        "no_yaml_block",
+        "truncated_yaml",
+    ]))
+    
+    if malformed_type == "missing_closing_delimiter":
+        # YAML block without closing ---
+        return "---\ndirectory_summary:\n  purpose: test\n  contains:\n    - file.py\n\nSome markdown content"
+    
+    elif malformed_type == "invalid_yaml_syntax":
+        # Invalid YAML syntax (bad indentation, missing colons, etc.)
+        return "---\ndirectory_summary\n  purpose test\n  contains: : []\n---\n\nSome markdown content"
+    
+    elif malformed_type == "missing_summary_key":
+        # Valid YAML but missing directory_summary key
+        return "---\nother_key:\n  purpose: test\n  contains: []\n---\n\nSome markdown content"
+    
+    elif malformed_type == "wrong_summary_type":
+        # directory_summary is not a dict
+        return "---\ndirectory_summary: just a string\n---\n\nSome markdown content"
+    
+    elif malformed_type == "empty_yaml_block":
+        # Empty YAML block
+        return "---\n---\n\nSome markdown content"
+    
+    elif malformed_type == "no_yaml_block":
+        # No YAML block at all, just markdown
+        markdown = draw(st.text(alphabet=YAML_SAFE_ALPHABET + "#*[]()!", min_size=1, max_size=200).filter(lambda x: x.strip()))
+        return markdown
+    
+    elif malformed_type == "truncated_yaml":
+        # Truncated/incomplete YAML
+        return "---\ndirectory_summary:\n  purpose: test\n  contains:"
+    
+    return "Just plain markdown without any YAML"
+
+
+class TestDirectorySummaryFallbackOnParseFailure:
+    """Property 5: Directory_Summary Fallback on Parse Failure
+    
+    For any malformed or missing YAML summary block in directory LLM output, 
+    the parser SHALL return a fallback Directory_Summary with purpose="Unknown", 
+    and the system SHALL not raise an exception.
+    
+    Validates: Requirements 2.5
+    """
+
+    @given(malformed_content=malformed_directory_yaml_strategy())
+    @settings(max_examples=100)
+    def test_malformed_yaml_returns_fallback_directory_summary(self, malformed_content):
+        """Feature: bottom-up-generation, Property 5: Directory_Summary Fallback on Parse Failure
+        
+        Malformed YAML returns fallback with purpose="Unknown".
+        """
+        from oya.generation.summaries import SummaryParser
+        
+        parser = SummaryParser()
+        directory_path = "test/malformed_dir"
+        
+        # Should not raise an exception
+        clean_markdown, summary = parser.parse_directory_summary(malformed_content, directory_path)
+        
+        # Summary should be a valid DirectorySummary with fallback values
+        assert summary is not None
+        assert summary.directory_path == directory_path
+        assert summary.purpose == "Unknown"
+        assert summary.contains == []
+        assert summary.role_in_system == ""
+
+    @given(directory_path=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789/_-.", min_size=1, max_size=100).filter(lambda x: x.strip()))
+    @settings(max_examples=100)
+    def test_fallback_preserves_directory_path(self, directory_path):
+        """Feature: bottom-up-generation, Property 5: Directory_Summary Fallback on Parse Failure
+        
+        Fallback summary preserves the original directory_path.
+        """
+        from oya.generation.summaries import SummaryParser
+        
+        parser = SummaryParser()
+        # Content with no valid YAML
+        content = "# Just some markdown\n\nNo YAML here."
+        
+        clean_markdown, summary = parser.parse_directory_summary(content, directory_path)
+        
+        # Directory path should be preserved in fallback
+        assert summary.directory_path == directory_path
+        assert summary.purpose == "Unknown"
+
+    @given(
+        random_garbage=st.binary(min_size=1, max_size=500).map(
+            lambda b: b.decode('utf-8', errors='replace')
+        )
+    )
+    @settings(max_examples=100)
+    def test_random_garbage_returns_fallback_directory(self, random_garbage):
+        """Feature: bottom-up-generation, Property 5: Directory_Summary Fallback on Parse Failure
+        
+        Random garbage input returns fallback without raising exceptions.
+        """
+        from oya.generation.summaries import SummaryParser
+        
+        parser = SummaryParser()
+        directory_path = "test/garbage_dir"
+        
+        # Should not raise an exception even with garbage input
+        clean_markdown, summary = parser.parse_directory_summary(random_garbage, directory_path)
+        
+        # Should return a valid fallback summary
+        assert summary is not None
+        assert summary.directory_path == directory_path
+        # Fallback values
+        assert summary.purpose == "Unknown"
+
