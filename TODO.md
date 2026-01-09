@@ -10,13 +10,13 @@
 * Auto-create .oyaignore with appropriate files.
 * Templates for doc creation? Not sure if they're used, but would standardize
 * some output. Not sure if they're appropriate.
-* .oyaignore should be in .oyawiki
 * Fix the LLM chat
 * Local Wiki metadata and remove ephemeral data so we can easily serve it?
 * WHEN I REFRESH PAGE, REGENERATION STOPS!
 
 # Done
 
+* .oyaignore is now in .oyawiki/.oyaignore
 * To save token costs and time, we don't need to regenerate a particular file or
   directory if:
     - Files: file hasn't changed (unless a new note is applied)

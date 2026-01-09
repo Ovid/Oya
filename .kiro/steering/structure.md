@@ -14,12 +14,12 @@ oya/
 │   ├── public/             # Static assets
 │   ├── package.json        # Node dependencies
 │   └── Dockerfile          # Frontend container
-├── .oyawiki/             # Generated artifacts (committable)
+├── .oyawiki/               # Generated artifacts (committable)
+│   └── .oyaignore          # Files to ignore during processing
 ├── docs/                   # Project documentation
 ├── prds/                   # Product requirements
 ├── docker-compose.yml      # Service orchestration
-├── .env.example           # Environment template
-└── .oyaignore             # Files to ignore during processing
+└── .env.example            # Environment template
 ```
 
 ## Backend Structure (`backend/src/oya/`)
@@ -113,6 +113,7 @@ src/
 ```
 .oyawiki/
 ├── .gitignore            # Ignore ephemeral files
+├── .oyaignore            # Files to ignore during wiki processing
 ├── wiki/                 # Generated wiki content (committable)
 │   ├── overview.md
 │   ├── architecture.md

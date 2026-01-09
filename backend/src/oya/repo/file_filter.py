@@ -63,8 +63,8 @@ class FileFilter:
         if extra_excludes:
             self.exclude_patterns.extend(extra_excludes)
 
-        # Load .oyaignore if exists
-        oyaignore = repo_path / ".oyaignore"
+        # Load .oyaignore if exists (now in .oyawiki/.oyaignore)
+        oyaignore = repo_path / ".oyawiki" / ".oyaignore"
         if oyaignore.exists():
             for line in oyaignore.read_text().splitlines():
                 line = line.strip()

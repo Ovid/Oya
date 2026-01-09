@@ -67,9 +67,10 @@ def test_includes_source_files(temp_repo: Path):
 
 
 def test_oyaignore_adds_custom_patterns(temp_repo: Path):
-    """Custom .oyaignore patterns are applied."""
-    # Create .oyaignore
-    (temp_repo / ".oyaignore").write_text("*.md\n")
+    """Custom .oyawiki/.oyaignore patterns are applied."""
+    # Create .oyawiki/.oyaignore (new location)
+    (temp_repo / ".oyawiki").mkdir(exist_ok=True)
+    (temp_repo / ".oyawiki" / ".oyaignore").write_text("*.md\n")
 
     filter = FileFilter(temp_repo)
     files = filter.get_files()
@@ -109,8 +110,9 @@ def test_oyaignore_directory_with_trailing_slash(temp_repo: Path):
     (temp_repo / "docs" / "nested").mkdir()
     (temp_repo / "docs" / "nested" / "deep.md").write_text("deep content")
 
-    # Create .oyaignore with trailing slash pattern
-    (temp_repo / ".oyaignore").write_text("docs/\n")
+    # Create .oyawiki/.oyaignore with trailing slash pattern (new location)
+    (temp_repo / ".oyawiki").mkdir(exist_ok=True)
+    (temp_repo / ".oyawiki" / ".oyaignore").write_text("docs/\n")
 
     filter = FileFilter(temp_repo)
     files = filter.get_files()
@@ -128,8 +130,9 @@ def test_oyaignore_directory_without_trailing_slash(temp_repo: Path):
     (temp_repo / "docs").mkdir()
     (temp_repo / "docs" / "plan.md").write_text("plan content")
 
-    # Create .oyaignore without trailing slash
-    (temp_repo / ".oyaignore").write_text("docs\n")
+    # Create .oyawiki/.oyaignore without trailing slash (new location)
+    (temp_repo / ".oyawiki").mkdir(exist_ok=True)
+    (temp_repo / ".oyawiki" / ".oyaignore").write_text("docs\n")
 
     filter = FileFilter(temp_repo)
     files = filter.get_files()

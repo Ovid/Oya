@@ -35,15 +35,15 @@ This plan implements three improvements: relocating `.oyaignore` to `.oyawiki/`,
     - _Requirements: 2.1_
   - [x] 2.3 REFACTOR: Clean up startup code
 
-- [ ] 3. Relocate oyaignore file path (TDD)
-  - [ ] 3.1 RED: Update FileFilter tests for new path
+- [x] 3. Relocate oyaignore file path (TDD)
+  - [x] 3.1 RED: Update FileFilter tests for new path
     - Modify existing tests to expect `.oyawiki/.oyaignore` path
     - Tests should fail (implementation still uses old path)
     - _Requirements: 1.1_
-  - [ ] 3.2 GREEN: Update `backend/src/oya/repo/file_filter.py`
+  - [x] 3.2 GREEN: Update `backend/src/oya/repo/file_filter.py`
     - Change path from `repo_path / ".oyaignore"` to `repo_path / ".oyawiki" / ".oyaignore"`
     - _Requirements: 1.1, 1.2_
-  - [ ] 3.3 REFACTOR: Update documentation files
+  - [x] 3.3 REFACTOR: Update documentation files
     - Update `README.md` to reference `.oyawiki/.oyaignore`
     - Update `.kiro/steering/structure.md` to reference `.oyawiki/.oyaignore`
     - _Requirements: 1.3_
