@@ -22,7 +22,11 @@ from oya.api.schemas import (
     DirectoryEntry,
     DirectoryListing,
     EmbeddingMetadata,
+    IndexableItems,
+    OyaignoreUpdateRequest,
+    OyaignoreUpdateResponse,
 )
+from oya.repo.file_filter import FileFilter, extract_directories_from_files
 from oya.repo.git_repo import GitRepo
 from oya.db.connection import Database
 from oya.config import Settings, load_settings
@@ -186,6 +190,188 @@ async def get_generation_status(
             "message": "A previous wiki generation did not complete. The wiki must be generated from scratch.",
         }
     return None
+
+
+@router.get("/indexable", response_model=IndexableItems)
+async def get_indexable_items(
+    settings: Settings = Depends(get_settings),
+) -> IndexableItems:
+    """Get list of directories and files that will be indexed.
+    
+    Uses the same FileFilter class as GenerationOrchestrator to ensure
+    the preview matches actual generation behavior.
+    
+    Requirements: 2.2, 2.3, 2.4, 7.1, 7.2, 7.3, 7.4, 7.6, 7.7, 7.8
+    """
+    # Validate workspace path exists and is accessible
+    workspace_path = settings.workspace_path
+    if not workspace_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Repository path is invalid or inaccessible: {workspace_path}"
+        )
+    
+    if not workspace_path.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Repository path is not a directory: {workspace_path}"
+        )
+    
+    try:
+        # Use the same FileFilter class as GenerationOrchestrator._run_analysis()
+        file_filter = FileFilter(settings.workspace_path)
+        files = sorted(file_filter.get_files())
+        
+        # Derive directories using the same logic as GenerationOrchestrator._run_directories()
+        directories = extract_directories_from_files(files)
+        
+        return IndexableItems(
+            directories=directories,
+            files=files,
+            total_directories=len(directories),
+            total_files=len(files),
+        )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to enumerate files: Permission denied - {e}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to enumerate files: {e}"
+        )
+
+
+@router.post("/oyaignore", response_model=OyaignoreUpdateResponse)
+async def update_oyaignore(
+    request: OyaignoreUpdateRequest,
+    settings: Settings = Depends(get_settings),
+) -> OyaignoreUpdateResponse:
+    """Add exclusions to .oyawiki/.oyaignore.
+    
+    Creates the .oyawiki directory and .oyaignore file if they don't exist.
+    Appends new exclusions to the end of the file, preserving existing entries.
+    Adds trailing slash to directory patterns.
+    Removes duplicate entries.
+    
+    Requirements: 5.6, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
+    """
+    workspace_path = settings.workspace_path
+    oyawiki_dir = workspace_path / ".oyawiki"
+    oyaignore_path = oyawiki_dir / ".oyaignore"
+    
+    # Create .oyawiki directory if it doesn't exist
+    try:
+        oyawiki_dir.mkdir(exist_ok=True)
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create .oyawiki directory: {e}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create .oyawiki directory: {e}"
+        )
+    
+    try:
+        # Read existing content, preserving order but tracking for deduplication
+        existing_entries_ordered: list[str] = []
+        existing_entries_set: set[str] = set()
+        comments_and_blanks: list[tuple[int, str]] = []  # (position, content)
+        
+        if oyaignore_path.exists():
+            existing_content = oyaignore_path.read_text()
+            for i, line in enumerate(existing_content.splitlines()):
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    # Preserve comments and blank lines with their position
+                    comments_and_blanks.append((len(existing_entries_ordered), line))
+                elif stripped not in existing_entries_set:
+                    # Only add non-duplicate entries
+                    existing_entries_ordered.append(stripped)
+                    existing_entries_set.add(stripped)
+        
+        # Prepare new entries
+        added_directories: list[str] = []
+        added_files: list[str] = []
+        
+        # Collect all directory patterns (both existing and new) for filtering files
+        all_dir_patterns: set[str] = set()
+        
+        # Process directories (add trailing slash)
+        for dir_path in request.directories:
+            dir_pattern = dir_path.rstrip("/") + "/"
+            all_dir_patterns.add(dir_pattern)
+            if dir_pattern not in existing_entries_set:
+                existing_entries_ordered.append(dir_pattern)
+                existing_entries_set.add(dir_pattern)
+                added_directories.append(dir_pattern)
+        
+        # Also include existing directory patterns for filtering
+        for entry in existing_entries_set:
+            if entry.endswith("/"):
+                all_dir_patterns.add(entry)
+        
+        # Process files - filter out files within excluded directories
+        for file_path in request.files:
+            if file_path not in existing_entries_set:
+                # Check if file is within any excluded directory
+                is_within_excluded_dir = False
+                for dir_pattern in all_dir_patterns:
+                    dir_prefix = dir_pattern.rstrip("/") + "/"
+                    if file_path.startswith(dir_prefix):
+                        is_within_excluded_dir = True
+                        break
+                
+                if not is_within_excluded_dir:
+                    existing_entries_ordered.append(file_path)
+                    existing_entries_set.add(file_path)
+                    added_files.append(file_path)
+        
+        # Rebuild the file content with comments/blanks in their original positions
+        # and deduplicated entries
+        final_lines: list[str] = []
+        entry_idx = 0
+        comment_idx = 0
+        
+        while entry_idx < len(existing_entries_ordered) or comment_idx < len(comments_and_blanks):
+            # Check if there's a comment/blank that should come before the next entry
+            while comment_idx < len(comments_and_blanks) and comments_and_blanks[comment_idx][0] <= entry_idx:
+                final_lines.append(comments_and_blanks[comment_idx][1])
+                comment_idx += 1
+            
+            if entry_idx < len(existing_entries_ordered):
+                final_lines.append(existing_entries_ordered[entry_idx])
+                entry_idx += 1
+        
+        # Add any remaining comments/blanks
+        while comment_idx < len(comments_and_blanks):
+            final_lines.append(comments_and_blanks[comment_idx][1])
+            comment_idx += 1
+        
+        # Write the deduplicated content
+        with oyaignore_path.open("w") as f:
+            if final_lines:
+                f.write("\n".join(final_lines))
+                f.write("\n")
+        
+        return OyaignoreUpdateResponse(
+            added_directories=added_directories,
+            added_files=added_files,
+            total_added=len(added_directories) + len(added_files),
+        )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Permission denied writing to .oyaignore: {e}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update .oyaignore: {e}"
+        )
 
 
 @router.post("/init", response_model=JobCreated, status_code=202)

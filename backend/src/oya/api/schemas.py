@@ -65,3 +65,16 @@ class IndexableItems(BaseModel):
     files: list[str]
     total_directories: int
     total_files: int
+
+
+class OyaignoreUpdateRequest(BaseModel):
+    """Request to update .oyaignore with new exclusions."""
+    directories: list[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
+
+
+class OyaignoreUpdateResponse(BaseModel):
+    """Response after updating .oyaignore."""
+    added_directories: list[str]
+    added_files: list[str]
+    total_added: int
