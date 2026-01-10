@@ -4,6 +4,27 @@ import fnmatch
 from pathlib import Path
 
 
+def extract_directories_from_files(files: list[str]) -> list[str]:
+    """Extract unique parent directories from a list of file paths.
+
+    This replicates the logic from GenerationOrchestrator._run_directories
+    to ensure consistency between preview and generation.
+
+    Args:
+        files: List of file paths.
+
+    Returns:
+        Sorted list of unique directory paths.
+    """
+    directories: set[str] = set()
+    for file_path in files:
+        parts = file_path.split("/")
+        for i in range(1, len(parts)):
+            dir_path = "/".join(parts[:i])
+            directories.add(dir_path)
+    return sorted(directories)
+
+
 DEFAULT_EXCLUDES = [
     # Version control
     ".git",

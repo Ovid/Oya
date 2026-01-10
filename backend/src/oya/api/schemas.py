@@ -57,3 +57,11 @@ class DirectoryListing(BaseModel):
     path: str
     parent: str | None
     entries: list[DirectoryEntry]
+
+
+class IndexableItems(BaseModel):
+    """List of indexable directories and files for preview."""
+    directories: list[str]
+    files: list[str]
+    total_directories: int
+    total_files: int

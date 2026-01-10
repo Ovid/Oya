@@ -6,22 +6,22 @@ This implementation follows TDD (red/green/refactor) with a bottom-up approach: 
 
 ## Tasks
 
-- [ ] 1. Extract directory derivation utility
-  - [ ] 1.1 Add Pydantic schemas to `backend/src/oya/api/schemas.py`
+- [x] 1. Extract directory derivation utility
+  - [x] 1.1 Add Pydantic schemas to `backend/src/oya/api/schemas.py`
     - Add `IndexableItems` response model with directories, files, total_directories, total_files
     - _Requirements: 7.6_
-  - [ ] 1.2 RED: Write failing test for `extract_directories_from_files()` function
+  - [x] 1.2 RED: Write failing test for `extract_directories_from_files()` function
     - Create test in `backend/tests/test_file_filter.py`
     - Test that function extracts unique parent directories from file paths
     - Test that output is sorted alphabetically
     - **Property 2: Alphabetical Sorting** (directories portion)
     - **Validates: Requirements 2.6, 7.4, 7.5**
-  - [ ] 1.3 GREEN: Create `extract_directories_from_files()` function in `backend/src/oya/repo/file_filter.py`
+  - [x] 1.3 GREEN: Create `extract_directories_from_files()` function in `backend/src/oya/repo/file_filter.py`
     - Extract logic from `GenerationOrchestrator._run_directories` into reusable function
     - Function takes list of file paths, returns sorted list of unique parent directories
     - Make the test pass
     - _Requirements: 7.4, 7.5_
-  - [ ] 1.4 REFACTOR: Update `GenerationOrchestrator._run_directories` to use the new utility function
+  - [x] 1.4 REFACTOR: Update `GenerationOrchestrator._run_directories` to use the new utility function
     - Import and call `extract_directories_from_files()` instead of inline logic
     - Ensure no behavior change in existing generation
     - _Requirements: 7.5_

@@ -32,7 +32,7 @@ from oya.generation.summaries import DirectorySummary, FileSummary, SynthesisMap
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
 from oya.parsing.registry import ParserRegistry
-from oya.repo.file_filter import FileFilter
+from oya.repo.file_filter import FileFilter, extract_directories_from_files
 
 
 class GenerationPhase(Enum):
@@ -735,19 +735,13 @@ class GenerationOrchestrator:
             fs.file_path: fs for fs in file_summaries if isinstance(fs, FileSummary)
         }
 
-        # Get unique directories and their direct files
-        directories: dict[str, list[str]] = {}
-        for file_path in analysis["files"]:
-            parts = file_path.split("/")
-            for i in range(1, len(parts)):
-                dir_path = "/".join(parts[:i])
-                if dir_path not in directories:
-                    directories[dir_path] = []
-                # Only add files directly in this directory (not in subdirs)
-                if i == len(parts) - 1 or (i < len(parts) - 1 and parts[i] != parts[-1]):
-                    continue
+        # Get unique directories using the shared utility function
+        all_directories = extract_directories_from_files(analysis["files"])
 
-        # Re-compute direct files for each directory
+        # Build directories dict with their direct files
+        directories: dict[str, list[str]] = {d: [] for d in all_directories}
+
+        # Compute direct files for each directory
         for file_path in analysis["files"]:
             parts = file_path.split("/")
             if len(parts) > 1:
