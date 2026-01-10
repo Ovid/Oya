@@ -49,6 +49,37 @@ def test_default_excludes_git(temp_repo: Path):
     assert not any(".git" in f for f in files)
 
 
+def test_default_excludes_all_dotfiles_and_dotdirs(temp_repo: Path):
+    """Default patterns exclude all files and directories starting with a dot."""
+    # Create various dotfiles and dotdirs
+    (temp_repo / ".hypothesis").mkdir()
+    (temp_repo / ".hypothesis" / "constants").mkdir()
+    (temp_repo / ".hypothesis" / "constants" / "abc123").write_text("data")
+    (temp_repo / ".pytest_cache").mkdir()
+    (temp_repo / ".pytest_cache" / "v").mkdir()
+    (temp_repo / ".pytest_cache" / "v" / "cache").write_text("cache")
+    (temp_repo / ".ruff_cache").mkdir()
+    (temp_repo / ".ruff_cache" / "data").write_text("ruff")
+    (temp_repo / ".env").write_text("SECRET=value")
+    (temp_repo / ".env.local").write_text("LOCAL=value")
+    (temp_repo / ".gitignore").write_text("*.pyc")
+    (temp_repo / ".editorconfig").write_text("[*]")
+    (temp_repo / ".kiro").mkdir()
+    (temp_repo / ".kiro" / "settings.json").write_text("{}")
+    (temp_repo / ".claude").mkdir()
+    (temp_repo / ".claude" / "config.json").write_text("{}")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    # All dotfiles and dotdirs should be excluded
+    dotfiles_found = [f for f in files if f.startswith(".") or "/." in f]
+    assert not dotfiles_found, f"Found dotfiles/dotdirs in files: {dotfiles_found}"
+    # Regular files should still be included
+    assert "src/main.py" in files
+    assert "README.md" in files
+
+
 def test_default_excludes_build(temp_repo: Path):
     """Default patterns exclude build directories."""
     filter = FileFilter(temp_repo)

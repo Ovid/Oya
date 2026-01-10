@@ -26,14 +26,13 @@ def extract_directories_from_files(files: list[str]) -> list[str]:
 
 
 DEFAULT_EXCLUDES = [
-    # Version control
-    ".git",
-    ".hg",
-    ".svn",
+    # Hidden files and directories (dotfiles/dotdirs)
+    # This catches .git, .hypothesis, .pytest_cache, .ruff_cache, .env, etc.
+    # Note: .oyawiki/notes is explicitly allowed (see ALLOWED_PATHS below)
+    ".*",
     # Dependencies
     "node_modules",
     "vendor",
-    ".venv",
     "venv",
     "__pycache__",
     "*.pyc",
@@ -42,21 +41,19 @@ DEFAULT_EXCLUDES = [
     "dist",
     "target",
     "out",
-    ".next",
-    ".nuxt",
-    # IDE
-    ".idea",
-    ".vscode",
-    "*.swp",
-    # OS
-    ".DS_Store",
-    "Thumbs.db",
     # Oya artifacts (but NOT .oyawiki/notes/ - those are user corrections)
+    # These are redundant with ".*" but kept for clarity
     ".oyawiki/wiki",
     ".oyawiki/meta",
     ".oyawiki/index",
     ".oyawiki/cache",
     ".oyawiki/config",
+]
+
+# Paths that are explicitly allowed even if they match DEFAULT_EXCLUDES
+# These take precedence over exclusion patterns
+ALLOWED_PATHS = [
+    ".oyawiki/notes",  # User corrections guide analysis
 ]
 
 
@@ -101,6 +98,11 @@ class FileFilter:
         Returns:
             True if path should be excluded.
         """
+        # Check if path is in an explicitly allowed location
+        for allowed in ALLOWED_PATHS:
+            if path.startswith(allowed + "/") or path == allowed:
+                return False
+
         parts = path.split("/")
 
         for pattern in self.exclude_patterns:
