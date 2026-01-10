@@ -11,7 +11,9 @@
     - Proper filenames on left side
     - lib/MooseX/Extended/Core.pm showing nothing
     - Prompt injections!
-    * Auto-create .oyaignore with appropriate files (not done: too many
+    - Notes: we should have a single note per file, directory, and it can be
+      edited.
+    - Auto-create .oyaignore with appropriate files (not done: too many
       programming languages, so not done yet. Do it for popular languages?)
 * Constants into config file (not .env)
 * Allow optional web search? Might pull in more context. Might pull in a mess.

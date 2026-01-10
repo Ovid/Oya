@@ -73,7 +73,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar }: TopBarProps) {
           </button>
 
           <div className="flex items-center space-x-2">
-            <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Oya</span>
+            <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Ọya</span>
             {repoStatus && (
               <DirectoryPicker
                 currentPath={repoStatus.path}

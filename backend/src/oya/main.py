@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Oya",
+    title="Ọya",
     description="Local-first editable wiki generator for codebases",
     version="0.1.0",
     lifespan=lifespan,

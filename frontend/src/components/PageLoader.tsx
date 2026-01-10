@@ -135,7 +135,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
           />
         </svg>
         <h2 className="mt-4 text-xl font-semibold text-gray-900 dark:text-white">
-          Welcome to Oya
+          Welcome to Ọya
         </h2>
         <p className="mt-2 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
           No documentation has been generated yet. Click the button below to analyze your codebase and generate comprehensive documentation.
