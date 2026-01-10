@@ -22,11 +22,12 @@ export const PHASES: Record<string, PhaseInfo> = {
   'architecture': { name: 'Architecture', description: 'Analyzing and documenting architecture...' },
   'overview': { name: 'Overview', description: 'Generating project overview page...' },
   'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
+  'indexing': { name: 'Indexing', description: 'Indexing content for search and Q&A...' },
 };
 
 // Ordered list of phases for progress display (bottom-up approach)
-// Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
-export const PHASE_ORDER = ['analysis', 'files', 'directories', 'synthesis', 'architecture', 'overview', 'workflows'];
+// Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
+export const PHASE_ORDER = ['analysis', 'files', 'directories', 'synthesis', 'architecture', 'overview', 'workflows', 'indexing'];
 
 export function GenerationProgress({ jobId, onComplete, onError }: GenerationProgressProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('starting');

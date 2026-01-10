@@ -2,16 +2,41 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DirectoryPicker } from './DirectoryPicker';
+import * as api from '../api/client';
+
+// Mock the API module
+vi.mock('../api/client', () => ({
+  listDirectories: vi.fn(),
+  ApiError: class ApiError extends Error {
+    status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+    }
+  },
+}));
 
 describe('DirectoryPicker', () => {
   const defaultProps = {
     currentPath: '/home/user/project',
+    isDocker: false,
     onSwitch: vi.fn(),
     disabled: false,
   };
 
+  const mockDirectoryListing = {
+    path: '/home/user',
+    parent: '/home',
+    entries: [
+      { name: 'project', path: '/home/user/project', is_dir: true },
+      { name: 'documents', path: '/home/user/documents', is_dir: true },
+      { name: 'file.txt', path: '/home/user/file.txt', is_dir: false },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing);
   });
 
   describe('rendering', () => {
@@ -22,189 +47,222 @@ describe('DirectoryPicker', () => {
 
     it('displays folder icon', () => {
       render(<DirectoryPicker {...defaultProps} />);
-      // The folder icon should be present
       expect(screen.getByRole('button')).toBeInTheDocument();
     });
   });
 
-  describe('edit mode', () => {
-    it('shows input field when clicked', async () => {
+  describe('modal behavior', () => {
+    it('opens modal when clicked', async () => {
       render(<DirectoryPicker {...defaultProps} />);
       
       const button = screen.getByRole('button');
       await userEvent.click(button);
       
-      expect(screen.getByRole('textbox')).toBeInTheDocument();
+      expect(screen.getByText('Select Workspace')).toBeInTheDocument();
     });
 
-    it('input field contains current path when opened', async () => {
+    it('closes modal when Cancel is clicked', async () => {
       render(<DirectoryPicker {...defaultProps} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      await userEvent.click(screen.getByRole('button'));
+      await waitFor(() => {
+        expect(screen.getByText('Select Workspace')).toBeInTheDocument();
+      });
       
-      const input = screen.getByRole('textbox');
-      expect(input).toHaveValue('/home/user/project');
+      await userEvent.click(screen.getByText('Cancel'));
+      
+      expect(screen.queryByText('Select Workspace')).not.toBeInTheDocument();
     });
 
-    it('closes edit mode when Escape is pressed', async () => {
+    it('closes modal when X button is clicked', async () => {
       render(<DirectoryPicker {...defaultProps} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      await userEvent.click(screen.getByRole('button'));
+      await waitFor(() => {
+        expect(screen.getByText('Select Workspace')).toBeInTheDocument();
+      });
       
-      await userEvent.keyboard('{Escape}');
+      await userEvent.click(screen.getByLabelText('Close'));
       
-      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      expect(screen.queryByText('Select Workspace')).not.toBeInTheDocument();
     });
   });
 
-  describe('submit behavior', () => {
-    it('calls onSwitch when Enter is pressed with new path', async () => {
-      const onSwitch = vi.fn().mockResolvedValue(undefined);
-      render(<DirectoryPicker {...defaultProps} onSwitch={onSwitch} />);
+  describe('directory browsing', () => {
+    it('loads directories when modal opens', async () => {
+      render(<DirectoryPicker {...defaultProps} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      await userEvent.click(screen.getByRole('button'));
       
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/new/path{Enter}');
-      
-      expect(onSwitch).toHaveBeenCalledWith('/new/path');
+      await waitFor(() => {
+        expect(api.listDirectories).toHaveBeenCalled();
+      });
     });
 
-    it('calls onSwitch when submit button is clicked', async () => {
-      const onSwitch = vi.fn().mockResolvedValue(undefined);
-      render(<DirectoryPicker {...defaultProps} onSwitch={onSwitch} />);
+    it('displays directory entries', async () => {
+      render(<DirectoryPicker {...defaultProps} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      await userEvent.click(screen.getByRole('button'));
       
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/new/path');
-      
-      const submitButton = screen.getByTitle('Switch workspace');
-      await userEvent.click(submitButton);
-      
-      expect(onSwitch).toHaveBeenCalledWith('/new/path');
+      await waitFor(() => {
+        expect(screen.getByText('project')).toBeInTheDocument();
+        expect(screen.getByText('documents')).toBeInTheDocument();
+      });
     });
 
-    it('does not call onSwitch when path is unchanged', async () => {
-      const onSwitch = vi.fn().mockResolvedValue(undefined);
-      render(<DirectoryPicker {...defaultProps} onSwitch={onSwitch} />);
+    it('only shows directories, not files', async () => {
+      render(<DirectoryPicker {...defaultProps} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      await userEvent.click(screen.getByRole('button'));
       
-      await userEvent.keyboard('{Enter}');
+      await waitFor(() => {
+        expect(screen.getByText('project')).toBeInTheDocument();
+      });
       
-      expect(onSwitch).not.toHaveBeenCalled();
+      // file.txt should not be shown
+      expect(screen.queryByText('file.txt')).not.toBeInTheDocument();
+    });
+
+    it('navigates to subdirectory when clicked', async () => {
+      render(<DirectoryPicker {...defaultProps} />);
+      
+      await userEvent.click(screen.getByRole('button'));
+      
+      await waitFor(() => {
+        expect(screen.getByText('project')).toBeInTheDocument();
+      });
+      
+      await userEvent.click(screen.getByText('project'));
+      
+      expect(api.listDirectories).toHaveBeenCalledWith('/home/user/project');
+    });
+
+    it('shows parent directory navigation', async () => {
+      render(<DirectoryPicker {...defaultProps} />);
+      
+      await userEvent.click(screen.getByRole('button'));
+      
+      await waitFor(() => {
+        expect(screen.getByText('..')).toBeInTheDocument();
+      });
     });
   });
 
-  describe('loading state', () => {
-    it('shows loading indicator during switch', async () => {
-      // Create a promise that we can control
-      let resolveSwitch: () => void;
-      const switchPromise = new Promise<void>((resolve) => {
-        resolveSwitch = resolve;
-      });
-      const onSwitch = vi.fn().mockReturnValue(switchPromise);
-      
+  describe('workspace selection', () => {
+    it('calls onSwitch when Select is clicked', async () => {
+      const onSwitch = vi.fn().mockResolvedValue(undefined);
       render(<DirectoryPicker {...defaultProps} onSwitch={onSwitch} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      await userEvent.click(screen.getByRole('button'));
       
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/new/path{Enter}');
-      
-      // Should show loading state
-      expect(screen.getByText('Switching...')).toBeInTheDocument();
-      
-      // Resolve the promise
-      resolveSwitch!();
       await waitFor(() => {
-        expect(screen.queryByText('Switching...')).not.toBeInTheDocument();
+        expect(screen.getByText('Select')).toBeInTheDocument();
       });
+      
+      await userEvent.click(screen.getByText('Select'));
+      
+      expect(onSwitch).toHaveBeenCalledWith('/home/user');
     });
 
-    it('disables input during loading', async () => {
-      let resolveSwitch: () => void;
-      const switchPromise = new Promise<void>((resolve) => {
-        resolveSwitch = resolve;
-      });
-      const onSwitch = vi.fn().mockReturnValue(switchPromise);
-      
+    it('closes modal after successful switch', async () => {
+      const onSwitch = vi.fn().mockResolvedValue(undefined);
       render(<DirectoryPicker {...defaultProps} onSwitch={onSwitch} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      await userEvent.click(screen.getByRole('button'));
       
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/new/path{Enter}');
-      
-      // Input should be disabled during loading
-      expect(screen.getByRole('textbox')).toBeDisabled();
-      
-      resolveSwitch!();
       await waitFor(() => {
-        expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+      
+      await userEvent.click(screen.getByText('Select'));
+      
+      await waitFor(() => {
+        expect(screen.queryByText('Select Workspace')).not.toBeInTheDocument();
       });
     });
   });
 
   describe('error handling', () => {
-    it('displays error message when switch fails', async () => {
-      const onSwitch = vi.fn().mockRejectedValue(new Error('Path does not exist'));
-      render(<DirectoryPicker {...defaultProps} onSwitch={onSwitch} />);
+    it('displays error when directory listing fails', async () => {
+      vi.mocked(api.listDirectories).mockRejectedValue(new Error('Permission denied'));
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
+      render(<DirectoryPicker {...defaultProps} />);
       
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/invalid/path{Enter}');
+      await userEvent.click(screen.getByRole('button'));
       
       await waitFor(() => {
-        expect(screen.getByText('Path does not exist')).toBeInTheDocument();
+        // The component shows a generic message when the error isn't an ApiError
+        expect(screen.getByText(/Failed to load directories/)).toBeInTheDocument();
       });
     });
 
-    it('clears error when input changes', async () => {
+    it('displays error when switch fails', async () => {
       const onSwitch = vi.fn().mockRejectedValue(new Error('Path does not exist'));
       render(<DirectoryPicker {...defaultProps} onSwitch={onSwitch} />);
       
-      const button = screen.getByRole('button');
-      await userEvent.click(button);
-      
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/invalid/path{Enter}');
+      await userEvent.click(screen.getByRole('button'));
       
       await waitFor(() => {
-        expect(screen.getByText('Path does not exist')).toBeInTheDocument();
+        expect(screen.getByText('Select')).toBeInTheDocument();
       });
       
-      // Type something new to clear the error
-      await userEvent.type(input, '/another');
+      await userEvent.click(screen.getByText('Select'));
       
-      expect(screen.queryByText('Path does not exist')).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText(/Path does not exist/)).toBeInTheDocument();
+      });
+    });
+
+    it('shows Docker note in error when in Docker mode', async () => {
+      const onSwitch = vi.fn().mockRejectedValue(new Error('Path does not exist'));
+      render(<DirectoryPicker {...defaultProps} isDocker={true} onSwitch={onSwitch} />);
+      
+      await userEvent.click(screen.getByRole('button'));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+      
+      await userEvent.click(screen.getByText('Select'));
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Docker mode/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Docker mode', () => {
+    it('shows Docker indicator when in Docker mode', async () => {
+      render(<DirectoryPicker {...defaultProps} isDocker={true} />);
+      
+      await userEvent.click(screen.getByRole('button'));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Running in Docker')).toBeInTheDocument();
+      });
+    });
+
+    it('does not show Docker indicator when not in Docker mode', async () => {
+      render(<DirectoryPicker {...defaultProps} isDocker={false} />);
+      
+      await userEvent.click(screen.getByRole('button'));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Select Workspace')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Running in Docker')).not.toBeInTheDocument();
     });
   });
 
   describe('disabled state', () => {
-    it('does not open edit mode when disabled', async () => {
+    it('does not open modal when disabled', async () => {
       render(<DirectoryPicker {...defaultProps} disabled={true} />);
       
       const button = screen.getByRole('button');
       await userEvent.click(button);
       
-      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      expect(screen.queryByText('Select Workspace')).not.toBeInTheDocument();
     });
 
     it('shows disabled reason when provided', () => {

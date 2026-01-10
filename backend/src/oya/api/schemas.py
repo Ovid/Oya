@@ -11,6 +11,7 @@ class RepoStatus(BaseModel):
     head_message: str | None
     branch: str | None
     initialized: bool
+    is_docker: bool = False
     last_generation: datetime | None = None
     generation_status: str | None = None
 
@@ -31,3 +32,17 @@ class WorkspaceSwitchResponse(BaseModel):
     """Response after switching workspace."""
     status: RepoStatus
     message: str
+
+
+class DirectoryEntry(BaseModel):
+    """A directory entry for the directory browser."""
+    name: str
+    path: str
+    is_dir: bool
+
+
+class DirectoryListing(BaseModel):
+    """Response for directory listing."""
+    path: str
+    parent: str | None
+    entries: list[DirectoryEntry]

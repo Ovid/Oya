@@ -94,7 +94,9 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     dispatch({ type: 'SET_CURRENT_JOB', payload: null });
   }, [dispatch]);
 
-  if (loading) {
+  // Show loading spinner while page is loading OR while AppContext is still initializing
+  // This prevents showing "not found" before we've checked for running jobs
+  if (loading || state.isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -103,6 +105,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   }
 
   // Show generation progress if a job is running (either local or global)
+  // Check this BEFORE notFound to handle the case where generation started but wiki doesn't exist yet
   const activeJobId = generatingJobId || (state.currentJob?.status === 'running' ? state.currentJob.job_id : null);
   if (activeJobId) {
     return (

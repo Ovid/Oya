@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
  * Tests for GenerationProgress phase ordering.
  * 
  * The bottom-up generation pipeline runs phases in this order:
- * Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+ * Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
  * 
  * The frontend must display phases in this same order to correctly show
  * which phases are completed vs in-progress.
@@ -19,7 +19,8 @@ const EXPECTED_PHASE_ORDER = [
   'synthesis',
   'architecture',
   'overview',
-  'workflows'
+  'workflows',
+  'indexing'
 ];
 
 const EXPECTED_PHASES = {
@@ -31,6 +32,7 @@ const EXPECTED_PHASES = {
   'architecture': { name: 'Architecture', description: 'Analyzing and documenting architecture...' },
   'overview': { name: 'Overview', description: 'Generating project overview page...' },
   'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
+  'indexing': { name: 'Indexing', description: 'Indexing content for search and Q&A...' },
 };
 
 // Import the actual constants from the component
@@ -73,8 +75,12 @@ describe('GenerationProgress phase ordering', () => {
     expect(PHASE_ORDER).toContain('synthesis');
   });
 
-  it('should have 7 phases total', () => {
-    expect(PHASE_ORDER).toHaveLength(7);
+  it('should include indexing phase', () => {
+    expect(PHASE_ORDER).toContain('indexing');
+  });
+
+  it('should have 8 phases total', () => {
+    expect(PHASE_ORDER).toHaveLength(8);
   });
 });
 
@@ -90,6 +96,11 @@ describe('GenerationProgress phase definitions', () => {
   it('should have synthesis phase info', () => {
     expect(PHASES['synthesis']).toBeDefined();
     expect(PHASES['synthesis'].name).toBe('Synthesis');
+  });
+
+  it('should have indexing phase info', () => {
+    expect(PHASES['indexing']).toBeDefined();
+    expect(PHASES['indexing'].name).toBe('Indexing');
   });
 
   it('should match expected phase definitions', () => {

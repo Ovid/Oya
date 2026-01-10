@@ -6,6 +6,7 @@ export interface RepoStatus {
   head_message: string | null;
   branch: string | null;
   initialized: boolean;
+  is_docker: boolean;
   last_generation: string | null;
   generation_status: string | null;
 }
@@ -133,4 +134,17 @@ export interface WorkspaceSwitchRequest {
 export interface WorkspaceSwitchResponse {
   status: RepoStatus;
   message: string;
+}
+
+// Directory Browser Types
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+}
+
+export interface DirectoryListing {
+  path: string;
+  parent: string | null;
+  entries: DirectoryEntry[];
 }

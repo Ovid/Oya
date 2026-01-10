@@ -19,6 +19,7 @@ class Settings:
 
     Attributes:
         workspace_path: Root path to the mounted repository/workspace
+        workspace_display_path: Human-readable path to display (for Docker environments)
         active_provider: LLM provider to use (openai, anthropic, google, ollama)
         active_model: Model identifier for the active provider
         openai_api_key: OpenAI API key (optional)
@@ -31,6 +32,7 @@ class Settings:
     """
 
     workspace_path: Path
+    workspace_display_path: Optional[str] = None
     active_provider: str = "ollama"
     active_model: str = "llama2"
     openai_api_key: Optional[str] = None
@@ -40,6 +42,11 @@ class Settings:
     max_file_size_kb: int = 1024
     parallel_file_limit: int = 10
     chunk_size: int = 4096
+
+    @property
+    def display_path(self) -> str:
+        """Path to display to users (uses workspace_display_path if set, otherwise workspace_path)."""
+        return self.workspace_display_path or str(self.workspace_path)
 
     @property
     def oyawiki_path(self) -> Path:
@@ -171,6 +178,7 @@ def load_settings() -> Settings:
 
     return Settings(
         workspace_path=workspace_path,
+        workspace_display_path=os.getenv("WORKSPACE_DISPLAY_PATH"),
         active_provider=active_provider,
         active_model=active_model,
         openai_api_key=os.getenv("OPENAI_API_KEY"),

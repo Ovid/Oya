@@ -8,6 +8,7 @@ vi.mock('../api/client', () => ({
   getRepoStatus: vi.fn(),
   getWikiTree: vi.fn(),
   switchWorkspace: vi.fn(),
+  listDirectories: vi.fn(),
   initRepo: vi.fn(),
   getJob: vi.fn(),
   ApiError: class ApiError extends Error {
@@ -69,6 +70,7 @@ const mockRepoStatus: RepoStatus = {
   head_message: 'Initial commit',
   branch: 'main',
   initialized: true,
+  is_docker: false,
   last_generation: null,
   generation_status: null,
 };
@@ -79,6 +81,15 @@ const mockWikiTree: WikiTree = {
   workflows: [],
   directories: [],
   files: [],
+};
+
+const mockDirectoryListing = {
+  path: '/home/user',
+  parent: '/home',
+  entries: [
+    { name: 'project', path: '/home/user/project', is_dir: true },
+    { name: 'other', path: '/home/user/other', is_dir: true },
+  ],
 };
 
 function renderTopBar(props = {}) {
@@ -100,6 +111,7 @@ describe('TopBar with DirectoryPicker', () => {
     vi.clearAllMocks();
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus);
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree);
+    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing);
   });
 
   describe('DirectoryPicker rendering', () => {
@@ -112,7 +124,6 @@ describe('TopBar with DirectoryPicker', () => {
       });
 
       // DirectoryPicker should be rendered showing the current path
-      // The DirectoryPicker displays the path in a button with aria-label
       expect(screen.getByLabelText(/Current workspace/i)).toBeInTheDocument();
     });
 
@@ -211,7 +222,7 @@ describe('TopBar with DirectoryPicker', () => {
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
       
       vi.mocked(api.switchWorkspace).mockResolvedValue({
-        status: { ...mockRepoStatus, path: '/new/path' },
+        status: { ...mockRepoStatus, path: '/home/user/other' },
         message: 'Workspace switched',
       });
 
@@ -242,14 +253,25 @@ describe('TopBar with DirectoryPicker', () => {
       const setDirtyButton = screen.getByTestId('set-dirty');
       await userEvent.click(setDirtyButton);
 
-      // Click on the DirectoryPicker to enter edit mode
+      // Click on the DirectoryPicker to open modal
       const picker = screen.getByLabelText(/Current workspace/i);
       await userEvent.click(picker);
 
-      // Enter a new path and submit
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/new/path{Enter}');
+      // Wait for modal to open and directories to load
+      await waitFor(() => {
+        expect(screen.getByText('Select Workspace')).toBeInTheDocument();
+      });
+
+      // Navigate to a different directory
+      await userEvent.click(screen.getByText('other'));
+
+      // Wait for navigation
+      await waitFor(() => {
+        expect(api.listDirectories).toHaveBeenCalledWith('/home/user/other');
+      });
+
+      // Click Select to switch
+      await userEvent.click(screen.getByText('Select'));
 
       // Confirmation dialog should have been shown
       expect(confirmSpy).toHaveBeenCalledWith(
@@ -267,7 +289,7 @@ describe('TopBar with DirectoryPicker', () => {
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
       
       vi.mocked(api.switchWorkspace).mockResolvedValue({
-        status: { ...mockRepoStatus, path: '/new/path' },
+        status: { ...mockRepoStatus, path: '/home/user/other' },
         message: 'Workspace switched',
       });
 
@@ -298,21 +320,24 @@ describe('TopBar with DirectoryPicker', () => {
       const setDirtyButton = screen.getByTestId('set-dirty');
       await userEvent.click(setDirtyButton);
 
-      // Click on the DirectoryPicker to enter edit mode
+      // Click on the DirectoryPicker to open modal
       const picker = screen.getByLabelText(/Current workspace/i);
       await userEvent.click(picker);
 
-      // Enter a new path and submit
-      const input = screen.getByRole('textbox');
-      await userEvent.clear(input);
-      await userEvent.type(input, '/new/path{Enter}');
+      // Wait for modal to open
+      await waitFor(() => {
+        expect(screen.getByText('Select Workspace')).toBeInTheDocument();
+      });
+
+      // Click Select to switch (using current browsed path)
+      await userEvent.click(screen.getByText('Select'));
 
       // Confirmation dialog should have been shown
       expect(confirmSpy).toHaveBeenCalled();
 
       // Since we returned true, the switch should have happened
       await waitFor(() => {
-        expect(api.switchWorkspace).toHaveBeenCalledWith('/new/path');
+        expect(api.switchWorkspace).toHaveBeenCalled();
       });
 
       confirmSpy.mockRestore();

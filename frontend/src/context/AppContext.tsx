@@ -203,6 +203,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true });
       await refreshStatus();
       await refreshTree();
+      
+      // Check for any running jobs to restore generation progress after refresh
+      try {
+        const jobs = await api.listJobs(1);
+        const runningJob = jobs.find(job => job.status === 'running');
+        if (runningJob) {
+          dispatch({ type: 'SET_CURRENT_JOB', payload: runningJob });
+        }
+      } catch {
+        // Ignore errors when checking for running jobs
+      }
+      
       dispatch({ type: 'SET_LOADING', payload: false });
     };
     init();

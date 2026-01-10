@@ -207,3 +207,73 @@ async def test_switch_workspace_outside_base_returns_403(client, workspace_base,
     assert response.status_code == 403
     data = response.json()
     assert "detail" in data
+
+
+# ============================================================================
+# Directory Listing Endpoint Tests
+# ============================================================================
+
+
+async def test_list_directories_returns_entries(client, workspace_base):
+    """GET /api/repos/directories returns directory listing."""
+    response = await client.get(
+        "/api/repos/directories",
+        params={"path": str(workspace_base["base"])}
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert "path" in data
+    assert "entries" in data
+    assert data["path"] == str(workspace_base["base"])
+    
+    # Should have workspace1 and workspace2 directories
+    dir_names = [e["name"] for e in data["entries"] if e["is_dir"]]
+    assert "workspace1" in dir_names
+    assert "workspace2" in dir_names
+
+
+async def test_list_directories_defaults_to_base_path(client, workspace_base):
+    """GET /api/repos/directories without path defaults to base path."""
+    response = await client.get("/api/repos/directories")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["path"] == str(workspace_base["base"])
+
+
+async def test_list_directories_outside_base_returns_403(client, workspace_base, tmp_path):
+    """GET /api/repos/directories with path outside base returns 403."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    
+    response = await client.get(
+        "/api/repos/directories",
+        params={"path": str(outside)}
+    )
+    
+    assert response.status_code == 403
+
+
+async def test_list_directories_includes_parent(client, workspace_base):
+    """GET /api/repos/directories includes parent path for navigation."""
+    response = await client.get(
+        "/api/repos/directories",
+        params={"path": str(workspace_base["workspace1"])}
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["parent"] == str(workspace_base["base"])
+
+
+async def test_list_directories_no_parent_at_base(client, workspace_base):
+    """GET /api/repos/directories at base path has no parent."""
+    response = await client.get(
+        "/api/repos/directories",
+        params={"path": str(workspace_base["base"])}
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["parent"] is None

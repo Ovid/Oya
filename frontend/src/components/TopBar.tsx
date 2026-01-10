@@ -77,6 +77,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar }: TopBarProps) {
             {repoStatus && (
               <DirectoryPicker
                 currentPath={repoStatus.path}
+                isDocker={repoStatus.is_docker}
                 onSwitch={handleWorkspaceSwitch}
                 disabled={isGenerating}
                 disabledReason={isGenerating ? 'Cannot switch during generation' : undefined}

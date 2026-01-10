@@ -11,6 +11,7 @@ import type {
   NoteCreate,
   Note,
   WorkspaceSwitchResponse,
+  DirectoryListing,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -56,6 +57,11 @@ export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResp
     method: 'POST',
     body: JSON.stringify({ path }),
   });
+}
+
+export async function listDirectories(path?: string): Promise<DirectoryListing> {
+  const params = path ? `?path=${encodeURIComponent(path)}` : '';
+  return fetchJson<DirectoryListing>(`/api/repos/directories${params}`);
 }
 
 // Wiki endpoints

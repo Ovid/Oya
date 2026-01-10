@@ -97,6 +97,7 @@ class TestPhaseOrderConsistency:
             "architecture": 5,
             "overview": 6,
             "workflows": 7,
+            "indexing": 8,
         }
         
         # Import and check the actual mapping
@@ -111,16 +112,16 @@ class TestPhaseOrderConsistency:
             assert f'"{phase}": {expected_num}' in source, \
                 f"Phase '{phase}' should have number {expected_num} in repos.py"
 
-    def test_total_phases_is_seven(self):
-        """Total phases should be 7 for the bottom-up pipeline."""
+    def test_total_phases_is_eight(self):
+        """Total phases should be 8 for the bottom-up pipeline (including indexing)."""
         from oya.api.routers import repos
         import inspect
         
         source = inspect.getsource(repos.init_repo)
         
-        # Check that total_phases is 7
-        assert '"full", "pending", 7' in source or "'full', 'pending', 7" in source, \
-            "Total phases should be 7 in init_repo"
+        # Check that total_phases is 8
+        assert '"full", "pending", 8' in source or "'full', 'pending', 8" in source, \
+            "Total phases should be 8 in init_repo"
 
     def test_files_before_architecture(self):
         """Files phase number should be less than architecture phase number."""
@@ -132,6 +133,7 @@ class TestPhaseOrderConsistency:
             "architecture": 5,
             "overview": 6,
             "workflows": 7,
+            "indexing": 8,
         }
         
         assert expected_phase_numbers["files"] < expected_phase_numbers["architecture"], \
