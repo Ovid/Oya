@@ -12,6 +12,7 @@ import type {
   Note,
   WorkspaceSwitchResponse,
   DirectoryListing,
+  GenerationStatus,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -62,6 +63,21 @@ export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResp
 export async function listDirectories(path?: string): Promise<DirectoryListing> {
   const params = path ? `?path=${encodeURIComponent(path)}` : '';
   return fetchJson<DirectoryListing>(`/api/repos/directories${params}`);
+}
+
+// Generation status endpoint
+export async function getGenerationStatus(): Promise<GenerationStatus | null> {
+  const response = await fetch(`${API_BASE}/api/repos/generation-status`, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, response.statusText);
+  }
+  const text = await response.text();
+  if (!text || text === 'null') {
+    return null;
+  }
+  return JSON.parse(text) as GenerationStatus;
 }
 
 // Wiki endpoints

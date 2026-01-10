@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
-import type { RepoStatus, WikiTree, WikiPage, JobStatus, NoteScope } from '../types';
+import type { RepoStatus, WikiTree, WikiPage, JobStatus, NoteScope, GenerationStatus } from '../types';
 import * as api from '../api/client';
 
 interface NoteEditorState {
@@ -18,6 +18,7 @@ interface AppState {
   error: string | null;
   noteEditor: NoteEditorState;
   darkMode: boolean;
+  generationStatus: GenerationStatus | null;
 }
 
 type Action =
@@ -30,7 +31,8 @@ type Action =
   | { type: 'OPEN_NOTE_EDITOR'; payload: { scope: NoteScope; target: string } }
   | { type: 'CLOSE_NOTE_EDITOR' }
   | { type: 'SET_NOTE_EDITOR_DIRTY'; payload: boolean }
-  | { type: 'SET_DARK_MODE'; payload: boolean };
+  | { type: 'SET_DARK_MODE'; payload: boolean }
+  | { type: 'SET_GENERATION_STATUS'; payload: GenerationStatus | null };
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') return false;
@@ -53,6 +55,7 @@ const initialState: AppState = {
     defaultTarget: '',
   },
   darkMode: getInitialDarkMode(),
+  generationStatus: null,
 };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -91,6 +94,8 @@ function appReducer(state: AppState, action: Action): AppState {
       };
     case 'SET_DARK_MODE':
       return { ...state, darkMode: action.payload };
+    case 'SET_GENERATION_STATUS':
+      return { ...state, generationStatus: action.payload };
     default:
       return state;
   }
@@ -107,6 +112,7 @@ interface AppContextValue {
   toggleDarkMode: () => void;
   switchWorkspace: (path: string) => Promise<void>;
   setNoteEditorDirty: (isDirty: boolean) => void;
+  dismissGenerationStatus: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -135,6 +141,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const startGeneration = async (): Promise<string | null> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      // Clear any previous interrupted status when starting a new generation
+      dispatch({ type: 'SET_GENERATION_STATUS', payload: null });
       const result = await api.initRepo();
 
       // Start polling job status
@@ -202,7 +210,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const init = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
       await refreshStatus();
-      await refreshTree();
+      
+      // Check for incomplete build FIRST
+      let hasIncompleteBuild = false;
+      try {
+        const genStatus = await api.getGenerationStatus();
+        if (genStatus && genStatus.status === 'incomplete') {
+          dispatch({ type: 'SET_GENERATION_STATUS', payload: genStatus });
+          hasIncompleteBuild = true;
+          // Clear wiki tree when build is incomplete
+          dispatch({ type: 'SET_WIKI_TREE', payload: { overview: false, architecture: false, workflows: [], directories: [], files: [] } });
+        }
+      } catch {
+        // Ignore errors when checking generation status
+      }
+      
+      // Only load wiki tree if build is complete
+      if (!hasIncompleteBuild) {
+        await refreshTree();
+      }
       
       // Check for any running jobs to restore generation progress after refresh
       try {
@@ -220,6 +246,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
+  const dismissGenerationStatus = () => {
+    dispatch({ type: 'SET_GENERATION_STATUS', payload: null });
+  };
+
   const contextValue: AppContextValue = {
     state,
     dispatch,
@@ -231,6 +261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleDarkMode,
     switchWorkspace,
     setNoteEditorDirty,
+    dismissGenerationStatus,
   };
 
   return (

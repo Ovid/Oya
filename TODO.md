@@ -1,5 +1,9 @@
 # TODO
 
+* Before generating:
+    - Preview directories and files so you can see what will be indexed and
+      what should be in .oyaignore
+    - Offer explanation of codebase, if needed, to help guide AI
 * Interface:
     - Templates
     - Need left and right search areas to be "widenable" so I can see more

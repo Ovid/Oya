@@ -166,6 +166,28 @@ async def get_repo_status(
     return _build_repo_status(settings.workspace_path, settings.display_path, settings, db)
 
 
+@router.get("/generation-status")
+async def get_generation_status(
+    settings: Settings = Depends(get_settings),
+) -> dict | None:
+    """Check if there's an incomplete wiki build.
+    
+    Returns information about incomplete build if .oyawiki-building exists.
+    This indicates a previous generation was interrupted.
+    
+    Returns:
+        Dict with incomplete build info, or None if no incomplete build.
+    """
+    from oya.generation.staging import has_incomplete_build
+    
+    if has_incomplete_build(settings.workspace_path):
+        return {
+            "status": "incomplete",
+            "message": "A previous wiki generation did not complete. The wiki must be generated from scratch.",
+        }
+    return None
+
+
 @router.post("/init", response_model=JobCreated, status_code=202)
 async def init_repo(
     background_tasks: BackgroundTasks,
@@ -198,11 +220,21 @@ async def _run_generation(
     db: Database,
     settings: Settings,
 ) -> None:
-    """Run wiki generation in background."""
+    """Run wiki generation in background using staging directory.
+    
+    Builds wiki in .oyawiki-building, then promotes to .oyawiki on success.
+    If generation fails, staging directory is left for debugging.
+    """
     from oya.generation.orchestrator import GenerationOrchestrator
     from oya.llm.client import LLMClient
     from oya.indexing.service import IndexingService
     from oya.vectorstore.store import VectorStore
+    from oya.generation.staging import prepare_staging_directory, promote_staging_to_production
+
+    # Staging paths - build in .oyawiki-building
+    staging_path = settings.staging_path
+    staging_wiki_path = staging_path / "wiki"
+    staging_meta_path = staging_path / "meta"
 
     # Phase number mapping for progress tracking (bottom-up approach)
     # Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
@@ -240,7 +272,10 @@ async def _run_generation(
         )
         db.commit()
 
-        # Create orchestrator and run
+        # Prepare staging directory (copies production for incremental, or creates empty)
+        prepare_staging_directory(staging_path, settings.oyawiki_path)
+
+        # Create orchestrator to build in staging directory
         llm = LLMClient(
             provider=settings.llm_provider,
             model=settings.llm_model,
@@ -251,25 +286,27 @@ async def _run_generation(
             llm_client=llm,
             repo=repo,
             db=db,
-            wiki_path=settings.wiki_path,
+            wiki_path=staging_wiki_path,
             parallel_limit=settings.parallel_file_limit,
         )
 
         await orchestrator.run(progress_callback=progress_callback)
 
-        # Index wiki content for Q&A search
+        # Index wiki content for Q&A search (in staging)
         db.execute(
             "UPDATE generations SET current_phase = '8:indexing' WHERE id = ?",
             (job_id,),
         )
         db.commit()
 
-        vectorstore = VectorStore(settings.chroma_path)
+        # Use staging chroma path for indexing
+        staging_chroma_path = staging_meta_path / "chroma"
+        vectorstore = VectorStore(staging_chroma_path)
         indexing_service = IndexingService(
             vectorstore=vectorstore,
             db=db,
-            wiki_path=settings.wiki_path,
-            meta_path=settings.oyawiki_path / "meta",
+            wiki_path=staging_wiki_path,
+            meta_path=staging_meta_path,
         )
         # Clear old index and reindex with new content
         indexing_service.clear_index()
@@ -277,6 +314,9 @@ async def _run_generation(
             embedding_provider=settings.active_provider,
             embedding_model=settings.active_model,
         )
+
+        # SUCCESS: Promote staging to production
+        promote_staging_to_production(staging_path, settings.oyawiki_path)
 
         # Update status to completed
         db.execute(
@@ -290,6 +330,7 @@ async def _run_generation(
         db.commit()
 
     except Exception as e:
+        # FAILURE: Leave staging directory for debugging
         # Update status to failed
         db.execute(
             """

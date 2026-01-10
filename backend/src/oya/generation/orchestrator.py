@@ -350,8 +350,9 @@ class GenerationOrchestrator:
         """
         job_id = str(uuid.uuid4())
 
-        # Ensure wiki directory exists
+        # Ensure wiki and meta directories exist
         self.wiki_path.mkdir(parents=True, exist_ok=True)
+        self.meta_path.mkdir(parents=True, exist_ok=True)
 
         # Phase 1: Analysis
         await self._emit_progress(

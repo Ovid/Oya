@@ -54,6 +54,11 @@ class Settings:
         return self.workspace_path / ".oyawiki"
 
     @property
+    def staging_path(self) -> Path:
+        """Path to .oyawiki-building staging directory."""
+        return self.workspace_path / ".oyawiki-building"
+
+    @property
     def wiki_path(self) -> Path:
         """Path to wiki subdirectory."""
         return self.oyawiki_path / "wiki"

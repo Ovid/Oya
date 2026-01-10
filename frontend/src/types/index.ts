@@ -158,3 +158,9 @@ export interface DirectoryListing {
   parent: string | null;
   entries: DirectoryEntry[];
 }
+
+// Generation Status Types
+export interface GenerationStatus {
+  status: 'incomplete';
+  message: string;
+}
