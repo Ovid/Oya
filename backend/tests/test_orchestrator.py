@@ -190,7 +190,7 @@ class TestPipelinePhaseOrder:
         call_order = []
 
         # Mock all phase methods to track call order
-        async def mock_analysis():
+        async def mock_analysis(progress_callback=None):
             call_order.append("analysis")
             return {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
 
@@ -224,7 +224,7 @@ class TestPipelinePhaseOrder:
                 word_count=1,
             )
 
-        async def mock_workflows(analysis):
+        async def mock_workflows(analysis, progress_callback=None):
             call_order.append("workflows")
             return []
 
@@ -337,7 +337,7 @@ class TestFileSummariesPassedToSynthesis:
             layer="api",
         )
 
-        async def mock_analysis():
+        async def mock_analysis(progress_callback=None):
             return {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
 
         async def mock_files(analysis, progress_callback=None):
@@ -356,7 +356,7 @@ class TestFileSummariesPassedToSynthesis:
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis):
+        async def mock_workflows(analysis, progress_callback=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):
@@ -451,7 +451,7 @@ class TestDirectorySummariesPassedToSynthesis:
             role_in_system="Contains application code",
         )
 
-        async def mock_analysis():
+        async def mock_analysis(progress_callback=None):
             return {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
 
         async def mock_files(analysis, progress_callback=None):
@@ -470,7 +470,7 @@ class TestDirectorySummariesPassedToSynthesis:
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis):
+        async def mock_workflows(analysis, progress_callback=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):
@@ -519,7 +519,7 @@ class TestSynthesisMapPassedToArchAndOverview:
             project_summary="Test project",
         )
 
-        async def mock_analysis():
+        async def mock_analysis(progress_callback=None):
             return {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
 
         async def mock_files(analysis, progress_callback=None):
@@ -538,7 +538,7 @@ class TestSynthesisMapPassedToArchAndOverview:
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis):
+        async def mock_workflows(analysis, progress_callback=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):
@@ -570,7 +570,7 @@ class TestSynthesisMapPassedToArchAndOverview:
             project_summary="Test project for overview",
         )
 
-        async def mock_analysis():
+        async def mock_analysis(progress_callback=None):
             return {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
 
         async def mock_files(analysis, progress_callback=None):
@@ -589,7 +589,7 @@ class TestSynthesisMapPassedToArchAndOverview:
             captured_synthesis_map.append(synthesis_map)
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis):
+        async def mock_workflows(analysis, progress_callback=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):

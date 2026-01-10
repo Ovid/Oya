@@ -480,7 +480,7 @@ async def _run_generation(
 
         # Index wiki content for Q&A search (in staging)
         db.execute(
-            "UPDATE generations SET current_phase = '8:indexing' WHERE id = ?",
+            "UPDATE generations SET current_phase = '8:indexing', current_step = 0, total_steps = 0 WHERE id = ?",
             (job_id,),
         )
         db.commit()
@@ -494,11 +494,25 @@ async def _run_generation(
             wiki_path=staging_wiki_path,
             meta_path=staging_meta_path,
         )
+        
+        # Progress callback for indexing
+        async def indexing_progress_callback(step: int, total: int, message: str) -> None:
+            db.execute(
+                """
+                UPDATE generations
+                SET current_step = ?, total_steps = ?
+                WHERE id = ?
+                """,
+                (step, total, job_id),
+            )
+            db.commit()
+        
         # Clear old index and reindex with new content
         indexing_service.clear_index()
-        indexing_service.index_wiki_pages(
+        await indexing_service.index_wiki_pages(
             embedding_provider=settings.active_provider,
             embedding_model=settings.active_model,
+            progress_callback=indexing_progress_callback,
         )
 
         # SUCCESS: Promote staging to production

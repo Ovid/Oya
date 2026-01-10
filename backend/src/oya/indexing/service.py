@@ -4,13 +4,16 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Coroutine
 
 from oya.db.connection import Database
 from oya.vectorstore.store import VectorStore
 
 
 EMBEDDING_METADATA_FILE = "embedding_metadata.json"
+
+# Type alias for progress callback
+IndexingProgressCallback = Callable[[int, int, str], Coroutine[Any, Any, None]]
 
 
 class IndexingService:
@@ -43,16 +46,18 @@ class IndexingService:
         self._wiki_path = Path(wiki_path)
         self._meta_path = Path(meta_path) if meta_path else None
 
-    def index_wiki_pages(
+    async def index_wiki_pages(
         self,
         embedding_provider: str | None = None,
         embedding_model: str | None = None,
+        progress_callback: IndexingProgressCallback | None = None,
     ) -> int:
         """Index all wiki pages into vector store and FTS.
         
         Args:
             embedding_provider: LLM provider used for embeddings (e.g., 'openai').
             embedding_model: Model used for embeddings (e.g., 'text-embedding-3-small').
+            progress_callback: Optional async callback for progress updates (step, total, message).
         
         Returns:
             Number of pages indexed.
@@ -60,13 +65,24 @@ class IndexingService:
         if not self._wiki_path.exists():
             return 0
         
+        # First, collect all markdown files to get total count
+        md_files = list(self._wiki_path.rglob("*.md"))
+        total_files = len(md_files)
+        
+        if total_files == 0:
+            return 0
+        
+        # Emit initial progress
+        if progress_callback:
+            await progress_callback(0, total_files, f"Indexing pages (0/{total_files})...")
+        
         indexed_count = 0
         ids: list[str] = []
         documents: list[str] = []
         metadatas: list[dict[str, Any]] = []
         
-        # Find all markdown files
-        for md_file in self._wiki_path.rglob("*.md"):
+        # Process each markdown file
+        for idx, md_file in enumerate(md_files):
             content = md_file.read_text(encoding="utf-8")
             rel_path = str(md_file.relative_to(self._wiki_path))
             
@@ -93,6 +109,10 @@ class IndexingService:
             )
             
             indexed_count += 1
+            
+            # Emit progress every 10 files or on last file
+            if progress_callback and ((idx + 1) % 10 == 0 or idx == total_files - 1):
+                await progress_callback(idx + 1, total_files, f"Indexed {idx + 1}/{total_files} pages...")
         
         # Commit FTS inserts
         self._db.commit()

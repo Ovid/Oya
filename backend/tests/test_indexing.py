@@ -63,7 +63,8 @@ class TestContentIndexing:
         
         return wiki_path
 
-    def test_index_wiki_pages_to_vectorstore(
+    @pytest.mark.asyncio
+    async def test_index_wiki_pages_to_vectorstore(
         self, temp_vectorstore, temp_db, sample_wiki_content
     ):
         """Wiki pages are indexed into ChromaDB vector store."""
@@ -76,7 +77,7 @@ class TestContentIndexing:
         )
         
         # Index all wiki pages
-        indexed_count = service.index_wiki_pages()
+        indexed_count = await service.index_wiki_pages()
         
         # Should have indexed 3 pages
         assert indexed_count == 3
@@ -89,7 +90,8 @@ class TestContentIndexing:
         docs = results.get("documents", [[]])[0]
         assert any("FastAPI" in doc for doc in docs)
 
-    def test_index_wiki_pages_to_fts(
+    @pytest.mark.asyncio
+    async def test_index_wiki_pages_to_fts(
         self, temp_vectorstore, temp_db, sample_wiki_content
     ):
         """Wiki pages are indexed into FTS5 for full-text search."""
@@ -102,7 +104,7 @@ class TestContentIndexing:
         )
         
         # Index all wiki pages
-        service.index_wiki_pages()
+        await service.index_wiki_pages()
         
         # Query FTS should return results
         cursor = temp_db.execute(
@@ -115,7 +117,8 @@ class TestContentIndexing:
         # Should find architecture page
         assert any("architecture" in r["path"] for r in results)
 
-    def test_index_includes_metadata(
+    @pytest.mark.asyncio
+    async def test_index_includes_metadata(
         self, temp_vectorstore, temp_db, sample_wiki_content
     ):
         """Indexed documents include path, title, and type metadata."""
@@ -127,7 +130,7 @@ class TestContentIndexing:
             wiki_path=sample_wiki_content,
         )
         
-        service.index_wiki_pages()
+        await service.index_wiki_pages()
         
         # Query vectorstore and check metadata
         results = temp_vectorstore.query("overview", n_results=5)
@@ -144,7 +147,8 @@ class TestContentIndexing:
         assert "title" in overview_meta
         assert "type" in overview_meta
 
-    def test_clear_and_reindex(
+    @pytest.mark.asyncio
+    async def test_clear_and_reindex(
         self, temp_vectorstore, temp_db, sample_wiki_content
     ):
         """Can clear existing index and reindex."""
@@ -157,11 +161,11 @@ class TestContentIndexing:
         )
         
         # Index once
-        service.index_wiki_pages()
+        await service.index_wiki_pages()
         
         # Clear and reindex
         service.clear_index()
-        indexed_count = service.index_wiki_pages()
+        indexed_count = await service.index_wiki_pages()
         
         # Should still have 3 pages
         assert indexed_count == 3
@@ -170,7 +174,8 @@ class TestContentIndexing:
         results = temp_vectorstore.query("project", n_results=5)
         assert len(results.get("ids", [[]])[0]) > 0
 
-    def test_index_extracts_title_from_markdown(
+    @pytest.mark.asyncio
+    async def test_index_extracts_title_from_markdown(
         self, temp_vectorstore, temp_db, sample_wiki_content
     ):
         """Title is extracted from markdown H1 header."""
@@ -182,7 +187,7 @@ class TestContentIndexing:
             wiki_path=sample_wiki_content,
         )
         
-        service.index_wiki_pages()
+        await service.index_wiki_pages()
         
         # Query and check title
         results = temp_vectorstore.query("overview", n_results=5)
@@ -195,7 +200,8 @@ class TestContentIndexing:
         assert overview_meta is not None
         assert overview_meta.get("title") == "Project Overview"
 
-    def test_index_determines_page_type(
+    @pytest.mark.asyncio
+    async def test_index_determines_page_type(
         self, temp_vectorstore, temp_db, sample_wiki_content
     ):
         """Page type is determined from path structure."""
@@ -207,7 +213,7 @@ class TestContentIndexing:
             wiki_path=sample_wiki_content,
         )
         
-        service.index_wiki_pages()
+        await service.index_wiki_pages()
         
         # Query and check types
         results = temp_vectorstore.query("main entry point", n_results=5)
@@ -258,7 +264,8 @@ class TestEmbeddingMetadata:
         overview.write_text("# Project Overview\n\nThis is a sample project.")
         return wiki_path
 
-    def test_indexing_saves_embedding_metadata(
+    @pytest.mark.asyncio
+    async def test_indexing_saves_embedding_metadata(
         self, temp_vectorstore, temp_db, sample_wiki_content, tmp_path
     ):
         """Indexing saves the provider and model used for embeddings."""
@@ -275,7 +282,7 @@ class TestEmbeddingMetadata:
         )
 
         # Index with specific provider/model
-        service.index_wiki_pages(
+        await service.index_wiki_pages(
             embedding_provider="openai",
             embedding_model="text-embedding-3-small",
         )
@@ -307,7 +314,8 @@ class TestEmbeddingMetadata:
         metadata = service.get_embedding_metadata()
         assert metadata is None
 
-    def test_clear_index_removes_embedding_metadata(
+    @pytest.mark.asyncio
+    async def test_clear_index_removes_embedding_metadata(
         self, temp_vectorstore, temp_db, sample_wiki_content, tmp_path
     ):
         """Clearing the index also removes embedding metadata."""
@@ -323,7 +331,7 @@ class TestEmbeddingMetadata:
             meta_path=meta_path,
         )
 
-        service.index_wiki_pages(
+        await service.index_wiki_pages(
             embedding_provider="openai",
             embedding_model="text-embedding-3-small",
         )
@@ -361,7 +369,8 @@ class TestIndexingIntegration:
         index_path.mkdir()
         return VectorStore(index_path)
 
-    def test_run_indexing_after_generation(
+    @pytest.mark.asyncio
+    async def test_run_indexing_after_generation(
         self, temp_vectorstore, temp_db, tmp_path
     ):
         """Indexing runs after wiki generation completes."""
@@ -380,7 +389,7 @@ class TestIndexingIntegration:
             db=temp_db,
             wiki_path=wiki_path,
         )
-        indexed = service.index_wiki_pages()
+        indexed = await service.index_wiki_pages()
         
         assert indexed == 1
         
@@ -388,7 +397,8 @@ class TestIndexingIntegration:
         results = temp_vectorstore.query("test project", n_results=5)
         assert len(results.get("ids", [[]])[0]) > 0
 
-    def test_reindex_clears_old_content(
+    @pytest.mark.asyncio
+    async def test_reindex_clears_old_content(
         self, temp_vectorstore, temp_db, tmp_path
     ):
         """Reindexing clears old content before adding new."""
@@ -406,14 +416,14 @@ class TestIndexingIntegration:
             db=temp_db,
             wiki_path=wiki_path,
         )
-        service.index_wiki_pages()
+        await service.index_wiki_pages()
         
         # Simulate regeneration with new content
         overview.write_text("# New Content\n\nThis is new.")
         
         # Clear and reindex
         service.clear_index()
-        service.index_wiki_pages()
+        await service.index_wiki_pages()
         
         # Should find new content
         results = temp_vectorstore.query("new content", n_results=5)

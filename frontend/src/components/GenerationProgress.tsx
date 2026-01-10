@@ -246,11 +246,16 @@ export function GenerationProgress({ jobId, onComplete, onError, onCancelled }: 
           </div>
         </div>
 
-        {/* Step progress bar (shown for directories and files phases) */}
-        {totalSteps > 0 && (currentPhase === 'directories' || currentPhase === 'files') && (
+        {/* Step progress bar (shown for phases with step tracking) */}
+        {totalSteps > 0 && (
           <div className="mt-4">
             <div className="flex justify-between text-xs text-indigo-600 dark:text-indigo-300 mb-1">
-              <span>{currentPhase === 'directories' ? 'Directory' : 'File'} {currentStep} of {totalSteps}</span>
+              <span>
+                {currentPhase === 'directories' ? 'Directory' : 
+                 currentPhase === 'files' ? 'File' : 
+                 currentPhase === 'analysis' ? 'File' :
+                 currentPhase === 'workflows' ? 'Workflow' : 'Step'} {currentStep} of {totalSteps}
+              </span>
               <span>{totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0}%</span>
             </div>
             <div className="h-1.5 bg-indigo-200 dark:bg-indigo-800 rounded-full overflow-hidden">
