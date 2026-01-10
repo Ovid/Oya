@@ -121,18 +121,18 @@ This implementation follows TDD (red/green/refactor) with a bottom-up approach: 
     - Make the property test pass
     - _Requirements: 8.5, 8.6_
 
-- [ ] 4. Checkpoint - Backend complete
+- [x] 4. Checkpoint - Backend complete
   - Ensure all backend tests pass
   - Run `pytest backend/tests/` to verify
   - Ask the user if questions arise
 
-- [ ] 5. Add frontend API client functions
-  - [ ] 5.1 Add TypeScript types to `frontend/src/types/index.ts`
+- [x] 5. Add frontend API client functions
+  - [x] 5.1 Add TypeScript types to `frontend/src/types/index.ts`
     - Add `IndexableItems` interface
     - Add `OyaignoreUpdateRequest` interface
     - Add `OyaignoreUpdateResponse` interface
     - _Requirements: 7.6, 8.1_
-  - [ ] 5.2 Add API functions to `frontend/src/api/client.ts`
+  - [x] 5.2 Add API functions to `frontend/src/api/client.ts`
     - Add `getIndexableItems()` function
     - Add `updateOyaignore()` function
     - _Requirements: 7.1, 8.1_

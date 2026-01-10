@@ -13,6 +13,9 @@ import type {
   WorkspaceSwitchResponse,
   DirectoryListing,
   GenerationStatus,
+  IndexableItems,
+  OyaignoreUpdateRequest,
+  OyaignoreUpdateResponse,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -63,6 +66,17 @@ export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResp
 export async function listDirectories(path?: string): Promise<DirectoryListing> {
   const params = path ? `?path=${encodeURIComponent(path)}` : '';
   return fetchJson<DirectoryListing>(`/api/repos/directories${params}`);
+}
+
+export async function getIndexableItems(): Promise<IndexableItems> {
+  return fetchJson<IndexableItems>('/api/repos/indexable');
+}
+
+export async function updateOyaignore(request: OyaignoreUpdateRequest): Promise<OyaignoreUpdateResponse> {
+  return fetchJson<OyaignoreUpdateResponse>('/api/repos/oyaignore', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
 }
 
 // Generation status endpoint

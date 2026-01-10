@@ -57,14 +57,25 @@ async def test_get_repo_status_returns_info(client, workspace):
     assert data["initialized"] is True
 
 
-async def test_post_repos_init_starts_generation(client, workspace):
+async def test_post_repos_init_starts_generation(client, workspace, monkeypatch):
     """POST /api/repos/init starts wiki generation job."""
+    # Mock the background task to prevent it from running after test cleanup
+    from unittest.mock import AsyncMock
+    from oya.api.routers import repos
+    
+    original_run_generation = repos._run_generation
+    mock_run_generation = AsyncMock()
+    monkeypatch.setattr(repos, "_run_generation", mock_run_generation)
+    
     response = await client.post("/api/repos/init")
 
     assert response.status_code == 202
     data = response.json()
     assert "job_id" in data
     assert data["job_id"] is not None
+    
+    # Verify the background task was scheduled (mock was called)
+    assert mock_run_generation.call_count == 1
 
 
 async def test_get_repo_status_not_initialized(client, tmp_path, monkeypatch):
@@ -976,7 +987,7 @@ class TestOyaignorePropertyTests:
                     json={"directories": new_dirs, "files": new_files}
                 )
         
-        response = asyncio.get_event_loop().run_until_complete(make_request())
+        response = asyncio.run(make_request())
         assert response.status_code == 200
         
         # Read the resulting file
@@ -1083,7 +1094,7 @@ class TestOyaignorePropertyTests:
                     json={"directories": [dir_to_exclude], "files": all_files}
                 )
         
-        response = asyncio.get_event_loop().run_until_complete(make_request())
+        response = asyncio.run(make_request())
         assert response.status_code == 200
         
         # Read the resulting file
@@ -1179,7 +1190,7 @@ class TestOyaignorePropertyTests:
                     json={"directories": new_dirs, "files": new_files}
                 )
         
-        response = asyncio.get_event_loop().run_until_complete(make_request())
+        response = asyncio.run(make_request())
         assert response.status_code == 200
         
         # Read the resulting file

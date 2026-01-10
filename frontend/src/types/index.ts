@@ -164,3 +164,22 @@ export interface GenerationStatus {
   status: 'incomplete';
   message: string;
 }
+
+// Indexing Preview Types
+export interface IndexableItems {
+  directories: string[];
+  files: string[];
+  total_directories: number;
+  total_files: number;
+}
+
+export interface OyaignoreUpdateRequest {
+  directories: string[];
+  files: string[];
+}
+
+export interface OyaignoreUpdateResponse {
+  added_directories: string[];
+  added_files: string[];
+  total_added: number;
+}
