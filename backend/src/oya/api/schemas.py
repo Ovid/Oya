@@ -4,6 +4,13 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class EmbeddingMetadata(BaseModel):
+    """Metadata about the embedding model used for indexing."""
+    provider: str
+    model: str
+    indexed_at: str
+
+
 class RepoStatus(BaseModel):
     """Repository status response."""
     path: str
@@ -14,6 +21,10 @@ class RepoStatus(BaseModel):
     is_docker: bool = False
     last_generation: datetime | None = None
     generation_status: str | None = None
+    embedding_metadata: EmbeddingMetadata | None = None
+    current_provider: str | None = None
+    current_model: str | None = None
+    embedding_mismatch: bool = False
 
 
 class JobCreated(BaseModel):

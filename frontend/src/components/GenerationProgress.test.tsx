@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { formatElapsedTime } from './GenerationProgress';
 
 /**
  * Tests for GenerationProgress phase ordering.
@@ -81,6 +82,27 @@ describe('GenerationProgress phase ordering', () => {
 
   it('should have 8 phases total', () => {
     expect(PHASE_ORDER).toHaveLength(8);
+  });
+});
+
+describe('formatElapsedTime', () => {
+  it('should format seconds under a minute', () => {
+    expect(formatElapsedTime(0)).toBe('0s');
+    expect(formatElapsedTime(1)).toBe('1s');
+    expect(formatElapsedTime(45)).toBe('45s');
+    expect(formatElapsedTime(59)).toBe('59s');
+  });
+
+  it('should format minutes and seconds', () => {
+    expect(formatElapsedTime(60)).toBe('1m 0s');
+    expect(formatElapsedTime(61)).toBe('1m 1s');
+    expect(formatElapsedTime(90)).toBe('1m 30s');
+    expect(formatElapsedTime(125)).toBe('2m 5s');
+  });
+
+  it('should handle larger values', () => {
+    expect(formatElapsedTime(3600)).toBe('60m 0s');
+    expect(formatElapsedTime(3661)).toBe('61m 1s');
   });
 });
 

@@ -2,22 +2,28 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { askQuestion } from '../api/client';
-import type { QAResponse, QAMode, Citation } from '../types';
+import type { QAResponse, QAMode, Citation, EmbeddingMetadata } from '../types';
 
 interface QADockProps {
   pageContext?: {
     page_type: string;
     slug: string;
   };
+  embeddingMetadata?: EmbeddingMetadata | null;
+  embeddingMismatch?: boolean;
+  currentProvider?: string | null;
+  currentModel?: string | null;
 }
 
-export function QADock({ pageContext }: QADockProps) {
+export function QADock({ pageContext, embeddingMetadata, embeddingMismatch, currentProvider, currentModel }: QADockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [question, setQuestion] = useState('');
   const [mode, setMode] = useState<QAMode>('gated');
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<QAResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const isDisabled = embeddingMismatch || !embeddingMetadata;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,66 +72,97 @@ export function QADock({ pageContext }: QADockProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
         </svg>
         <span className="text-gray-600 dark:text-gray-400 text-sm">
-          Ask about this codebase...
+          {isDisabled ? 'Q&A unavailable' : 'Ask about this codebase...'}
         </span>
         <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
-          <span className={mode === 'gated' ? 'text-green-600' : 'text-yellow-600'}>
-            {mode === 'gated' ? 'Evidence-gated' : 'Loose mode'}
-          </span>
+          {isDisabled ? (
+            <span className="text-red-600">
+              {embeddingMismatch ? 'Model mismatch' : 'Not indexed'}
+            </span>
+          ) : (
+            <span className={mode === 'gated' ? 'text-green-600' : 'text-yellow-600'}>
+              {mode === 'gated' ? 'Evidence-gated' : 'Loose mode'}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Expanded content */}
       {isExpanded && (
         <div className="max-h-80 overflow-y-auto">
-          {/* Mode toggle and input */}
-          <form onSubmit={handleSubmit} className="p-4">
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setMode('gated')}
-                className={`px-3 py-1 text-xs rounded ${
-                  mode === 'gated'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                Evidence-gated
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('loose')}
-                className={`px-3 py-1 text-xs rounded ${
-                  mode === 'loose'
-                    ? 'bg-yellow-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                Loose mode
-              </button>
+          {/* Disabled state message */}
+          {isDisabled && (
+            <div className="p-4">
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
+                {embeddingMismatch ? (
+                  <>
+                    <p className="font-medium mb-1">Embedding model mismatch</p>
+                    <p>
+                      The index was created with {embeddingMetadata?.provider}/{embeddingMetadata?.model}, 
+                      but the current configuration uses {currentProvider}/{currentModel}.
+                    </p>
+                    <p className="mt-2">Regenerate the wiki to use Q&A with the current model.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium mb-1">Index not available</p>
+                    <p>Generate the wiki first to enable Q&A search.</p>
+                  </>
+                )}
+              </div>
             </div>
+          )}
 
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Ask a question about the codebase..."
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isLoading}
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !question.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Asking...' : 'Ask'}
-              </button>
-            </div>
-          </form>
+          {/* Mode toggle and input */}
+          {!isDisabled && (
+            <form onSubmit={handleSubmit} className="p-4">
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setMode('gated')}
+                  className={`px-3 py-1 text-xs rounded ${
+                    mode === 'gated'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Evidence-gated
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('loose')}
+                  className={`px-3 py-1 text-xs rounded ${
+                    mode === 'loose'
+                      ? 'bg-yellow-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Loose mode
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="Ask a question about the codebase..."
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading || !question.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? 'Asking...' : 'Ask'}
+                </button>
+              </div>
+            </form>
+          )}
 
           {/* Error message */}
-          {error && (
+          {!isDisabled && error && (
             <div className="px-4 pb-4">
               <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
                 {error}
@@ -134,7 +171,7 @@ export function QADock({ pageContext }: QADockProps) {
           )}
 
           {/* Response */}
-          {response && (
+          {!isDisabled && response && (
             <div className="px-4 pb-4">
               {/* Disclaimer */}
               <div className={`p-2 mb-3 rounded text-xs ${

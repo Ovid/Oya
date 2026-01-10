@@ -9,6 +9,7 @@
     - Prompt injections!
     * Auto-create .oyaignore with appropriate files (not done: too many
       programming languages, so not done yet. Do it for popular languages?)
+* Constants into config file (not .env)
 * Allow optional web search? Might pull in more context. Might pull in a mess.
 * Where to put .oyawiki if not using current repo? Currently puts the docs in
   that repo.

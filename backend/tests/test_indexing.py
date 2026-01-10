@@ -222,6 +222,117 @@ class TestContentIndexing:
 
 
 
+class TestEmbeddingMetadata:
+    """Tests for embedding model metadata tracking."""
+
+    @pytest.fixture
+    def temp_db(self, tmp_path):
+        """Create a temporary database with FTS table."""
+        db_path = tmp_path / "test.db"
+        db = Database(db_path)
+        db.executescript("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
+                content,
+                title,
+                path,
+                type,
+                content_rowid UNINDEXED
+            );
+        """)
+        db.commit()
+        return db
+
+    @pytest.fixture
+    def temp_vectorstore(self, tmp_path):
+        """Create a temporary vector store."""
+        index_path = tmp_path / "index"
+        index_path.mkdir()
+        return VectorStore(index_path)
+
+    @pytest.fixture
+    def sample_wiki_content(self, tmp_path):
+        """Create sample wiki content files."""
+        wiki_path = tmp_path / "wiki"
+        wiki_path.mkdir()
+        overview = wiki_path / "overview.md"
+        overview.write_text("# Project Overview\n\nThis is a sample project.")
+        return wiki_path
+
+    def test_indexing_saves_embedding_metadata(
+        self, temp_vectorstore, temp_db, sample_wiki_content, tmp_path
+    ):
+        """Indexing saves the provider and model used for embeddings."""
+        from oya.indexing.service import IndexingService
+
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir()
+
+        service = IndexingService(
+            vectorstore=temp_vectorstore,
+            db=temp_db,
+            wiki_path=sample_wiki_content,
+            meta_path=meta_path,
+        )
+
+        # Index with specific provider/model
+        service.index_wiki_pages(
+            embedding_provider="openai",
+            embedding_model="text-embedding-3-small",
+        )
+
+        # Metadata should be saved
+        metadata = service.get_embedding_metadata()
+        assert metadata is not None
+        assert metadata["provider"] == "openai"
+        assert metadata["model"] == "text-embedding-3-small"
+
+    def test_get_embedding_metadata_returns_none_when_not_indexed(
+        self, temp_vectorstore, temp_db, tmp_path
+    ):
+        """Returns None when no indexing has been done."""
+        from oya.indexing.service import IndexingService
+
+        wiki_path = tmp_path / "wiki"
+        wiki_path.mkdir()
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir()
+
+        service = IndexingService(
+            vectorstore=temp_vectorstore,
+            db=temp_db,
+            wiki_path=wiki_path,
+            meta_path=meta_path,
+        )
+
+        metadata = service.get_embedding_metadata()
+        assert metadata is None
+
+    def test_clear_index_removes_embedding_metadata(
+        self, temp_vectorstore, temp_db, sample_wiki_content, tmp_path
+    ):
+        """Clearing the index also removes embedding metadata."""
+        from oya.indexing.service import IndexingService
+
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir()
+
+        service = IndexingService(
+            vectorstore=temp_vectorstore,
+            db=temp_db,
+            wiki_path=sample_wiki_content,
+            meta_path=meta_path,
+        )
+
+        service.index_wiki_pages(
+            embedding_provider="openai",
+            embedding_model="text-embedding-3-small",
+        )
+        assert service.get_embedding_metadata() is not None
+
+        service.clear_index()
+        assert service.get_embedding_metadata() is None
+
+
 class TestIndexingIntegration:
     """Tests for indexing integration with generation pipeline."""
 

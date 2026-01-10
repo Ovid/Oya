@@ -81,8 +81,14 @@ _db_instance: Database | None = None
 def get_db() -> Database:
     """Get database connection with migrations applied."""
     global _db_instance
+    settings = get_settings()
+    
+    # Check if cached connection is stale (db file was deleted)
+    if _db_instance is not None and not settings.db_path.exists():
+        _db_instance.close()
+        _db_instance = None
+    
     if _db_instance is None:
-        settings = get_settings()
         _db_instance = Database(settings.db_path)
         run_migrations(_db_instance)
     return _db_instance

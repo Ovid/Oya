@@ -10,7 +10,7 @@ interface PageLoaderProps {
 }
 
 export function PageLoader({ loadPage }: PageLoaderProps) {
-  const { dispatch, startGeneration, refreshTree, state } = useApp();
+  const { dispatch, startGeneration, refreshTree, refreshStatus, state } = useApp();
   const [page, setPage] = useState<WikiPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +67,9 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     setGeneratingJobId(null);
     // Clear the current job from global state
     dispatch({ type: 'SET_CURRENT_JOB', payload: null });
-    // Refresh the wiki tree and reload the page
+    // Refresh the wiki tree, repo status, and reload the page
     await refreshTree();
+    await refreshStatus();
     // Re-trigger page load
     setLoading(true);
     setNotFound(false);
@@ -85,7 +86,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     } finally {
       setLoading(false);
     }
-  }, [loadPage, dispatch, refreshTree]);
+  }, [loadPage, dispatch, refreshTree, refreshStatus]);
 
   const handleGenerationError = useCallback((errorMessage: string) => {
     setGeneratingJobId(null);

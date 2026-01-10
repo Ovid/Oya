@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { ProgressEvent } from '../types';
 import { streamJobProgress } from '../api/client';
+
+export function formatElapsedTime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
 
 interface GenerationProgressProps {
   jobId: string;
@@ -38,6 +45,8 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
   const [startTime] = useState<Date>(new Date());
   const [elapsed, setElapsed] = useState<number>(0);
   const [isComplete, setIsComplete] = useState<boolean>(false);
+  const [phaseElapsedTimes, setPhaseElapsedTimes] = useState<Record<string, number>>({});
+  const phaseStartTimesRef = useRef<Record<string, number>>({});
 
   // Update elapsed time every second
   useEffect(() => {
@@ -57,7 +66,22 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
           const phaseNum = parseInt(numStr, 10);
 
           if (phaseName) {
-            setCurrentPhase(phaseName);
+            setCurrentPhase((prevPhase) => {
+              // Record start time for new phase
+              if (!(phaseName in phaseStartTimesRef.current)) {
+                phaseStartTimesRef.current[phaseName] = Date.now();
+              }
+              
+              // When phase changes, record elapsed time for the previous phase
+              if (prevPhase !== 'starting' && prevPhase !== phaseName && prevPhase in phaseStartTimesRef.current) {
+                const elapsedForPhase = Math.floor((Date.now() - phaseStartTimesRef.current[prevPhase]) / 1000);
+                setPhaseElapsedTimes((prev) => ({
+                  ...prev,
+                  [prevPhase]: elapsedForPhase,
+                }));
+              }
+              return phaseName;
+            });
             setCurrentPhaseNum(phaseNum);
           }
         }
@@ -75,6 +99,17 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
         }
       },
       () => {
+        // Record elapsed time for the final phase on completion
+        setCurrentPhase((prevPhase) => {
+          if (prevPhase !== 'starting' && prevPhase in phaseStartTimesRef.current) {
+            const elapsedForPhase = Math.floor((Date.now() - phaseStartTimesRef.current[prevPhase]) / 1000);
+            setPhaseElapsedTimes((prev) => ({
+              ...prev,
+              [prevPhase]: elapsedForPhase,
+            }));
+          }
+          return prevPhase;
+        });
         setIsComplete(true);
         onComplete();
       },
@@ -200,6 +235,11 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
                       {info.name}
                     </span>
                   </div>
+                  {status === 'completed' && phaseElapsedTimes[phase] !== undefined && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {formatElapsedTime(phaseElapsedTimes[phase])}
+                    </span>
+                  )}
                 </li>
               );
             })}

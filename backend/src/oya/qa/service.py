@@ -264,8 +264,9 @@ Answer the question based only on the context provided. Include citations to spe
         Returns:
             Cleaned answer without citations block.
         """
-        # Remove [CITATIONS] section
-        cleaned = re.sub(r"\[CITATIONS\].*?(?:\n\n|$)", "", answer, flags=re.DOTALL | re.IGNORECASE)
+        # Remove [CITATIONS] section - match from [CITATIONS] to end of string
+        # since citations should always be at the end
+        cleaned = re.sub(r"\[CITATIONS\].*", "", answer, flags=re.DOTALL | re.IGNORECASE)
         return cleaned.strip()
 
     async def ask(self, request: QARequest) -> QAResponse:

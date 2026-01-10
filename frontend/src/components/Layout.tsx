@@ -51,7 +51,12 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Q&A Dock */}
-      <QADock />
+      <QADock
+        embeddingMetadata={state.repoStatus?.embedding_metadata}
+        embeddingMismatch={state.repoStatus?.embedding_mismatch}
+        currentProvider={state.repoStatus?.current_provider}
+        currentModel={state.repoStatus?.current_model}
+      />
 
       {/* Note Editor */}
       <NoteEditor

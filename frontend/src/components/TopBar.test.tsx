@@ -73,6 +73,10 @@ const mockRepoStatus: RepoStatus = {
   is_docker: false,
   last_generation: null,
   generation_status: null,
+  embedding_metadata: null,
+  current_provider: null,
+  current_model: null,
+  embedding_mismatch: false,
 };
 
 const mockWikiTree: WikiTree = {

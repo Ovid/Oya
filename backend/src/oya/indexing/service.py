@@ -1,11 +1,16 @@
 """Indexing service for wiki content into vector store and FTS."""
 
+import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from oya.db.connection import Database
 from oya.vectorstore.store import VectorStore
+
+
+EMBEDDING_METADATA_FILE = "embedding_metadata.json"
 
 
 class IndexingService:
@@ -14,6 +19,8 @@ class IndexingService:
     Indexes wiki pages into:
     - ChromaDB for semantic/vector search
     - SQLite FTS5 for full-text keyword search
+    
+    Also tracks embedding metadata (provider/model) to detect mismatches.
     """
 
     def __init__(
@@ -21,6 +28,7 @@ class IndexingService:
         vectorstore: VectorStore,
         db: Database,
         wiki_path: Path,
+        meta_path: Path | None = None,
     ) -> None:
         """Initialize indexing service.
         
@@ -28,13 +36,23 @@ class IndexingService:
             vectorstore: ChromaDB vector store for semantic search.
             db: SQLite database with FTS5 table.
             wiki_path: Path to wiki directory containing markdown files.
+            meta_path: Path to metadata directory for storing embedding info.
         """
         self._vectorstore = vectorstore
         self._db = db
         self._wiki_path = Path(wiki_path)
+        self._meta_path = Path(meta_path) if meta_path else None
 
-    def index_wiki_pages(self) -> int:
+    def index_wiki_pages(
+        self,
+        embedding_provider: str | None = None,
+        embedding_model: str | None = None,
+    ) -> int:
         """Index all wiki pages into vector store and FTS.
+        
+        Args:
+            embedding_provider: LLM provider used for embeddings (e.g., 'openai').
+            embedding_model: Model used for embeddings (e.g., 'text-embedding-3-small').
         
         Returns:
             Number of pages indexed.
@@ -87,6 +105,10 @@ class IndexingService:
                 metadatas=metadatas,
             )
         
+        # Save embedding metadata if provider/model specified
+        if embedding_provider and embedding_model and self._meta_path:
+            self._save_embedding_metadata(embedding_provider, embedding_model)
+        
         return indexed_count
 
     def clear_index(self) -> None:
@@ -97,6 +119,56 @@ class IndexingService:
         # Clear FTS table
         self._db.execute("DELETE FROM fts_content")
         self._db.commit()
+        
+        # Remove embedding metadata
+        self._remove_embedding_metadata()
+
+    def get_embedding_metadata(self) -> dict[str, Any] | None:
+        """Get the embedding metadata from the last indexing.
+        
+        Returns:
+            Dictionary with 'provider', 'model', and 'indexed_at' keys,
+            or None if no metadata exists.
+        """
+        if not self._meta_path:
+            return None
+        
+        metadata_file = self._meta_path / EMBEDDING_METADATA_FILE
+        if not metadata_file.exists():
+            return None
+        
+        try:
+            return json.loads(metadata_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def _save_embedding_metadata(self, provider: str, model: str) -> None:
+        """Save embedding metadata to file.
+        
+        Args:
+            provider: LLM provider used for embeddings.
+            model: Model used for embeddings.
+        """
+        if not self._meta_path:
+            return
+        
+        self._meta_path.mkdir(parents=True, exist_ok=True)
+        metadata = {
+            "provider": provider,
+            "model": model,
+            "indexed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        metadata_file = self._meta_path / EMBEDDING_METADATA_FILE
+        metadata_file.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+    def _remove_embedding_metadata(self) -> None:
+        """Remove embedding metadata file."""
+        if not self._meta_path:
+            return
+        
+        metadata_file = self._meta_path / EMBEDDING_METADATA_FILE
+        if metadata_file.exists():
+            metadata_file.unlink()
 
     def _extract_title(self, content: str, fallback: str) -> str:
         """Extract title from markdown H1 header.
