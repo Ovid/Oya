@@ -11,6 +11,7 @@ vi.mock('../api/client', () => ({
   listDirectories: vi.fn(),
   initRepo: vi.fn(),
   getJob: vi.fn(),
+  getIndexableItems: vi.fn(),
   ApiError: class ApiError extends Error {
     status: number;
     constructor(status: number, message: string) {
@@ -346,6 +347,88 @@ describe('TopBar with DirectoryPicker', () => {
       });
 
       confirmSpy.mockRestore();
+    });
+  });
+});
+
+
+describe('Preview Button', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus);
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree);
+    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing);
+    vi.mocked(api.getIndexableItems).mockResolvedValue({
+      directories: ['src', 'tests'],
+      files: ['src/main.ts', 'tests/test.ts'],
+      total_directories: 2,
+      total_files: 2,
+    });
+  });
+
+  it('renders Preview button when no generation is in progress', async () => {
+    renderTopBar();
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    // Preview button should be visible
+    expect(screen.getByRole('button', { name: /preview/i })).toBeInTheDocument();
+  });
+
+  it('disables Preview button during generation', async () => {
+    vi.mocked(api.getRepoStatus).mockResolvedValue({
+      ...mockRepoStatus,
+      initialized: false,
+    });
+    vi.mocked(api.initRepo).mockResolvedValue({
+      job_id: 'job-123',
+      status: 'pending',
+      message: 'Job created',
+    });
+    vi.mocked(api.getJob).mockResolvedValue({
+      job_id: 'job-123',
+      type: 'generation',
+      status: 'running',
+      started_at: null,
+      completed_at: null,
+      current_phase: null,
+      total_phases: null,
+      error_message: null,
+    });
+
+    renderTopBar();
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    // Start generation
+    const generateButton = screen.getByText('Generate Wiki');
+    await userEvent.click(generateButton);
+
+    // Preview button should be disabled
+    await waitFor(() => {
+      const previewButton = screen.getByRole('button', { name: /preview/i });
+      expect(previewButton).toBeDisabled();
+    });
+  });
+
+  it('opens IndexingPreviewModal when Preview button is clicked', async () => {
+    renderTopBar();
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    // Click Preview button
+    const previewButton = screen.getByRole('button', { name: /preview/i });
+    await userEvent.click(previewButton);
+
+    // Modal should be open
+    await waitFor(() => {
+      expect(screen.getByText('Indexing Preview')).toBeInTheDocument();
     });
   });
 });

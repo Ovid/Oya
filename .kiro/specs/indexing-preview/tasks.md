@@ -265,14 +265,14 @@ This implementation follows TDD (red/green/refactor) with a bottom-up approach: 
     - Make the tests pass
     - _Requirements: 6.1, 6.2, 6.3_
 
-- [ ] 7. Add Preview button to TopBar
-  - [ ] 7.1 RED: Write failing test for Preview button
+- [x] 7. Add Preview button to TopBar
+  - [x] 7.1 RED: Write failing test for Preview button
     - Create test in `frontend/src/components/TopBar.test.tsx`
     - Test button is visible when no generation in progress
     - Test button is disabled during generation
     - Test button click opens modal
     - _Requirements: 1.1, 1.2, 1.3_
-  - [ ] 7.2 GREEN: Update `frontend/src/components/TopBar.tsx`
+  - [x] 7.2 GREEN: Update `frontend/src/components/TopBar.tsx`
     - Add "Preview" button next to Generate Wiki/Regenerate button
     - Button opens IndexingPreviewModal
     - Disable button while generation is in progress
