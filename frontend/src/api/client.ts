@@ -98,6 +98,12 @@ export async function getJob(jobId: string): Promise<JobStatus> {
   return fetchJson<JobStatus>(`/api/jobs/${jobId}`);
 }
 
+export async function cancelJob(jobId: string): Promise<{ job_id: string; status: string; cancelled_at: string }> {
+  return fetchJson<{ job_id: string; status: string; cancelled_at: string }>(`/api/jobs/${jobId}/cancel`, {
+    method: 'POST',
+  });
+}
+
 // Search endpoint
 export async function search(query: string, type?: string): Promise<SearchResponse> {
   const params = new URLSearchParams({ q: query });
@@ -139,7 +145,8 @@ export function streamJobProgress(
   jobId: string,
   onProgress: (event: ProgressEvent) => void,
   onComplete: (event: ProgressEvent) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  onCancelled?: (event: ProgressEvent) => void
 ): () => void {
   const eventSource = new EventSource(`${API_BASE}/api/jobs/${jobId}/stream`);
 
@@ -151,6 +158,14 @@ export function streamJobProgress(
   eventSource.addEventListener('complete', (e) => {
     const data = JSON.parse(e.data) as ProgressEvent;
     onComplete(data);
+    eventSource.close();
+  });
+
+  eventSource.addEventListener('cancelled', (e) => {
+    const data = JSON.parse(e.data) as ProgressEvent;
+    if (onCancelled) {
+      onCancelled(data);
+    }
     eventSource.close();
   });
 

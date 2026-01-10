@@ -76,6 +76,41 @@ async def test_list_jobs(client, workspace_with_db):
     assert data[0]["job_id"] == "test-job-123"
 
 
+async def test_cancel_running_job(client, workspace_with_db):
+    """POST /api/jobs/{job_id}/cancel cancels a running job."""
+    response = await client.post("/api/jobs/test-job-123/cancel")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["job_id"] == "test-job-123"
+    assert data["status"] == "cancelled"
+    assert "cancelled_at" in data
+
+
+async def test_cancel_nonexistent_job_returns_404(client, workspace_with_db):
+    """POST /api/jobs/{nonexistent}/cancel returns 404."""
+    response = await client.post("/api/jobs/nonexistent-job/cancel")
+
+    assert response.status_code == 404
+
+
+async def test_cancel_completed_job_returns_400(client, workspace_with_db):
+    """POST /api/jobs/{completed}/cancel returns 400."""
+    # Insert a completed job
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO generations (id, type, status, started_at, completed_at)
+        VALUES ('completed-job', 'full', 'completed', datetime('now'), datetime('now'))
+        """
+    )
+    db.commit()
+
+    response = await client.post("/api/jobs/completed-job/cancel")
+
+    assert response.status_code == 400
+
+
 class TestPhaseOrderConsistency:
     """Tests to ensure backend phase order matches frontend expectations.
     

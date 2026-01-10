@@ -20,9 +20,17 @@ class JobStatus(BaseModel):
     status: str
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    cancelled_at: datetime | None = None
     current_phase: str | None = None
     total_phases: int | None = None
     error_message: str | None = None
+
+
+class JobCancelled(BaseModel):
+    """Job cancellation response."""
+    job_id: str
+    status: str
+    cancelled_at: datetime
 
 
 @router.get("", response_model=list[JobStatus])
@@ -90,6 +98,44 @@ async def get_job(
     )
 
 
+@router.post("/{job_id}/cancel", response_model=JobCancelled)
+async def cancel_job(
+    job_id: str,
+    db: Database = Depends(get_db),
+) -> JobCancelled:
+    """Cancel a running job."""
+    cursor = db.execute(
+        "SELECT id, status FROM generations WHERE id = ?",
+        (job_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    if row["status"] not in ("pending", "running"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel job with status: {row['status']}"
+        )
+
+    # Update job status to cancelled
+    db.execute(
+        """
+        UPDATE generations
+        SET status = 'cancelled', completed_at = datetime('now')
+        WHERE id = ?
+        """,
+        (job_id,),
+    )
+    db.commit()
+
+    return JobCancelled(
+        job_id=job_id,
+        status="cancelled",
+        cancelled_at=datetime.now(),
+    )
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     """Parse SQLite datetime string."""
     if not value:
@@ -147,6 +193,9 @@ async def stream_job_progress(
             elif status == "failed":
                 event_data["error"] = row["error_message"]
                 yield f"event: error\ndata: {json.dumps(event_data)}\n\n"
+                break
+            elif status == "cancelled":
+                yield f"event: cancelled\ndata: {json.dumps(event_data)}\n\n"
                 break
             else:
                 yield f"event: progress\ndata: {json.dumps(event_data)}\n\n"
