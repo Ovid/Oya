@@ -137,116 +137,116 @@ This implementation follows TDD (red/green/refactor) with a bottom-up approach: 
     - Add `updateOyaignore()` function
     - _Requirements: 7.1, 8.1_
 
-- [ ] 6. Implement IndexingPreviewModal component
-  - [ ] 6.1 RED: Write failing test for modal open/close behavior
+- [x] 6. Implement IndexingPreviewModal component
+  - [x] 6.1 RED: Write failing test for modal open/close behavior
     - Create test in `frontend/src/components/IndexingPreviewModal.test.tsx`
     - Test modal opens when isOpen is true
     - Test modal closes when onClose is called
     - _Requirements: 1.2, 6.1, 6.2_
-  - [ ] 6.2 GREEN: Create basic `frontend/src/components/IndexingPreviewModal.tsx`
+  - [x] 6.2 GREEN: Create basic `frontend/src/components/IndexingPreviewModal.tsx`
     - Create modal component with Headless UI Dialog
     - Implement open/close behavior
     - Make the tests pass
     - _Requirements: 1.2, 6.1, 6.2_
-  - [ ] 6.3 RED: Write failing test for data fetching and display
+  - [x] 6.3 RED: Write failing test for data fetching and display
     - Test modal fetches data when opened
     - Test directories displayed above files
     - Test counts displayed correctly
     - _Requirements: 2.1, 2.5, 2.12_
-  - [ ] 6.4 GREEN: Implement data fetching and display
+  - [x] 6.4 GREEN: Implement data fetching and display
     - Add state for indexable items
     - Fetch data when modal opens
     - Display directories section above files section
     - Show total directories and files counts
     - Make the tests pass
     - _Requirements: 2.1, 2.5, 2.12_
-  - [ ] 6.5 RED: Write failing test for search filtering
+  - [x] 6.5 RED: Write failing test for search filtering
     - Test search input filters displayed items
     - Test filtering is case-insensitive
     - _Requirements: 2.10, 2.11_
-  - [ ] 6.6 GREEN: Implement search filtering
+  - [x] 6.6 GREEN: Implement search filtering
     - Add search input at top of modal
     - Add state for search query
     - Filter displayed items by case-insensitive substring match on full path
     - Make the tests pass
     - _Requirements: 2.10, 2.11_
-  - [ ] 6.7 RED: Write failing property test for search filter correctness
+  - [x] 6.7 RED: Write failing property test for search filter correctness
     - **Property 4: Search Filter Correctness**
     - Generate random item lists and search queries
     - Verify filtered results contain only items with case-insensitive substring match
     - Verify all matching items are included in results
     - **Validates: Requirements 2.11**
-  - [ ] 6.8 GREEN: Ensure search filter property test passes
+  - [x] 6.8 GREEN: Ensure search filter property test passes
     - Verify search implementation satisfies property
     - _Requirements: 2.11_
-  - [ ] 6.9 RED: Write failing test for directory exclusion checkbox
+  - [x] 6.9 RED: Write failing test for directory exclusion checkbox
     - Test checkbox toggles directory exclusion state
     - Test files within excluded directory are hidden
     - _Requirements: 3.1, 3.2_
-  - [ ] 6.10 GREEN: Implement directory exclusion logic
+  - [x] 6.10 GREEN: Implement directory exclusion logic
     - Checkbox for each directory
     - Add state for pending exclusions
     - When checked, hide files within that directory from display
     - Make the tests pass
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
-  - [ ] 6.11 RED: Write failing property test for directory exclusion hiding child files
+  - [x] 6.11 RED: Write failing property test for directory exclusion hiding child files
     - **Property 6: Directory Exclusion Hides Child Files**
     - Generate random directory structures
     - Verify all files whose path starts with excluded directory path + "/" are hidden
     - **Validates: Requirements 3.2, 3.4**
-  - [ ] 6.12 GREEN: Ensure directory exclusion property test passes
+  - [x] 6.12 GREEN: Ensure directory exclusion property test passes
     - Verify all child files are hidden when directory is excluded
     - _Requirements: 3.2, 3.4_
-  - [ ] 6.13 RED: Write failing property test for directory toggle round-trip
+  - [x] 6.13 RED: Write failing property test for directory toggle round-trip
     - **Property 7: Directory Toggle Round-Trip**
     - Generate random initial states
     - Check then uncheck directory, verify files list restored to original state
     - **Validates: Requirements 3.3**
-  - [ ] 6.14 GREEN: Implement directory uncheck restores files
+  - [x] 6.14 GREEN: Implement directory uncheck restores files
     - When unchecked, restore files to display
     - Make the property test pass
     - _Requirements: 3.3_
-  - [ ] 6.15 RED: Write failing test for clearing child file exclusions
-    - Test that checking a directory clears pending file exclusions within it
-    - _Requirements: 3.5_
-  - [ ] 6.16 GREEN: Implement clearing child file exclusions
-    - When directory checked, clear any pending file exclusions within that directory
-    - Make the test pass
-    - _Requirements: 3.5_
-  - [ ] 6.17 RED: Write failing property test for directory check clearing child file exclusions
-    - **Property 8: Directory Check Clears Child File Exclusions**
-    - Generate random file exclusions, then check parent directory
-    - Verify pending file exclusions within that directory are removed
-    - **Validates: Requirements 3.5**
-  - [ ] 6.18 GREEN: Ensure property test passes
-    - Verify implementation clears child file exclusions
-    - _Requirements: 3.5_
-  - [ ] 6.19 RED: Write failing test for file exclusion checkbox
+  - [x] 6.19 RED: Write failing test for file exclusion checkbox
     - Test checkbox toggles file exclusion state
     - Test file checkbox only shown if parent directory not excluded
     - _Requirements: 4.1, 4.2_
-  - [ ] 6.20 GREEN: Implement file exclusion logic
+  - [x] 6.20 GREEN: Implement file exclusion logic
     - Checkbox for each file (only shown if parent directory not excluded)
     - Allow excluding individual files when their parent directory is not excluded
     - Visual indication of exclusion state (strikethrough or similar)
     - Make the tests pass
     - _Requirements: 4.1, 4.2, 4.3_
-  - [ ] 6.21 RED: Write failing property test for count accuracy
+  - [x] 6.15 RED: Write failing test for clearing child file exclusions
+    - Test that checking a directory clears pending file exclusions within it
+    - _Requirements: 3.5_
+  - [x] 6.16 GREEN: Implement clearing child file exclusions
+    - When directory checked, clear any pending file exclusions within that directory
+    - Make the test pass
+    - _Requirements: 3.5_
+  - [x] 6.17 RED: Write failing property test for directory check clearing child file exclusions
+    - **Property 8: Directory Check Clears Child File Exclusions**
+    - Generate random file exclusions, then check parent directory
+    - Verify pending file exclusions within that directory are removed
+    - **Validates: Requirements 3.5**
+  - [x] 6.18 GREEN: Ensure property test passes
+    - Verify implementation clears child file exclusions
+    - _Requirements: 3.5_
+  - [x] 6.21 RED: Write failing property test for count accuracy
     - **Property 5: Count Accuracy After Exclusions**
     - Generate random initial sets of directories and files with random exclusions
     - Verify displayed counts equal total items minus excluded items
     - Account for files hidden by directory exclusions
     - **Validates: Requirements 2.13**
-  - [ ] 6.22 GREEN: Implement count updates on exclusion
+  - [x] 6.22 GREEN: Implement count updates on exclusion
     - Update counts when items are excluded
     - Make the property test pass
     - _Requirements: 2.13_
-  - [ ] 6.23 RED: Write failing test for save with confirmation
+  - [x] 6.23 RED: Write failing test for save with confirmation
     - Test save button triggers confirmation dialog
     - Test confirmation shows summary of exclusions
     - Test confirm calls API and closes modal
     - _Requirements: 5.1, 5.5, 5.7, 5.8_
-  - [ ] 6.24 GREEN: Implement save with confirmation
+  - [x] 6.24 GREEN: Implement save with confirmation
     - Create reusable ConfirmationDialog component (or reuse existing if available)
     - Save button triggers confirmation dialog
     - Confirmation shows summary of exclusions to be added
@@ -254,11 +254,11 @@ This implementation follows TDD (red/green/refactor) with a bottom-up approach: 
     - On success, close modal
     - Make the tests pass
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.7, 5.8_
-  - [ ] 6.25 RED: Write failing test for cancel/discard behavior
+  - [x] 6.25 RED: Write failing test for cancel/discard behavior
     - Test cancel button closes modal without saving
     - Test click outside modal closes without saving
     - _Requirements: 6.1, 6.2, 6.3_
-  - [ ] 6.26 GREEN: Implement cancel/discard behavior
+  - [x] 6.26 GREEN: Implement cancel/discard behavior
     - Cancel button closes modal without saving
     - Click outside modal closes without saving
     - Pending exclusions discarded on close

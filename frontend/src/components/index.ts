@@ -8,3 +8,4 @@ export { QADock } from './QADock';
 export { NoteEditor } from './NoteEditor';
 export { DirectoryPicker } from './DirectoryPicker';
 export { InterruptedGenerationBanner } from './InterruptedGenerationBanner';
+export { IndexingPreviewModal } from './IndexingPreviewModal';
