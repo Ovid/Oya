@@ -1,13 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { ProgressEvent } from '../types';
 import { streamJobProgress, cancelJob } from '../api/client';
-
-export function formatElapsedTime(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-}
+import { formatElapsedTime, PHASES, PHASE_ORDER } from './generationConstants';
 
 interface GenerationProgressProps {
   jobId: string;
@@ -15,27 +9,6 @@ interface GenerationProgressProps {
   onError: (error: string) => void;
   onCancelled?: () => void;
 }
-
-interface PhaseInfo {
-  name: string;
-  description: string;
-}
-
-export const PHASES: Record<string, PhaseInfo> = {
-  'starting': { name: 'Starting', description: 'Initializing generation...' },
-  'analysis': { name: 'Analysis', description: 'Scanning repository and parsing code...' },
-  'files': { name: 'Files', description: 'Generating file-level documentation...' },
-  'directories': { name: 'Directories', description: 'Generating directory documentation...' },
-  'synthesis': { name: 'Synthesis', description: 'Synthesizing codebase understanding...' },
-  'architecture': { name: 'Architecture', description: 'Analyzing and documenting architecture...' },
-  'overview': { name: 'Overview', description: 'Generating project overview page...' },
-  'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
-  'indexing': { name: 'Indexing', description: 'Indexing content for search and Q&A...' },
-};
-
-// Ordered list of phases for progress display (bottom-up approach)
-// Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
-export const PHASE_ORDER = ['analysis', 'files', 'directories', 'synthesis', 'architecture', 'overview', 'workflows', 'indexing'];
 
 export function GenerationProgress({ jobId, onComplete, onError, onCancelled }: GenerationProgressProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('starting');

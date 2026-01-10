@@ -47,14 +47,15 @@ beforeEach(() => {
 
 // Dynamic import to ensure mocks are set up first
 let AppProvider: typeof import('./AppContext').AppProvider;
-let useApp: typeof import('./AppContext').useApp;
+let useApp: typeof import('./useApp').useApp;
 let api: typeof import('../api/client');
 
 beforeEach(async () => {
   vi.resetModules();
   const appContextModule = await import('./AppContext');
   AppProvider = appContextModule.AppProvider;
-  useApp = appContextModule.useApp;
+  const useAppModule = await import('./useApp');
+  useApp = useAppModule.useApp;
   api = await import('../api/client');
   vi.clearAllMocks();
 });

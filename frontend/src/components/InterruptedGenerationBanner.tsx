@@ -1,4 +1,4 @@
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/useApp';
 
 export function InterruptedGenerationBanner() {
   const { state, dismissGenerationStatus, startGeneration } = useApp();

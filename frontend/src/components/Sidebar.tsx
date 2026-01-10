@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/useApp';
 import { Disclosure } from '@headlessui/react';
 
 // Common file extensions - used to identify where the extension starts in a slug

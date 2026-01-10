@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
+import { createContext, useReducer, useEffect, type ReactNode } from 'react';
 import type { RepoStatus, WikiTree, WikiPage, JobStatus, NoteScope, GenerationStatus } from '../types';
 import * as api from '../api/client';
 
@@ -117,6 +117,8 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+export { AppContext };
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
@@ -124,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const status = await api.getRepoStatus();
       dispatch({ type: 'SET_REPO_STATUS', payload: status });
-    } catch (err) {
+    } catch {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to fetch repo status' });
     }
   };
@@ -150,7 +152,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_CURRENT_JOB', payload: job });
 
       return result.job_id;
-    } catch (err) {
+    } catch {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to start generation' });
       return null;
     } finally {
@@ -269,12 +271,4 @@ export function AppProvider({ children }: { children: ReactNode }) {
       {children}
     </AppContext.Provider>
   );
-}
-
-export function useApp() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within AppProvider');
-  }
-  return context;
 }

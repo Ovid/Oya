@@ -29,3 +29,4 @@ htmlcov/
 # Oya files
 .env
 .oyawiki/meta
+.oyawiki-building/

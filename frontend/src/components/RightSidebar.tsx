@@ -1,4 +1,4 @@
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/useApp';
 
 function formatLastBuilt(isoString: string): string {
   // Backend stores UTC timestamps without 'Z' suffix, so append it

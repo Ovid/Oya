@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { WikiPage } from '../types';
 import { WikiContent } from './WikiContent';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/useApp';
 import { ApiError } from '../api/client';
 import { GenerationProgress } from './GenerationProgress';
 

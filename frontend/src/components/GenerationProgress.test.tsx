@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatElapsedTime } from './GenerationProgress';
+import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants';
 
 /**
  * Tests for GenerationProgress phase ordering.
@@ -35,10 +35,6 @@ const EXPECTED_PHASES = {
   'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
   'indexing': { name: 'Indexing', description: 'Indexing content for search and Q&A...' },
 };
-
-// Import the actual constants from the component
-// We re-declare them here to test against expected values
-import { PHASE_ORDER, PHASES } from './GenerationProgress';
 
 describe('GenerationProgress phase ordering', () => {
   it('should have phases in bottom-up order (files before architecture/overview)', () => {

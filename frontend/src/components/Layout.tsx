@@ -5,7 +5,7 @@ import { RightSidebar } from './RightSidebar';
 import { QADock } from './QADock';
 import { NoteEditor } from './NoteEditor';
 import { InterruptedGenerationBanner } from './InterruptedGenerationBanner';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/useApp';
 
 interface LayoutProps {
   children: ReactNode;
