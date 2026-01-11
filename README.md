@@ -2,6 +2,8 @@
 
 A local-first, editable wiki generator for codebases. Ọya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
 
+![Know Your Code](images/oya.png)
+
 # ALPHA CODE!
 
 This is not suitable for production.
@@ -21,6 +23,8 @@ Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
 - **Human Corrections** - Add notes to fix AI mistakes; corrections are treated as ground truth in regeneration
 - **Local-First** - All data stays in your repo under `.oyawiki/`
 - **Multi-Provider LLM Support** - Works with OpenAI, Anthropic, Google, or local Ollama
+
+![Analyzing Codebase](images/analyzing-codebase.png)
 
 ## Quick Start
 
