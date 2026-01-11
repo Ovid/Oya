@@ -467,6 +467,7 @@ async def _run_generation(
             model=settings.llm_model,
             api_key=settings.llm_api_key,
             endpoint=settings.llm_endpoint,
+            log_path=settings.llm_log_path,
         )
         orchestrator = GenerationOrchestrator(
             llm_client=llm,

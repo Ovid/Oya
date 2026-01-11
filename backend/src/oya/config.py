@@ -89,6 +89,11 @@ class Settings:
         return self.oyawiki_path / "meta" / "chroma"
 
     @property
+    def llm_log_path(self) -> Path:
+        """Path to LLM query log file."""
+        return self.oyawiki_path / "meta" / "llm-queries.jsonl"
+
+    @property
     def llm_provider(self) -> str:
         """LLM provider name."""
         return self.active_provider

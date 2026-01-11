@@ -1,6 +1,11 @@
 # backend/src/oya/llm/client.py
 """LiteLLM-based LLM client."""
 
+import json
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
 from litellm import acompletion
 from litellm.exceptions import (
     APIConnectionError,
@@ -43,6 +48,7 @@ class LLMClient:
         model: str,
         api_key: str | None = None,
         endpoint: str | None = None,
+        log_path: Path | None = None,
     ):
         """Initialize LLM client.
 
@@ -51,11 +57,60 @@ class LLMClient:
             model: Model name.
             api_key: Optional API key (uses env var if not provided).
             endpoint: Optional custom endpoint (for Ollama).
+            log_path: Optional path to JSONL log file for query logging.
         """
         self.provider = provider
         self.model = model
         self.api_key = api_key
         self.endpoint = endpoint
+        self.log_path = log_path
+
+    def _log_query(
+        self,
+        system_prompt: str | None,
+        prompt: str,
+        temperature: float,
+        max_tokens: int,
+        response: str | None,
+        duration_ms: int,
+        error: str | None,
+    ) -> None:
+        """Log a query to the JSONL log file.
+
+        Args:
+            system_prompt: System prompt used.
+            prompt: User prompt.
+            temperature: Temperature setting.
+            max_tokens: Max tokens setting.
+            response: Response text (None if error).
+            duration_ms: Request duration in milliseconds.
+            error: Error message (None if success).
+        """
+        if not self.log_path:
+            return
+
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "provider": self.provider,
+            "model": self.model,
+            "request": {
+                "system_prompt": system_prompt,
+                "prompt": prompt,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            "response": response,
+            "duration_ms": duration_ms,
+            "error": error,
+        }
+
+        try:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception:
+            # Don't let logging failures break the application
+            pass
 
     def _get_model_string(self) -> str:
         """Get LiteLLM model string.
@@ -108,16 +163,43 @@ class LLMClient:
         if self.endpoint and self.provider == "ollama":
             kwargs["api_base"] = self.endpoint
 
+        start_time = time.perf_counter()
         try:
             response = await acompletion(**kwargs)
-            return response.choices[0].message.content
+            result = response.choices[0].message.content
+            duration_ms = int((time.perf_counter() - start_time) * 1000)
+            self._log_query(
+                system_prompt, prompt, temperature, max_tokens,
+                response=result, duration_ms=duration_ms, error=None
+            )
+            return result
         except AuthenticationError as e:
+            duration_ms = int((time.perf_counter() - start_time) * 1000)
+            self._log_query(
+                system_prompt, prompt, temperature, max_tokens,
+                response=None, duration_ms=duration_ms, error=str(e)
+            )
             raise LLMAuthenticationError(f"Authentication failed: {e}") from e
         except RateLimitError as e:
+            duration_ms = int((time.perf_counter() - start_time) * 1000)
+            self._log_query(
+                system_prompt, prompt, temperature, max_tokens,
+                response=None, duration_ms=duration_ms, error=str(e)
+            )
             raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
         except APIConnectionError as e:
+            duration_ms = int((time.perf_counter() - start_time) * 1000)
+            self._log_query(
+                system_prompt, prompt, temperature, max_tokens,
+                response=None, duration_ms=duration_ms, error=str(e)
+            )
             raise LLMConnectionError(f"Connection failed: {e}") from e
         except APIError as e:
+            duration_ms = int((time.perf_counter() - start_time) * 1000)
+            self._log_query(
+                system_prompt, prompt, temperature, max_tokens,
+                response=None, duration_ms=duration_ms, error=str(e)
+            )
             raise LLMError(f"LLM API error: {e}") from e
 
     async def generate_with_json(

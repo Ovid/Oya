@@ -1,9 +1,10 @@
 # TODO
 
-* Before generating:
-    - Preview directories and files so you can see what will be indexed and
-      what should be in .oyaignore
-    - Offer explanation of codebase, if needed, to help guide AI
+* faa427b - (HEAD -> ovid/fix-missing-spec-issues) Move .oyaignore back to
+  root directory (15 hours ago) <Ovid>
+* b6d4122 - If we delete .oyawiki while server is running, it dies on
+  rebuild due to bad db connection (16 hours ago) <Ovid>
+
 * Interface:
     - Templates
     - Need left and right search areas to be "widenable" so I can see more
@@ -37,3 +38,7 @@
     - Files: file hasn't changed (unless a new note is applied)
     - Directories: directory contents haven't changed (same number of files and all files in it unchanged)
 * Where's my dark mode?
+* Before generating:
+    - Preview directories and files so you can see what will be indexed and
+      what should be in .oyaignore
+    - Offer explanation of codebase, if needed, to help guide AI
