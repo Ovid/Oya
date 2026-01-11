@@ -515,10 +515,8 @@ async def _run_generation(
             progress_callback=indexing_progress_callback,
         )
 
-        # SUCCESS: Promote staging to production
-        promote_staging_to_production(staging_path, settings.oyawiki_path)
-
-        # Update status to completed
+        # Update status to completed BEFORE promoting staging
+        # (promotion deletes .oyawiki which contains the database file)
         db.execute(
             """
             UPDATE generations
@@ -528,6 +526,9 @@ async def _run_generation(
             (job_id,),
         )
         db.commit()
+
+        # SUCCESS: Promote staging to production
+        promote_staging_to_production(staging_path, settings.oyawiki_path)
 
     except Exception as e:
         # FAILURE: Leave staging directory for debugging
