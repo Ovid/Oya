@@ -19,6 +19,7 @@ class Settings:
 
     Attributes:
         workspace_path: Root path to the mounted repository/workspace
+        workspace_display_path: Human-readable path to display (for Docker environments)
         active_provider: LLM provider to use (openai, anthropic, google, ollama)
         active_model: Model identifier for the active provider
         openai_api_key: OpenAI API key (optional)
@@ -31,6 +32,7 @@ class Settings:
     """
 
     workspace_path: Path
+    workspace_display_path: Optional[str] = None
     active_provider: str = "ollama"
     active_model: str = "llama2"
     openai_api_key: Optional[str] = None
@@ -42,9 +44,19 @@ class Settings:
     chunk_size: int = 4096
 
     @property
+    def display_path(self) -> str:
+        """Path to display to users (uses workspace_display_path if set, otherwise workspace_path)."""
+        return self.workspace_display_path or str(self.workspace_path)
+
+    @property
     def oyawiki_path(self) -> Path:
         """Path to .oyawiki directory."""
         return self.workspace_path / ".oyawiki"
+
+    @property
+    def staging_path(self) -> Path:
+        """Path to .oyawiki-building staging directory."""
+        return self.workspace_path / ".oyawiki-building"
 
     @property
     def wiki_path(self) -> Path:
@@ -75,6 +87,14 @@ class Settings:
     def chroma_path(self) -> Path:
         """Path to ChromaDB vector store directory."""
         return self.oyawiki_path / "meta" / "chroma"
+
+    @property
+    def llm_log_path(self) -> Path:
+        """Path to LLM query log file.
+
+        Stored outside .oyawiki so logs aren't affected by staging/promotion.
+        """
+        return self.workspace_path / ".oya-logs" / "llm-queries.jsonl"
 
     @property
     def llm_provider(self) -> str:
@@ -171,6 +191,7 @@ def load_settings() -> Settings:
 
     return Settings(
         workspace_path=workspace_path,
+        workspace_display_path=os.getenv("WORKSPACE_DISPLAY_PATH"),
         active_provider=active_provider,
         active_model=active_model,
         openai_api_key=os.getenv("OPENAI_API_KEY"),

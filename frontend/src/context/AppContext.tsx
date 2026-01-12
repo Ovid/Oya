@@ -1,9 +1,10 @@
-import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
-import type { RepoStatus, WikiTree, WikiPage, JobStatus, NoteScope } from '../types';
+import { createContext, useReducer, useEffect, type ReactNode } from 'react';
+import type { RepoStatus, WikiTree, WikiPage, JobStatus, NoteScope, GenerationStatus } from '../types';
 import * as api from '../api/client';
 
 interface NoteEditorState {
   isOpen: boolean;
+  isDirty: boolean;
   defaultScope: NoteScope;
   defaultTarget: string;
 }
@@ -16,6 +17,8 @@ interface AppState {
   isLoading: boolean;
   error: string | null;
   noteEditor: NoteEditorState;
+  darkMode: boolean;
+  generationStatus: GenerationStatus | null;
 }
 
 type Action =
@@ -26,7 +29,17 @@ type Action =
   | { type: 'SET_CURRENT_PAGE'; payload: WikiPage | null }
   | { type: 'SET_CURRENT_JOB'; payload: JobStatus | null }
   | { type: 'OPEN_NOTE_EDITOR'; payload: { scope: NoteScope; target: string } }
-  | { type: 'CLOSE_NOTE_EDITOR' };
+  | { type: 'CLOSE_NOTE_EDITOR' }
+  | { type: 'SET_NOTE_EDITOR_DIRTY'; payload: boolean }
+  | { type: 'SET_DARK_MODE'; payload: boolean }
+  | { type: 'SET_GENERATION_STATUS'; payload: GenerationStatus | null };
+
+function getInitialDarkMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  const stored = localStorage.getItem('oya-dark-mode');
+  if (stored !== null) return stored === 'true';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
 
 const initialState: AppState = {
   repoStatus: null,
@@ -37,9 +50,12 @@ const initialState: AppState = {
   error: null,
   noteEditor: {
     isOpen: false,
+    isDirty: false,
     defaultScope: 'general',
     defaultTarget: '',
   },
+  darkMode: getInitialDarkMode(),
+  generationStatus: null,
 };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -60,6 +76,7 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         noteEditor: {
+          ...state.noteEditor,
           isOpen: true,
           defaultScope: action.payload.scope,
           defaultTarget: action.payload.target,
@@ -68,8 +85,17 @@ function appReducer(state: AppState, action: Action): AppState {
     case 'CLOSE_NOTE_EDITOR':
       return {
         ...state,
-        noteEditor: { ...state.noteEditor, isOpen: false },
+        noteEditor: { ...state.noteEditor, isOpen: false, isDirty: false },
       };
+    case 'SET_NOTE_EDITOR_DIRTY':
+      return {
+        ...state,
+        noteEditor: { ...state.noteEditor, isDirty: action.payload },
+      };
+    case 'SET_DARK_MODE':
+      return { ...state, darkMode: action.payload };
+    case 'SET_GENERATION_STATUS':
+      return { ...state, generationStatus: action.payload };
     default:
       return state;
   }
@@ -83,9 +109,15 @@ interface AppContextValue {
   startGeneration: () => Promise<string | null>;
   openNoteEditor: (scope?: NoteScope, target?: string) => void;
   closeNoteEditor: () => void;
+  toggleDarkMode: () => void;
+  switchWorkspace: (path: string) => Promise<void>;
+  setNoteEditorDirty: (isDirty: boolean) => void;
+  dismissGenerationStatus: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+export { AppContext };
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
@@ -94,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const status = await api.getRepoStatus();
       dispatch({ type: 'SET_REPO_STATUS', payload: status });
-    } catch (err) {
+    } catch {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to fetch repo status' });
     }
   };
@@ -111,6 +143,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const startGeneration = async (): Promise<string | null> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      // Clear any previous interrupted status when starting a new generation
+      dispatch({ type: 'SET_GENERATION_STATUS', payload: null });
       const result = await api.initRepo();
 
       // Start polling job status
@@ -118,7 +152,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_CURRENT_JOB', payload: job });
 
       return result.job_id;
-    } catch (err) {
+    } catch {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to start generation' });
       return null;
     } finally {
@@ -134,28 +168,107 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLOSE_NOTE_EDITOR' });
   };
 
+  const toggleDarkMode = () => {
+    const newValue = !state.darkMode;
+    localStorage.setItem('oya-dark-mode', String(newValue));
+    dispatch({ type: 'SET_DARK_MODE', payload: newValue });
+  };
+
+  const switchWorkspace = async (path: string) => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+    
+    try {
+      const result = await api.switchWorkspace(path);
+      dispatch({ type: 'SET_REPO_STATUS', payload: result.status });
+      dispatch({ type: 'SET_CURRENT_PAGE', payload: null });
+      await refreshTree();
+    } catch (err) {
+      const message = err instanceof api.ApiError 
+        ? err.message 
+        : 'Failed to switch workspace';
+      dispatch({ type: 'SET_ERROR', payload: message });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const setNoteEditorDirty = (isDirty: boolean) => {
+    dispatch({ type: 'SET_NOTE_EDITOR_DIRTY', payload: isDirty });
+  };
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    if (state.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [state.darkMode]);
+
   // Initial data load
   useEffect(() => {
     const init = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
       await refreshStatus();
-      await refreshTree();
+      
+      // Check for incomplete build FIRST
+      let hasIncompleteBuild = false;
+      try {
+        const genStatus = await api.getGenerationStatus();
+        if (genStatus && genStatus.status === 'incomplete') {
+          dispatch({ type: 'SET_GENERATION_STATUS', payload: genStatus });
+          hasIncompleteBuild = true;
+          // Clear wiki tree when build is incomplete
+          dispatch({ type: 'SET_WIKI_TREE', payload: { overview: false, architecture: false, workflows: [], directories: [], files: [] } });
+        }
+      } catch {
+        // Ignore errors when checking generation status
+      }
+      
+      // Only load wiki tree if build is complete
+      if (!hasIncompleteBuild) {
+        await refreshTree();
+      }
+      
+      // Check for any running jobs to restore generation progress after refresh
+      try {
+        const jobs = await api.listJobs(1);
+        const runningJob = jobs.find(job => job.status === 'running');
+        if (runningJob) {
+          dispatch({ type: 'SET_CURRENT_JOB', payload: runningJob });
+        }
+      } catch {
+        // Ignore errors when checking for running jobs
+      }
+      
       dispatch({ type: 'SET_LOADING', payload: false });
     };
     init();
   }, []);
 
+  const dismissGenerationStatus = () => {
+    dispatch({ type: 'SET_GENERATION_STATUS', payload: null });
+  };
+
+  const contextValue: AppContextValue = {
+    state,
+    dispatch,
+    refreshStatus,
+    refreshTree,
+    startGeneration,
+    openNoteEditor,
+    closeNoteEditor,
+    toggleDarkMode,
+    switchWorkspace,
+    setNoteEditorDirty,
+    dismissGenerationStatus,
+  };
+
   return (
-    <AppContext.Provider value={{ state, dispatch, refreshStatus, refreshTree, startGeneration, openNoteEditor, closeNoteEditor }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );
-}
-
-export function useApp() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within AppProvider');
-  }
-  return context;
 }

@@ -1,7 +1,25 @@
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/useApp';
+
+function formatLastBuilt(isoString: string): string {
+  // Backend stores UTC timestamps without 'Z' suffix, so append it
+  const utcString = isoString.endsWith('Z') ? isoString : isoString + 'Z';
+  const date = new Date(utcString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  
+  return date.toLocaleDateString();
+}
 
 export function RightSidebar() {
-  const { state, startGeneration, openNoteEditor } = useApp();
+  const { state, openNoteEditor } = useApp();
   const { currentPage, repoStatus } = state;
 
   // Determine scope and target based on current page
@@ -34,6 +52,51 @@ export function RightSidebar() {
 
   return (
     <div className="p-4 space-y-6">
+      {/* Repo status */}
+      {repoStatus && (
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+            Repository
+          </h3>
+          <dl className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            {repoStatus.branch && (
+              <div className="flex justify-between">
+                <dt>Branch:</dt>
+                <dd className="font-mono font-medium">{repoStatus.branch}</dd>
+              </div>
+            )}
+            {repoStatus.head_commit && (
+              <div className="flex justify-between">
+                <dt>Commit:</dt>
+                <dd className="font-mono font-medium">{repoStatus.head_commit.slice(0, 7)}</dd>
+              </div>
+            )}
+            {repoStatus.current_provider && (
+              <div className="flex justify-between">
+                <dt>Provider:</dt>
+                <dd className="font-medium">{repoStatus.current_provider}</dd>
+              </div>
+            )}
+            {repoStatus.current_model && (
+              <div className="flex justify-between">
+                <dt>Model:</dt>
+                <dd className="font-medium truncate max-w-[100px]" title={repoStatus.current_model}>
+                  {repoStatus.current_model}
+                </dd>
+              </div>
+            )}
+            {repoStatus.last_generation && (
+              <div className="flex justify-between">
+                <dt>Last Built:</dt>
+                <dd className="font-medium" title={repoStatus.last_generation}>
+                  {formatLastBuilt(repoStatus.last_generation)}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      )}
+
       {/* On this page (TOC) */}
       {headings.length > 0 && (
         <div>
@@ -73,60 +136,8 @@ export function RightSidebar() {
               Add correction
             </button>
           )}
-
-          <button
-            onClick={() => startGeneration()}
-            className="w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Regenerate page
-          </button>
         </div>
       </div>
-
-      {/* Page info */}
-      {currentPage && (
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-            Page info
-          </h3>
-          <dl className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-            <div className="flex justify-between">
-              <dt>Type:</dt>
-              <dd className="font-medium">{currentPage.page_type}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Words:</dt>
-              <dd className="font-medium">{currentPage.word_count}</dd>
-            </div>
-          </dl>
-        </div>
-      )}
-
-      {/* Repo status */}
-      {repoStatus && (
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-            Repository
-          </h3>
-          <dl className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-            {repoStatus.branch && (
-              <div className="flex justify-between">
-                <dt>Branch:</dt>
-                <dd className="font-mono font-medium">{repoStatus.branch}</dd>
-              </div>
-            )}
-            {repoStatus.head_commit && (
-              <div className="flex justify-between">
-                <dt>Commit:</dt>
-                <dd className="font-mono font-medium">{repoStatus.head_commit.slice(0, 7)}</dd>
-              </div>
-            )}
-          </dl>
-        </div>
-      )}
     </div>
   );
 }

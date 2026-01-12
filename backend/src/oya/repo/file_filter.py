@@ -4,15 +4,35 @@ import fnmatch
 from pathlib import Path
 
 
+def extract_directories_from_files(files: list[str]) -> list[str]:
+    """Extract unique parent directories from a list of file paths.
+
+    This replicates the logic from GenerationOrchestrator._run_directories
+    to ensure consistency between preview and generation.
+
+    Args:
+        files: List of file paths.
+
+    Returns:
+        Sorted list of unique directory paths.
+    """
+    directories: set[str] = set()
+    for file_path in files:
+        parts = file_path.split("/")
+        for i in range(1, len(parts)):
+            dir_path = "/".join(parts[:i])
+            directories.add(dir_path)
+    return sorted(directories)
+
+
 DEFAULT_EXCLUDES = [
-    # Version control
-    ".git",
-    ".hg",
-    ".svn",
+    # Hidden files and directories (dotfiles/dotdirs)
+    # This catches .git, .hypothesis, .pytest_cache, .ruff_cache, .env, etc.
+    # Note: .oyawiki/notes is explicitly allowed (see ALLOWED_PATHS below)
+    ".*",
     # Dependencies
     "node_modules",
     "vendor",
-    ".venv",
     "venv",
     "__pycache__",
     "*.pyc",
@@ -21,21 +41,19 @@ DEFAULT_EXCLUDES = [
     "dist",
     "target",
     "out",
-    ".next",
-    ".nuxt",
-    # IDE
-    ".idea",
-    ".vscode",
-    "*.swp",
-    # OS
-    ".DS_Store",
-    "Thumbs.db",
     # Oya artifacts (but NOT .oyawiki/notes/ - those are user corrections)
+    # These are redundant with ".*" but kept for clarity
     ".oyawiki/wiki",
     ".oyawiki/meta",
     ".oyawiki/index",
     ".oyawiki/cache",
     ".oyawiki/config",
+]
+
+# Paths that are explicitly allowed even if they match DEFAULT_EXCLUDES
+# These take precedence over exclusion patterns
+ALLOWED_PATHS = [
+    ".oyawiki/notes",  # User corrections guide analysis
 ]
 
 
@@ -63,8 +81,8 @@ class FileFilter:
         if extra_excludes:
             self.exclude_patterns.extend(extra_excludes)
 
-        # Load .oyaignore if exists
-        oyaignore = repo_path / ".oyaignore"
+        # Load .oyaignore if exists (now in .oyawiki/.oyaignore)
+        oyaignore = repo_path / ".oyawiki" / ".oyaignore"
         if oyaignore.exists():
             for line in oyaignore.read_text().splitlines():
                 line = line.strip()
@@ -80,6 +98,11 @@ class FileFilter:
         Returns:
             True if path should be excluded.
         """
+        # Check if path is in an explicitly allowed location
+        for allowed in ALLOWED_PATHS:
+            if path.startswith(allowed + "/") or path == allowed:
+                return False
+
         parts = path.split("/")
 
         for pattern in self.exclude_patterns:

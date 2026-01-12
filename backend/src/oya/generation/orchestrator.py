@@ -32,7 +32,7 @@ from oya.generation.summaries import DirectorySummary, FileSummary, SynthesisMap
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
 from oya.parsing.registry import ParserRegistry
-from oya.repo.file_filter import FileFilter
+from oya.repo.file_filter import FileFilter, extract_directories_from_files
 
 
 class GenerationPhase(Enum):
@@ -350,18 +350,12 @@ class GenerationOrchestrator:
         """
         job_id = str(uuid.uuid4())
 
-        # Ensure wiki directory exists
+        # Ensure wiki and meta directories exist
         self.wiki_path.mkdir(parents=True, exist_ok=True)
+        self.meta_path.mkdir(parents=True, exist_ok=True)
 
-        # Phase 1: Analysis
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.ANALYSIS,
-                message="Analyzing repository...",
-            ),
-        )
-        analysis = await self._run_analysis()
+        # Phase 1: Analysis (with progress tracking for file parsing)
+        analysis = await self._run_analysis(progress_callback)
 
         # Phase 2: Files (run before directories to compute content hashes and collect summaries)
         file_pages, file_hashes, file_summaries = await self._run_files(
@@ -394,10 +388,21 @@ class GenerationOrchestrator:
                 progress_callback,
                 GenerationProgress(
                     phase=GenerationPhase.SYNTHESIS,
+                    step=0,
+                    total_steps=1,
                     message="Synthesizing codebase understanding...",
                 ),
             )
             synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.SYNTHESIS,
+                    step=1,
+                    total_steps=1,
+                    message="Synthesis complete",
+                ),
+            )
         else:
             # Load existing synthesis map
             from oya.generation.synthesis import load_synthesis_map
@@ -420,11 +425,22 @@ class GenerationOrchestrator:
                 progress_callback,
                 GenerationProgress(
                     phase=GenerationPhase.ARCHITECTURE,
+                    step=0,
+                    total_steps=1,
                     message="Generating architecture page...",
                 ),
             )
             architecture_page = await self._run_architecture(analysis, synthesis_map=synthesis_map)
             await self._save_page(architecture_page)
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.ARCHITECTURE,
+                    step=1,
+                    total_steps=1,
+                    message="Architecture complete",
+                ),
+            )
 
         # Phase 6: Overview (uses SynthesisMap as primary context)
         # Cascade: regenerate overview only if synthesis was regenerated (Requirement 7.3, 7.5)
@@ -433,23 +449,27 @@ class GenerationOrchestrator:
                 progress_callback,
                 GenerationProgress(
                     phase=GenerationPhase.OVERVIEW,
+                    step=0,
+                    total_steps=1,
                     message="Generating overview page...",
                 ),
             )
             overview_page = await self._run_overview(analysis, synthesis_map=synthesis_map)
             await self._save_page(overview_page)
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.OVERVIEW,
+                    step=1,
+                    total_steps=1,
+                    message="Overview complete",
+                ),
+            )
 
         # Phase 7: Workflows
         # Cascade: regenerate workflows only if synthesis was regenerated (Requirement 7.5)
         if should_regenerate_synthesis:
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.WORKFLOWS,
-                    message="Generating workflow pages...",
-                ),
-            )
-            workflow_pages = await self._run_workflows(analysis)
+            workflow_pages = await self._run_workflows(analysis, progress_callback)
             for page in workflow_pages:
                 await self._save_page(page)
 
@@ -469,8 +489,14 @@ class GenerationOrchestrator:
         if callback:
             await callback(progress)
 
-    async def _run_analysis(self) -> dict:
+    async def _run_analysis(
+        self,
+        progress_callback: ProgressCallback | None = None,
+    ) -> dict:
         """Run analysis phase.
+
+        Args:
+            progress_callback: Optional async callback for progress updates.
 
         Returns:
             Analysis results with files, symbols, file_tree, file_contents.
@@ -484,8 +510,21 @@ class GenerationOrchestrator:
         # Build file tree
         file_tree = self._build_file_tree(files)
 
+        total_files = len(files)
+
+        # Emit initial progress
+        await self._emit_progress(
+            progress_callback,
+            GenerationProgress(
+                phase=GenerationPhase.ANALYSIS,
+                step=0,
+                total_steps=total_files,
+                message=f"Parsing files (0/{total_files})...",
+            ),
+        )
+
         # Parse each file
-        for file_path in files:
+        for idx, file_path in enumerate(files):
             try:
                 full_path = self.repo.path / file_path
                 if full_path.exists() and full_path.is_file():
@@ -509,6 +548,18 @@ class GenerationOrchestrator:
             except Exception:
                 # Skip files that can't be parsed
                 pass
+
+            # Emit progress every 10 files or on last file
+            if (idx + 1) % 10 == 0 or idx == total_files - 1:
+                await self._emit_progress(
+                    progress_callback,
+                    GenerationProgress(
+                        phase=GenerationPhase.ANALYSIS,
+                        step=idx + 1,
+                        total_steps=total_files,
+                        message=f"Parsed {idx + 1}/{total_files} files...",
+                    ),
+                )
 
         return {
             "files": files,
@@ -648,11 +699,16 @@ class GenerationOrchestrator:
             dependencies=dependencies,
         )
 
-    async def _run_workflows(self, analysis: dict) -> list[GeneratedPage]:
+    async def _run_workflows(
+        self,
+        analysis: dict,
+        progress_callback: ProgressCallback | None = None,
+    ) -> list[GeneratedPage]:
         """Run workflow generation phase.
 
         Args:
             analysis: Analysis results.
+            progress_callback: Optional async callback for progress updates.
 
         Returns:
             List of generated workflow pages.
@@ -665,8 +721,23 @@ class GenerationOrchestrator:
         # Group into workflows
         workflows = self.workflow_discovery.group_into_workflows(entry_points)
 
+        # Limit to 10 workflows
+        workflows_to_generate = workflows[:10]
+        total_workflows = len(workflows_to_generate)
+
+        # Emit initial progress
+        await self._emit_progress(
+            progress_callback,
+            GenerationProgress(
+                phase=GenerationPhase.WORKFLOWS,
+                step=0,
+                total_steps=total_workflows,
+                message=f"Generating workflow pages (0/{total_workflows})...",
+            ),
+        )
+
         # Generate page for each workflow
-        for workflow in workflows[:10]:  # Limit to 10 workflows
+        for idx, workflow in enumerate(workflows_to_generate):
             # Gather code context for the workflow
             code_context = ""
             for related_file in workflow.related_files:
@@ -679,6 +750,17 @@ class GenerationOrchestrator:
                 code_context=code_context,
             )
             pages.append(page)
+
+            # Emit progress after each workflow
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.WORKFLOWS,
+                    step=idx + 1,
+                    total_steps=total_workflows,
+                    message=f"Generated {idx + 1}/{total_workflows} workflows...",
+                ),
+            )
 
         return pages
 
@@ -734,19 +816,13 @@ class GenerationOrchestrator:
             fs.file_path: fs for fs in file_summaries if isinstance(fs, FileSummary)
         }
 
-        # Get unique directories and their direct files
-        directories: dict[str, list[str]] = {}
-        for file_path in analysis["files"]:
-            parts = file_path.split("/")
-            for i in range(1, len(parts)):
-                dir_path = "/".join(parts[:i])
-                if dir_path not in directories:
-                    directories[dir_path] = []
-                # Only add files directly in this directory (not in subdirs)
-                if i == len(parts) - 1 or (i < len(parts) - 1 and parts[i] != parts[-1]):
-                    continue
+        # Get unique directories using the shared utility function
+        all_directories = extract_directories_from_files(analysis["files"])
 
-        # Re-compute direct files for each directory
+        # Build directories dict with their direct files
+        directories: dict[str, list[str]] = {d: [] for d in all_directories}
+
+        # Compute direct files for each directory
         for file_path in analysis["files"]:
             parts = file_path.split("/")
             if len(parts) > 1:

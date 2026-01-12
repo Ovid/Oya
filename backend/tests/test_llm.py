@@ -1,7 +1,7 @@
 # backend/tests/test_llm.py
 """LLM client tests."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from litellm.exceptions import AuthenticationError, RateLimitError
@@ -130,3 +130,59 @@ async def test_llm_client_raises_rate_limit_error():
             await client.generate("Test")
 
         assert "Rate limit exceeded" in str(exc_info.value)
+
+
+async def test_llm_client_logs_queries_to_jsonl(tmp_path):
+    """LLM client logs queries to JSONL file when log_path is provided."""
+    import json
+
+    log_file = tmp_path / "meta" / "llm-queries.jsonl"
+
+    with patch("oya.llm.client.acompletion") as mock:
+        mock.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="Test response"))]
+        )
+        client = LLMClient(provider="openai", model="gpt-4o", log_path=log_file)
+
+        await client.generate("Test prompt", system_prompt="System")
+
+    # Verify log file was created and contains valid JSONL
+    assert log_file.exists()
+    with open(log_file) as f:
+        entry = json.loads(f.readline())
+
+    assert entry["provider"] == "openai"
+    assert entry["model"] == "gpt-4o"
+    assert entry["request"]["prompt"] == "Test prompt"
+    assert entry["request"]["system_prompt"] == "System"
+    assert entry["response"] == "Test response"
+    assert entry["error"] is None
+    assert "timestamp" in entry
+    assert "duration_ms" in entry
+
+
+async def test_llm_client_logs_errors_to_jsonl(tmp_path):
+    """LLM client logs errors to JSONL file."""
+    import json
+
+    log_file = tmp_path / "meta" / "llm-queries.jsonl"
+
+    with patch("oya.llm.client.acompletion") as mock:
+        mock.side_effect = RateLimitError(
+            message="Rate limit exceeded",
+            llm_provider="openai",
+            model="gpt-4o",
+        )
+        client = LLMClient(provider="openai", model="gpt-4o", log_path=log_file)
+
+        with pytest.raises(LLMRateLimitError):
+            await client.generate("Test prompt")
+
+    # Verify error was logged
+    assert log_file.exists()
+    with open(log_file) as f:
+        entry = json.loads(f.readline())
+
+    assert entry["response"] is None
+    assert entry["error"] is not None
+    assert "Rate limit" in entry["error"]

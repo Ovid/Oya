@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants';
 
 /**
  * Tests for GenerationProgress phase ordering.
  * 
  * The bottom-up generation pipeline runs phases in this order:
- * Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+ * Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
  * 
  * The frontend must display phases in this same order to correctly show
  * which phases are completed vs in-progress.
@@ -19,7 +20,8 @@ const EXPECTED_PHASE_ORDER = [
   'synthesis',
   'architecture',
   'overview',
-  'workflows'
+  'workflows',
+  'indexing'
 ];
 
 const EXPECTED_PHASES = {
@@ -31,11 +33,8 @@ const EXPECTED_PHASES = {
   'architecture': { name: 'Architecture', description: 'Analyzing and documenting architecture...' },
   'overview': { name: 'Overview', description: 'Generating project overview page...' },
   'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
+  'indexing': { name: 'Indexing', description: 'Indexing content for search and Q&A...' },
 };
-
-// Import the actual constants from the component
-// We re-declare them here to test against expected values
-import { PHASE_ORDER, PHASES } from './GenerationProgress';
 
 describe('GenerationProgress phase ordering', () => {
   it('should have phases in bottom-up order (files before architecture/overview)', () => {
@@ -73,8 +72,33 @@ describe('GenerationProgress phase ordering', () => {
     expect(PHASE_ORDER).toContain('synthesis');
   });
 
-  it('should have 7 phases total', () => {
-    expect(PHASE_ORDER).toHaveLength(7);
+  it('should include indexing phase', () => {
+    expect(PHASE_ORDER).toContain('indexing');
+  });
+
+  it('should have 8 phases total', () => {
+    expect(PHASE_ORDER).toHaveLength(8);
+  });
+});
+
+describe('formatElapsedTime', () => {
+  it('should format seconds under a minute', () => {
+    expect(formatElapsedTime(0)).toBe('0s');
+    expect(formatElapsedTime(1)).toBe('1s');
+    expect(formatElapsedTime(45)).toBe('45s');
+    expect(formatElapsedTime(59)).toBe('59s');
+  });
+
+  it('should format minutes and seconds', () => {
+    expect(formatElapsedTime(60)).toBe('1m 0s');
+    expect(formatElapsedTime(61)).toBe('1m 1s');
+    expect(formatElapsedTime(90)).toBe('1m 30s');
+    expect(formatElapsedTime(125)).toBe('2m 5s');
+  });
+
+  it('should handle larger values', () => {
+    expect(formatElapsedTime(3600)).toBe('60m 0s');
+    expect(formatElapsedTime(3661)).toBe('61m 1s');
   });
 });
 
@@ -90,6 +114,11 @@ describe('GenerationProgress phase definitions', () => {
   it('should have synthesis phase info', () => {
     expect(PHASES['synthesis']).toBeDefined();
     expect(PHASES['synthesis'].name).toBe('Synthesis');
+  });
+
+  it('should have indexing phase info', () => {
+    expect(PHASES['indexing']).toBeDefined();
+    expect(PHASES['indexing'].name).toBe('Indexing');
   });
 
   it('should match expected phase definitions', () => {

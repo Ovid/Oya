@@ -1,13 +1,24 @@
 // API Response Types
 
+export interface EmbeddingMetadata {
+  provider: string;
+  model: string;
+  indexed_at: string;
+}
+
 export interface RepoStatus {
   path: string;
   head_commit: string | null;
   head_message: string | null;
   branch: string | null;
   initialized: boolean;
+  is_docker: boolean;
   last_generation: string | null;
   generation_status: string | null;
+  embedding_metadata: EmbeddingMetadata | null;
+  current_provider: string | null;
+  current_model: string | null;
+  embedding_mismatch: boolean;
 }
 
 export interface JobCreated {
@@ -124,3 +135,51 @@ export interface AppState {
 }
 
 export type PageType = 'overview' | 'architecture' | 'workflow' | 'directory' | 'file';
+
+// Workspace Switching Types
+export interface WorkspaceSwitchRequest {
+  path: string;
+}
+
+export interface WorkspaceSwitchResponse {
+  status: RepoStatus;
+  message: string;
+}
+
+// Directory Browser Types
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+}
+
+export interface DirectoryListing {
+  path: string;
+  parent: string | null;
+  entries: DirectoryEntry[];
+}
+
+// Generation Status Types
+export interface GenerationStatus {
+  status: 'incomplete';
+  message: string;
+}
+
+// Indexing Preview Types
+export interface IndexableItems {
+  directories: string[];
+  files: string[];
+  total_directories: number;
+  total_files: number;
+}
+
+export interface OyaignoreUpdateRequest {
+  directories: string[];
+  files: string[];
+}
+
+export interface OyaignoreUpdateResponse {
+  added_directories: string[];
+  added_files: string[];
+  total_added: number;
+}

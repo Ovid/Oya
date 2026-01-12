@@ -1,0 +1,294 @@
+# Implementation Plan: Indexing Preview
+
+## Overview
+
+This implementation follows TDD (red/green/refactor) with a bottom-up approach: backend utilities first, then API endpoints, then frontend components. For each feature, we write a failing test first (RED), implement to make it pass (GREEN), then refactor if needed.
+
+## Tasks
+
+- [x] 1. Extract directory derivation utility
+  - [x] 1.1 Add Pydantic schemas to `backend/src/oya/api/schemas.py`
+    - Add `IndexableItems` response model with directories, files, total_directories, total_files
+    - _Requirements: 7.6_
+  - [x] 1.2 RED: Write failing test for `extract_directories_from_files()` function
+    - Create test in `backend/tests/test_file_filter.py`
+    - Test that function extracts unique parent directories from file paths
+    - Test that output is sorted alphabetically
+    - **Property 2: Alphabetical Sorting** (directories portion)
+    - **Validates: Requirements 2.6, 7.4, 7.5**
+  - [x] 1.3 GREEN: Create `extract_directories_from_files()` function in `backend/src/oya/repo/file_filter.py`
+    - Extract logic from `GenerationOrchestrator._run_directories` into reusable function
+    - Function takes list of file paths, returns sorted list of unique parent directories
+    - Make the test pass
+    - _Requirements: 7.4, 7.5_
+  - [x] 1.4 REFACTOR: Update `GenerationOrchestrator._run_directories` to use the new utility function
+    - Import and call `extract_directories_from_files()` instead of inline logic
+    - Ensure no behavior change in existing generation
+    - _Requirements: 7.5_
+
+- [x] 2. Implement GET `/api/repos/indexable` endpoint
+  - [x] 2.1 RED: Write failing test for endpoint response structure
+    - Create test in `backend/tests/test_repos_api.py`
+    - Test endpoint returns 200 with correct schema (directories, files, counts)
+    - _Requirements: 2.2, 2.3, 2.4, 7.1, 7.6_
+  - [x] 2.2 GREEN: Implement endpoint in `backend/src/oya/api/routers/repos.py`
+    - Create GET `/api/repos/indexable` endpoint
+    - Use `FileFilter` class to get files (same as GenerationOrchestrator)
+    - Use `extract_directories_from_files()` to derive directories
+    - Return sorted arrays with counts
+    - Make the test pass
+    - _Requirements: 2.2, 2.3, 2.4, 7.1, 7.2, 7.3, 7.4, 7.6, 7.7, 7.8_
+  - [x] 2.3 RED: Write failing test for error handling
+    - Test 400 error for invalid repository path
+    - Test 500 error if file enumeration fails
+    - _Requirements: 7.9, 7.10_
+  - [x] 2.4 GREEN: Add error handling for invalid repository path
+    - Return 400 error if workspace path is invalid or inaccessible
+    - Return 500 error if file enumeration fails
+    - Make the tests pass
+    - _Requirements: 7.9, 7.10_
+  - [x] 2.5 RED: Write failing property test for preview-generation consistency and file sorting
+    - **Property 1: Preview-Generation Consistency**
+    - Generate random file structures, compare endpoint output with FileFilter.get_files()
+    - **Property 2: Alphabetical Sorting** (files portion)
+    - Verify files array is sorted alphabetically
+    - **Validates: Requirements 2.4, 2.7, 7.7**
+  - [x] 2.6 GREEN: Ensure property tests pass
+    - Verify implementation satisfies consistency and sorting properties
+    - Fix any issues revealed by property tests
+    - _Requirements: 2.4, 2.7, 7.7_
+  - [x] 2.7 RED: Write failing property test for shared filtering logic
+    - **Property 3: Shared Filtering Logic Consistency**
+    - Verify endpoint uses same FileFilter configuration as GenerationOrchestrator
+    - **Validates: Requirements 2.8, 2.9, 7.8, 7.2, 7.3**
+  - [x] 2.8 GREEN: Ensure shared filtering property test passes
+    - Verify FileFilter configuration matches GenerationOrchestrator
+    - Fix any inconsistencies
+    - _Requirements: 2.8, 2.9, 7.8, 7.2, 7.3_
+
+- [x] 3. Implement POST `/api/repos/oyaignore` endpoint
+  - [x] 3.1 Add Pydantic schemas for oyaignore update
+    - Add `OyaignoreUpdateRequest` with directories and files arrays
+    - Add `OyaignoreUpdateResponse` with added_directories, added_files, total_added
+    - _Requirements: 8.1_
+  - [x] 3.2 RED: Write failing test for basic endpoint functionality
+    - Test endpoint creates .oyaignore file if it doesn't exist
+    - Test endpoint appends entries to existing file
+    - Test trailing slash added to directory patterns
+    - _Requirements: 5.6, 8.1, 8.2, 8.3, 8.4_
+  - [x] 3.3 GREEN: Implement endpoint in `backend/src/oya/api/routers/repos.py`
+    - Create POST `/api/repos/oyaignore` endpoint
+    - Read existing .oyaignore content (or empty if doesn't exist)
+    - Add trailing slash to directory patterns
+    - Append new entries to file
+    - Create .oyawiki directory and .oyaignore file if needed
+    - Return the updated list of exclusions in response
+    - Make the tests pass
+    - _Requirements: 5.6, 8.1, 8.2, 8.3, 8.4, 8.6_
+  - [x] 3.4 RED: Write failing test for error handling
+    - Test 403 for permission errors
+    - Test 500 if .oyawiki directory cannot be created
+    - _Requirements: 8.7, 8.8_
+  - [x] 3.5 GREEN: Add error handling for file operations
+    - Return 403 for permission errors
+    - Return 500 if .oyawiki directory cannot be created
+    - Make the tests pass
+    - _Requirements: 8.7, 8.8_
+  - [x] 3.6 RED: Write failing property test for append behavior
+    - **Property 9: Append Preserves Existing Entries**
+    - Generate random existing content and new exclusions
+    - Verify original entries preserved, trailing slashes added, entries appended
+    - **Validates: Requirements 5.1, 5.2, 5.3, 8.2, 8.3**
+  - [x] 3.7 GREEN: Ensure append property test passes
+    - Verify append behavior preserves existing entries
+    - _Requirements: 5.1, 5.2, 5.3, 8.2, 8.3_
+  - [x] 3.8 RED: Write failing property test for files within excluded directories
+    - **Property 10: Files Within Excluded Directories Not Saved**
+    - Generate random directory/file exclusion combinations
+    - Verify files within excluded dirs not written
+    - **Validates: Requirements 5.4**
+  - [x] 3.9 GREEN: Implement filtering of files within excluded directories
+    - Filter out files within excluded directories before saving
+    - Make the property test pass
+    - _Requirements: 5.4, 8.5_
+  - [x] 3.10 RED: Write failing property test for no duplicates
+    - **Property 11: No Duplicate Entries**
+    - Generate random existing content with potential duplicates
+    - Verify no duplicates after save
+    - **Validates: Requirements 8.5**
+  - [x] 3.11 GREEN: Implement duplicate filtering
+    - Filter out duplicates before appending
+    - Make the property test pass
+    - _Requirements: 8.5, 8.6_
+
+- [x] 4. Checkpoint - Backend complete
+  - Ensure all backend tests pass
+  - Run `pytest backend/tests/` to verify
+  - Ask the user if questions arise
+
+- [x] 5. Add frontend API client functions
+  - [x] 5.1 Add TypeScript types to `frontend/src/types/index.ts`
+    - Add `IndexableItems` interface
+    - Add `OyaignoreUpdateRequest` interface
+    - Add `OyaignoreUpdateResponse` interface
+    - _Requirements: 7.6, 8.1_
+  - [x] 5.2 Add API functions to `frontend/src/api/client.ts`
+    - Add `getIndexableItems()` function
+    - Add `updateOyaignore()` function
+    - _Requirements: 7.1, 8.1_
+
+- [x] 6. Implement IndexingPreviewModal component
+  - [x] 6.1 RED: Write failing test for modal open/close behavior
+    - Create test in `frontend/src/components/IndexingPreviewModal.test.tsx`
+    - Test modal opens when isOpen is true
+    - Test modal closes when onClose is called
+    - _Requirements: 1.2, 6.1, 6.2_
+  - [x] 6.2 GREEN: Create basic `frontend/src/components/IndexingPreviewModal.tsx`
+    - Create modal component with Headless UI Dialog
+    - Implement open/close behavior
+    - Make the tests pass
+    - _Requirements: 1.2, 6.1, 6.2_
+  - [x] 6.3 RED: Write failing test for data fetching and display
+    - Test modal fetches data when opened
+    - Test directories displayed above files
+    - Test counts displayed correctly
+    - _Requirements: 2.1, 2.5, 2.12_
+  - [x] 6.4 GREEN: Implement data fetching and display
+    - Add state for indexable items
+    - Fetch data when modal opens
+    - Display directories section above files section
+    - Show total directories and files counts
+    - Make the tests pass
+    - _Requirements: 2.1, 2.5, 2.12_
+  - [x] 6.5 RED: Write failing test for search filtering
+    - Test search input filters displayed items
+    - Test filtering is case-insensitive
+    - _Requirements: 2.10, 2.11_
+  - [x] 6.6 GREEN: Implement search filtering
+    - Add search input at top of modal
+    - Add state for search query
+    - Filter displayed items by case-insensitive substring match on full path
+    - Make the tests pass
+    - _Requirements: 2.10, 2.11_
+  - [x] 6.7 RED: Write failing property test for search filter correctness
+    - **Property 4: Search Filter Correctness**
+    - Generate random item lists and search queries
+    - Verify filtered results contain only items with case-insensitive substring match
+    - Verify all matching items are included in results
+    - **Validates: Requirements 2.11**
+  - [x] 6.8 GREEN: Ensure search filter property test passes
+    - Verify search implementation satisfies property
+    - _Requirements: 2.11_
+  - [x] 6.9 RED: Write failing test for directory exclusion checkbox
+    - Test checkbox toggles directory exclusion state
+    - Test files within excluded directory are hidden
+    - _Requirements: 3.1, 3.2_
+  - [x] 6.10 GREEN: Implement directory exclusion logic
+    - Checkbox for each directory
+    - Add state for pending exclusions
+    - When checked, hide files within that directory from display
+    - Make the tests pass
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+  - [x] 6.11 RED: Write failing property test for directory exclusion hiding child files
+    - **Property 6: Directory Exclusion Hides Child Files**
+    - Generate random directory structures
+    - Verify all files whose path starts with excluded directory path + "/" are hidden
+    - **Validates: Requirements 3.2, 3.4**
+  - [x] 6.12 GREEN: Ensure directory exclusion property test passes
+    - Verify all child files are hidden when directory is excluded
+    - _Requirements: 3.2, 3.4_
+  - [x] 6.13 RED: Write failing property test for directory toggle round-trip
+    - **Property 7: Directory Toggle Round-Trip**
+    - Generate random initial states
+    - Check then uncheck directory, verify files list restored to original state
+    - **Validates: Requirements 3.3**
+  - [x] 6.14 GREEN: Implement directory uncheck restores files
+    - When unchecked, restore files to display
+    - Make the property test pass
+    - _Requirements: 3.3_
+  - [x] 6.19 RED: Write failing test for file exclusion checkbox
+    - Test checkbox toggles file exclusion state
+    - Test file checkbox only shown if parent directory not excluded
+    - _Requirements: 4.1, 4.2_
+  - [x] 6.20 GREEN: Implement file exclusion logic
+    - Checkbox for each file (only shown if parent directory not excluded)
+    - Allow excluding individual files when their parent directory is not excluded
+    - Visual indication of exclusion state (strikethrough or similar)
+    - Make the tests pass
+    - _Requirements: 4.1, 4.2, 4.3_
+  - [x] 6.15 RED: Write failing test for clearing child file exclusions
+    - Test that checking a directory clears pending file exclusions within it
+    - _Requirements: 3.5_
+  - [x] 6.16 GREEN: Implement clearing child file exclusions
+    - When directory checked, clear any pending file exclusions within that directory
+    - Make the test pass
+    - _Requirements: 3.5_
+  - [x] 6.17 RED: Write failing property test for directory check clearing child file exclusions
+    - **Property 8: Directory Check Clears Child File Exclusions**
+    - Generate random file exclusions, then check parent directory
+    - Verify pending file exclusions within that directory are removed
+    - **Validates: Requirements 3.5**
+  - [x] 6.18 GREEN: Ensure property test passes
+    - Verify implementation clears child file exclusions
+    - _Requirements: 3.5_
+  - [x] 6.21 RED: Write failing property test for count accuracy
+    - **Property 5: Count Accuracy After Exclusions**
+    - Generate random initial sets of directories and files with random exclusions
+    - Verify displayed counts equal total items minus excluded items
+    - Account for files hidden by directory exclusions
+    - **Validates: Requirements 2.13**
+  - [x] 6.22 GREEN: Implement count updates on exclusion
+    - Update counts when items are excluded
+    - Make the property test pass
+    - _Requirements: 2.13_
+  - [x] 6.23 RED: Write failing test for save with confirmation
+    - Test save button triggers confirmation dialog
+    - Test confirmation shows summary of exclusions
+    - Test confirm calls API and closes modal
+    - _Requirements: 5.1, 5.5, 5.7, 5.8_
+  - [x] 6.24 GREEN: Implement save with confirmation
+    - Create reusable ConfirmationDialog component (or reuse existing if available)
+    - Save button triggers confirmation dialog
+    - Confirmation shows summary of exclusions to be added
+    - On confirm, call updateOyaignore API
+    - On success, close modal
+    - Make the tests pass
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.7, 5.8_
+  - [x] 6.25 RED: Write failing test for cancel/discard behavior
+    - Test cancel button closes modal without saving
+    - Test click outside modal closes without saving
+    - _Requirements: 6.1, 6.2, 6.3_
+  - [x] 6.26 GREEN: Implement cancel/discard behavior
+    - Cancel button closes modal without saving
+    - Click outside modal closes without saving
+    - Pending exclusions discarded on close
+    - Make the tests pass
+    - _Requirements: 6.1, 6.2, 6.3_
+
+- [x] 7. Add Preview button to TopBar
+  - [x] 7.1 RED: Write failing test for Preview button
+    - Create test in `frontend/src/components/TopBar.test.tsx`
+    - Test button is visible when no generation in progress
+    - Test button is disabled during generation
+    - Test button click opens modal
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 7.2 GREEN: Update `frontend/src/components/TopBar.tsx`
+    - Add "Preview" button next to Generate Wiki/Regenerate button
+    - Button opens IndexingPreviewModal
+    - Disable button while generation is in progress
+    - Make the tests pass
+    - _Requirements: 1.1, 1.2, 1.3_
+
+- [x] 8. Final checkpoint - All tests pass
+  - Run backend tests: `pytest backend/tests/`
+  - Run frontend tests: `npm test` in frontend directory
+  - Ensure all tests pass, ask the user if questions arise
+
+## Notes
+
+- All tasks follow TDD: RED (failing test) → GREEN (make it pass) → REFACTOR
+- Each task references specific requirements for traceability
+- Property tests validate universal correctness properties
+- Unit tests validate specific examples and edge cases
+- Backend uses Hypothesis for property-based testing
+- Frontend uses Vitest for unit testing

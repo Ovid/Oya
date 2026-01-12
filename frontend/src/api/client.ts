@@ -10,6 +10,12 @@ import type {
   QAResponse,
   NoteCreate,
   Note,
+  WorkspaceSwitchResponse,
+  DirectoryListing,
+  GenerationStatus,
+  IndexableItems,
+  OyaignoreUpdateRequest,
+  OyaignoreUpdateResponse,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -50,6 +56,44 @@ export async function initRepo(): Promise<JobCreated> {
   return fetchJson<JobCreated>('/api/repos/init', { method: 'POST' });
 }
 
+export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResponse> {
+  return fetchJson<WorkspaceSwitchResponse>('/api/repos/workspace', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  });
+}
+
+export async function listDirectories(path?: string): Promise<DirectoryListing> {
+  const params = path ? `?path=${encodeURIComponent(path)}` : '';
+  return fetchJson<DirectoryListing>(`/api/repos/directories${params}`);
+}
+
+export async function getIndexableItems(): Promise<IndexableItems> {
+  return fetchJson<IndexableItems>('/api/repos/indexable');
+}
+
+export async function updateOyaignore(request: OyaignoreUpdateRequest): Promise<OyaignoreUpdateResponse> {
+  return fetchJson<OyaignoreUpdateResponse>('/api/repos/oyaignore', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+// Generation status endpoint
+export async function getGenerationStatus(): Promise<GenerationStatus | null> {
+  const response = await fetch(`${API_BASE}/api/repos/generation-status`, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, response.statusText);
+  }
+  const text = await response.text();
+  if (!text || text === 'null') {
+    return null;
+  }
+  return JSON.parse(text) as GenerationStatus;
+}
+
 // Wiki endpoints
 export async function getWikiTree(): Promise<WikiTree> {
   return fetchJson<WikiTree>('/api/wiki/tree');
@@ -82,6 +126,12 @@ export async function listJobs(limit = 20): Promise<JobStatus[]> {
 
 export async function getJob(jobId: string): Promise<JobStatus> {
   return fetchJson<JobStatus>(`/api/jobs/${jobId}`);
+}
+
+export async function cancelJob(jobId: string): Promise<{ job_id: string; status: string; cancelled_at: string }> {
+  return fetchJson<{ job_id: string; status: string; cancelled_at: string }>(`/api/jobs/${jobId}/cancel`, {
+    method: 'POST',
+  });
 }
 
 // Search endpoint
@@ -125,7 +175,8 @@ export function streamJobProgress(
   jobId: string,
   onProgress: (event: ProgressEvent) => void,
   onComplete: (event: ProgressEvent) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  onCancelled?: (event: ProgressEvent) => void
 ): () => void {
   const eventSource = new EventSource(`${API_BASE}/api/jobs/${jobId}/stream`);
 
@@ -137,6 +188,14 @@ export function streamJobProgress(
   eventSource.addEventListener('complete', (e) => {
     const data = JSON.parse(e.data) as ProgressEvent;
     onComplete(data);
+    eventSource.close();
+  });
+
+  eventSource.addEventListener('cancelled', (e) => {
+    const data = JSON.parse(e.data) as ProgressEvent;
+    if (onCancelled) {
+      onCancelled(data);
+    }
     eventSource.close();
   });
 

@@ -1,34 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { ProgressEvent } from '../types';
-import { streamJobProgress } from '../api/client';
+import { streamJobProgress, cancelJob } from '../api/client';
+import { formatElapsedTime, PHASES, PHASE_ORDER } from './generationConstants';
 
 interface GenerationProgressProps {
   jobId: string;
   onComplete: () => void;
   onError: (error: string) => void;
+  onCancelled?: () => void;
 }
 
-interface PhaseInfo {
-  name: string;
-  description: string;
-}
-
-export const PHASES: Record<string, PhaseInfo> = {
-  'starting': { name: 'Starting', description: 'Initializing generation...' },
-  'analysis': { name: 'Analysis', description: 'Scanning repository and parsing code...' },
-  'files': { name: 'Files', description: 'Generating file-level documentation...' },
-  'directories': { name: 'Directories', description: 'Generating directory documentation...' },
-  'synthesis': { name: 'Synthesis', description: 'Synthesizing codebase understanding...' },
-  'architecture': { name: 'Architecture', description: 'Analyzing and documenting architecture...' },
-  'overview': { name: 'Overview', description: 'Generating project overview page...' },
-  'workflows': { name: 'Workflows', description: 'Discovering and documenting workflows...' },
-};
-
-// Ordered list of phases for progress display (bottom-up approach)
-// Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
-export const PHASE_ORDER = ['analysis', 'files', 'directories', 'synthesis', 'architecture', 'overview', 'workflows'];
-
-export function GenerationProgress({ jobId, onComplete, onError }: GenerationProgressProps) {
+export function GenerationProgress({ jobId, onComplete, onError, onCancelled }: GenerationProgressProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('starting');
   const [currentPhaseNum, setCurrentPhaseNum] = useState<number>(0);
   const [totalPhases, setTotalPhases] = useState<number>(6);
@@ -37,6 +19,11 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
   const [startTime] = useState<Date>(new Date());
   const [elapsed, setElapsed] = useState<number>(0);
   const [isComplete, setIsComplete] = useState<boolean>(false);
+  const [isCancelled, setIsCancelled] = useState<boolean>(false);
+  const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
+  const [phaseElapsedTimes, setPhaseElapsedTimes] = useState<Record<string, number>>({});
+  const phaseStartTimesRef = useRef<Record<string, number>>({});
 
   // Update elapsed time every second
   useEffect(() => {
@@ -56,7 +43,22 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
           const phaseNum = parseInt(numStr, 10);
 
           if (phaseName) {
-            setCurrentPhase(phaseName);
+            setCurrentPhase((prevPhase) => {
+              // Record start time for new phase
+              if (!(phaseName in phaseStartTimesRef.current)) {
+                phaseStartTimesRef.current[phaseName] = Date.now();
+              }
+              
+              // When phase changes, record elapsed time for the previous phase
+              if (prevPhase !== 'starting' && prevPhase !== phaseName && prevPhase in phaseStartTimesRef.current) {
+                const elapsedForPhase = Math.floor((Date.now() - phaseStartTimesRef.current[prevPhase]) / 1000);
+                setPhaseElapsedTimes((prev) => ({
+                  ...prev,
+                  [prevPhase]: elapsedForPhase,
+                }));
+              }
+              return phaseName;
+            });
             setCurrentPhaseNum(phaseNum);
           }
         }
@@ -74,16 +76,56 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
         }
       },
       () => {
+        // Record elapsed time for the final phase on completion
+        setCurrentPhase((prevPhase) => {
+          if (prevPhase !== 'starting' && prevPhase in phaseStartTimesRef.current) {
+            const elapsedForPhase = Math.floor((Date.now() - phaseStartTimesRef.current[prevPhase]) / 1000);
+            setPhaseElapsedTimes((prev) => ({
+              ...prev,
+              [prevPhase]: elapsedForPhase,
+            }));
+          }
+          return prevPhase;
+        });
         setIsComplete(true);
         onComplete();
       },
       (error: Error) => {
         onError(error.message);
+      },
+      () => {
+        // Handle cancellation
+        setIsCancelled(true);
+        if (onCancelled) {
+          onCancelled();
+        }
       }
     );
 
     return cleanup;
-  }, [jobId, onComplete, onError]);
+  }, [jobId, onComplete, onError, onCancelled]);
+
+  const handleCancelClick = () => {
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    setIsCancelling(true);
+    try {
+      await cancelJob(jobId);
+      // The SSE stream will handle the cancelled event
+    } catch {
+      // If cancel fails, just close the modal
+      setShowCancelModal(false);
+      setIsCancelling(false);
+    }
+  };
+
+  const handleCancelModalClose = () => {
+    if (!isCancelling) {
+      setShowCancelModal(false);
+    }
+  };
 
   const phaseInfo = PHASES[currentPhase] || { name: currentPhase, description: 'Processing...' };
   const progress = totalPhases > 0 ? (currentPhaseNum / totalPhases) * 100 : 0;
@@ -91,8 +133,71 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
     ? `${elapsed}s`
     : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
 
+  // Build cancellation message
+  const getCancellationMessage = () => {
+    const phaseName = PHASES[currentPhase]?.name || currentPhase;
+    if (currentPhase === 'files' && totalSteps > 0) {
+      return `Generation was stopped during ${phaseName} phase (file ${currentStep} of ${totalSteps}).`;
+    }
+    if (currentPhase === 'directories' && totalSteps > 0) {
+      return `Generation was stopped during ${phaseName} phase (directory ${currentStep} of ${totalSteps}).`;
+    }
+    return `Generation was stopped during ${phaseName} phase.`;
+  };
+
+  // Show cancelled state
+  if (isCancelled) {
+    return (
+      <div className="max-w-xl mx-auto py-8">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 dark:bg-amber-900 rounded-full mb-4">
+            <svg className="w-8 h-8 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Generation Stopped
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            {getCancellationMessage()}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-xl mx-auto py-8">
+      {/* Cancel Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={handleCancelModalClose} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Stop Generation?
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Are you sure you want to stop the wiki generation? Any progress will be lost and you'll need to start over.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleCancelModalClose}
+                disabled={isCancelling}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50"
+              >
+                Keep Going
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={isCancelling}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+              >
+                {isCancelling ? 'Stopping...' : 'Stop Generation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 dark:bg-indigo-900 rounded-full mb-4">
@@ -141,11 +246,16 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
           </div>
         </div>
 
-        {/* Step progress bar (shown for directories and files phases) */}
-        {totalSteps > 0 && (currentPhase === 'directories' || currentPhase === 'files') && (
+        {/* Step progress bar (shown for phases with step tracking) */}
+        {totalSteps > 0 && (
           <div className="mt-4">
             <div className="flex justify-between text-xs text-indigo-600 dark:text-indigo-300 mb-1">
-              <span>{currentPhase === 'directories' ? 'Directory' : 'File'} {currentStep} of {totalSteps}</span>
+              <span>
+                {currentPhase === 'directories' ? 'Directory' : 
+                 currentPhase === 'files' ? 'File' : 
+                 currentPhase === 'analysis' ? 'File' :
+                 currentPhase === 'workflows' ? 'Workflow' : 'Step'} {currentStep} of {totalSteps}
+              </span>
               <span>{totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0}%</span>
             </div>
             <div className="h-1.5 bg-indigo-200 dark:bg-indigo-800 rounded-full overflow-hidden">
@@ -199,12 +309,27 @@ export function GenerationProgress({ jobId, onComplete, onError }: GenerationPro
                       {info.name}
                     </span>
                   </div>
+                  {status === 'completed' && phaseElapsedTimes[phase] !== undefined && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {formatElapsedTime(phaseElapsedTimes[phase])}
+                    </span>
+                  )}
                 </li>
               );
             })}
           </ul>
         </div>
       )}
+
+      {/* Stop Generation button */}
+      <div className="mt-6 text-center">
+        <button
+          onClick={handleCancelClick}
+          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+        >
+          Stop Generation
+        </button>
+      </div>
     </div>
   );
 }

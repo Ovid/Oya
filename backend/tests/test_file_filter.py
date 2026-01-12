@@ -4,8 +4,10 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from oya.repo.file_filter import FileFilter
+from oya.repo.file_filter import FileFilter, extract_directories_from_files
 
 
 @pytest.fixture
@@ -47,6 +49,37 @@ def test_default_excludes_git(temp_repo: Path):
     assert not any(".git" in f for f in files)
 
 
+def test_default_excludes_all_dotfiles_and_dotdirs(temp_repo: Path):
+    """Default patterns exclude all files and directories starting with a dot."""
+    # Create various dotfiles and dotdirs
+    (temp_repo / ".hypothesis").mkdir()
+    (temp_repo / ".hypothesis" / "constants").mkdir()
+    (temp_repo / ".hypothesis" / "constants" / "abc123").write_text("data")
+    (temp_repo / ".pytest_cache").mkdir()
+    (temp_repo / ".pytest_cache" / "v").mkdir()
+    (temp_repo / ".pytest_cache" / "v" / "cache").write_text("cache")
+    (temp_repo / ".ruff_cache").mkdir()
+    (temp_repo / ".ruff_cache" / "data").write_text("ruff")
+    (temp_repo / ".env").write_text("SECRET=value")
+    (temp_repo / ".env.local").write_text("LOCAL=value")
+    (temp_repo / ".gitignore").write_text("*.pyc")
+    (temp_repo / ".editorconfig").write_text("[*]")
+    (temp_repo / ".kiro").mkdir()
+    (temp_repo / ".kiro" / "settings.json").write_text("{}")
+    (temp_repo / ".claude").mkdir()
+    (temp_repo / ".claude" / "config.json").write_text("{}")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    # All dotfiles and dotdirs should be excluded
+    dotfiles_found = [f for f in files if f.startswith(".") or "/." in f]
+    assert not dotfiles_found, f"Found dotfiles/dotdirs in files: {dotfiles_found}"
+    # Regular files should still be included
+    assert "src/main.py" in files
+    assert "README.md" in files
+
+
 def test_default_excludes_build(temp_repo: Path):
     """Default patterns exclude build directories."""
     filter = FileFilter(temp_repo)
@@ -67,9 +100,10 @@ def test_includes_source_files(temp_repo: Path):
 
 
 def test_oyaignore_adds_custom_patterns(temp_repo: Path):
-    """Custom .oyaignore patterns are applied."""
-    # Create .oyaignore
-    (temp_repo / ".oyaignore").write_text("*.md\n")
+    """Custom .oyawiki/.oyaignore patterns are applied."""
+    # Create .oyawiki/.oyaignore (new location)
+    (temp_repo / ".oyawiki").mkdir(exist_ok=True)
+    (temp_repo / ".oyawiki" / ".oyaignore").write_text("*.md\n")
 
     filter = FileFilter(temp_repo)
     files = filter.get_files()
@@ -109,8 +143,9 @@ def test_oyaignore_directory_with_trailing_slash(temp_repo: Path):
     (temp_repo / "docs" / "nested").mkdir()
     (temp_repo / "docs" / "nested" / "deep.md").write_text("deep content")
 
-    # Create .oyaignore with trailing slash pattern
-    (temp_repo / ".oyaignore").write_text("docs/\n")
+    # Create .oyawiki/.oyaignore with trailing slash pattern (new location)
+    (temp_repo / ".oyawiki").mkdir(exist_ok=True)
+    (temp_repo / ".oyawiki" / ".oyaignore").write_text("docs/\n")
 
     filter = FileFilter(temp_repo)
     files = filter.get_files()
@@ -128,8 +163,9 @@ def test_oyaignore_directory_without_trailing_slash(temp_repo: Path):
     (temp_repo / "docs").mkdir()
     (temp_repo / "docs" / "plan.md").write_text("plan content")
 
-    # Create .oyaignore without trailing slash
-    (temp_repo / ".oyaignore").write_text("docs\n")
+    # Create .oyawiki/.oyaignore without trailing slash (new location)
+    (temp_repo / ".oyawiki").mkdir(exist_ok=True)
+    (temp_repo / ".oyawiki" / ".oyaignore").write_text("docs\n")
 
     filter = FileFilter(temp_repo)
     files = filter.get_files()
@@ -192,3 +228,99 @@ def test_default_excludes_oyawiki_subdirs_but_not_notes(temp_repo: Path):
     assert not any(".oyawiki/config" in f for f in files)
     # But notes should be INCLUDED (user corrections guide analysis)
     assert ".oyawiki/notes/user_correction.md" in files
+
+
+# Tests for extract_directories_from_files utility function
+
+
+def test_extract_directories_from_files_basic():
+    """Extract unique parent directories from file paths."""
+    files = [
+        "src/main.py",
+        "src/utils/helpers.py",
+        "tests/test_main.py",
+    ]
+
+    directories = extract_directories_from_files(files)
+
+    assert "src" in directories
+    assert "src/utils" in directories
+    assert "tests" in directories
+
+
+def test_extract_directories_from_files_sorted():
+    """Output is sorted alphabetically."""
+    files = [
+        "zebra/file.py",
+        "alpha/file.py",
+        "beta/nested/file.py",
+    ]
+
+    directories = extract_directories_from_files(files)
+
+    assert directories == sorted(directories)
+    assert directories == ["alpha", "beta", "beta/nested", "zebra"]
+
+
+def test_extract_directories_from_files_unique():
+    """Directories are unique even when multiple files share the same parent."""
+    files = [
+        "src/a.py",
+        "src/b.py",
+        "src/c.py",
+    ]
+
+    directories = extract_directories_from_files(files)
+
+    assert directories.count("src") == 1
+
+
+def test_extract_directories_from_files_empty():
+    """Empty file list returns empty directory list."""
+    directories = extract_directories_from_files([])
+
+    assert directories == []
+
+
+def test_extract_directories_from_files_root_files():
+    """Files at root level don't produce directories."""
+    files = ["README.md", "setup.py"]
+
+    directories = extract_directories_from_files(files)
+
+    assert directories == []
+
+
+def test_extract_directories_from_files_deep_nesting():
+    """Deeply nested files produce all intermediate directories."""
+    files = ["a/b/c/d/file.py"]
+
+    directories = extract_directories_from_files(files)
+
+    assert directories == ["a", "a/b", "a/b/c", "a/b/c/d"]
+
+
+# Property-based test for alphabetical sorting
+# **Property 2: Alphabetical Sorting** (directories portion)
+# **Validates: Requirements 2.6, 7.4, 7.5**
+@given(
+    st.lists(
+        st.text(
+            alphabet=st.sampled_from("abcdefghijklmnopqrstuvwxyz/"),
+            min_size=1,
+            max_size=50,
+        ).filter(lambda x: not x.startswith("/") and not x.endswith("/") and "//" not in x),
+        min_size=0,
+        max_size=20,
+    )
+)
+@settings(max_examples=100)
+def test_extract_directories_alphabetically_sorted_property(files: list[str]):
+    """Property: For any list of files, extracted directories are always sorted alphabetically."""
+    directories = extract_directories_from_files(files)
+
+    # Property: output is always sorted
+    assert directories == sorted(directories), "Directories must be sorted alphabetically"
+
+    # Property: no duplicates
+    assert len(directories) == len(set(directories)), "Directories must be unique"

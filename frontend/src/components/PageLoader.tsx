@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { WikiPage } from '../types';
 import { WikiContent } from './WikiContent';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/useApp';
 import { ApiError } from '../api/client';
 import { GenerationProgress } from './GenerationProgress';
 
@@ -10,7 +10,7 @@ interface PageLoaderProps {
 }
 
 export function PageLoader({ loadPage }: PageLoaderProps) {
-  const { dispatch, startGeneration, refreshTree, state } = useApp();
+  const { dispatch, startGeneration, refreshTree, refreshStatus, state } = useApp();
   const [page, setPage] = useState<WikiPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +67,9 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     setGeneratingJobId(null);
     // Clear the current job from global state
     dispatch({ type: 'SET_CURRENT_JOB', payload: null });
-    // Refresh the wiki tree and reload the page
+    // Refresh the wiki tree, repo status, and reload the page
     await refreshTree();
+    await refreshStatus();
     // Re-trigger page load
     setLoading(true);
     setNotFound(false);
@@ -85,7 +86,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     } finally {
       setLoading(false);
     }
-  }, [loadPage, dispatch, refreshTree]);
+  }, [loadPage, dispatch, refreshTree, refreshStatus]);
 
   const handleGenerationError = useCallback((errorMessage: string) => {
     setGeneratingJobId(null);
@@ -94,7 +95,9 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     dispatch({ type: 'SET_CURRENT_JOB', payload: null });
   }, [dispatch]);
 
-  if (loading) {
+  // Show loading spinner while page is loading OR while AppContext is still initializing
+  // This prevents showing "not found" before we've checked for running jobs
+  if (loading || state.isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -103,6 +106,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   }
 
   // Show generation progress if a job is running (either local or global)
+  // Check this BEFORE notFound to handle the case where generation started but wiki doesn't exist yet
   const activeJobId = generatingJobId || (state.currentJob?.status === 'running' ? state.currentJob.job_id : null);
   if (activeJobId) {
     return (
@@ -131,7 +135,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
           />
         </svg>
         <h2 className="mt-4 text-xl font-semibold text-gray-900 dark:text-white">
-          Welcome to Oya
+          Welcome to Ọya
         </h2>
         <p className="mt-2 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
           No documentation has been generated yet. Click the button below to analyze your codebase and generate comprehensive documentation.

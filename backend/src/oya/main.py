@@ -1,14 +1,83 @@
 """FastAPI application entry point."""
 
+import logging
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from oya.api.routers import repos, wiki, jobs, search, qa, notes
+from oya.config import load_settings
+from oya.workspace import initialize_workspace
+
+logger = logging.getLogger(__name__)
+
+
+def _cleanup_stale_jobs(settings) -> None:
+    """Mark any running/pending jobs as failed on startup.
+
+    If the server is starting, any previously "running" jobs must have been
+    interrupted by a server restart. Mark them as failed so the frontend
+    doesn't try to resume them.
+    """
+    from oya.db.connection import Database
+
+    try:
+        if not settings.db_path.exists():
+            return
+
+        db = Database(settings.db_path)
+        cursor = db.execute(
+            """
+            UPDATE generations
+            SET status = 'failed',
+                error_message = 'Interrupted by server restart',
+                completed_at = datetime('now')
+            WHERE status IN ('running', 'pending')
+            """
+        )
+        if cursor.rowcount > 0:
+            logger.info(f"Marked {cursor.rowcount} stale job(s) as failed")
+        db.commit()
+        db.close()
+    except Exception as e:
+        logger.warning(f"Failed to cleanup stale jobs: {e}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan handler for startup and shutdown events.
+
+    On startup:
+    - Marks any stale running jobs as failed
+    - Initializes the workspace directory structure
+
+    On shutdown:
+    - Cleanup if needed (currently none)
+    """
+    # Startup
+    settings = load_settings()
+
+    # Cleanup any jobs that were interrupted by a previous shutdown
+    _cleanup_stale_jobs(settings)
+
+    success = initialize_workspace(settings.workspace_path)
+    if success:
+        logger.info(f"Workspace initialized at {settings.workspace_path}")
+    else:
+        logger.warning(f"Failed to initialize workspace at {settings.workspace_path}")
+
+    yield
+
+    # Shutdown (cleanup if needed)
+
 
 app = FastAPI(
-    title="Oya",
+    title="Ọya",
     description="Local-first editable wiki generator for codebases",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware for frontend

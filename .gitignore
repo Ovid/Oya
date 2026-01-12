@@ -26,4 +26,7 @@ htmlcov/
 *.swp
 *.swo
 
+# Oya files
 .env
+.oyawiki/meta
+.oyawiki-building/

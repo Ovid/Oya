@@ -36,6 +36,11 @@ packages = ["src/oya"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore:unclosed event loop:ResourceWarning",
+    "ignore:unclosed.*socket:ResourceWarning",
+]
 
 [tool.ruff]
 line-length = 100
