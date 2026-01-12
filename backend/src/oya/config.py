@@ -90,8 +90,11 @@ class Settings:
 
     @property
     def llm_log_path(self) -> Path:
-        """Path to LLM query log file."""
-        return self.oyawiki_path / "meta" / "llm-queries.jsonl"
+        """Path to LLM query log file.
+
+        Stored outside .oyawiki so logs aren't affected by staging/promotion.
+        """
+        return self.workspace_path / ".oya-logs" / "llm-queries.jsonl"
 
     @property
     def llm_provider(self) -> str:
