@@ -9,12 +9,6 @@ from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, Sea
 from oya.vectorstore.store import VectorStore
 
 
-# Minimum number of results required for evidence to be considered sufficient
-MIN_EVIDENCE_RESULTS = 2
-
-# Minimum relevance score (lower distance = more relevant)
-MAX_DISTANCE_THRESHOLD = 0.8
-
 QA_SYSTEM_PROMPT = """You are a helpful assistant that answers questions about a codebase.
 You have access to documentation, code, and notes from the repository.
 
@@ -143,26 +137,6 @@ class QAService:
 
         return results[:limit]
 
-    def _evaluate_evidence(self, results: list[dict[str, Any]]) -> bool:
-        """Evaluate if search results provide sufficient evidence.
-
-        Args:
-            results: Search results to evaluate.
-
-        Returns:
-            True if evidence is sufficient for answering.
-        """
-        if len(results) < MIN_EVIDENCE_RESULTS:
-            return False
-
-        # Check if at least some results are relevant (low distance)
-        relevant_count = sum(
-            1 for r in results
-            if r.get("distance", 1.0) < MAX_DISTANCE_THRESHOLD
-        )
-
-        return relevant_count >= MIN_EVIDENCE_RESULTS
-
     def _calculate_confidence(self, results: list[dict[str, Any]]) -> ConfidenceLevel:
         """Calculate confidence level from search results.
 
@@ -266,9 +240,14 @@ Answer the question based only on the context provided. Include citations to spe
                             title = r.get("title") or path
                             break
 
-                    citations.append(Citation(path=path, title=title, lines=lines))
+                    citations.append(Citation(
+                        path=path,
+                        title=title,
+                        lines=lines,
+                        url=self._path_to_url(path),
+                    ))
 
-        # If no explicit citations, use top results
+        # If no explicit citations, use top 3 results
         if not citations:
             for r in results[:3]:
                 path = r.get("path", "")
@@ -278,6 +257,7 @@ Answer the question based only on the context provided. Include citations to spe
                         path=path,
                         title=r.get("title") or path,
                         lines=None,
+                        url=self._path_to_url(path),
                     ))
 
         return citations
@@ -318,28 +298,16 @@ Answer the question based only on the context provided. Include citations to spe
         """Answer a question about the codebase.
 
         Args:
-            request: Q&A request with question, context, and mode.
+            request: Q&A request with question.
 
         Returns:
-            Q&A response with answer, citations, and disclaimer.
+            Q&A response with answer, citations, confidence, and search quality.
         """
         # Perform hybrid search
-        results = await self.search(
-            request.question,
-            context=request.context,
-        )
+        results = await self.search(request.question)
 
-        # Evaluate evidence
-        evidence_sufficient = self._evaluate_evidence(results)
-
-        # In gated mode, refuse to answer if evidence insufficient
-        if request.mode == QAMode.GATED and not evidence_sufficient:
-            return QAResponse(
-                answer="",
-                citations=[],
-                evidence_sufficient=False,
-                disclaimer="Unable to answer: insufficient evidence in the codebase. Try rephrasing your question or switching to loose mode.",
-            )
+        # Calculate confidence from results
+        confidence = self._calculate_confidence(results)
 
         # Build prompt and generate answer
         prompt = self._build_context_prompt(request.question, results)
@@ -348,29 +316,42 @@ Answer the question based only on the context provided. Include citations to spe
             raw_answer = await self._llm.generate(
                 prompt=prompt,
                 system_prompt=QA_SYSTEM_PROMPT,
-                temperature=0.5,
+                temperature=0.2,  # Lower for factual Q&A
             )
         except Exception as e:
             return QAResponse(
-                answer="",
+                answer=f"Error generating answer: {str(e)}",
                 citations=[],
-                evidence_sufficient=evidence_sufficient,
-                disclaimer=f"Error generating answer: {str(e)}",
+                confidence=confidence,
+                disclaimer="An error occurred while generating the answer.",
+                search_quality=SearchQuality(
+                    semantic_searched=True,  # We don't track this yet
+                    fts_searched=True,
+                    results_found=len(results),
+                    results_used=len(results),
+                ),
             )
 
         # Extract citations and clean answer
         citations = self._extract_citations(raw_answer, results)
         answer = self._clean_answer(raw_answer)
 
-        # Build disclaimer based on mode and evidence
-        if request.mode == QAMode.LOOSE and not evidence_sufficient:
-            disclaimer = "AI-generated answer with limited evidence. This response may be speculative. Please verify against the codebase."
-        else:
-            disclaimer = "AI-generated; may contain errors. Please verify against the codebase."
+        # Build disclaimer based on confidence
+        disclaimers = {
+            ConfidenceLevel.HIGH: "Based on strong evidence from the codebase.",
+            ConfidenceLevel.MEDIUM: "Based on partial evidence. Verify against source code.",
+            ConfidenceLevel.LOW: "Limited evidence found. This answer may be speculative.",
+        }
 
         return QAResponse(
             answer=answer,
             citations=citations,
-            evidence_sufficient=evidence_sufficient,
-            disclaimer=disclaimer,
+            confidence=confidence,
+            disclaimer=disclaimers[confidence],
+            search_quality=SearchQuality(
+                semantic_searched=True,
+                fts_searched=True,
+                results_found=len(results),
+                results_used=len(results),
+            ),
         )
