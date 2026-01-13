@@ -296,6 +296,24 @@ Answer the question based only on the context provided. Include citations to spe
         cleaned = re.sub(r"\[CITATIONS\].*", "", answer, flags=re.DOTALL | re.IGNORECASE)
         return cleaned.strip()
 
+    def _path_to_url(self, wiki_path: str) -> str:
+        """Convert wiki path to frontend route.
+
+        Args:
+            wiki_path: Path relative to wiki (e.g., 'files/src_main-py.md')
+
+        Returns:
+            Frontend route (e.g., '/files/src_main-py')
+        """
+        route = wiki_path.removesuffix(".md")
+
+        if route == "overview":
+            return "/"
+        elif route == "architecture":
+            return "/architecture"
+        else:
+            return f"/{route}"
+
     async def ask(self, request: QARequest) -> QAResponse:
         """Answer a question about the codebase.
 

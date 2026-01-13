@@ -359,3 +359,35 @@ class TestConfidenceCalculation:
 
         service = QAService.__new__(QAService)
         assert service._calculate_confidence([]) == ConfidenceLevel.LOW
+
+
+class TestPathToUrl:
+    """Tests for _path_to_url helper method."""
+
+    def test_path_to_url_files(self):
+        """File paths convert to /files/slug route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("files/src_main-py.md") == "/files/src_main-py"
+
+    def test_path_to_url_directories(self):
+        """Directory paths convert to /directories/slug route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("directories/backend_src.md") == "/directories/backend_src"
+
+    def test_path_to_url_overview(self):
+        """Overview converts to root route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("overview.md") == "/"
+
+    def test_path_to_url_architecture(self):
+        """Architecture converts to /architecture route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("architecture.md") == "/architecture"
