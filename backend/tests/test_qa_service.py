@@ -292,3 +292,15 @@ def test_search_quality_schema():
     assert quality.fts_searched is False
     assert quality.results_found == 10
     assert quality.results_used == 5
+
+
+def test_citation_has_url_field():
+    """Citation includes url for frontend routing."""
+    from oya.qa.schemas import Citation
+    citation = Citation(
+        path="files/src_main-py.md",
+        title="Main Module",
+        lines="10-20",
+        url="/files/src_main-py",
+    )
+    assert citation.url == "/files/src_main-py"

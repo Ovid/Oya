@@ -25,9 +25,10 @@ class SearchQuality(BaseModel):
 class Citation(BaseModel):
     """Citation reference in an answer."""
 
-    path: str = Field(..., description="File path of the cited source")
+    path: str = Field(..., description="Wiki-relative path of the cited source")
     title: str = Field(..., description="Display title for the citation")
     lines: str | None = Field(None, description="Line range if applicable (e.g., '10-20')")
+    url: str = Field(..., description="Frontend route (e.g., '/files/src_main-py')")
 
 
 class QARequest(BaseModel):
