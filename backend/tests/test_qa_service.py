@@ -69,14 +69,17 @@ class TestQAServiceHybridSearch:
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="How does authentication work?")
 
-        result = await service.search(request.question)
+        results, semantic_ok, fts_ok = await service.search(request.question)
 
         # Should have called both vectorstore and db
         mock_vectorstore.query.assert_called_once()
         mock_db.execute.assert_called_once()
 
         # Results should be deduplicated and combined
-        assert len(result) > 0
+        assert len(results) > 0
+        # Both search methods should have succeeded
+        assert semantic_ok is True
+        assert fts_ok is True
 
     @pytest.mark.asyncio
     async def test_hybrid_search_prioritizes_notes(
@@ -85,14 +88,14 @@ class TestQAServiceHybridSearch:
         """Notes are prioritized over wiki/code in search results."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
 
-        result = await service.search("How does X work?")
+        results, _, _ = await service.search("How does X work?")
 
         # Notes should appear first (lower index = higher priority)
         note_indices = [
-            i for i, r in enumerate(result) if r.get("type") == "note"
+            i for i, r in enumerate(results) if r.get("type") == "note"
         ]
         wiki_indices = [
-            i for i, r in enumerate(result) if r.get("type") == "wiki"
+            i for i, r in enumerate(results) if r.get("type") == "wiki"
         ]
 
         if note_indices and wiki_indices:

@@ -53,34 +53,29 @@ class QAService:
     async def search(
         self,
         query: str,
-        context: dict[str, Any] | None = None,
         limit: int = 10,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], bool, bool]:
         """Perform hybrid search combining semantic and full-text search.
 
         Args:
             query: Search query.
-            context: Optional page context for filtering.
             limit: Maximum results to return.
 
         Returns:
-            Combined and deduplicated search results.
+            Tuple of (search results, semantic_ok, fts_ok).
         """
         results: list[dict[str, Any]] = []
         seen_paths: set[str] = set()
+        semantic_ok = False
+        fts_ok = False
 
         # Semantic search via ChromaDB
-        where_filter = None
-        if context and context.get("page_type"):
-            # Could filter by type if needed
-            pass
-
         try:
             semantic_results = self._vectorstore.query(
                 query_text=query,
                 n_results=limit,
-                where=where_filter,
             )
+            semantic_ok = True
 
             for i, doc_id in enumerate(semantic_results.get("ids", [[]])[0]):
                 documents = semantic_results.get("documents", [[]])[0]
@@ -118,6 +113,7 @@ class QAService:
             """
 
             cursor = self._db.execute(sql, (fts_query, limit))
+            fts_ok = True
 
             for row in cursor.fetchall():
                 path = row["path"] or ""
@@ -140,7 +136,7 @@ class QAService:
         type_priority = {"note": 0, "code": 1, "wiki": 2}
         results.sort(key=lambda r: (type_priority.get(r["type"], 3), r["distance"]))
 
-        return results[:limit]
+        return results[:limit], semantic_ok, fts_ok
 
     def _calculate_confidence(self, results: list[dict[str, Any]]) -> ConfidenceLevel:
         """Calculate confidence level from search results.
@@ -358,7 +354,7 @@ Answer the question based only on the context provided. Include citations to spe
             Q&A response with answer, citations, confidence, and search quality.
         """
         # Perform hybrid search
-        results = await self.search(request.question)
+        results, semantic_ok, fts_ok = await self.search(request.question)
 
         # Calculate confidence from results
         confidence = self._calculate_confidence(results)
@@ -379,8 +375,8 @@ Answer the question based only on the context provided. Include citations to spe
                 confidence=confidence,
                 disclaimer="An error occurred while generating the answer.",
                 search_quality=SearchQuality(
-                    semantic_searched=True,
-                    fts_searched=True,
+                    semantic_searched=semantic_ok,
+                    fts_searched=fts_ok,
                     results_found=len(results),
                     results_used=results_used,
                 ),
@@ -403,8 +399,8 @@ Answer the question based only on the context provided. Include citations to spe
             confidence=confidence,
             disclaimer=disclaimers[confidence],
             search_quality=SearchQuality(
-                semantic_searched=True,
-                fts_searched=True,
+                semantic_searched=semantic_ok,
+                fts_searched=fts_ok,
                 results_found=len(results),
                 results_used=results_used,
             ),
