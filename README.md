@@ -6,7 +6,8 @@ A local-first, editable wiki generator for codebases. Ọya creates comprehensiv
 
 # ALPHA CODE!
 
-This is not suitable for production.
+This is a work in progress and not suitable for production. It's only
+partially functional and behavior is not yet validated.
 
 # Who is Ọya?
 
