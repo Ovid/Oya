@@ -80,28 +80,32 @@ export interface ProgressEvent {
 }
 
 // Q&A Types
-export type QAMode = 'gated' | 'loose';
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+export interface SearchQuality {
+  semantic_searched: boolean;
+  fts_searched: boolean;
+  results_found: number;
+  results_used: number;
+}
 
 export interface Citation {
   path: string;
   title: string;
   lines: string | null;
+  url: string;
 }
 
 export interface QARequest {
   question: string;
-  context?: {
-    page_type: string;
-    slug: string;
-  };
-  mode?: QAMode;
 }
 
 export interface QAResponse {
   answer: string;
   citations: Citation[];
-  evidence_sufficient: boolean;
+  confidence: ConfidenceLevel;
   disclaimer: string;
+  search_quality: SearchQuality;
 }
 
 // Notes Types
