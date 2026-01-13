@@ -19,6 +19,7 @@ interface AppState {
   noteEditor: NoteEditorState;
   darkMode: boolean;
   generationStatus: GenerationStatus | null;
+  askPanelOpen: boolean;
 }
 
 type Action =
@@ -32,13 +33,20 @@ type Action =
   | { type: 'CLOSE_NOTE_EDITOR' }
   | { type: 'SET_NOTE_EDITOR_DIRTY'; payload: boolean }
   | { type: 'SET_DARK_MODE'; payload: boolean }
-  | { type: 'SET_GENERATION_STATUS'; payload: GenerationStatus | null };
+  | { type: 'SET_GENERATION_STATUS'; payload: GenerationStatus | null }
+  | { type: 'SET_ASK_PANEL_OPEN'; payload: boolean };
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') return false;
   const stored = localStorage.getItem('oya-dark-mode');
   if (stored !== null) return stored === 'true';
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function getInitialAskPanelOpen(): boolean {
+  if (typeof window === 'undefined') return false;
+  const stored = localStorage.getItem('oya-ask-panel-open');
+  return stored === 'true';
 }
 
 const initialState: AppState = {
@@ -56,6 +64,7 @@ const initialState: AppState = {
   },
   darkMode: getInitialDarkMode(),
   generationStatus: null,
+  askPanelOpen: getInitialAskPanelOpen(),
 };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -96,6 +105,8 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, darkMode: action.payload };
     case 'SET_GENERATION_STATUS':
       return { ...state, generationStatus: action.payload };
+    case 'SET_ASK_PANEL_OPEN':
+      return { ...state, askPanelOpen: action.payload };
     default:
       return state;
   }
@@ -113,6 +124,7 @@ interface AppContextValue {
   switchWorkspace: (path: string) => Promise<void>;
   setNoteEditorDirty: (isDirty: boolean) => void;
   dismissGenerationStatus: () => void;
+  setAskPanelOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -172,6 +184,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newValue = !state.darkMode;
     localStorage.setItem('oya-dark-mode', String(newValue));
     dispatch({ type: 'SET_DARK_MODE', payload: newValue });
+  };
+
+  const setAskPanelOpen = (open: boolean) => {
+    localStorage.setItem('oya-ask-panel-open', String(open));
+    dispatch({ type: 'SET_ASK_PANEL_OPEN', payload: open });
   };
 
   const switchWorkspace = async (path: string) => {
@@ -264,6 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     switchWorkspace,
     setNoteEditorDirty,
     dismissGenerationStatus,
+    setAskPanelOpen,
   };
 
   return (

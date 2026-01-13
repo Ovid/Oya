@@ -4,7 +4,7 @@ export { Sidebar } from './Sidebar';
 export { RightSidebar } from './RightSidebar';
 export { WikiContent } from './WikiContent';
 export { PageLoader } from './PageLoader';
-export { QADock } from './QADock';
+export { AskPanel } from './AskPanel';
 export { NoteEditor } from './NoteEditor';
 export { DirectoryPicker } from './DirectoryPicker';
 export { InterruptedGenerationBanner } from './InterruptedGenerationBanner';

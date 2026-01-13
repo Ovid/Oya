@@ -6,9 +6,11 @@ import { IndexingPreviewModal } from './IndexingPreviewModal';
 interface TopBarProps {
   onToggleSidebar: () => void;
   onToggleRightSidebar: () => void;
+  onToggleAskPanel: () => void;
+  askPanelOpen: boolean;
 }
 
-export function TopBar({ onToggleSidebar, onToggleRightSidebar }: TopBarProps) {
+export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel, askPanelOpen }: TopBarProps) {
   const { state, startGeneration, toggleDarkMode, switchWorkspace } = useApp();
   const { repoStatus, currentJob, isLoading, darkMode, noteEditor } = state;
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -137,6 +139,18 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar }: TopBarProps) {
               </button>
             </>
           )}
+
+          <button
+            onClick={onToggleAskPanel}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md ${
+              askPanelOpen
+                ? 'text-white bg-indigo-600 hover:bg-indigo-700'
+                : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+            title="Ask about the codebase"
+          >
+            Ask
+          </button>
 
           <button
             onClick={toggleDarkMode}
