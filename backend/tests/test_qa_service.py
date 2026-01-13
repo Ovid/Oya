@@ -302,6 +302,48 @@ class TestPathToUrl:
         assert service._path_to_url("architecture.md") == "/architecture"
 
 
+class TestDeduplicateResults:
+    """Tests for content deduplication."""
+
+    def test_removes_duplicate_content(self):
+        """Deduplication removes near-duplicate content."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"path": "file1.md", "content": "This is the same content here."},
+            {"path": "file2.md", "content": "This is the same content here."},  # Duplicate
+            {"path": "file3.md", "content": "This is different content."},
+        ]
+
+        deduped = service._deduplicate_results(results)
+        assert len(deduped) == 2
+        assert deduped[0]["path"] == "file1.md"
+        assert deduped[1]["path"] == "file3.md"
+
+    def test_preserves_order(self):
+        """Deduplication preserves order of first occurrence."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"path": "a.md", "content": "Unique A content."},
+            {"path": "b.md", "content": "Unique B content."},
+            {"path": "c.md", "content": "Unique C content."},
+        ]
+
+        deduped = service._deduplicate_results(results)
+        assert len(deduped) == 3
+        assert [r["path"] for r in deduped] == ["a.md", "b.md", "c.md"]
+
+    def test_empty_results(self):
+        """Empty results return empty list."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._deduplicate_results([]) == []
+
+
 class TestTruncateAtSentence:
     """Tests for sentence-boundary truncation."""
 

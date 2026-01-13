@@ -136,7 +136,33 @@ class QAService:
         type_priority = {"note": 0, "code": 1, "wiki": 2}
         results.sort(key=lambda r: (type_priority.get(r["type"], 3), r["distance"]))
 
+        # Deduplicate similar content
+        results = self._deduplicate_results(results)
+
         return results[:limit], semantic_ok, fts_ok
+
+    def _deduplicate_results(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Remove duplicate/near-duplicate content.
+
+        Args:
+            results: Search results to deduplicate.
+
+        Returns:
+            Deduplicated results preserving order.
+        """
+        seen_content_hashes: set[int] = set()
+        deduplicated: list[dict[str, Any]] = []
+
+        for r in results:
+            content = r.get("content", "")
+            # Hash first 500 chars (covers most duplicates)
+            content_hash = hash(content[:500].strip().lower())
+
+            if content_hash not in seen_content_hashes:
+                seen_content_hashes.add(content_hash)
+                deduplicated.append(r)
+
+        return deduplicated
 
     def _calculate_confidence(self, results: list[dict[str, Any]]) -> ConfidenceLevel:
         """Calculate confidence level from search results.
