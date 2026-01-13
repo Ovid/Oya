@@ -302,6 +302,91 @@ class TestPathToUrl:
         assert service._path_to_url("architecture.md") == "/architecture"
 
 
+class TestStructuredCitationExtraction:
+    """Tests for structured citation extraction."""
+
+    def test_extract_structured_citations(self):
+        """Extract citations from structured JSON output."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = """<answer>
+The auth module handles JWT tokens.
+</answer>
+
+<citations>
+[
+  {"path": "files/auth-py.md", "relevant_text": "JWT token generation"},
+  {"path": "files/config-py.md", "relevant_text": "auth settings"}
+]
+</citations>"""
+
+        results = [
+            {"path": "files/auth-py.md", "title": "Auth Module"},
+            {"path": "files/config-py.md", "title": "Config"},
+            {"path": "files/other.md", "title": "Other"},
+        ]
+
+        citations = service._extract_citations(response, results)
+        assert len(citations) == 2
+        assert citations[0].path == "files/auth-py.md"
+        assert citations[0].url == "/files/auth-py"
+
+    def test_extract_answer_from_structured(self):
+        """Extract answer from structured output."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = """<answer>
+The auth module handles JWT tokens.
+</answer>
+
+<citations>
+[{"path": "files/auth-py.md"}]
+</citations>"""
+
+        answer = service._extract_answer(response)
+        assert answer == "The auth module handles JWT tokens."
+        assert "<citations>" not in answer
+
+    def test_fallback_to_legacy_citations(self):
+        """Falls back to legacy format when no structured citations."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = """Here is the answer.
+
+[CITATIONS]
+- files/auth-py.md:10-20
+- files/config-py.md
+"""
+
+        results = [
+            {"path": "files/auth-py.md", "title": "Auth Module"},
+            {"path": "files/config-py.md", "title": "Config"},
+        ]
+
+        citations = service._extract_citations(response, results)
+        assert len(citations) == 2
+        assert citations[0].lines == "10-20"
+
+    def test_fallback_citations_from_results(self):
+        """Uses fallback citations when no explicit citations found."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = "Just a plain answer with no citations."
+
+        results = [
+            {"path": "files/a.md", "title": "A"},
+            {"path": "files/b.md", "title": "B"},
+            {"path": "files/c.md", "title": "C"},
+        ]
+
+        citations = service._extract_citations(response, results)
+        assert len(citations) == 3
+
+
 class TestDeduplicateResults:
     """Tests for content deduplication."""
 

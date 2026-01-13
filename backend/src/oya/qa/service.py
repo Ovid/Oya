@@ -19,14 +19,22 @@ You have access to documentation, code, and notes from the repository.
 
 When answering:
 1. Be concise and accurate
-2. Reference specific files and line numbers when possible
-3. If you cite sources, list them at the end in the format [CITATIONS] followed by bullet points
-4. Only answer based on the provided context - do not make up information
+2. Base your answer only on the provided context
+3. After your answer, output a JSON block with citations
 
-Format citations like:
-[CITATIONS]
-- path/to/file.py:10-20
-- docs/readme.md
+Format your response as:
+<answer>
+Your answer here...
+</answer>
+
+<citations>
+[
+  {"path": "files/example-py.md", "relevant_text": "brief quote showing relevance"},
+  {"path": "directories/src.md", "relevant_text": "another brief quote"}
+]
+</citations>
+
+Only cite sources that directly support your answer. Include 1-5 citations.
 """
 
 
@@ -272,10 +280,62 @@ Answer the question based only on the context provided. Include citations to spe
 
     def _extract_citations(
         self,
+        response: str,
+        results: list[dict[str, Any]],
+    ) -> list[Citation]:
+        """Extract citations from structured JSON output.
+
+        Args:
+            response: LLM response with <citations> block.
+            results: Search results for validation.
+
+        Returns:
+            Validated citations with URLs.
+        """
+        import json
+
+        citations: list[Citation] = []
+
+        # Parse JSON citations block
+        match = re.search(r'<citations>\s*(\[.*?\])\s*</citations>', response, re.DOTALL)
+        if not match:
+            # Fall back to legacy [CITATIONS] format for compatibility
+            return self._extract_legacy_citations(response, results)
+
+        try:
+            raw_citations = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return self._fallback_citations(results[:3])
+
+        # Validate each citation exists in search results
+        result_paths = {r.get("path") for r in results}
+        seen_paths: set[str] = set()
+
+        for cite in raw_citations:
+            path = cite.get("path", "")
+            if path and path in result_paths and path not in seen_paths:
+                seen_paths.add(path)
+                title = path
+                for r in results:
+                    if r.get("path") == path:
+                        title = r.get("title") or path
+                        break
+
+                citations.append(Citation(
+                    path=path,
+                    title=title,
+                    lines=None,
+                    url=self._path_to_url(path),
+                ))
+
+        return citations if citations else self._fallback_citations(results[:3])
+
+    def _extract_legacy_citations(
+        self,
         answer: str,
         results: list[dict[str, Any]],
     ) -> list[Citation]:
-        """Extract citations from LLM response.
+        """Extract citations from legacy [CITATIONS] format.
 
         Args:
             answer: LLM-generated answer.
@@ -288,17 +348,17 @@ Answer the question based only on the context provided. Include citations to spe
         seen_paths: set[str] = set()
 
         # Look for [CITATIONS] section in response
-        citations_match = re.search(r"\[CITATIONS\](.*?)(?:\n\n|$)", answer, re.DOTALL | re.IGNORECASE)
+        citations_match = re.search(
+            r"\[CITATIONS\](.*?)(?:\n\n|$)", answer, re.DOTALL | re.IGNORECASE
+        )
 
         if citations_match:
             citations_text = citations_match.group(1)
-            # Parse bullet points
             for line in citations_text.strip().split("\n"):
                 line = line.strip().lstrip("-").strip()
                 if not line:
                     continue
 
-                # Parse path:lines format
                 if ":" in line:
                     parts = line.split(":", 1)
                     path = parts[0].strip()
@@ -309,7 +369,6 @@ Answer the question based only on the context provided. Include citations to spe
 
                 if path and path not in seen_paths:
                     seen_paths.add(path)
-                    # Find title from results
                     title = path
                     for r in results:
                         if r.get("path") == path:
@@ -323,33 +382,50 @@ Answer the question based only on the context provided. Include citations to spe
                         url=self._path_to_url(path),
                     ))
 
-        # If no explicit citations, use top 3 results
-        if not citations:
-            for r in results[:3]:
-                path = r.get("path", "")
-                if path and path not in seen_paths:
-                    seen_paths.add(path)
-                    citations.append(Citation(
-                        path=path,
-                        title=r.get("title") or path,
-                        lines=None,
-                        url=self._path_to_url(path),
-                    ))
+        return citations if citations else self._fallback_citations(results[:3])
+
+    def _fallback_citations(self, results: list[dict[str, Any]]) -> list[Citation]:
+        """Create citations from top results as fallback.
+
+        Args:
+            results: Search results to use for citations.
+
+        Returns:
+            Citations from top results.
+        """
+        citations: list[Citation] = []
+        seen_paths: set[str] = set()
+
+        for r in results:
+            path = r.get("path", "")
+            if path and path not in seen_paths:
+                seen_paths.add(path)
+                citations.append(Citation(
+                    path=path,
+                    title=r.get("title") or path,
+                    lines=None,
+                    url=self._path_to_url(path),
+                ))
 
         return citations
 
-    def _clean_answer(self, answer: str) -> str:
-        """Remove citations section from answer text.
+    def _extract_answer(self, response: str) -> str:
+        """Extract answer text from structured response.
 
         Args:
-            answer: Raw LLM response.
+            response: LLM response with <answer> block.
 
         Returns:
-            Cleaned answer without citations block.
+            Extracted answer text.
         """
-        # Remove [CITATIONS] section - match from [CITATIONS] to end of string
-        # since citations should always be at the end
-        cleaned = re.sub(r"\[CITATIONS\].*", "", answer, flags=re.DOTALL | re.IGNORECASE)
+        match = re.search(r'<answer>\s*(.*?)\s*</answer>', response, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+
+        # Fall back to legacy format - remove [CITATIONS] section
+        cleaned = re.sub(r"\[CITATIONS\].*", "", response, flags=re.DOTALL | re.IGNORECASE)
+        # Also remove <citations> block if present without <answer>
+        cleaned = re.sub(r"<citations>.*?</citations>", "", cleaned, flags=re.DOTALL)
         return cleaned.strip()
 
     def _path_to_url(self, wiki_path: str) -> str:
@@ -408,9 +484,9 @@ Answer the question based only on the context provided. Include citations to spe
                 ),
             )
 
-        # Extract citations and clean answer
+        # Extract citations and answer from structured response
         citations = self._extract_citations(raw_answer, results)
-        answer = self._clean_answer(raw_answer)
+        answer = self._extract_answer(raw_answer)
 
         # Build disclaimer based on confidence
         disclaimers = {
