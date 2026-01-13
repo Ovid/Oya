@@ -5,7 +5,7 @@ from typing import Any
 
 from oya.db.connection import Database
 from oya.llm.client import LLMClient
-from oya.qa.schemas import Citation, QARequest, QAResponse
+from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, SearchQuality
 from oya.vectorstore.store import VectorStore
 
 
@@ -162,6 +162,33 @@ class QAService:
         )
 
         return relevant_count >= MIN_EVIDENCE_RESULTS
+
+    def _calculate_confidence(self, results: list[dict[str, Any]]) -> ConfidenceLevel:
+        """Calculate confidence level from search results.
+
+        Args:
+            results: Search results with distance scores.
+
+        Returns:
+            HIGH if 3+ strong matches and best < 0.3
+            MEDIUM if 1+ decent match and best < 0.6
+            LOW otherwise
+        """
+        if not results:
+            return ConfidenceLevel.LOW
+
+        # Count results with good relevance (distance < 0.5)
+        strong_matches = sum(1 for r in results if r.get("distance", 1.0) < 0.5)
+
+        # Check best result quality
+        best_distance = min(r.get("distance", 1.0) for r in results)
+
+        if strong_matches >= 3 and best_distance < 0.3:
+            return ConfidenceLevel.HIGH
+        elif strong_matches >= 1 and best_distance < 0.6:
+            return ConfidenceLevel.MEDIUM
+        else:
+            return ConfidenceLevel.LOW
 
     def _build_context_prompt(self, question: str, results: list[dict[str, Any]]) -> str:
         """Build prompt with search results as context.

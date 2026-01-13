@@ -304,3 +304,58 @@ def test_citation_has_url_field():
         url="/files/src_main-py",
     )
     assert citation.url == "/files/src_main-py"
+
+
+class TestConfidenceCalculation:
+    """Tests for confidence level calculation."""
+
+    def test_calculate_confidence_high(self):
+        """HIGH confidence requires 3+ strong matches and best < 0.3."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        # Mock service (we only need the method)
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"distance": 0.2},  # strong
+            {"distance": 0.3},  # strong
+            {"distance": 0.4},  # strong
+            {"distance": 0.7},
+        ]
+        assert service._calculate_confidence(results) == ConfidenceLevel.HIGH
+
+    def test_calculate_confidence_medium(self):
+        """MEDIUM confidence requires 1+ decent match and best < 0.6."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"distance": 0.4},  # decent
+            {"distance": 0.7},
+            {"distance": 0.8},
+        ]
+        assert service._calculate_confidence(results) == ConfidenceLevel.MEDIUM
+
+    def test_calculate_confidence_low(self):
+        """LOW confidence when no good matches."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"distance": 0.7},
+            {"distance": 0.9},
+        ]
+        assert service._calculate_confidence(results) == ConfidenceLevel.LOW
+
+    def test_calculate_confidence_empty(self):
+        """LOW confidence with no results."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        service = QAService.__new__(QAService)
+        assert service._calculate_confidence([]) == ConfidenceLevel.LOW
