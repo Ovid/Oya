@@ -99,80 +99,6 @@ class TestQAServiceHybridSearch:
             assert min(note_indices) < max(wiki_indices)
 
 
-class TestQAServiceEvidenceEvaluation:
-    """Tests for evidence gating functionality."""
-
-    @pytest.mark.asyncio
-    async def test_gated_mode_requires_sufficient_evidence(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Gated mode requires sufficient evidence to generate answer."""
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="How does authentication work?",
-            mode=QAMode.GATED,
-        )
-
-        response = await service.ask(request)
-
-        assert response.evidence_sufficient is True
-        assert response.answer is not None
-
-    @pytest.mark.asyncio
-    async def test_gated_mode_rejects_insufficient_evidence(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Gated mode returns no answer when evidence is insufficient."""
-        # Empty results = no evidence
-        mock_vectorstore.query.return_value = {
-            "ids": [[]],
-            "documents": [[]],
-            "metadatas": [[]],
-            "distances": [[]],
-        }
-        mock_db.execute.return_value.fetchall.return_value = []
-
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="What is the meaning of life?",
-            mode=QAMode.GATED,
-        )
-
-        response = await service.ask(request)
-
-        assert response.evidence_sufficient is False
-        assert response.answer == ""
-        assert "insufficient evidence" in response.disclaimer.lower()
-        # LLM should not be called
-        mock_llm.generate.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_loose_mode_always_answers(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Loose mode generates answer even with limited evidence."""
-        # Empty results
-        mock_vectorstore.query.return_value = {
-            "ids": [[]],
-            "documents": [[]],
-            "metadatas": [[]],
-            "distances": [[]],
-        }
-        mock_db.execute.return_value.fetchall.return_value = []
-
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="How does authentication work?",
-            mode=QAMode.LOOSE,
-        )
-
-        response = await service.ask(request)
-
-        # Should still answer in loose mode
-        mock_llm.generate.assert_called_once()
-        assert "speculative" in response.disclaimer.lower() or "limited evidence" in response.disclaimer.lower()
-
-
 class TestQAServiceAnswerGeneration:
     """Tests for LLM answer generation."""
 
@@ -210,7 +136,7 @@ class TestQAServiceAnswerGeneration:
     async def test_includes_mandatory_disclaimer(
         self, mock_vectorstore, mock_db, mock_llm
     ):
-        """Response always includes AI-generated disclaimer."""
+        """Response always includes confidence-based disclaimer."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="How does X work?")
 
@@ -218,29 +144,9 @@ class TestQAServiceAnswerGeneration:
 
         assert response.disclaimer is not None
         assert len(response.disclaimer) > 0
-        assert "ai" in response.disclaimer.lower() or "generated" in response.disclaimer.lower()
-
-
-class TestQAServiceContextFiltering:
-    """Tests for context-based filtering."""
-
-    @pytest.mark.asyncio
-    async def test_filters_by_page_context(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Search can be filtered by current page context."""
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="What does this module do?",
-            context={"page_type": "file", "slug": "src-main-py"},
-        )
-
-        await service.ask(request)
-
-        # Vectorstore should be called with where filter
-        call_args = mock_vectorstore.query.call_args
-        # Context should influence the search
-        assert call_args is not None
+        # Disclaimers now describe confidence level
+        assert any(word in response.disclaimer.lower() for word in
+                   ["evidence", "codebase", "verify", "speculative"])
 
 
 def test_qa_request_no_mode_or_context():
