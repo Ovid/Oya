@@ -5,7 +5,7 @@ from typing import Any
 
 from oya.db.connection import Database
 from oya.llm.client import LLMClient
-from oya.qa.schemas import Citation, QAMode, QARequest, QAResponse
+from oya.qa.schemas import Citation, QARequest, QAResponse
 from oya.vectorstore.store import VectorStore
 
 

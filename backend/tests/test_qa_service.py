@@ -8,7 +8,6 @@ from oya.qa.schemas import (
     QARequest,
     QAResponse,
     Citation,
-    QAMode,
     ConfidenceLevel,
     SearchQuality,
 )
@@ -242,6 +241,36 @@ class TestQAServiceContextFiltering:
         call_args = mock_vectorstore.query.call_args
         # Context should influence the search
         assert call_args is not None
+
+
+def test_qa_request_no_mode_or_context():
+    """QARequest only has question field."""
+    from oya.qa.schemas import QARequest
+    request = QARequest(question="How does auth work?")
+    assert request.question == "How does auth work?"
+    # Verify mode and context don't exist
+    assert not hasattr(request, 'mode')
+    assert not hasattr(request, 'context')
+
+
+def test_qa_response_has_confidence_and_search_quality():
+    """QAResponse uses confidence instead of evidence_sufficient."""
+    from oya.qa.schemas import QAResponse, ConfidenceLevel, SearchQuality, Citation
+    response = QAResponse(
+        answer="Auth uses JWT tokens.",
+        citations=[],
+        confidence=ConfidenceLevel.HIGH,
+        disclaimer="Based on strong evidence.",
+        search_quality=SearchQuality(
+            semantic_searched=True,
+            fts_searched=True,
+            results_found=5,
+            results_used=3,
+        ),
+    )
+    assert response.confidence == ConfidenceLevel.HIGH
+    assert response.search_quality.results_used == 3
+    assert not hasattr(response, 'evidence_sufficient')
 
 
 def test_confidence_level_values():
