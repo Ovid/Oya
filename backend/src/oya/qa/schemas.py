@@ -13,6 +13,23 @@ class QAMode(str, Enum):
     LOOSE = "loose"
 
 
+class ConfidenceLevel(str, Enum):
+    """Confidence level for Q&A answers."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class SearchQuality(BaseModel):
+    """Transparency about search execution."""
+
+    semantic_searched: bool = Field(..., description="Did vector search succeed?")
+    fts_searched: bool = Field(..., description="Did FTS search succeed?")
+    results_found: int = Field(..., description="Total results before dedup")
+    results_used: int = Field(..., description="Results after dedup, within token budget")
+
+
 class Citation(BaseModel):
     """Citation reference in an answer."""
 

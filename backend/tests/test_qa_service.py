@@ -9,6 +9,8 @@ from oya.qa.schemas import (
     QAResponse,
     Citation,
     QAMode,
+    ConfidenceLevel,
+    SearchQuality,
 )
 
 
@@ -240,3 +242,24 @@ class TestQAServiceContextFiltering:
         call_args = mock_vectorstore.query.call_args
         # Context should influence the search
         assert call_args is not None
+
+
+def test_confidence_level_values():
+    """ConfidenceLevel enum has expected values."""
+    assert ConfidenceLevel.HIGH == "high"
+    assert ConfidenceLevel.MEDIUM == "medium"
+    assert ConfidenceLevel.LOW == "low"
+
+
+def test_search_quality_schema():
+    """SearchQuality tracks search execution metrics."""
+    quality = SearchQuality(
+        semantic_searched=True,
+        fts_searched=False,
+        results_found=10,
+        results_used=5,
+    )
+    assert quality.semantic_searched is True
+    assert quality.fts_searched is False
+    assert quality.results_found == 10
+    assert quality.results_used == 5
