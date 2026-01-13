@@ -297,3 +297,47 @@ class TestPathToUrl:
         service = QAService.__new__(QAService)
 
         assert service._path_to_url("architecture.md") == "/architecture"
+
+
+class TestTruncateAtSentence:
+    """Tests for sentence-boundary truncation."""
+
+    def test_short_text_unchanged(self):
+        """Short text passes through unchanged."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        text = "This is a short sentence."
+        result = service._truncate_at_sentence(text, max_tokens=100)
+        assert result == text
+
+    def test_preserves_sentence_boundary(self):
+        """Long text truncates at sentence boundary."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        text = "First sentence. Second sentence. Third sentence that is very long."
+        # 10 tokens ~= 40 chars, should fit "First sentence. Second sentence."
+        result = service._truncate_at_sentence(text, max_tokens=10)
+        assert result.endswith(".")
+        # Should have truncated before "Third"
+        assert "Third" not in result
+
+    def test_empty_text(self):
+        """Empty text returns empty string."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        result = service._truncate_at_sentence("", max_tokens=100)
+        assert result == ""
+
+    def test_single_very_long_sentence(self):
+        """Single long sentence gets character-truncated."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        text = "This is one very long sentence with no periods " * 50
+        result = service._truncate_at_sentence(text, max_tokens=10)
+        # Should be truncated and end with "..."
+        assert len(result) < len(text)
+        assert result.endswith("...")

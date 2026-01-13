@@ -1,13 +1,18 @@
-"""Q&A service with hybrid search and evidence gating."""
+"""Q&A service with hybrid search and confidence-based answers."""
 
 import re
 from typing import Any
 
 from oya.db.connection import Database
+from oya.generation.chunking import estimate_tokens
 from oya.llm.client import LLMClient
 from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, SearchQuality
 from oya.vectorstore.store import VectorStore
 
+# Token budget for context in LLM prompt
+MAX_CONTEXT_TOKENS = 6000
+# Maximum tokens per individual search result
+MAX_RESULT_TOKENS = 1500
 
 QA_SYSTEM_PROMPT = """You are a helpful assistant that answers questions about a codebase.
 You have access to documentation, code, and notes from the repository.
@@ -164,28 +169,75 @@ class QAService:
         else:
             return ConfidenceLevel.LOW
 
-    def _build_context_prompt(self, question: str, results: list[dict[str, Any]]) -> str:
-        """Build prompt with search results as context.
+    def _truncate_at_sentence(self, text: str, max_tokens: int) -> str:
+        """Truncate text at sentence boundary within token limit.
+
+        Args:
+            text: Text to truncate.
+            max_tokens: Maximum tokens allowed.
+
+        Returns:
+            Truncated text ending at sentence boundary.
+        """
+        if estimate_tokens(text) <= max_tokens:
+            return text
+
+        # Split into sentences (simple heuristic)
+        sentences = text.replace('\n', ' ').split('. ')
+        result: list[str] = []
+        for sentence in sentences:
+            candidate = '. '.join(result + [sentence])
+            if estimate_tokens(candidate) > max_tokens:
+                break
+            result.append(sentence)
+
+        if not result:
+            # If no complete sentence fits, truncate by characters
+            chars_per_token = 4  # Approximate
+            max_chars = max_tokens * chars_per_token
+            return text[:max_chars].rsplit(' ', 1)[0] + '...'
+
+        return '. '.join(result) + '.'
+
+    def _build_context_prompt(
+        self,
+        question: str,
+        results: list[dict[str, Any]],
+    ) -> tuple[str, int]:
+        """Build prompt with token-aware truncation.
 
         Args:
             question: User's question.
             results: Search results to include as context.
 
         Returns:
-            Formatted prompt string.
+            Tuple of (formatted prompt, number of results used).
         """
-        context_parts = []
+        context_parts: list[str] = []
+        total_tokens = 0
+        results_used = 0
 
         for r in results:
             source_type = r.get("type", "unknown")
             path = r.get("path", "unknown")
-            content = r.get("content", "")[:2000]  # Limit content length
+            content = r.get("content", "")
 
-            context_parts.append(f"[{source_type.upper()}] {path}\n{content}")
+            # Truncate individual result at sentence boundary
+            content = self._truncate_at_sentence(content, max_tokens=MAX_RESULT_TOKENS)
+
+            part = f"[{source_type.upper()}] {path}\n{content}"
+            part_tokens = estimate_tokens(part)
+
+            if total_tokens + part_tokens > MAX_CONTEXT_TOKENS:
+                break
+
+            context_parts.append(part)
+            total_tokens += part_tokens
+            results_used += 1
 
         context_str = "\n\n---\n\n".join(context_parts)
 
-        return f"""Based on the following context from the codebase, answer the question.
+        prompt = f"""Based on the following context from the codebase, answer the question.
 
 CONTEXT:
 {context_str}
@@ -193,6 +245,8 @@ CONTEXT:
 QUESTION: {question}
 
 Answer the question based only on the context provided. Include citations to specific files."""
+
+        return prompt, results_used
 
     def _extract_citations(
         self,
@@ -309,8 +363,8 @@ Answer the question based only on the context provided. Include citations to spe
         # Calculate confidence from results
         confidence = self._calculate_confidence(results)
 
-        # Build prompt and generate answer
-        prompt = self._build_context_prompt(request.question, results)
+        # Build prompt with token budgeting
+        prompt, results_used = self._build_context_prompt(request.question, results)
 
         try:
             raw_answer = await self._llm.generate(
@@ -325,10 +379,10 @@ Answer the question based only on the context provided. Include citations to spe
                 confidence=confidence,
                 disclaimer="An error occurred while generating the answer.",
                 search_quality=SearchQuality(
-                    semantic_searched=True,  # We don't track this yet
+                    semantic_searched=True,
                     fts_searched=True,
                     results_found=len(results),
-                    results_used=len(results),
+                    results_used=results_used,
                 ),
             )
 
@@ -352,6 +406,6 @@ Answer the question based only on the context provided. Include citations to spe
                 semantic_searched=True,
                 fts_searched=True,
                 results_found=len(results),
-                results_used=len(results),
+                results_used=results_used,
             ),
         )
