@@ -1036,13 +1036,13 @@ class GenerationOrchestrator:
             file_path: str, content_hash: str
         ) -> tuple[GeneratedPage, FileSummary]:
             content = analysis["file_contents"].get(file_path, "")
-            ext = Path(file_path).suffix.lower()
             # Filter symbols by file path and convert to dicts for generator
             file_symbols = [
                 self._symbol_to_dict(s) for s in analysis["symbols"]
                 if s.metadata.get("file") == file_path
             ]
-            imports = self._extract_imports(content, ext)
+            # Use imports collected during parsing (Task 4)
+            imports = analysis.get("file_imports", {}).get(file_path, [])
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
             page, file_summary = await self.file_generator.generate(
                 file_path=file_path,
@@ -1082,33 +1082,6 @@ class GenerationOrchestrator:
             )
 
         return pages, file_hashes, file_summaries
-
-    def _extract_imports(self, content: str, ext: str) -> list[str]:
-        """Extract import statements from file content.
-
-        Args:
-            content: File content.
-            ext: File extension.
-
-        Returns:
-            List of import statements.
-        """
-        imports = []
-        lines = content.split("\n")
-
-        for line in lines[:50]:  # Only check first 50 lines
-            line = line.strip()
-            if ext == ".py":
-                if line.startswith("import ") or line.startswith("from "):
-                    imports.append(line)
-            elif ext in {".js", ".ts", ".tsx", ".jsx"}:
-                if line.startswith("import ") or line.startswith("const ") and "require(" in line:
-                    imports.append(line)
-            elif ext == ".java":
-                if line.startswith("import "):
-                    imports.append(line)
-
-        return imports
 
     def _symbol_to_dict(self, symbol: ParsedSymbol) -> dict:
         """Convert a ParsedSymbol to a dictionary for legacy consumers.
