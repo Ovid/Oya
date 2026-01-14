@@ -850,6 +850,7 @@ def get_workflow_prompt(
     entry_points: list[str],
     related_files: list[str],
     code_context: str,
+    synthesis_map: Any | None = None,
 ) -> str:
     """Generate a prompt for creating a workflow page.
 
@@ -859,6 +860,7 @@ def get_workflow_prompt(
         entry_points: List of entry point descriptions.
         related_files: List of related file paths.
         code_context: Relevant code snippets or context.
+        synthesis_map: Optional SynthesisMap for architectural context.
 
     Returns:
         The rendered prompt string.
@@ -870,6 +872,20 @@ def get_workflow_prompt(
         "\n".join(f"- {f}" for f in related_files) if related_files else "No related files."
     )
 
+    # Use synthesis template if synthesis_map is provided
+    if synthesis_map is not None:
+        return WORKFLOW_SYNTHESIS_TEMPLATE.render(
+            repo_name=repo_name,
+            workflow_name=workflow_name,
+            entry_points=entry_points_str,
+            related_files=related_files_str,
+            layers=_format_synthesis_layers(synthesis_map),
+            key_components=_format_synthesis_key_components(synthesis_map),
+            dependency_graph=_format_synthesis_dependency_graph(synthesis_map),
+            code_context=code_context or "No code context provided.",
+        )
+
+    # Legacy template without synthesis
     return WORKFLOW_TEMPLATE.render(
         repo_name=repo_name,
         workflow_name=workflow_name,
