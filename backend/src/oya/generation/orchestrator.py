@@ -914,31 +914,30 @@ class GenerationOrchestrator:
             page.source_hash = signature_hash
             return page, directory_summary
 
-        # Process directories in parallel batches
+        # Process directories in parallel batches, report as each completes
         completed = skipped_count
         for batch in batched(dirs_to_generate, self.parallel_limit):
-            # Process batch concurrently
-            batch_results = await asyncio.gather(*[
-                generate_dir_page(dir_path, signature_hash)
+            tasks = [
+                asyncio.create_task(generate_dir_page(dir_path, signature_hash))
                 for dir_path, signature_hash in batch
-            ])
-            # Unpack results into pages and summaries
-            for page, summary in batch_results:
+            ]
+
+            for coro in asyncio.as_completed(tasks):
+                page, summary = await coro
                 pages.append(page)
                 directory_summaries.append(summary)
 
-            # Report progress after batch completes
-            completed += len(batch)
-            generated_so_far = completed - skipped_count
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.DIRECTORIES,
-                    step=completed,
-                    total_steps=total_dirs,
-                    message=f"Generated {generated_so_far}/{len(dirs_to_generate)} directories ({skipped_count} unchanged)...",
-                ),
-            )
+                completed += 1
+                generated_so_far = completed - skipped_count
+                await self._emit_progress(
+                    progress_callback,
+                    GenerationProgress(
+                        phase=GenerationPhase.DIRECTORIES,
+                        step=completed,
+                        total_steps=total_dirs,
+                        message=f"Generated {generated_so_far}/{len(dirs_to_generate)} directories ({skipped_count} unchanged)...",
+                    ),
+                )
 
         return pages, directory_summaries
 
@@ -1055,31 +1054,30 @@ class GenerationOrchestrator:
             page.source_hash = content_hash
             return page, file_summary
 
-        # Process files in parallel batches
+        # Process files in parallel batches, report as each completes
         completed = skipped_count
         for batch in batched(files_to_generate, self.parallel_limit):
-            # Process batch concurrently
-            batch_results = await asyncio.gather(*[
-                generate_file_page(file_path, content_hash)
+            tasks = [
+                asyncio.create_task(generate_file_page(file_path, content_hash))
                 for file_path, content_hash in batch
-            ])
-            # Unpack results into pages and summaries
-            for page, summary in batch_results:
+            ]
+
+            for coro in asyncio.as_completed(tasks):
+                page, summary = await coro
                 pages.append(page)
                 file_summaries.append(summary)
 
-            # Report progress after batch completes
-            completed += len(batch)
-            generated_so_far = completed - skipped_count
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.FILES,
-                    step=completed,
-                    total_steps=total_files,
-                    message=f"Generated {generated_so_far}/{len(files_to_generate)} files ({skipped_count} unchanged)...",
-                ),
-            )
+                completed += 1
+                generated_so_far = completed - skipped_count
+                await self._emit_progress(
+                    progress_callback,
+                    GenerationProgress(
+                        phase=GenerationPhase.FILES,
+                        step=completed,
+                        total_steps=total_files,
+                        message=f"Generated {generated_so_far}/{len(files_to_generate)} files ({skipped_count} unchanged)...",
+                    ),
+                )
 
         return pages, file_hashes, file_summaries
 
