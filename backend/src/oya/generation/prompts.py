@@ -591,6 +591,48 @@ def _format_directory_summaries(directory_summaries: list[Any]) -> str:
     return "\n".join(lines)
 
 
+def generate_breadcrumb(directory_path: str, project_name: str) -> str:
+    """Generate a breadcrumb trail for directory navigation.
+
+    For shallow directories (depth <= 4), shows full path.
+    For deep directories (depth > 4), truncates middle: root / ... / parent / current.
+
+    Args:
+        directory_path: Path to the directory (empty string for root).
+        project_name: Name of the project for the root link.
+
+    Returns:
+        Markdown string with clickable breadcrumb links.
+    """
+    # Root directory - just show project name
+    if not directory_path:
+        return project_name
+
+    parts = directory_path.split("/")
+    depth = len(parts)
+
+    # Build slugs for each ancestor
+    def build_slug(path_parts: list[str]) -> str:
+        return "-".join(path_parts).lower()
+
+    # Root link
+    root_link = f"[{project_name}](./root.md)"
+
+    if depth <= 4:
+        # Show full path
+        links = [root_link]
+        for i in range(len(parts) - 1):
+            slug = build_slug(parts[: i + 1])
+            links.append(f"[{parts[i]}](./{slug}.md)")
+        links.append(parts[-1])  # Current directory (no link)
+        return " / ".join(links)
+    else:
+        # Truncate middle: root / ... / parent / current
+        parent_slug = build_slug(parts[:-1])
+        parent_link = f"[{parts[-2]}](./{parent_slug}.md)"
+        return f"{root_link} / ... / {parent_link} / {parts[-1]}"
+
+
 def get_overview_prompt(
     repo_name: str,
     readme_content: str,

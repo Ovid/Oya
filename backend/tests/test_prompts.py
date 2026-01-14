@@ -99,3 +99,54 @@ def test_file_template_rejects_skip_documentation():
     # Must address internal/trivial files explicitly
     assert "internal" in template_text or "trivial" in template_text
     assert "never skip" in template_text or "must always" in template_text
+
+
+class TestBreadcrumbGeneration:
+    """Tests for breadcrumb generation helper."""
+
+    def test_generate_breadcrumb_shallow_directory(self):
+        """Shallow directories show full path."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb("src/api/routes", "my-project")
+
+        assert "[my-project](./root.md)" in result
+        assert "[src](./src.md)" in result
+        assert "[api](./src-api.md)" in result
+        assert "routes" in result
+        assert "..." not in result
+
+    def test_generate_breadcrumb_deep_directory_truncates(self):
+        """Deep directories (>4 levels) truncate middle."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb(
+            "src/components/ui/forms/inputs/validation",
+            "my-project"
+        )
+
+        assert "[my-project](./root.md)" in result
+        assert "..." in result
+        assert "[inputs](./src-components-ui-forms-inputs.md)" in result
+        assert "validation" in result
+        # Middle segments should be truncated
+        assert "[ui]" not in result
+        assert "[forms]" not in result
+
+    def test_generate_breadcrumb_root_directory(self):
+        """Root directory shows only project name."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb("", "my-project")
+
+        assert result == "my-project"
+
+    def test_generate_breadcrumb_single_level(self):
+        """Single level directory shows root and current."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb("src", "my-project")
+
+        assert "[my-project](./root.md)" in result
+        assert "src" in result
+        assert "..." not in result
