@@ -28,5 +28,7 @@ htmlcov/
 
 # Oya files
 .env
-.oyawiki/meta
+.oyawiki
 .oyawiki-building/
+.oya-logs/
+logs

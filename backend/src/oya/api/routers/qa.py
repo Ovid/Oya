@@ -30,7 +30,7 @@ async def ask_question(
     """Ask a question about the codebase.
 
     Performs hybrid search (semantic + full-text) and generates an answer
-    with citations. In gated mode (default), refuses to answer if evidence
-    is insufficient. In loose mode, always attempts to answer with a warning.
+    with citations. Returns a confidence level (high/medium/low) based on
+    search result quality.
     """
     return await service.ask(request)

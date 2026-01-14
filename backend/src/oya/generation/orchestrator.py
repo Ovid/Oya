@@ -31,6 +31,9 @@ from oya.generation.overview import GeneratedPage, OverviewGenerator
 from oya.generation.summaries import DirectorySummary, FileSummary, SynthesisMap
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
+from oya.constants.generation import PROGRESS_REPORT_INTERVAL
+from oya.parsing.fallback_parser import FallbackParser
+from oya.parsing.models import ParsedSymbol
 from oya.parsing.registry import ParserRegistry
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
 
@@ -155,6 +158,7 @@ class GenerationOrchestrator:
         self.db = db
         self.wiki_path = Path(wiki_path)
         self.parser_registry = parser_registry or ParserRegistry()
+        self._fallback_parser = FallbackParser()
         self.parallel_limit = parallel_limit
 
         # Initialize generators
@@ -499,12 +503,12 @@ class GenerationOrchestrator:
             progress_callback: Optional async callback for progress updates.
 
         Returns:
-            Analysis results with files, symbols, file_tree, file_contents.
+            Analysis results with files, symbols, file_tree, file_contents,
+            file_imports, and parse_errors.
         """
         # Use FileFilter to respect .oyaignore and default exclusions
         file_filter = FileFilter(self.repo.path)
         files = file_filter.get_files()
-        symbols: list[dict] = []
         file_contents: dict[str, str] = {}
 
         # Build file tree
@@ -524,33 +528,52 @@ class GenerationOrchestrator:
         )
 
         # Parse each file
+        parse_errors: list[dict] = []
+        all_symbols: list[ParsedSymbol] = []
+        file_imports: dict[str, list[str]] = {}
+
         for idx, file_path in enumerate(files):
+            full_path = self.repo.path / file_path
+            if not full_path.exists() or not full_path.is_file():
+                continue
+
             try:
-                full_path = self.repo.path / file_path
-                if full_path.exists() and full_path.is_file():
-                    content = full_path.read_text(encoding="utf-8", errors="ignore")
-                    file_contents[file_path] = content
+                content = full_path.read_text(encoding="utf-8", errors="ignore")
+                file_contents[file_path] = content
 
-                    # Parse for symbols
-                    result = self.parser_registry.parse_file(
-                        Path(file_path), content
-                    )
+                # Parse for symbols
+                result = self.parser_registry.parse_file(Path(file_path), content)
 
-                    for symbol in result.symbols:
-                        symbol_dict = {
-                            "name": symbol.name,
-                            "type": symbol.type.value,
-                            "file": file_path,
-                            "line": symbol.line,
-                            "decorators": symbol.decorators,
-                        }
-                        symbols.append(symbol_dict)
-            except Exception:
-                # Skip files that can't be parsed
-                pass
+                if result.ok and result.file:
+                    # Successful parse - use full symbol data
+                    file_imports[file_path] = result.file.imports
+                    for symbol in result.file.symbols:
+                        symbol.metadata["file"] = file_path
+                        all_symbols.append(symbol)
+                else:
+                    # Parse failed - try fallback for partial recovery
+                    parse_errors.append({
+                        "file": file_path,
+                        "error": result.error or "Unknown parse error",
+                        "recovered": True,
+                    })
+                    fallback_result = self._fallback_parser.parse(Path(file_path), content)
+                    if fallback_result.ok and fallback_result.file:
+                        file_imports[file_path] = fallback_result.file.imports
+                        for symbol in fallback_result.file.symbols:
+                            symbol.metadata["file"] = file_path
+                            all_symbols.append(symbol)
 
-            # Emit progress every 10 files or on last file
-            if (idx + 1) % 10 == 0 or idx == total_files - 1:
+            except Exception as e:
+                # File read error - track but continue
+                parse_errors.append({
+                    "file": file_path,
+                    "error": str(e),
+                    "recovered": False,
+                })
+
+            # Emit progress (configurable interval)
+            if (idx + 1) % PROGRESS_REPORT_INTERVAL == 0 or idx == total_files - 1:
                 await self._emit_progress(
                     progress_callback,
                     GenerationProgress(
@@ -563,9 +586,11 @@ class GenerationOrchestrator:
 
         return {
             "files": files,
-            "symbols": symbols,
+            "symbols": all_symbols,
             "file_tree": file_tree,
             "file_contents": file_contents,
+            "file_imports": file_imports,
+            "parse_errors": parse_errors,
         }
 
     def _build_file_tree(self, files: list[str]) -> str:
@@ -685,18 +710,22 @@ class GenerationOrchestrator:
                 file_tree=analysis["file_tree"],
                 dependencies=dependencies,
                 synthesis_map=synthesis_map,
+                file_imports=analysis.get("file_imports", {}),
+                symbols=analysis.get("symbols", []),
             )
 
-        # Legacy mode: use key symbols
+        # Legacy mode: use key symbols (convert ParsedSymbol to dict)
         key_symbols = [
-            s for s in analysis["symbols"]
-            if s.get("type") in ("class", "function", "method")
+            self._symbol_to_dict(s) for s in analysis["symbols"]
+            if s.symbol_type.value in ("class", "function", "method")
         ][:50]  # Limit to top 50
 
         return await self.architecture_generator.generate(
             file_tree=analysis["file_tree"],
             key_symbols=key_symbols,
             dependencies=dependencies,
+            file_imports=analysis.get("file_imports", {}),
+            symbols=analysis.get("symbols", []),
         )
 
     async def _run_workflows(
@@ -715,7 +744,7 @@ class GenerationOrchestrator:
         """
         pages = []
 
-        # Discover entry points
+        # Discover entry points (workflows.py now accepts ParsedSymbol objects directly)
         entry_points = self.workflow_discovery.find_entry_points(analysis["symbols"])
 
         # Group into workflows
@@ -866,9 +895,10 @@ class GenerationOrchestrator:
                 f for f in analysis["files"]
                 if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
             ]
+            # Filter symbols by file path and convert to dicts for generator
             dir_symbols = [
-                s for s in analysis["symbols"]
-                if s.get("file", "").startswith(dir_path + "/")
+                self._symbol_to_dict(s) for s in analysis["symbols"]
+                if s.metadata.get("file", "").startswith(dir_path + "/")
             ]
             # Get file summaries for files in this directory
             dir_file_summaries = [
@@ -888,31 +918,30 @@ class GenerationOrchestrator:
             page.source_hash = signature_hash
             return page, directory_summary
 
-        # Process directories in parallel batches
+        # Process directories in parallel batches, report as each completes
         completed = skipped_count
         for batch in batched(dirs_to_generate, self.parallel_limit):
-            # Process batch concurrently
-            batch_results = await asyncio.gather(*[
-                generate_dir_page(dir_path, signature_hash)
+            tasks = [
+                asyncio.create_task(generate_dir_page(dir_path, signature_hash))
                 for dir_path, signature_hash in batch
-            ])
-            # Unpack results into pages and summaries
-            for page, summary in batch_results:
+            ]
+
+            for coro in asyncio.as_completed(tasks):
+                page, summary = await coro
                 pages.append(page)
                 directory_summaries.append(summary)
 
-            # Report progress after batch completes
-            completed += len(batch)
-            generated_so_far = completed - skipped_count
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.DIRECTORIES,
-                    step=completed,
-                    total_steps=total_dirs,
-                    message=f"Generated {generated_so_far}/{len(dirs_to_generate)} directories ({skipped_count} unchanged)...",
-                ),
-            )
+                completed += 1
+                generated_so_far = completed - skipped_count
+                await self._emit_progress(
+                    progress_callback,
+                    GenerationProgress(
+                        phase=GenerationPhase.DIRECTORIES,
+                        step=completed,
+                        total_steps=total_dirs,
+                        message=f"Generated {generated_so_far}/{len(dirs_to_generate)} directories ({skipped_count} unchanged)...",
+                    ),
+                )
 
         return pages, directory_summaries
 
@@ -1005,17 +1034,31 @@ class GenerationOrchestrator:
             ),
         )
 
+        # Get all imports for dependency diagram
+        all_file_imports = analysis.get("file_imports", {})
+
+        # Get all parsed symbols from analysis (these are ParsedSymbol objects)
+        all_parsed_symbols: list[ParsedSymbol] = analysis.get("symbols", [])
+
         # Helper to generate a single file page with hash and return both page and summary
         async def generate_file_page(
             file_path: str, content_hash: str
         ) -> tuple[GeneratedPage, FileSummary]:
             content = analysis["file_contents"].get(file_path, "")
-            ext = Path(file_path).suffix.lower()
+            # Filter symbols by file path and convert to dicts for generator
             file_symbols = [
-                s for s in analysis["symbols"]
-                if s.get("file") == file_path
+                self._symbol_to_dict(s) for s in all_parsed_symbols
+                if s.metadata.get("file") == file_path
             ]
-            imports = self._extract_imports(content, ext)
+            # Use imports collected during parsing (Task 4)
+            imports = all_file_imports.get(file_path, [])
+
+            # Filter parsed symbols for this specific file (for class diagrams)
+            file_parsed_symbols = [
+                s for s in all_parsed_symbols
+                if s.metadata.get("file") == file_path
+            ]
+
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
             page, file_summary = await self.file_generator.generate(
                 file_path=file_path,
@@ -1023,65 +1066,56 @@ class GenerationOrchestrator:
                 symbols=file_symbols,
                 imports=imports,
                 architecture_summary="",
+                parsed_symbols=file_parsed_symbols,
+                file_imports=all_file_imports,
             )
             # Add source hash to the page for storage
             page.source_hash = content_hash
             return page, file_summary
 
-        # Process files in parallel batches
+        # Process files in parallel batches, report as each completes
         completed = skipped_count
         for batch in batched(files_to_generate, self.parallel_limit):
-            # Process batch concurrently
-            batch_results = await asyncio.gather(*[
-                generate_file_page(file_path, content_hash)
+            tasks = [
+                asyncio.create_task(generate_file_page(file_path, content_hash))
                 for file_path, content_hash in batch
-            ])
-            # Unpack results into pages and summaries
-            for page, summary in batch_results:
+            ]
+
+            for coro in asyncio.as_completed(tasks):
+                page, summary = await coro
                 pages.append(page)
                 file_summaries.append(summary)
 
-            # Report progress after batch completes
-            completed += len(batch)
-            generated_so_far = completed - skipped_count
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.FILES,
-                    step=completed,
-                    total_steps=total_files,
-                    message=f"Generated {generated_so_far}/{len(files_to_generate)} files ({skipped_count} unchanged)...",
-                ),
-            )
+                completed += 1
+                generated_so_far = completed - skipped_count
+                await self._emit_progress(
+                    progress_callback,
+                    GenerationProgress(
+                        phase=GenerationPhase.FILES,
+                        step=completed,
+                        total_steps=total_files,
+                        message=f"Generated {generated_so_far}/{len(files_to_generate)} files ({skipped_count} unchanged)...",
+                    ),
+                )
 
         return pages, file_hashes, file_summaries
 
-    def _extract_imports(self, content: str, ext: str) -> list[str]:
-        """Extract import statements from file content.
+    def _symbol_to_dict(self, symbol: ParsedSymbol) -> dict:
+        """Convert a ParsedSymbol to a dictionary for legacy consumers.
 
         Args:
-            content: File content.
-            ext: File extension.
+            symbol: ParsedSymbol object.
 
         Returns:
-            List of import statements.
+            Dictionary with name, type, file, line, decorators keys.
         """
-        imports = []
-        lines = content.split("\n")
-
-        for line in lines[:50]:  # Only check first 50 lines
-            line = line.strip()
-            if ext == ".py":
-                if line.startswith("import ") or line.startswith("from "):
-                    imports.append(line)
-            elif ext in {".js", ".ts", ".tsx", ".jsx"}:
-                if line.startswith("import ") or line.startswith("const ") and "require(" in line:
-                    imports.append(line)
-            elif ext == ".java":
-                if line.startswith("import "):
-                    imports.append(line)
-
-        return imports
+        return {
+            "name": symbol.name,
+            "type": symbol.symbol_type.value,
+            "file": symbol.metadata.get("file", ""),
+            "line": symbol.start_line,
+            "decorators": symbol.decorators,
+        }
 
     async def _save_page(self, page: GeneratedPage) -> None:
         """Save a generated page to the wiki directory.

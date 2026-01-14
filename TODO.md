@@ -1,9 +1,13 @@
 # TODO
 
+* Have AI use the vector database and code to independently validate logic and
+  behavior.
 * faa427b - (HEAD -> ovid/fix-missing-spec-issues) Move .oyaignore back to
   root directory (15 hours ago) <Ovid>
 * b6d4122 - If we delete .oyawiki while server is running, it dies on
   rebuild due to bad db connection (16 hours ago) <Ovid>
+* We no longer have incremental regeneration. Need a better strategy, while
+  still allowing atomic regeneration.
 
 * Interface:
     - Templates
@@ -16,7 +20,6 @@
       edited.
     - Auto-create .oyaignore with appropriate files (not done: too many
       programming languages, so not done yet. Do it for popular languages?)
-* Constants into config file (not .env)
 * Allow optional web search? Might pull in more context. Might pull in a mess.
 * Where to put .oyawiki if not using current repo? Currently puts the docs in
   that repo.
@@ -42,3 +45,5 @@
     - Preview directories and files so you can see what will be indexed and
       what should be in .oyaignore
     - Offer explanation of codebase, if needed, to help guide AI
+* Constants into config file (not .env)
+* Mermaid diagrams should pass through a parser until they render correctly

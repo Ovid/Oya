@@ -90,3 +90,30 @@ class TestStartupInitialization:
                     with TestClient(app) as client:
                         response = client.get("/health")
                         assert response.status_code == 200
+
+
+def test_logging_format_includes_timestamp():
+    """Verify main.py configures logging with timestamp format.
+
+    Tests that the LOG_FORMAT and DATE_FORMAT constants in main.py
+    match the expected format for timestamps in log output.
+    """
+    from oya.main import LOG_FORMAT, DATE_FORMAT
+
+    # Verify LOG_FORMAT includes timestamp via %(asctime)s
+    assert "%(asctime)s" in LOG_FORMAT, \
+        f"LOG_FORMAT should include %(asctime)s for timestamps: {LOG_FORMAT}"
+
+    # Verify LOG_FORMAT includes log level
+    assert "%(levelname)" in LOG_FORMAT, \
+        f"LOG_FORMAT should include %(levelname) for log level: {LOG_FORMAT}"
+
+    # Verify LOG_FORMAT includes message
+    assert "%(message)s" in LOG_FORMAT, \
+        f"LOG_FORMAT should include %(message)s for the log message: {LOG_FORMAT}"
+
+    # Verify DATE_FORMAT uses ISO-style date format (YYYY-MM-DD HH:MM:SS)
+    assert "%Y-%m-%d" in DATE_FORMAT, \
+        f"DATE_FORMAT should include %Y-%m-%d for ISO date: {DATE_FORMAT}"
+    assert "%H:%M:%S" in DATE_FORMAT, \
+        f"DATE_FORMAT should include %H:%M:%S for time: {DATE_FORMAT}"

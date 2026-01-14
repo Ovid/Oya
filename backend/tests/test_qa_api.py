@@ -38,16 +38,22 @@ def workspace(tmp_path, monkeypatch):
 @pytest.fixture
 def mock_qa_service():
     """Mock QAService for testing."""
-    from oya.qa.schemas import QAResponse, Citation
+    from oya.qa.schemas import QAResponse, Citation, ConfidenceLevel, SearchQuality
 
     mock_response = QAResponse(
         answer="The authentication system uses JWT tokens.",
         citations=[
-            Citation(path="src/auth.py", title="auth.py", lines="10-20"),
-            Citation(path="docs/auth.md", title="Authentication", lines=None),
+            Citation(path="src/auth.py", title="auth.py", lines="10-20", url="/files/src_auth-py"),
+            Citation(path="docs/auth.md", title="Authentication", lines=None, url="/files/docs_auth-md"),
         ],
-        evidence_sufficient=True,
-        disclaimer="AI-generated; may contain errors.",
+        confidence=ConfidenceLevel.HIGH,
+        disclaimer="Based on strong evidence from the codebase.",
+        search_quality=SearchQuality(
+            semantic_searched=True,
+            fts_searched=True,
+            results_found=5,
+            results_used=3,
+        ),
     )
 
     service = AsyncMock()
@@ -60,7 +66,7 @@ class TestQAEndpoint:
 
     @pytest.mark.asyncio
     async def test_ask_returns_answer(self, workspace, mock_qa_service):
-        """POST /api/qa/ask returns answer with citations."""
+        """POST /api/qa/ask returns answer with citations and confidence."""
         app.dependency_overrides[get_qa_service] = lambda: mock_qa_service
         try:
             async with AsyncClient(
@@ -76,8 +82,10 @@ class TestQAEndpoint:
             data = response.json()
             assert "answer" in data
             assert "citations" in data
-            assert "evidence_sufficient" in data
+            assert "confidence" in data
+            assert data["confidence"] in ["high", "medium", "low"]
             assert "disclaimer" in data
+            assert "search_quality" in data
         finally:
             app.dependency_overrides.clear()
 
@@ -93,87 +101,22 @@ class TestQAEndpoint:
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.asyncio
-    async def test_ask_with_gated_mode(self, workspace, mock_qa_service):
-        """POST /api/qa/ask supports gated mode."""
-        app.dependency_overrides[get_qa_service] = lambda: mock_qa_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.post(
-                    "/api/qa/ask",
-                    json={
-                        "question": "How does auth work?",
-                        "mode": "gated",
-                    },
-                )
-
-            assert response.status_code == 200
-            mock_qa_service.ask.assert_called_once()
-            call_args = mock_qa_service.ask.call_args[0][0]
-            assert call_args.mode.value == "gated"
-        finally:
-            app.dependency_overrides.clear()
-
-    @pytest.mark.asyncio
-    async def test_ask_with_loose_mode(self, workspace, mock_qa_service):
-        """POST /api/qa/ask supports loose mode."""
-        app.dependency_overrides[get_qa_service] = lambda: mock_qa_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.post(
-                    "/api/qa/ask",
-                    json={
-                        "question": "How does auth work?",
-                        "mode": "loose",
-                    },
-                )
-
-            assert response.status_code == 200
-            call_args = mock_qa_service.ask.call_args[0][0]
-            assert call_args.mode.value == "loose"
-        finally:
-            app.dependency_overrides.clear()
-
-    @pytest.mark.asyncio
-    async def test_ask_with_context(self, workspace, mock_qa_service):
-        """POST /api/qa/ask supports page context."""
-        app.dependency_overrides[get_qa_service] = lambda: mock_qa_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.post(
-                    "/api/qa/ask",
-                    json={
-                        "question": "What does this function do?",
-                        "context": {"page_type": "file", "slug": "src-main-py"},
-                    },
-                )
-
-            assert response.status_code == 200
-            call_args = mock_qa_service.ask.call_args[0][0]
-            assert call_args.context is not None
-            assert call_args.context["page_type"] == "file"
-        finally:
-            app.dependency_overrides.clear()
-
-    @pytest.mark.asyncio
-    async def test_ask_insufficient_evidence_response(self, workspace):
-        """POST /api/qa/ask returns proper response for insufficient evidence."""
-        from oya.qa.schemas import QAResponse
+    async def test_ask_low_confidence_response(self, workspace):
+        """POST /api/qa/ask returns low confidence for poor search results."""
+        from oya.qa.schemas import QAResponse, ConfidenceLevel, SearchQuality
 
         mock_service = AsyncMock()
         mock_service.ask.return_value = QAResponse(
-            answer="",
+            answer="I found limited information about this topic.",
             citations=[],
-            evidence_sufficient=False,
-            disclaimer="Unable to answer: insufficient evidence in the codebase.",
+            confidence=ConfidenceLevel.LOW,
+            disclaimer="Limited evidence found. This answer may be speculative.",
+            search_quality=SearchQuality(
+                semantic_searched=True,
+                fts_searched=True,
+                results_found=1,
+                results_used=1,
+            ),
         )
 
         app.dependency_overrides[get_qa_service] = lambda: mock_service
@@ -189,8 +132,7 @@ class TestQAEndpoint:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["evidence_sufficient"] is False
-            assert data["answer"] == ""
-            assert "insufficient" in data["disclaimer"].lower()
+            assert data["confidence"] == "low"
+            assert "limited" in data["disclaimer"].lower() or "speculative" in data["disclaimer"].lower()
         finally:
             app.dependency_overrides.clear()

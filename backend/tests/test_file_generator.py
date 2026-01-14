@@ -12,9 +12,21 @@ from oya.generation.summaries import FileSummary
 
 @pytest.fixture
 def mock_llm_client():
-    """Create mock LLM client."""
+    """Create mock LLM client that returns content with valid YAML summary."""
     client = AsyncMock()
-    client.generate.return_value = "# login.py\n\nHandles user authentication."
+    client.generate.return_value = """---
+file_summary:
+  purpose: "Handles user authentication"
+  layer: api
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+---
+
+# login.py
+
+Handles user authentication.
+"""
     return client
 
 
@@ -227,3 +239,219 @@ async def test_generate_returns_fallback_summary_on_missing_yaml(mock_repo):
     assert summary.key_abstractions == []
     assert summary.internal_deps == []
     assert summary.external_deps == []
+
+
+# =============================================================================
+# Task 4: Tests for retry semantics on YAML parsing failures
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_generate_retries_on_yaml_failure(mock_repo, caplog):
+    """Test that generate() retries once when YAML parsing fails."""
+    import logging
+
+    # First call returns bad YAML, second call returns good YAML
+    mock_llm = AsyncMock()
+    mock_llm.generate.side_effect = [
+        "# file.py\n\nNo YAML block here.",  # First attempt fails
+        """---
+file_summary:
+  purpose: "Test file after retry"
+  layer: utility
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+---
+
+# file.py
+
+Documentation after retry.
+""",  # Second attempt succeeds
+    ]
+
+    generator = FileGenerator(llm_client=mock_llm, repo=mock_repo)
+
+    with caplog.at_level(logging.WARNING):
+        page, summary = await generator.generate(
+            file_path="src/test.py",
+            content="# test",
+            symbols=[],
+            imports=[],
+            architecture_summary="",
+        )
+
+    # Should have called LLM twice (original + retry)
+    assert mock_llm.generate.call_count == 2
+
+    # Should have logged a warning about retry
+    assert "YAML parsing failed" in caplog.text
+    assert "retrying" in caplog.text
+
+    # Should have the successful result
+    assert summary.purpose == "Test file after retry"
+
+
+@pytest.mark.asyncio
+async def test_generate_logs_error_after_retry_fails(mock_repo, caplog):
+    """Test that generate() logs error when retry also fails."""
+    import logging
+
+    # Both calls return bad YAML
+    mock_llm = AsyncMock()
+    mock_llm.generate.return_value = "# file.py\n\nNo YAML block here."
+
+    generator = FileGenerator(llm_client=mock_llm, repo=mock_repo)
+
+    with caplog.at_level(logging.WARNING):
+        page, summary = await generator.generate(
+            file_path="src/test.py",
+            content="# test",
+            symbols=[],
+            imports=[],
+            architecture_summary="",
+        )
+
+    # Should have called LLM twice
+    assert mock_llm.generate.call_count == 2
+
+    # Should have logged warning then error
+    assert "YAML parsing failed" in caplog.text
+    assert "retrying" in caplog.text
+    assert "after retry" in caplog.text
+
+    # Should return fallback summary
+    assert summary.purpose == "Unknown"
+    assert summary.layer == "utility"
+
+
+# =============================================================================
+# Task 6: Tests for Mermaid diagram integration
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_generate_includes_class_diagram_when_classes_present(mock_repo):
+    """Test that class diagram is included when file has classes."""
+    from oya.parsing.models import ParsedSymbol, SymbolType
+
+    mock_llm = AsyncMock()
+    mock_llm.generate.return_value = """---
+file_summary:
+  purpose: "Service class"
+  layer: domain
+  key_abstractions:
+    - "UserService"
+  internal_deps: []
+  external_deps: []
+---
+
+# user_service.py
+
+User service implementation.
+"""
+
+    generator = FileGenerator(llm_client=mock_llm, repo=mock_repo)
+
+    # Provide symbols with a class
+    symbols = [
+        ParsedSymbol(
+            name="UserService",
+            symbol_type=SymbolType.CLASS,
+            start_line=1,
+            end_line=10,
+        ),
+        ParsedSymbol(
+            name="get_user",
+            symbol_type=SymbolType.METHOD,
+            start_line=5,
+            end_line=8,
+            parent="UserService",
+        ),
+    ]
+
+    page, summary = await generator.generate(
+        file_path="src/service.py",
+        content="class UserService:\n    def get_user(self): pass",
+        symbols=[{"name": "UserService", "type": "class", "line": 1}],
+        imports=[],
+        architecture_summary="",
+        parsed_symbols=symbols,
+    )
+
+    # Should include class diagram
+    assert "## Diagrams" in page.content
+    assert "classDiagram" in page.content
+    assert "UserService" in page.content
+
+
+@pytest.mark.asyncio
+async def test_generate_includes_dependency_diagram_when_imports_present(mock_repo):
+    """Test that dependency diagram is included when file has imports."""
+    mock_llm = AsyncMock()
+    mock_llm.generate.return_value = """---
+file_summary:
+  purpose: "Routes file"
+  layer: api
+  key_abstractions: []
+  internal_deps:
+    - "src/service.py"
+  external_deps: []
+---
+
+# routes.py
+
+API routes.
+"""
+
+    generator = FileGenerator(llm_client=mock_llm, repo=mock_repo)
+
+    file_imports = {
+        "src/routes.py": ["src/service.py"],
+        "src/service.py": [],
+    }
+
+    page, summary = await generator.generate(
+        file_path="src/routes.py",
+        content="from src.service import Service",
+        symbols=[],
+        imports=["from src.service import Service"],
+        architecture_summary="",
+        file_imports=file_imports,
+    )
+
+    # Should include dependency diagram
+    assert "## Diagrams" in page.content
+    assert "flowchart" in page.content
+
+
+@pytest.mark.asyncio
+async def test_generate_omits_diagrams_when_no_classes_or_deps(mock_repo):
+    """Test that diagrams section is omitted when not applicable."""
+    mock_llm = AsyncMock()
+    mock_llm.generate.return_value = """---
+file_summary:
+  purpose: "Simple utility"
+  layer: utility
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+---
+
+# utils.py
+
+Simple utilities.
+"""
+
+    generator = FileGenerator(llm_client=mock_llm, repo=mock_repo)
+
+    page, summary = await generator.generate(
+        file_path="src/utils.py",
+        content="def helper(): pass",
+        symbols=[],
+        imports=[],
+        architecture_summary="",
+    )
+
+    # Should NOT include diagrams section
+    assert "## Diagrams" not in page.content

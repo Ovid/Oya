@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from oya.api.deps import get_db
+from oya.constants.search import SNIPPET_MAX_LENGTH
 from oya.db.connection import Database
 
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -77,7 +78,7 @@ async def search(
     )
 
 
-def _create_snippet(content: str, query: str, max_length: int = 200) -> str:
+def _create_snippet(content: str, query: str, max_length: int = SNIPPET_MAX_LENGTH) -> str:
     """Create a snippet around the query terms."""
     lower_content = content.lower()
     lower_query = query.lower()

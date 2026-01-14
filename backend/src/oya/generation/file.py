@@ -1,11 +1,17 @@
 # backend/src/oya/generation/file.py
 """File page generator."""
 
+import logging
 from pathlib import Path
 
+from oya.generation.mermaid import ClassDiagramGenerator, DependencyGraphGenerator
+from oya.generation.mermaid_validator import validate_mermaid
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_file_prompt
 from oya.generation.summaries import FileSummary, SummaryParser, path_to_slug
+from oya.parsing.models import ParsedSymbol
+
+logger = logging.getLogger(__name__)
 
 
 # Extension to language mapping for syntax highlighting
@@ -47,6 +53,8 @@ class FileGenerator:
         self.llm_client = llm_client
         self.repo = repo
         self._parser = SummaryParser()
+        self._class_diagram_gen = ClassDiagramGenerator()
+        self._dep_diagram_gen = DependencyGraphGenerator()
 
     async def generate(
         self,
@@ -55,6 +63,8 @@ class FileGenerator:
         symbols: list[dict],
         imports: list[str],
         architecture_summary: str,
+        parsed_symbols: list[ParsedSymbol] | None = None,
+        file_imports: dict[str, list[str]] | None = None,
     ) -> tuple[GeneratedPage, FileSummary]:
         """Generate documentation for a file.
 
@@ -64,6 +74,8 @@ class FileGenerator:
             symbols: List of symbol dictionaries defined in the file.
             imports: List of import statements.
             architecture_summary: Summary of how this file fits in the architecture.
+            parsed_symbols: Optional list of ParsedSymbol objects for class diagrams.
+            file_imports: Optional dict of all file imports for dependency diagrams.
 
         Returns:
             Tuple of (GeneratedPage with file documentation, FileSummary extracted from output).
@@ -79,6 +91,7 @@ class FileGenerator:
             language=language,
         )
 
+        # First attempt
         generated_content = await self.llm_client.generate(
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
@@ -86,6 +99,27 @@ class FileGenerator:
 
         # Parse the YAML summary block and get clean markdown
         clean_content, file_summary = self._parser.parse_file_summary(generated_content, file_path)
+
+        # Check if parsing produced fallback (indicates failure)
+        if file_summary.purpose == "Unknown":
+            logger.warning(f"YAML parsing failed for {file_path}, retrying...")
+
+            # Retry once with same prompt
+            generated_content = await self.llm_client.generate(
+                prompt=prompt,
+                system_prompt=SYSTEM_PROMPT,
+            )
+            clean_content, file_summary = self._parser.parse_file_summary(
+                generated_content, file_path
+            )
+
+            if file_summary.purpose == "Unknown":
+                logger.error(f"YAML parsing failed after retry for {file_path}")
+
+        # Generate diagrams
+        diagrams_md = self._generate_diagrams(file_path, parsed_symbols, file_imports)
+        if diagrams_md:
+            clean_content += diagrams_md
 
         word_count = len(clean_content.split())
         slug = path_to_slug(file_path, include_extension=True)
@@ -111,3 +145,47 @@ class FileGenerator:
         """
         ext = Path(file_path).suffix.lower()
         return EXTENSION_LANGUAGES.get(ext, "")
+
+    def _generate_diagrams(
+        self,
+        file_path: str,
+        parsed_symbols: list[ParsedSymbol] | None,
+        file_imports: dict[str, list[str]] | None,
+    ) -> str:
+        """Generate Mermaid diagrams for the file.
+
+        Args:
+            file_path: Path to the file being documented.
+            parsed_symbols: Optional list of ParsedSymbol objects.
+            file_imports: Optional dict of all file imports.
+
+        Returns:
+            Markdown string with diagrams, or empty string if no diagrams.
+        """
+        diagrams = []
+
+        # Class diagram if we have parsed symbols with classes
+        if parsed_symbols:
+            class_diagram = self._class_diagram_gen.generate(parsed_symbols)
+            if class_diagram and "NoClasses" not in class_diagram:
+                result = validate_mermaid(class_diagram)
+                if result.valid:
+                    diagrams.append(("Class Structure", class_diagram))
+
+        # Dependency diagram if we have import data
+        if file_imports:
+            dep_diagram = self._dep_diagram_gen.generate_for_file(file_path, file_imports)
+            if dep_diagram:
+                result = validate_mermaid(dep_diagram)
+                if result.valid:
+                    diagrams.append(("Dependencies", dep_diagram))
+
+        if not diagrams:
+            return ""
+
+        lines = ["\n\n## Diagrams"]
+        for title, diagram in diagrams:
+            lines.append(f"\n### {title}\n")
+            lines.append(f"```mermaid\n{diagram}\n```")
+
+        return "\n".join(lines)

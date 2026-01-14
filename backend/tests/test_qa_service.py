@@ -8,7 +8,8 @@ from oya.qa.schemas import (
     QARequest,
     QAResponse,
     Citation,
-    QAMode,
+    ConfidenceLevel,
+    SearchQuality,
 )
 
 
@@ -68,14 +69,17 @@ class TestQAServiceHybridSearch:
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="How does authentication work?")
 
-        result = await service.search(request.question)
+        results, semantic_ok, fts_ok = await service.search(request.question)
 
         # Should have called both vectorstore and db
         mock_vectorstore.query.assert_called_once()
         mock_db.execute.assert_called_once()
 
         # Results should be deduplicated and combined
-        assert len(result) > 0
+        assert len(results) > 0
+        # Both search methods should have succeeded
+        assert semantic_ok is True
+        assert fts_ok is True
 
     @pytest.mark.asyncio
     async def test_hybrid_search_prioritizes_notes(
@@ -84,92 +88,18 @@ class TestQAServiceHybridSearch:
         """Notes are prioritized over wiki/code in search results."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
 
-        result = await service.search("How does X work?")
+        results, _, _ = await service.search("How does X work?")
 
         # Notes should appear first (lower index = higher priority)
         note_indices = [
-            i for i, r in enumerate(result) if r.get("type") == "note"
+            i for i, r in enumerate(results) if r.get("type") == "note"
         ]
         wiki_indices = [
-            i for i, r in enumerate(result) if r.get("type") == "wiki"
+            i for i, r in enumerate(results) if r.get("type") == "wiki"
         ]
 
         if note_indices and wiki_indices:
             assert min(note_indices) < max(wiki_indices)
-
-
-class TestQAServiceEvidenceEvaluation:
-    """Tests for evidence gating functionality."""
-
-    @pytest.mark.asyncio
-    async def test_gated_mode_requires_sufficient_evidence(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Gated mode requires sufficient evidence to generate answer."""
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="How does authentication work?",
-            mode=QAMode.GATED,
-        )
-
-        response = await service.ask(request)
-
-        assert response.evidence_sufficient is True
-        assert response.answer is not None
-
-    @pytest.mark.asyncio
-    async def test_gated_mode_rejects_insufficient_evidence(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Gated mode returns no answer when evidence is insufficient."""
-        # Empty results = no evidence
-        mock_vectorstore.query.return_value = {
-            "ids": [[]],
-            "documents": [[]],
-            "metadatas": [[]],
-            "distances": [[]],
-        }
-        mock_db.execute.return_value.fetchall.return_value = []
-
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="What is the meaning of life?",
-            mode=QAMode.GATED,
-        )
-
-        response = await service.ask(request)
-
-        assert response.evidence_sufficient is False
-        assert response.answer == ""
-        assert "insufficient evidence" in response.disclaimer.lower()
-        # LLM should not be called
-        mock_llm.generate.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_loose_mode_always_answers(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Loose mode generates answer even with limited evidence."""
-        # Empty results
-        mock_vectorstore.query.return_value = {
-            "ids": [[]],
-            "documents": [[]],
-            "metadatas": [[]],
-            "distances": [[]],
-        }
-        mock_db.execute.return_value.fetchall.return_value = []
-
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="How does authentication work?",
-            mode=QAMode.LOOSE,
-        )
-
-        response = await service.ask(request)
-
-        # Should still answer in loose mode
-        mock_llm.generate.assert_called_once()
-        assert "speculative" in response.disclaimer.lower() or "limited evidence" in response.disclaimer.lower()
 
 
 class TestQAServiceAnswerGeneration:
@@ -209,7 +139,7 @@ class TestQAServiceAnswerGeneration:
     async def test_includes_mandatory_disclaimer(
         self, mock_vectorstore, mock_db, mock_llm
     ):
-        """Response always includes AI-generated disclaimer."""
+        """Response always includes confidence-based disclaimer."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="How does X work?")
 
@@ -217,26 +147,327 @@ class TestQAServiceAnswerGeneration:
 
         assert response.disclaimer is not None
         assert len(response.disclaimer) > 0
-        assert "ai" in response.disclaimer.lower() or "generated" in response.disclaimer.lower()
+        # Disclaimers now describe confidence level
+        assert any(word in response.disclaimer.lower() for word in
+                   ["evidence", "codebase", "verify", "speculative"])
 
 
-class TestQAServiceContextFiltering:
-    """Tests for context-based filtering."""
+def test_qa_request_no_mode_or_context():
+    """QARequest only has question field."""
+    from oya.qa.schemas import QARequest
+    request = QARequest(question="How does auth work?")
+    assert request.question == "How does auth work?"
+    # Verify mode and context don't exist
+    assert not hasattr(request, 'mode')
+    assert not hasattr(request, 'context')
 
-    @pytest.mark.asyncio
-    async def test_filters_by_page_context(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
-        """Search can be filtered by current page context."""
-        service = QAService(mock_vectorstore, mock_db, mock_llm)
-        request = QARequest(
-            question="What does this module do?",
-            context={"page_type": "file", "slug": "src-main-py"},
-        )
 
-        await service.ask(request)
+def test_qa_response_has_confidence_and_search_quality():
+    """QAResponse uses confidence instead of evidence_sufficient."""
+    from oya.qa.schemas import QAResponse, ConfidenceLevel, SearchQuality, Citation
+    response = QAResponse(
+        answer="Auth uses JWT tokens.",
+        citations=[],
+        confidence=ConfidenceLevel.HIGH,
+        disclaimer="Based on strong evidence.",
+        search_quality=SearchQuality(
+            semantic_searched=True,
+            fts_searched=True,
+            results_found=5,
+            results_used=3,
+        ),
+    )
+    assert response.confidence == ConfidenceLevel.HIGH
+    assert response.search_quality.results_used == 3
+    assert not hasattr(response, 'evidence_sufficient')
 
-        # Vectorstore should be called with where filter
-        call_args = mock_vectorstore.query.call_args
-        # Context should influence the search
-        assert call_args is not None
+
+def test_confidence_level_values():
+    """ConfidenceLevel enum has expected values."""
+    assert ConfidenceLevel.HIGH == "high"
+    assert ConfidenceLevel.MEDIUM == "medium"
+    assert ConfidenceLevel.LOW == "low"
+
+
+def test_search_quality_schema():
+    """SearchQuality tracks search execution metrics."""
+    quality = SearchQuality(
+        semantic_searched=True,
+        fts_searched=False,
+        results_found=10,
+        results_used=5,
+    )
+    assert quality.semantic_searched is True
+    assert quality.fts_searched is False
+    assert quality.results_found == 10
+    assert quality.results_used == 5
+
+
+def test_citation_has_url_field():
+    """Citation includes url for frontend routing."""
+    from oya.qa.schemas import Citation
+    citation = Citation(
+        path="files/src_main-py.md",
+        title="Main Module",
+        lines="10-20",
+        url="/files/src_main-py",
+    )
+    assert citation.url == "/files/src_main-py"
+
+
+class TestConfidenceCalculation:
+    """Tests for confidence level calculation."""
+
+    def test_calculate_confidence_high(self):
+        """HIGH confidence requires 3+ strong matches and best < 0.3."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        # Mock service (we only need the method)
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"distance": 0.2},  # strong
+            {"distance": 0.3},  # strong
+            {"distance": 0.4},  # strong
+            {"distance": 0.7},
+        ]
+        assert service._calculate_confidence(results) == ConfidenceLevel.HIGH
+
+    def test_calculate_confidence_medium(self):
+        """MEDIUM confidence requires 1+ decent match and best < 0.6."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"distance": 0.4},  # decent
+            {"distance": 0.7},
+            {"distance": 0.8},
+        ]
+        assert service._calculate_confidence(results) == ConfidenceLevel.MEDIUM
+
+    def test_calculate_confidence_low(self):
+        """LOW confidence when no good matches."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"distance": 0.7},
+            {"distance": 0.9},
+        ]
+        assert service._calculate_confidence(results) == ConfidenceLevel.LOW
+
+    def test_calculate_confidence_empty(self):
+        """LOW confidence with no results."""
+        from oya.qa.service import QAService
+        from oya.qa.schemas import ConfidenceLevel
+
+        service = QAService.__new__(QAService)
+        assert service._calculate_confidence([]) == ConfidenceLevel.LOW
+
+
+class TestPathToUrl:
+    """Tests for _path_to_url helper method."""
+
+    def test_path_to_url_files(self):
+        """File paths convert to /files/slug route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("files/src_main-py.md") == "/files/src_main-py"
+
+    def test_path_to_url_directories(self):
+        """Directory paths convert to /directories/slug route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("directories/backend_src.md") == "/directories/backend_src"
+
+    def test_path_to_url_overview(self):
+        """Overview converts to root route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("overview.md") == "/"
+
+    def test_path_to_url_architecture(self):
+        """Architecture converts to /architecture route."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._path_to_url("architecture.md") == "/architecture"
+
+
+class TestStructuredCitationExtraction:
+    """Tests for structured citation extraction."""
+
+    def test_extract_structured_citations(self):
+        """Extract citations from structured JSON output."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = """<answer>
+The auth module handles JWT tokens.
+</answer>
+
+<citations>
+[
+  {"path": "files/auth-py.md", "relevant_text": "JWT token generation"},
+  {"path": "files/config-py.md", "relevant_text": "auth settings"}
+]
+</citations>"""
+
+        results = [
+            {"path": "files/auth-py.md", "title": "Auth Module"},
+            {"path": "files/config-py.md", "title": "Config"},
+            {"path": "files/other.md", "title": "Other"},
+        ]
+
+        citations = service._extract_citations(response, results)
+        assert len(citations) == 2
+        assert citations[0].path == "files/auth-py.md"
+        assert citations[0].url == "/files/auth-py"
+
+    def test_extract_answer_from_structured(self):
+        """Extract answer from structured output."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = """<answer>
+The auth module handles JWT tokens.
+</answer>
+
+<citations>
+[{"path": "files/auth-py.md"}]
+</citations>"""
+
+        answer = service._extract_answer(response)
+        assert answer == "The auth module handles JWT tokens."
+        assert "<citations>" not in answer
+
+    def test_fallback_to_legacy_citations(self):
+        """Falls back to legacy format when no structured citations."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = """Here is the answer.
+
+[CITATIONS]
+- files/auth-py.md:10-20
+- files/config-py.md
+"""
+
+        results = [
+            {"path": "files/auth-py.md", "title": "Auth Module"},
+            {"path": "files/config-py.md", "title": "Config"},
+        ]
+
+        citations = service._extract_citations(response, results)
+        assert len(citations) == 2
+        assert citations[0].lines == "10-20"
+
+    def test_fallback_citations_from_results(self):
+        """Uses fallback citations when no explicit citations found."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        response = "Just a plain answer with no citations."
+
+        results = [
+            {"path": "files/a.md", "title": "A"},
+            {"path": "files/b.md", "title": "B"},
+            {"path": "files/c.md", "title": "C"},
+        ]
+
+        citations = service._extract_citations(response, results)
+        assert len(citations) == 3
+
+
+class TestDeduplicateResults:
+    """Tests for content deduplication."""
+
+    def test_removes_duplicate_content(self):
+        """Deduplication removes near-duplicate content."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"path": "file1.md", "content": "This is the same content here."},
+            {"path": "file2.md", "content": "This is the same content here."},  # Duplicate
+            {"path": "file3.md", "content": "This is different content."},
+        ]
+
+        deduped = service._deduplicate_results(results)
+        assert len(deduped) == 2
+        assert deduped[0]["path"] == "file1.md"
+        assert deduped[1]["path"] == "file3.md"
+
+    def test_preserves_order(self):
+        """Deduplication preserves order of first occurrence."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        results = [
+            {"path": "a.md", "content": "Unique A content."},
+            {"path": "b.md", "content": "Unique B content."},
+            {"path": "c.md", "content": "Unique C content."},
+        ]
+
+        deduped = service._deduplicate_results(results)
+        assert len(deduped) == 3
+        assert [r["path"] for r in deduped] == ["a.md", "b.md", "c.md"]
+
+    def test_empty_results(self):
+        """Empty results return empty list."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        assert service._deduplicate_results([]) == []
+
+
+class TestTruncateAtSentence:
+    """Tests for sentence-boundary truncation."""
+
+    def test_short_text_unchanged(self):
+        """Short text passes through unchanged."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        text = "This is a short sentence."
+        result = service._truncate_at_sentence(text, max_tokens=100)
+        assert result == text
+
+    def test_preserves_sentence_boundary(self):
+        """Long text truncates at sentence boundary."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        text = "First sentence. Second sentence. Third sentence that is very long."
+        # 10 tokens ~= 40 chars, should fit "First sentence. Second sentence."
+        result = service._truncate_at_sentence(text, max_tokens=10)
+        assert result.endswith(".")
+        # Should have truncated before "Third"
+        assert "Third" not in result
+
+    def test_empty_text(self):
+        """Empty text returns empty string."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        result = service._truncate_at_sentence("", max_tokens=100)
+        assert result == ""
+
+    def test_single_very_long_sentence(self):
+        """Single long sentence gets character-truncated."""
+        from oya.qa.service import QAService
+        service = QAService.__new__(QAService)
+
+        text = "This is one very long sentence with no periods " * 50
+        result = service._truncate_at_sentence(text, max_tokens=10)
+        # Should be truncated and end with "..."
+        assert len(result) < len(text)
+        assert result.endswith("...")

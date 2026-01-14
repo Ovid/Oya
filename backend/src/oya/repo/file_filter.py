@@ -3,6 +3,8 @@
 import fnmatch
 from pathlib import Path
 
+from oya.constants.files import MINIFIED_AVG_LINE_LENGTH
+
 
 def extract_directories_from_files(files: list[str]) -> list[str]:
     """Extract unique parent directories from a list of file paths.
@@ -48,6 +50,20 @@ DEFAULT_EXCLUDES = [
     ".oyawiki/index",
     ".oyawiki/cache",
     ".oyawiki/config",
+    # Minified/bundled assets
+    "*.min.js",
+    "*.min.css",
+    "*.bundle.js",
+    "*.chunk.js",
+    "*.map",
+    # Lock files (large, not useful for docs)
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Cargo.lock",
+    "poetry.lock",
+    "Gemfile.lock",
+    "composer.lock",
 ]
 
 # Paths that are explicitly allowed even if they match DEFAULT_EXCLUDES
@@ -150,6 +166,29 @@ class FileFilter:
         except Exception:
             return True
 
+    def _is_minified(self, file_path: Path) -> bool:
+        """Check if file appears to be minified based on line length.
+
+        Minified files typically have extremely long lines (often the
+        entire file on one line). We sample the first 20 lines and
+        check if the average length exceeds the threshold.
+
+        Args:
+            file_path: Path to file.
+
+        Returns:
+            True if file appears to be minified.
+        """
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+            lines = content.split("\n")[:20]  # Sample first 20 lines
+            if not lines:
+                return False
+            avg_length = sum(len(line) for line in lines) / len(lines)
+            return avg_length > MINIFIED_AVG_LINE_LENGTH
+        except Exception:
+            return False
+
     def get_files(self) -> list[str]:
         """Get list of files to process.
 
@@ -177,6 +216,10 @@ class FileFilter:
 
             # Check binary
             if self._is_binary(file_path):
+                continue
+
+            # Check minified (only for text files that passed other checks)
+            if self._is_minified(file_path):
                 continue
 
             files.append(relative)

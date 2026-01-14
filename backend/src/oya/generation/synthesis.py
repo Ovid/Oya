@@ -6,6 +6,11 @@ directory summaries into a coherent codebase understanding map (SynthesisMap).
 
 import json
 
+from oya.constants.generation import (
+    DEFAULT_CONTEXT_LIMIT,
+    SYNTHESIS_TEMPERATURE,
+    TOKENS_PER_CHAR,
+)
 from oya.generation.summaries import (
     ComponentInfo,
     DirectorySummary,
@@ -14,13 +19,6 @@ from oya.generation.summaries import (
     SynthesisMap,
 )
 from oya.generation.prompts import get_synthesis_prompt, SYSTEM_PROMPT
-
-
-# Default context limit in tokens (conservative estimate for most models)
-DEFAULT_CONTEXT_LIMIT = 100_000
-
-# Approximate tokens per character (rough estimate)
-TOKENS_PER_CHAR = 0.25
 
 
 class SynthesisGenerator:
@@ -127,7 +125,7 @@ class SynthesisGenerator:
             response = await self.llm_client.generate(
                 prompt=prompt,
                 system_prompt=SYSTEM_PROMPT,
-                temperature=0.3,  # Lower temperature for structured output
+                temperature=SYNTHESIS_TEMPERATURE,
             )
 
             # Parse JSON response

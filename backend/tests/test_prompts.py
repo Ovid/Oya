@@ -7,8 +7,6 @@ from oya.generation.prompts import (
     PromptTemplate,
     get_overview_prompt,
     get_architecture_prompt,
-    get_workflow_prompt,
-    get_directory_prompt,
     get_file_prompt,
 )
 
@@ -76,3 +74,28 @@ def test_get_file_prompt_includes_content():
     assert "src/auth/login.py" in prompt
     assert "def login" in prompt
     assert "Authentication system" in prompt
+
+
+def test_file_template_includes_developer_audience():
+    """File template must specify developer audience."""
+    from oya.generation.prompts import FILE_TEMPLATE
+
+    template_text = FILE_TEMPLATE.template.lower()
+
+    # Must mention developers as the audience
+    assert "developer" in template_text
+    assert "maintain" in template_text or "debug" in template_text or "extend" in template_text
+
+    # Must NOT skip documentation for internal files
+    assert "must" in template_text and "always" in template_text and "documentation" in template_text
+
+
+def test_file_template_rejects_skip_documentation():
+    """File template must explicitly prohibit skipping documentation."""
+    from oya.generation.prompts import FILE_TEMPLATE
+
+    template_text = FILE_TEMPLATE.template.lower()
+
+    # Must address internal/trivial files explicitly
+    assert "internal" in template_text or "trivial" in template_text
+    assert "never skip" in template_text or "must always" in template_text

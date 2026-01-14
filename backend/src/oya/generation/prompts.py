@@ -185,7 +185,7 @@ ARCHITECTURE_TEMPLATE = PromptTemplate(
 
 Create architecture documentation that includes:
 1. **System Overview**: High-level description of the system architecture
-2. **Component Diagram**: Describe the main components and their relationships
+2. **Component Relationships**: Describe the main components and how they interact. Focus on the relationships and data flow between layers. (Diagrams will be generated automatically from code analysis.)
 3. **Key Classes and Functions**: Document the most important code elements
 4. **Data Flow**: How data moves through the system
 5. **Design Patterns**: Notable patterns used in the codebase
@@ -223,7 +223,7 @@ ARCHITECTURE_SYNTHESIS_TEMPLATE = PromptTemplate(
 Create architecture documentation that includes:
 1. **System Overview**: High-level description of the system architecture based on the project summary and layer structure
 2. **Layer Architecture**: Describe each layer's purpose and responsibilities
-3. **Component Diagram**: Create a Mermaid diagram showing the main components and their relationships based on the layer dependencies
+3. **Component Relationships**: Describe the main components and how they interact. Focus on the relationships and data flow between layers. (Diagrams will be generated automatically from code analysis.)
 4. **Key Components**: Document the most important classes and functions identified above
 5. **Data Flow**: How data moves through the layers
 6. **Design Patterns**: Notable patterns used in the codebase
@@ -315,6 +315,10 @@ Format the output as clean Markdown suitable for a wiki page."""
 FILE_TEMPLATE = PromptTemplate(
     """Generate documentation for the file "{file_path}".
 
+AUDIENCE: You are writing for developers who will maintain, debug, and extend this code - NOT for end users of an API. Even files marked as "internal" or "no user-serviceable parts" need thorough documentation for the development team.
+
+REQUIREMENT: You MUST always produce documentation. Every file has value to developers - explain what it does, why it exists, and how it works. Never skip documentation because a file seems "internal" or "trivial".
+
 ## File Content
 ```{language}
 {content}
@@ -355,13 +359,14 @@ Layer classification guide:
 - config: Configuration, settings, environment handling
 - test: Test files, test utilities, fixtures
 
-After the YAML block, create file documentation that includes:
-1. **File Purpose**: What this file does and its role in the project
-2. **Classes**: Document each class with its purpose and methods
-3. **Functions**: Document each function with parameters and return values
-4. **Constants/Variables**: Document important module-level definitions
-5. **Dependencies**: What this file imports and why
-6. **Usage Examples**: How to use the components defined in this file
+Your documentation MUST include these sections in order:
+1. **Purpose** - What this file does and why it exists
+2. **Public API** - Exported classes, functions, constants (if any)
+3. **Internal Details** - Implementation specifics developers need to know
+4. **Dependencies** - What this file imports and why
+5. **Usage Examples** - How to use the components in this file
+
+You MAY add additional sections after these if there's important information that doesn't fit (e.g., "Concurrency Notes", "Migration History", "Known Limitations").
 
 Format the output as clean Markdown suitable for a wiki page."""
 )

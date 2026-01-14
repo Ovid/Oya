@@ -102,6 +102,8 @@ function renderTopBar(props = {}) {
   const defaultProps = {
     onToggleSidebar: vi.fn(),
     onToggleRightSidebar: vi.fn(),
+    onToggleAskPanel: vi.fn(),
+    askPanelOpen: false,
     ...props,
   };
 
@@ -240,7 +242,7 @@ describe('TopBar with DirectoryPicker', () => {
             <button onClick={() => setNoteEditorDirty(true)} data-testid="set-dirty">
               Set Dirty
             </button>
-            <TopBar onToggleSidebar={vi.fn()} onToggleRightSidebar={vi.fn()} />
+            <TopBar onToggleSidebar={vi.fn()} onToggleRightSidebar={vi.fn()} onToggleAskPanel={vi.fn()} askPanelOpen={false} />
           </>
         );
       }
@@ -307,7 +309,7 @@ describe('TopBar with DirectoryPicker', () => {
             <button onClick={() => setNoteEditorDirty(true)} data-testid="set-dirty">
               Set Dirty
             </button>
-            <TopBar onToggleSidebar={vi.fn()} onToggleRightSidebar={vi.fn()} />
+            <TopBar onToggleSidebar={vi.fn()} onToggleRightSidebar={vi.fn()} onToggleAskPanel={vi.fn()} askPanelOpen={false} />
           </>
         );
       }
