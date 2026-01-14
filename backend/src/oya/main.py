@@ -7,6 +7,16 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Configure global logging format with timestamps
+LOG_FORMAT = "%(asctime)s %(levelname)-8s %(message)s"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+logging.basicConfig(
+    format=LOG_FORMAT,
+    datefmt=DATE_FORMAT,
+    level=logging.INFO,
+)
+
 from oya.api.routers import repos, wiki, jobs, search, qa, notes
 from oya.config import load_settings
 from oya.workspace import initialize_workspace

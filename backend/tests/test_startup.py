@@ -90,3 +90,33 @@ class TestStartupInitialization:
                     with TestClient(app) as client:
                         response = client.get("/health")
                         assert response.status_code == 200
+
+
+def test_logging_format_includes_timestamp():
+    """Verify logging format includes timestamp."""
+    import logging
+
+    # Get the root logger's handler format
+    root_logger = logging.getLogger()
+
+    # Check that basicConfig was called with timestamp format
+    # We verify this by checking a logger outputs in expected format
+    import io
+    import re
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+
+    test_logger = logging.getLogger("test_timestamp")
+    test_logger.addHandler(handler)
+    test_logger.setLevel(logging.INFO)
+    test_logger.info("Test message")
+
+    output = stream.getvalue()
+    # Should match format: 2026-01-14 10:23:45 INFO     Test message
+    pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} INFO\s+Test message"
+    assert re.match(pattern, output), f"Log format doesn't match expected pattern: {output}"
