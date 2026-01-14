@@ -741,3 +741,38 @@ class TestParseErrorRecovery:
         assert result["file"] == "test.py"
         assert result["line"] == 10
         assert result["decorators"] == ["@decorator"]
+
+    @pytest.mark.asyncio
+    async def test_analysis_returns_parsed_symbols_and_imports(self, mock_orchestrator, tmp_path):
+        """Analysis returns ParsedSymbol objects and file_imports dict."""
+        from oya.parsing.models import ParsedSymbol
+
+        # Create a Python file with imports and symbols
+        py_file = tmp_path / "example.py"
+        py_file.write_text("""
+import os
+from pathlib import Path
+
+def hello():
+    pass
+
+class Greeter:
+    def greet(self):
+        pass
+""")
+
+        result = await mock_orchestrator._run_analysis()
+
+        # Check symbols are ParsedSymbol objects
+        assert len(result["symbols"]) > 0
+        assert all(isinstance(s, ParsedSymbol) for s in result["symbols"])
+
+        # Check file_imports is populated
+        assert "file_imports" in result
+        assert "example.py" in result["file_imports"]
+        imports = result["file_imports"]["example.py"]
+        assert "os" in imports or any("os" in i for i in imports)
+
+        # Check symbols have file metadata
+        for symbol in result["symbols"]:
+            assert "file" in symbol.metadata
