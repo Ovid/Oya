@@ -35,6 +35,25 @@
 * Fix the LLM chat
 * WHEN I REFRESH PAGE, REGENERATION STOPS!
 
+# Future Enhancements (Suggested by CLAUDE)
+
+The following ideas were identified during Phase 6 overview improvements but deferred for future consideration:
+
+## Advanced Code Metrics
+- **Test coverage integration**: Detect and display coverage percentages when coverage tools (coverage.py, istanbul, etc.) have generated reports
+- **Cyclomatic complexity**: Compute and surface complexity hotspots
+- **Code quality scores**: Integration with linters/analyzers if configured
+
+## Historical Context
+- **Git history analysis**: Show project maturity, recent activity areas, contributor patterns
+- **Change frequency**: Identify frequently-modified files (potential complexity indicators)
+
+## README Intelligence
+- **Section parsing**: Parse README into structured sections (Features, Installation, Usage) to better detect conflicts/redundancy with code-derived information
+- **Staleness detection**: Compare README claims against actual code to flag potential outdated sections
+
+---
+
 # Done
 
 * .oyaignore is now in .oyawiki/.oyaignore
