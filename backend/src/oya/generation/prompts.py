@@ -265,6 +265,41 @@ Format the output as clean Markdown suitable for a wiki page."""
 )
 
 
+WORKFLOW_SYNTHESIS_TEMPLATE = PromptTemplate(
+    """Generate a workflow documentation page for the "{workflow_name}" workflow in "{repo_name}".
+
+## Entry Points
+{entry_points}
+
+## Related Files
+{related_files}
+
+## System Layers
+{layers}
+
+## Key Components
+{key_components}
+
+## Layer Dependencies
+{dependency_graph}
+
+## Code Context
+{code_context}
+
+---
+
+Create workflow documentation that includes:
+1. **Workflow Overview**: What this workflow accomplishes and its role in the system
+2. **Trigger/Entry Point**: How the workflow is initiated
+3. **Step-by-Step Flow**: Walkthrough showing how data moves through layers
+4. **Key Components Involved**: Which key components participate and their roles
+5. **Error Handling**: How errors are handled at each layer
+6. **Related Workflows**: Connections to other workflows
+
+Format the output as clean Markdown suitable for a wiki page."""
+)
+
+
 # =============================================================================
 # Directory Template
 # =============================================================================
