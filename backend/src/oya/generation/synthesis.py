@@ -6,7 +6,7 @@ directory summaries into a coherent codebase understanding map (SynthesisMap).
 
 import json
 
-from oya.config.generation import (
+from oya.constants.generation import (
     DEFAULT_CONTEXT_LIMIT,
     SYNTHESIS_TEMPERATURE,
     TOKENS_PER_CHAR,

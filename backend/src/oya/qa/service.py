@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from oya.config.qa import (
+from oya.constants.qa import (
     HIGH_CONFIDENCE_THRESHOLD,
     MAX_CONTEXT_TOKENS,
     MAX_RESULT_TOKENS,
@@ -11,7 +11,7 @@ from oya.config.qa import (
     MIN_STRONG_MATCHES_FOR_HIGH,
     STRONG_MATCH_THRESHOLD,
 )
-from oya.config.search import DEDUP_HASH_LENGTH, TYPE_PRIORITY
+from oya.constants.search import DEDUP_HASH_LENGTH, TYPE_PRIORITY
 from oya.db.connection import Database
 from oya.generation.chunking import estimate_tokens
 from oya.llm.client import LLMClient

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 
-from oya.config.generation import CHUNK_OVERLAP_LINES, MAX_CHUNK_TOKENS
+from oya.constants.generation import CHUNK_OVERLAP_LINES, MAX_CHUNK_TOKENS
 
 
 @dataclass

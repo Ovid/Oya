@@ -8,7 +8,7 @@ from pathlib import Path
 
 from litellm import acompletion
 
-from oya.config.llm import DEFAULT_TEMPERATURE, JSON_TEMPERATURE, MAX_TOKENS
+from oya.constants.llm import DEFAULT_TEMPERATURE, JSON_TEMPERATURE, MAX_TOKENS
 from litellm.exceptions import (
     APIConnectionError,
     APIError,
