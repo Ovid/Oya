@@ -5,6 +5,7 @@ directory summaries into a coherent codebase understanding map (SynthesisMap).
 """
 
 import json
+import logging
 
 from oya.constants.generation import (
     DEFAULT_CONTEXT_LIMIT,
@@ -19,6 +20,8 @@ from oya.generation.summaries import (
     SynthesisMap,
 )
 from oya.generation.prompts import get_synthesis_prompt, SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 class SynthesisGenerator:
@@ -136,9 +139,11 @@ class SynthesisGenerator:
                 synthesis_map.key_components = llm_result.get("key_components", [])
                 synthesis_map.dependency_graph = llm_result.get("dependency_graph", {})
                 synthesis_map.project_summary = llm_result.get("project_summary", "")
-        except Exception:
-            # On LLM failure, return the basic layer grouping
-            pass
+        except Exception as e:
+            logger.error(
+                "LLM call failed during synthesis, falling back to basic layer grouping. "
+                f"Error: {type(e).__name__}: {e}"
+            )
 
         return synthesis_map
 
