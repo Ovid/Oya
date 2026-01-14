@@ -710,6 +710,8 @@ class GenerationOrchestrator:
                 file_tree=analysis["file_tree"],
                 dependencies=dependencies,
                 synthesis_map=synthesis_map,
+                file_imports=analysis.get("file_imports", {}),
+                symbols=analysis.get("symbols", []),
             )
 
         # Legacy mode: use key symbols (convert ParsedSymbol to dict)
@@ -722,6 +724,8 @@ class GenerationOrchestrator:
             file_tree=analysis["file_tree"],
             key_symbols=key_symbols,
             dependencies=dependencies,
+            file_imports=analysis.get("file_imports", {}),
+            symbols=analysis.get("symbols", []),
         )
 
     async def _run_workflows(
