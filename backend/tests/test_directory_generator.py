@@ -150,8 +150,8 @@ class TestDirectoryGeneratorWithFileSummaries:
     async def test_generate_includes_file_summaries_in_prompt(
         self, generator_with_yaml, mock_llm_client_with_yaml, sample_file_summaries
     ):
-        """Test that FileSummaries are included in the LLM prompt.
-        
+        """Test that FileSummaries are included in the LLM prompt as a navigation table.
+
         Requirements: 2.6
         """
         await generator_with_yaml.generate(
@@ -165,12 +165,13 @@ class TestDirectoryGeneratorWithFileSummaries:
         # Get the prompt that was passed to the LLM
         call_args = mock_llm_client_with_yaml.generate.call_args
         prompt = call_args.kwargs.get("prompt") or call_args.args[0]
-        
-        # Prompt should contain file summary information
+
+        # Prompt should contain file summary information as markdown table
         assert "login.py" in prompt
         assert "Handles user login" in prompt or "login" in prompt.lower()
-        # Should include layer information
-        assert "api" in prompt.lower() or "domain" in prompt.lower()
+        # Should include table format with links
+        assert "| File | Purpose |" in prompt
+        assert "../files/" in prompt  # File links should use relative paths
 
     @pytest.mark.asyncio
     async def test_generate_returns_fallback_summary_on_parse_failure(

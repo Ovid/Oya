@@ -272,17 +272,20 @@ Format the output as clean Markdown suitable for a wiki page."""
 DIRECTORY_TEMPLATE = PromptTemplate(
     """Generate a directory documentation page for "{directory_path}" in "{repo_name}".
 
-## Files in Directory
+## Breadcrumb
+{breadcrumb}
+
+## Direct Files
 {file_list}
 
 ## File Summaries
 {file_summaries}
 
+## Subdirectories
+{subdirectory_summaries}
+
 ## Symbols Defined
 {symbols}
-
-## Architecture Context
-{architecture_context}
 
 ---
 
@@ -299,14 +302,29 @@ directory_summary:
 ---
 ```
 
-After the YAML block, create directory documentation that includes:
-1. **Directory Purpose**: What this directory contains and why
-2. **File Overview**: Brief description of each file
-3. **Key Components**: Important classes, functions, or modules
-4. **Dependencies**: What this directory depends on and what depends on it
-5. **Usage Examples**: How to use the components in this directory
+After the YAML block, create directory documentation with these sections IN ORDER:
 
-Format the output as clean Markdown suitable for a wiki page."""
+1. **Overview**: One paragraph describing the directory's purpose (do NOT include a heading, start directly with the paragraph)
+
+2. **Subdirectories** (if any exist): Use this exact table format:
+| Directory | Purpose |
+|-----------|---------|
+| [name](./slug.md) | One-line description |
+
+3. **Files**: Use this exact table format:
+| File | Purpose |
+|------|---------|
+| [name.py](../files/slug.md) | One-line description |
+
+4. **Key Components**: Bullet list of important classes/functions
+
+5. **Dependencies**:
+   - **Internal**: Other directories/modules this depends on
+   - **External**: Third-party libraries used
+
+Use the breadcrumb, file summaries, and subdirectory summaries provided to generate accurate content.
+Do NOT invent files or subdirectories that aren't listed above.
+Format all file and directory names as markdown links using the link formats shown in the tables."""
 )
 
 
@@ -833,16 +851,20 @@ def get_directory_prompt(
     symbols: list[dict[str, Any]],
     architecture_context: str,
     file_summaries: list[Any] | None = None,
+    subdirectory_summaries: list[Any] | None = None,
+    project_name: str | None = None,
 ) -> str:
     """Generate a prompt for creating a directory page.
 
     Args:
         repo_name: Name of the repository.
-        directory_path: Path to the directory.
+        directory_path: Path to the directory (empty string for root).
         file_list: List of files in the directory.
         symbols: List of symbol dictionaries defined in the directory.
         architecture_context: Summary of how this directory fits in the architecture.
         file_summaries: Optional list of FileSummary objects for files in the directory.
+        subdirectory_summaries: Optional list of DirectorySummary objects for child directories.
+        project_name: Project name for breadcrumb (defaults to repo_name).
 
     Returns:
         The rendered prompt string.
@@ -851,13 +873,22 @@ def get_directory_prompt(
         "\n".join(f"- {f}" for f in file_list) if file_list else "No files in directory."
     )
 
+    proj_name = project_name or repo_name
+    breadcrumb = generate_breadcrumb(directory_path, proj_name)
+
+    # Format display path - use project name for root
+    display_path = directory_path if directory_path else proj_name
+
     return DIRECTORY_TEMPLATE.render(
         repo_name=repo_name,
-        directory_path=directory_path,
+        directory_path=display_path,
+        breadcrumb=breadcrumb,
         file_list=file_list_str,
-        file_summaries=_format_file_summaries(file_summaries or []),
+        file_summaries=format_file_links(file_summaries or []),
+        subdirectory_summaries=format_subdirectory_summaries(
+            subdirectory_summaries or [], directory_path
+        ),
         symbols=_format_symbols(symbols),
-        architecture_context=architecture_context or "No architecture context provided.",
     )
 
 
