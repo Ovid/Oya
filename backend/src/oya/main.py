@@ -26,9 +26,9 @@ for uvicorn_logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
     handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
     uvicorn_logger.addHandler(handler)
 
-from oya.api.routers import repos, wiki, jobs, search, qa, notes
-from oya.config import load_settings
-from oya.workspace import initialize_workspace
+from oya.api.routers import repos, wiki, jobs, search, qa, notes  # noqa: E402
+from oya.config import load_settings  # noqa: E402
+from oya.workspace import initialize_workspace  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
