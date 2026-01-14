@@ -1034,6 +1034,12 @@ class GenerationOrchestrator:
             ),
         )
 
+        # Get all imports for dependency diagram
+        all_file_imports = analysis.get("file_imports", {})
+
+        # Get all parsed symbols from analysis (these are ParsedSymbol objects)
+        all_parsed_symbols: list[ParsedSymbol] = analysis.get("symbols", [])
+
         # Helper to generate a single file page with hash and return both page and summary
         async def generate_file_page(
             file_path: str, content_hash: str
@@ -1041,11 +1047,18 @@ class GenerationOrchestrator:
             content = analysis["file_contents"].get(file_path, "")
             # Filter symbols by file path and convert to dicts for generator
             file_symbols = [
-                self._symbol_to_dict(s) for s in analysis["symbols"]
+                self._symbol_to_dict(s) for s in all_parsed_symbols
                 if s.metadata.get("file") == file_path
             ]
             # Use imports collected during parsing (Task 4)
-            imports = analysis.get("file_imports", {}).get(file_path, [])
+            imports = all_file_imports.get(file_path, [])
+
+            # Filter parsed symbols for this specific file (for class diagrams)
+            file_parsed_symbols = [
+                s for s in all_parsed_symbols
+                if s.metadata.get("file") == file_path
+            ]
+
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
             page, file_summary = await self.file_generator.generate(
                 file_path=file_path,
@@ -1053,6 +1066,8 @@ class GenerationOrchestrator:
                 symbols=file_symbols,
                 imports=imports,
                 architecture_summary="",
+                parsed_symbols=file_parsed_symbols,
+                file_imports=all_file_imports,
             )
             # Add source hash to the page for storage
             page.source_hash = content_hash
