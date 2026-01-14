@@ -150,3 +150,68 @@ class TestBreadcrumbGeneration:
         assert "[my-project](./root.md)" in result
         assert "src" in result
         assert "..." not in result
+
+
+class TestSubdirectorySummariesFormatter:
+    """Tests for subdirectory summaries formatter."""
+
+    def test_format_subdirectory_summaries_with_data(self):
+        """Formats subdirectories as markdown table with links."""
+        from oya.generation.prompts import format_subdirectory_summaries
+        from oya.generation.summaries import DirectorySummary
+
+        summaries = [
+            DirectorySummary(
+                directory_path="src/api/routes",
+                purpose="HTTP route handlers for all endpoints",
+                contains=["user.py", "auth.py"],
+                role_in_system="API layer",
+            ),
+            DirectorySummary(
+                directory_path="src/api/middleware",
+                purpose="Request/response middleware",
+                contains=["cors.py"],
+                role_in_system="Cross-cutting concerns",
+            ),
+        ]
+
+        result = format_subdirectory_summaries(summaries, "src/api")
+
+        assert "| Directory | Purpose |" in result
+        assert "[routes](./src-api-routes.md)" in result
+        assert "HTTP route handlers" in result
+        assert "[middleware](./src-api-middleware.md)" in result
+        assert "Request/response middleware" in result
+
+    def test_format_subdirectory_summaries_empty(self):
+        """Returns message when no subdirectories."""
+        from oya.generation.prompts import format_subdirectory_summaries
+
+        result = format_subdirectory_summaries([], "src/api")
+
+        assert "No subdirectories" in result
+
+    def test_format_subdirectory_summaries_filters_to_direct_children(self):
+        """Only includes direct child directories, not nested ones."""
+        from oya.generation.prompts import format_subdirectory_summaries
+        from oya.generation.summaries import DirectorySummary
+
+        summaries = [
+            DirectorySummary(
+                directory_path="src/api/routes",
+                purpose="Routes",
+                contains=[],
+                role_in_system="",
+            ),
+            DirectorySummary(
+                directory_path="src/api/routes/v1",  # Nested - should be excluded
+                purpose="V1 routes",
+                contains=[],
+                role_in_system="",
+            ),
+        ]
+
+        result = format_subdirectory_summaries(summaries, "src/api")
+
+        assert "routes" in result
+        assert "v1" not in result.lower() or "[v1]" not in result

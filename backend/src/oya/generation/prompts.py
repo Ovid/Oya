@@ -591,6 +591,51 @@ def _format_directory_summaries(directory_summaries: list[Any]) -> str:
     return "\n".join(lines)
 
 
+def format_subdirectory_summaries(
+    summaries: list[Any],
+    parent_directory: str
+) -> str:
+    """Format subdirectory summaries as a markdown table with links.
+
+    Only includes direct child directories of the parent.
+
+    Args:
+        summaries: List of DirectorySummary objects.
+        parent_directory: Path of the parent directory.
+
+    Returns:
+        Markdown table string with directory links and purposes.
+    """
+    if not summaries:
+        return "No subdirectories."
+
+    # Filter to direct children only
+    prefix = f"{parent_directory}/" if parent_directory else ""
+    direct_children = []
+    for summary in summaries:
+        path = summary.directory_path
+        # Must start with parent path
+        if not path.startswith(prefix):
+            continue
+        # Remaining path after prefix should have no slashes (direct child)
+        remaining = path[len(prefix):]
+        if "/" not in remaining and remaining:
+            direct_children.append(summary)
+
+    if not direct_children:
+        return "No subdirectories."
+
+    lines = ["| Directory | Purpose |", "|-----------|---------|"]
+    for summary in sorted(direct_children, key=lambda s: s.directory_path):
+        name = summary.directory_path.split("/")[-1]
+        slug = summary.directory_path.replace("/", "-").lower()
+        link = f"[{name}](./{slug}.md)"
+        purpose = summary.purpose or "No description"
+        lines.append(f"| {link} | {purpose} |")
+
+    return "\n".join(lines)
+
+
 def generate_breadcrumb(directory_path: str, project_name: str) -> str:
     """Generate a breadcrumb trail for directory navigation.
 
