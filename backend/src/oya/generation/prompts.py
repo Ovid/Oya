@@ -185,7 +185,7 @@ ARCHITECTURE_TEMPLATE = PromptTemplate(
 
 Create architecture documentation that includes:
 1. **System Overview**: High-level description of the system architecture
-2. **Component Diagram**: Describe the main components and their relationships
+2. **Component Relationships**: Describe the main components and how they interact. Focus on the relationships and data flow between layers. (Diagrams will be generated automatically from code analysis.)
 3. **Key Classes and Functions**: Document the most important code elements
 4. **Data Flow**: How data moves through the system
 5. **Design Patterns**: Notable patterns used in the codebase
@@ -223,7 +223,7 @@ ARCHITECTURE_SYNTHESIS_TEMPLATE = PromptTemplate(
 Create architecture documentation that includes:
 1. **System Overview**: High-level description of the system architecture based on the project summary and layer structure
 2. **Layer Architecture**: Describe each layer's purpose and responsibilities
-3. **Component Diagram**: Create a Mermaid diagram showing the main components and their relationships based on the layer dependencies
+3. **Component Relationships**: Describe the main components and how they interact. Focus on the relationships and data flow between layers. (Diagrams will be generated automatically from code analysis.)
 4. **Key Components**: Document the most important classes and functions identified above
 5. **Data Flow**: How data moves through the layers
 6. **Design Patterns**: Notable patterns used in the codebase
