@@ -17,6 +17,7 @@ import asyncio
 import hashlib
 import json
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -113,6 +114,50 @@ def compute_directory_signature(file_hashes: list[tuple[str, str]]) -> str:
     sorted_hashes = sorted(file_hashes, key=lambda x: x[0])
     signature = "|".join(f"{name}:{hash}" for name, hash in sorted_hashes)
     return hashlib.sha256(signature.encode("utf-8")).hexdigest()
+
+
+def group_directories_by_depth(directories: list[str]) -> dict[int, list[str]]:
+    """Group directories by their depth level.
+
+    Args:
+        directories: List of directory paths.
+
+    Returns:
+        Dict mapping depth to list of directories at that depth.
+    """
+    result: dict[int, list[str]] = defaultdict(list)
+    for dir_path in directories:
+        if dir_path == "":
+            depth = -1  # Root is special, processed last
+        else:
+            depth = dir_path.count("/")
+        result[depth].append(dir_path)
+    return dict(result)
+
+
+def get_processing_order(directories: list[str]) -> list[str]:
+    """Get directories in processing order (deepest first, root last).
+
+    Args:
+        directories: List of directory paths.
+
+    Returns:
+        List of directories ordered for processing.
+    """
+    grouped = group_directories_by_depth(directories)
+    result = []
+
+    # Process by depth, deepest first (highest depth number first)
+    for depth in sorted(grouped.keys(), reverse=True):
+        if depth == -1:
+            continue  # Skip root for now
+        result.extend(sorted(grouped[depth]))
+
+    # Root always last
+    if -1 in grouped:
+        result.extend(grouped[-1])
+
+    return result
 
 
 class GenerationOrchestrator:

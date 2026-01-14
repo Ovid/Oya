@@ -776,3 +776,76 @@ class Greeter:
         # Check symbols have file metadata
         for symbol in result["symbols"]:
             assert "file" in symbol.metadata
+
+
+# ============================================================================
+# Task 7: Depth-First Directory Processing Tests
+# ============================================================================
+
+
+class TestDirectoryProcessingOrder:
+    """Tests for directory processing order."""
+
+    def test_directories_grouped_by_depth(self):
+        """Directories are grouped by depth for processing."""
+        from oya.generation.orchestrator import group_directories_by_depth
+
+        directories = ["src", "src/api", "src/api/routes", "tests", "tests/unit"]
+
+        result = group_directories_by_depth(directories)
+
+        # Depth 2 directories
+        assert "src/api/routes" in result[2]
+        assert "tests/unit" in result[1]
+        # Depth 1 directories
+        assert "src/api" in result[1]
+        # Depth 0 directories
+        assert "src" in result[0]
+        assert "tests" in result[0]
+
+    def test_directories_processed_deepest_first(self):
+        """Deepest directories are processed before parents."""
+        from oya.generation.orchestrator import get_processing_order
+
+        directories = ["src", "src/api", "src/api/routes", ""]
+
+        result = get_processing_order(directories)
+
+        # Deepest first
+        assert result.index("src/api/routes") < result.index("src/api")
+        assert result.index("src/api") < result.index("src")
+        assert result.index("src") < result.index("")  # Root last
+
+    def test_root_directory_processed_last(self):
+        """Root directory is always processed last."""
+        from oya.generation.orchestrator import get_processing_order
+
+        directories = ["", "src", "tests"]
+
+        result = get_processing_order(directories)
+
+        assert result[-1] == ""
+
+    def test_empty_directories_list(self):
+        """Empty directory list returns empty result."""
+        from oya.generation.orchestrator import get_processing_order
+
+        result = get_processing_order([])
+
+        assert result == []
+
+    def test_single_directory_no_root(self):
+        """Single directory without root works correctly."""
+        from oya.generation.orchestrator import get_processing_order
+
+        result = get_processing_order(["src"])
+
+        assert result == ["src"]
+
+    def test_only_root_directory(self):
+        """Only root directory returns just root."""
+        from oya.generation.orchestrator import get_processing_order
+
+        result = get_processing_order([""])
+
+        assert result == [""]
