@@ -32,20 +32,25 @@ class DirectoryGenerator:
         symbols: list[dict],
         architecture_context: str,
         file_summaries: list[FileSummary] | None = None,
+        child_summaries: list[DirectorySummary] | None = None,
+        project_name: str | None = None,
     ) -> tuple[GeneratedPage, DirectorySummary]:
         """Generate directory documentation and extract summary.
 
         Args:
-            directory_path: Path to the directory.
+            directory_path: Path to the directory (empty string for root).
             file_list: List of files in the directory.
             symbols: List of symbol dictionaries defined in the directory.
             architecture_context: Summary of how this directory fits in the architecture.
             file_summaries: Optional list of FileSummary objects for files in the directory.
+            child_summaries: Optional list of DirectorySummary objects for child directories.
+            project_name: Optional project name for breadcrumb (defaults to repo name).
 
         Returns:
             A tuple of (GeneratedPage, DirectorySummary).
         """
         repo_name = self.repo.path.name
+        proj_name = project_name or repo_name
 
         prompt = get_directory_prompt(
             repo_name=repo_name,
@@ -54,6 +59,8 @@ class DirectoryGenerator:
             symbols=symbols,
             architecture_context=architecture_context,
             file_summaries=file_summaries or [],
+            subdirectory_summaries=child_summaries or [],
+            project_name=proj_name,
         )
 
         content = await self.llm_client.generate(
@@ -65,7 +72,12 @@ class DirectoryGenerator:
         clean_content, summary = self._parser.parse_directory_summary(content, directory_path)
 
         word_count = len(clean_content.split())
-        slug = path_to_slug(directory_path, include_extension=False)
+
+        # Handle root directory slug
+        if directory_path:
+            slug = path_to_slug(directory_path, include_extension=False)
+        else:
+            slug = "root"
 
         page = GeneratedPage(
             content=clean_content,

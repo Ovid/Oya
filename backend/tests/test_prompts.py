@@ -99,3 +99,163 @@ def test_file_template_rejects_skip_documentation():
     # Must address internal/trivial files explicitly
     assert "internal" in template_text or "trivial" in template_text
     assert "never skip" in template_text or "must always" in template_text
+
+
+class TestBreadcrumbGeneration:
+    """Tests for breadcrumb generation helper."""
+
+    def test_generate_breadcrumb_shallow_directory(self):
+        """Shallow directories show full path."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb("src/api/routes", "my-project")
+
+        assert "[my-project](./root.md)" in result
+        assert "[src](./src.md)" in result
+        assert "[api](./src-api.md)" in result
+        assert "routes" in result
+        assert "..." not in result
+
+    def test_generate_breadcrumb_deep_directory_truncates(self):
+        """Deep directories (>4 levels) truncate middle."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb(
+            "src/components/ui/forms/inputs/validation",
+            "my-project"
+        )
+
+        assert "[my-project](./root.md)" in result
+        assert "..." in result
+        assert "[inputs](./src-components-ui-forms-inputs.md)" in result
+        assert "validation" in result
+        # Middle segments should be truncated
+        assert "[ui]" not in result
+        assert "[forms]" not in result
+
+    def test_generate_breadcrumb_root_directory(self):
+        """Root directory shows only project name."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb("", "my-project")
+
+        assert result == "my-project"
+
+    def test_generate_breadcrumb_single_level(self):
+        """Single level directory shows root and current."""
+        from oya.generation.prompts import generate_breadcrumb
+
+        result = generate_breadcrumb("src", "my-project")
+
+        assert "[my-project](./root.md)" in result
+        assert "src" in result
+        assert "..." not in result
+
+
+class TestSubdirectorySummariesFormatter:
+    """Tests for subdirectory summaries formatter."""
+
+    def test_format_subdirectory_summaries_with_data(self):
+        """Formats subdirectories as markdown table with links."""
+        from oya.generation.prompts import format_subdirectory_summaries
+        from oya.generation.summaries import DirectorySummary
+
+        summaries = [
+            DirectorySummary(
+                directory_path="src/api/routes",
+                purpose="HTTP route handlers for all endpoints",
+                contains=["user.py", "auth.py"],
+                role_in_system="API layer",
+            ),
+            DirectorySummary(
+                directory_path="src/api/middleware",
+                purpose="Request/response middleware",
+                contains=["cors.py"],
+                role_in_system="Cross-cutting concerns",
+            ),
+        ]
+
+        result = format_subdirectory_summaries(summaries, "src/api")
+
+        assert "| Directory | Purpose |" in result
+        assert "[routes](./src-api-routes.md)" in result
+        assert "HTTP route handlers" in result
+        assert "[middleware](./src-api-middleware.md)" in result
+        assert "Request/response middleware" in result
+
+    def test_format_subdirectory_summaries_empty(self):
+        """Returns message when no subdirectories."""
+        from oya.generation.prompts import format_subdirectory_summaries
+
+        result = format_subdirectory_summaries([], "src/api")
+
+        assert "No subdirectories" in result
+
+    def test_format_subdirectory_summaries_filters_to_direct_children(self):
+        """Only includes direct child directories, not nested ones."""
+        from oya.generation.prompts import format_subdirectory_summaries
+        from oya.generation.summaries import DirectorySummary
+
+        summaries = [
+            DirectorySummary(
+                directory_path="src/api/routes",
+                purpose="Routes",
+                contains=[],
+                role_in_system="",
+            ),
+            DirectorySummary(
+                directory_path="src/api/routes/v1",  # Nested - should be excluded
+                purpose="V1 routes",
+                contains=[],
+                role_in_system="",
+            ),
+        ]
+
+        result = format_subdirectory_summaries(summaries, "src/api")
+
+        assert "routes" in result
+        assert "v1" not in result.lower() or "[v1]" not in result
+
+
+class TestFileLinksFormatter:
+    """Tests for file links formatter."""
+
+    def test_format_file_links_with_summaries(self):
+        """Formats files as markdown table with links."""
+        from oya.generation.prompts import format_file_links
+        from oya.generation.summaries import FileSummary
+
+        summaries = [
+            FileSummary(
+                file_path="src/api/app.py",
+                purpose="FastAPI application setup",
+                layer="api",
+                key_abstractions=["create_app"],
+                internal_deps=[],
+                external_deps=["fastapi"],
+            ),
+            FileSummary(
+                file_path="src/api/__init__.py",
+                purpose="Package initialization",
+                layer="config",
+                key_abstractions=[],
+                internal_deps=[],
+                external_deps=[],
+            ),
+        ]
+
+        result = format_file_links(summaries)
+
+        assert "| File | Purpose |" in result
+        assert "[app.py](../files/src-api-app-py.md)" in result
+        assert "FastAPI application setup" in result
+        # Canonical path_to_slug strips underscores: __init__.py -> init-py
+        assert "[__init__.py](../files/src-api-init-py.md)" in result
+
+    def test_format_file_links_empty(self):
+        """Returns message when no files."""
+        from oya.generation.prompts import format_file_links
+
+        result = format_file_links([])
+
+        assert "No files" in result

@@ -310,7 +310,7 @@ def test_extract_directories_from_files_basic():
 
 
 def test_extract_directories_from_files_sorted():
-    """Output is sorted alphabetically."""
+    """Output is sorted alphabetically with root first."""
     files = [
         "zebra/file.py",
         "alpha/file.py",
@@ -320,7 +320,7 @@ def test_extract_directories_from_files_sorted():
     directories = extract_directories_from_files(files)
 
     assert directories == sorted(directories)
-    assert directories == ["alpha", "beta", "beta/nested", "zebra"]
+    assert directories == ["", "alpha", "beta", "beta/nested", "zebra"]
 
 
 def test_extract_directories_from_files_unique():
@@ -337,28 +337,28 @@ def test_extract_directories_from_files_unique():
 
 
 def test_extract_directories_from_files_empty():
-    """Empty file list returns empty directory list."""
+    """Empty file list returns only root directory."""
     directories = extract_directories_from_files([])
 
-    assert directories == []
+    assert directories == [""]
 
 
 def test_extract_directories_from_files_root_files():
-    """Files at root level don't produce directories."""
+    """Files at root level produce only root directory."""
     files = ["README.md", "setup.py"]
 
     directories = extract_directories_from_files(files)
 
-    assert directories == []
+    assert directories == [""]
 
 
 def test_extract_directories_from_files_deep_nesting():
-    """Deeply nested files produce all intermediate directories."""
+    """Deeply nested files produce all intermediate directories including root."""
     files = ["a/b/c/d/file.py"]
 
     directories = extract_directories_from_files(files)
 
-    assert directories == ["a", "a/b", "a/b/c", "a/b/c/d"]
+    assert directories == ["", "a", "a/b", "a/b/c", "a/b/c/d"]
 
 
 # Property-based test for alphabetical sorting
@@ -417,3 +417,34 @@ def test_minified_detection_samples_first_lines(temp_repo: Path):
     files = filter.get_files()
 
     assert "mostly_normal.js" in files
+
+
+class TestExtractDirectoriesIncludesRoot:
+    """Tests for root directory inclusion."""
+
+    def test_extract_directories_includes_root(self):
+        """Root directory ('') is included in extracted directories."""
+        files = ["src/main.py", "README.md", "tests/test_main.py"]
+
+        result = extract_directories_from_files(files)
+
+        assert "" in result  # Root directory
+        assert "src" in result
+        assert "tests" in result
+
+    def test_extract_directories_root_only_for_top_level_files(self):
+        """Root is included even when only top-level files exist."""
+        files = ["README.md", "setup.py"]
+
+        result = extract_directories_from_files(files)
+
+        assert "" in result
+        assert len(result) == 1  # Only root
+
+    def test_extract_directories_root_first_in_sorted_order(self):
+        """Root directory comes first in sorted output."""
+        files = ["src/main.py", "tests/test.py"]
+
+        result = extract_directories_from_files(files)
+
+        assert result[0] == ""  # Root is first

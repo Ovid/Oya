@@ -4,6 +4,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from oya.generation.summaries import path_to_slug
+
 
 @dataclass
 class PromptTemplate:
@@ -270,17 +272,20 @@ Format the output as clean Markdown suitable for a wiki page."""
 DIRECTORY_TEMPLATE = PromptTemplate(
     """Generate a directory documentation page for "{directory_path}" in "{repo_name}".
 
-## Files in Directory
+## Breadcrumb
+{breadcrumb}
+
+## Direct Files
 {file_list}
 
 ## File Summaries
 {file_summaries}
 
+## Subdirectories
+{subdirectory_summaries}
+
 ## Symbols Defined
 {symbols}
-
-## Architecture Context
-{architecture_context}
 
 ---
 
@@ -297,14 +302,29 @@ directory_summary:
 ---
 ```
 
-After the YAML block, create directory documentation that includes:
-1. **Directory Purpose**: What this directory contains and why
-2. **File Overview**: Brief description of each file
-3. **Key Components**: Important classes, functions, or modules
-4. **Dependencies**: What this directory depends on and what depends on it
-5. **Usage Examples**: How to use the components in this directory
+After the YAML block, create directory documentation with these sections IN ORDER:
 
-Format the output as clean Markdown suitable for a wiki page."""
+1. **Overview**: One paragraph describing the directory's purpose (do NOT include a heading, start directly with the paragraph)
+
+2. **Subdirectories** (if any exist): Use this exact table format:
+| Directory | Purpose |
+|-----------|---------|
+| [name](./slug.md) | One-line description |
+
+3. **Files**: Use this exact table format:
+| File | Purpose |
+|------|---------|
+| [name.py](../files/slug.md) | One-line description |
+
+4. **Key Components**: Bullet list of important classes/functions
+
+5. **Dependencies**:
+   - **Internal**: Other directories/modules this depends on
+   - **External**: Third-party libraries used
+
+Use the breadcrumb, file summaries, and subdirectory summaries provided to generate accurate content.
+Do NOT invent files or subdirectories that aren't listed above.
+Format all file and directory names as markdown links using the link formats shown in the tables."""
 )
 
 
@@ -591,6 +611,114 @@ def _format_directory_summaries(directory_summaries: list[Any]) -> str:
     return "\n".join(lines)
 
 
+def format_subdirectory_summaries(
+    summaries: list[Any],
+    parent_directory: str
+) -> str:
+    """Format subdirectory summaries as a markdown table with links.
+
+    Only includes direct child directories of the parent.
+
+    Args:
+        summaries: List of DirectorySummary objects.
+        parent_directory: Path of the parent directory.
+
+    Returns:
+        Markdown table string with directory links and purposes.
+    """
+    if not summaries:
+        return "No subdirectories."
+
+    # Filter to direct children only
+    prefix = f"{parent_directory}/" if parent_directory else ""
+    direct_children = []
+    for summary in summaries:
+        path = summary.directory_path
+        # Must start with parent path
+        if not path.startswith(prefix):
+            continue
+        # Remaining path after prefix should have no slashes (direct child)
+        remaining = path[len(prefix):]
+        if "/" not in remaining and remaining:
+            direct_children.append(summary)
+
+    if not direct_children:
+        return "No subdirectories."
+
+    lines = ["| Directory | Purpose |", "|-----------|---------|"]
+    for summary in sorted(direct_children, key=lambda s: s.directory_path):
+        name = summary.directory_path.split("/")[-1]
+        slug = path_to_slug(summary.directory_path, include_extension=False)
+        link = f"[{name}](./{slug}.md)"
+        purpose = summary.purpose or "No description"
+        lines.append(f"| {link} | {purpose} |")
+
+    return "\n".join(lines)
+
+
+def format_file_links(file_summaries: list[Any]) -> str:
+    """Format file summaries as a markdown table with links.
+
+    Args:
+        file_summaries: List of FileSummary objects.
+
+    Returns:
+        Markdown table string with file links and purposes.
+    """
+    if not file_summaries:
+        return "No files in this directory."
+
+    lines = ["| File | Purpose |", "|------|---------|"]
+    for summary in sorted(file_summaries, key=lambda s: s.file_path):
+        filename = summary.file_path.split("/")[-1]
+        slug = path_to_slug(summary.file_path)
+        link = f"[{filename}](../files/{slug}.md)"
+        purpose = summary.purpose or "No description"
+        lines.append(f"| {link} | {purpose} |")
+
+    return "\n".join(lines)
+
+
+def generate_breadcrumb(directory_path: str, project_name: str) -> str:
+    """Generate a breadcrumb trail for directory navigation.
+
+    For shallow directories (depth <= 4), shows full path.
+    For deep directories (depth > 4), truncates middle: root / ... / parent / current.
+
+    Args:
+        directory_path: Path to the directory (empty string for root).
+        project_name: Name of the project for the root link.
+
+    Returns:
+        Markdown string with clickable breadcrumb links.
+    """
+    # Root directory - just show project name
+    if not directory_path:
+        return project_name
+
+    parts = directory_path.split("/")
+    depth = len(parts)
+
+    # Root link
+    root_link = f"[{project_name}](./root.md)"
+
+    if depth <= 4:
+        # Show full path
+        links = [root_link]
+        for i in range(len(parts) - 1):
+            ancestor_path = "/".join(parts[: i + 1])
+            slug = path_to_slug(ancestor_path, include_extension=False)
+            links.append(f"[{parts[i]}](./{slug}.md)")
+        links.append(parts[-1])  # Current directory (no link)
+        return " / ".join(links)
+    else:
+        # Truncate middle: root / ... / parent / current
+        parent_path = "/".join(parts[:-1])
+        parent_slug = path_to_slug(parent_path, include_extension=False)
+        parent_link = f"[{parts[-2]}](./{parent_slug}.md)"
+        return f"{root_link} / ... / {parent_link} / {parts[-1]}"
+
+
 def get_overview_prompt(
     repo_name: str,
     readme_content: str,
@@ -723,16 +851,20 @@ def get_directory_prompt(
     symbols: list[dict[str, Any]],
     architecture_context: str,
     file_summaries: list[Any] | None = None,
+    subdirectory_summaries: list[Any] | None = None,
+    project_name: str | None = None,
 ) -> str:
     """Generate a prompt for creating a directory page.
 
     Args:
         repo_name: Name of the repository.
-        directory_path: Path to the directory.
+        directory_path: Path to the directory (empty string for root).
         file_list: List of files in the directory.
         symbols: List of symbol dictionaries defined in the directory.
         architecture_context: Summary of how this directory fits in the architecture.
         file_summaries: Optional list of FileSummary objects for files in the directory.
+        subdirectory_summaries: Optional list of DirectorySummary objects for child directories.
+        project_name: Project name for breadcrumb (defaults to repo_name).
 
     Returns:
         The rendered prompt string.
@@ -741,13 +873,22 @@ def get_directory_prompt(
         "\n".join(f"- {f}" for f in file_list) if file_list else "No files in directory."
     )
 
+    proj_name = project_name or repo_name
+    breadcrumb = generate_breadcrumb(directory_path, proj_name)
+
+    # Format display path - use project name for root
+    display_path = directory_path if directory_path else proj_name
+
     return DIRECTORY_TEMPLATE.render(
         repo_name=repo_name,
-        directory_path=directory_path,
+        directory_path=display_path,
+        breadcrumb=breadcrumb,
         file_list=file_list_str,
-        file_summaries=_format_file_summaries(file_summaries or []),
+        file_summaries=format_file_links(file_summaries or []),
+        subdirectory_summaries=format_subdirectory_summaries(
+            subdirectory_summaries or [], directory_path
+        ),
         symbols=_format_symbols(symbols),
-        architecture_context=architecture_context or "No architecture context provided.",
     )
 
 

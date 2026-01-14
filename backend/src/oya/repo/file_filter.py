@@ -16,9 +16,11 @@ def extract_directories_from_files(files: list[str]) -> list[str]:
         files: List of file paths.
 
     Returns:
-        Sorted list of unique directory paths.
+        Sorted list of unique directory paths, including root ("").
     """
     directories: set[str] = set()
+    # Always include root directory
+    directories.add("")
     for file_path in files:
         parts = file_path.split("/")
         for i in range(1, len(parts)):
