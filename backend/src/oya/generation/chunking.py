@@ -4,6 +4,7 @@
 from dataclasses import dataclass, field
 
 from oya.constants.generation import CHUNK_OVERLAP_LINES, MAX_CHUNK_TOKENS
+from oya.parsing.models import ParsedSymbol
 
 
 @dataclass
@@ -23,7 +24,7 @@ class Chunk:
     file_path: str
     start_line: int
     end_line: int
-    symbols: list[dict] = field(default_factory=list)
+    symbols: list[ParsedSymbol] = field(default_factory=list)
     chunk_index: int = 0
 
 
@@ -117,7 +118,7 @@ def chunk_file_content(
 def chunk_by_symbols(
     content: str,
     file_path: str,
-    symbols: list[dict],
+    symbols: list[ParsedSymbol],
     max_tokens: int = MAX_CHUNK_TOKENS,
 ) -> list[Chunk]:
     """Split file content by symbol boundaries.
@@ -128,7 +129,7 @@ def chunk_by_symbols(
     Args:
         content: File content to chunk.
         file_path: Path to the source file.
-        symbols: List of symbol dicts with start_line/end_line.
+        symbols: List of ParsedSymbol objects with start_line/end_line.
         max_tokens: Maximum tokens per chunk.
 
     Returns:
@@ -143,18 +144,18 @@ def chunk_by_symbols(
     lines = content.split("\n")
 
     # Sort symbols by start_line
-    sorted_symbols = sorted(symbols, key=lambda s: s.get("start_line", 0))
+    sorted_symbols = sorted(symbols, key=lambda s: s.start_line)
 
     chunks: list[Chunk] = []
     chunk_index = 0
 
-    current_symbols: list[dict] = []
+    current_symbols: list[ParsedSymbol] = []
     current_start_line: int | None = None
     current_content_lines: list[str] = []
 
     for symbol in sorted_symbols:
-        start_line = symbol.get("start_line", 1)
-        end_line = symbol.get("end_line", start_line)
+        start_line = symbol.start_line
+        end_line = symbol.end_line
 
         # Extract symbol content (convert to 0-indexed for list access)
         symbol_lines = lines[start_line - 1 : end_line]
