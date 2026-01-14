@@ -1723,3 +1723,60 @@ file_summary:
     assert "test/file.py" in caplog.text
     assert "defaulting to 'utility'" in caplog.text
     assert "Valid layers: api, config, domain, infrastructure, test, utility" in caplog.text
+
+
+class TestCodeMetrics:
+    """Tests for CodeMetrics dataclass."""
+
+    def test_code_metrics_creation(self):
+        """Test CodeMetrics can be created with all fields."""
+        from oya.generation.summaries import CodeMetrics
+
+        metrics = CodeMetrics(
+            total_files=50,
+            files_by_layer={"api": 10, "domain": 20, "infrastructure": 15, "utility": 5},
+            lines_by_layer={"api": 1000, "domain": 3000, "infrastructure": 2000, "utility": 500},
+            total_lines=6500,
+        )
+
+        assert metrics.total_files == 50
+        assert metrics.files_by_layer["domain"] == 20
+        assert metrics.lines_by_layer["domain"] == 3000
+        assert metrics.total_lines == 6500
+
+    def test_code_metrics_to_dict(self):
+        """Test CodeMetrics serializes to dict."""
+        from oya.generation.summaries import CodeMetrics
+
+        metrics = CodeMetrics(
+            total_files=10,
+            files_by_layer={"api": 5, "domain": 5},
+            lines_by_layer={"api": 500, "domain": 500},
+            total_lines=1000,
+        )
+
+        data = metrics.to_dict()
+
+        assert data == {
+            "total_files": 10,
+            "files_by_layer": {"api": 5, "domain": 5},
+            "lines_by_layer": {"api": 500, "domain": 500},
+            "total_lines": 1000,
+        }
+
+    def test_code_metrics_from_dict(self):
+        """Test CodeMetrics deserializes from dict."""
+        from oya.generation.summaries import CodeMetrics
+
+        data = {
+            "total_files": 25,
+            "files_by_layer": {"test": 10, "utility": 15},
+            "lines_by_layer": {"test": 2000, "utility": 1500},
+            "total_lines": 3500,
+        }
+
+        metrics = CodeMetrics.from_dict(data)
+
+        assert metrics.total_files == 25
+        assert metrics.files_by_layer["test"] == 10
+        assert metrics.total_lines == 3500

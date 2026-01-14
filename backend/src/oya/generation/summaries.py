@@ -237,6 +237,45 @@ class EntryPointInfo:
 
 
 @dataclass
+class CodeMetrics:
+    """Aggregated code metrics for the codebase.
+
+    Provides quantitative information about project scale and distribution
+    of code across architectural layers.
+
+    Attributes:
+        total_files: Total number of analyzed files.
+        files_by_layer: Count of files per architectural layer.
+        lines_by_layer: Lines of code per architectural layer.
+        total_lines: Total lines of code across all files.
+    """
+
+    total_files: int
+    files_by_layer: dict[str, int]
+    lines_by_layer: dict[str, int]
+    total_lines: int
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dictionary."""
+        return {
+            "total_files": self.total_files,
+            "files_by_layer": self.files_by_layer,
+            "lines_by_layer": self.lines_by_layer,
+            "total_lines": self.total_lines,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CodeMetrics":
+        """Deserialize from dictionary."""
+        return cls(
+            total_files=data.get("total_files", 0),
+            files_by_layer=data.get("files_by_layer", {}),
+            lines_by_layer=data.get("lines_by_layer", {}),
+            total_lines=data.get("total_lines", 0),
+        )
+
+
+@dataclass
 class SynthesisMap:
     """Aggregated codebase understanding synthesized from file and directory summaries.
 
