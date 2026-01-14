@@ -385,3 +385,35 @@ def test_extract_directories_alphabetically_sorted_property(files: list[str]):
 
     # Property: no duplicates
     assert len(directories) == len(set(directories)), "Directories must be unique"
+
+
+# Tests for minified file detection
+
+
+def test_excludes_minified_by_line_length(temp_repo: Path):
+    """Files with very long lines (minified) are excluded."""
+    # Create a file with extremely long lines (simulating minified code)
+    long_line = "x" * 1000
+    (temp_repo / "minified.js").write_text(long_line + "\n" + long_line)
+
+    # Create a normal file with reasonable line lengths
+    normal_content = "\n".join(["const x = 1;"] * 50)
+    (temp_repo / "normal.js").write_text(normal_content)
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "minified.js" not in files
+    assert "normal.js" in files
+
+
+def test_minified_detection_samples_first_lines(temp_repo: Path):
+    """Minified detection only samples first 20 lines."""
+    # First 20 lines are normal, rest is long (should pass)
+    normal_lines = ["const x = 1;"] * 25
+    (temp_repo / "mostly_normal.js").write_text("\n".join(normal_lines))
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "mostly_normal.js" in files
