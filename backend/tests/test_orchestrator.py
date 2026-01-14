@@ -605,3 +605,139 @@ class TestSynthesisMapPassedToArchAndOverview:
         assert len(captured_synthesis_map) == 1
         assert captured_synthesis_map[0] is mock_synthesis_map
         assert captured_synthesis_map[0].project_summary == "Test project for overview"
+
+
+# ============================================================================
+# Task 4: Parse Error Recovery Tests
+# ============================================================================
+
+
+class TestParseErrorRecovery:
+    """Tests for parse error recovery with fallback parser."""
+
+    @pytest.fixture
+    def mock_orchestrator(self, tmp_path):
+        """Create orchestrator with mocked dependencies."""
+        llm_client = MagicMock()
+        repo = MagicMock()
+        repo.path = tmp_path
+        db = MagicMock()
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+
+        return GenerationOrchestrator(llm_client, repo, db, wiki_path)
+
+    @pytest.mark.asyncio
+    async def test_analysis_recovers_from_parse_errors(self, mock_orchestrator, tmp_path):
+        """Analysis phase recovers symbols from files with syntax errors using fallback."""
+        from oya.parsing.models import ParsedSymbol
+
+        # Create a file with invalid Python syntax
+        bad_file = tmp_path / "bad.py"
+        bad_file.write_text("def broken(\n")  # Syntax error
+
+        # Create a valid file
+        good_file = tmp_path / "good.py"
+        good_file.write_text("def valid_func():\n    pass\n")
+
+        # Run analysis
+        result = await mock_orchestrator._run_analysis()
+
+        # Should have parse_errors tracking
+        assert "parse_errors" in result
+
+        # Good file should have symbols extracted
+        good_symbols = [s for s in result["symbols"] if s.metadata.get("file") == "good.py"]
+        assert len(good_symbols) > 0
+        assert all(isinstance(s, ParsedSymbol) for s in good_symbols)
+
+    @pytest.mark.asyncio
+    async def test_analysis_tracks_parse_errors(self, mock_orchestrator, tmp_path):
+        """Analysis phase tracks which files had parse errors."""
+        # Create a file with invalid syntax
+        bad_file = tmp_path / "syntax_error.py"
+        bad_file.write_text("class Broken{}")  # Invalid Python syntax
+
+        result = await mock_orchestrator._run_analysis()
+
+        # Should track the error
+        assert "parse_errors" in result
+        errors = result["parse_errors"]
+        error_files = [e["file"] for e in errors]
+        assert "syntax_error.py" in error_files
+
+    @pytest.mark.asyncio
+    async def test_analysis_returns_file_imports(self, mock_orchestrator, tmp_path):
+        """Analysis phase returns file_imports dict."""
+        # Create a Python file with imports
+        py_file = tmp_path / "example.py"
+        py_file.write_text("import os\nfrom pathlib import Path\n\ndef hello(): pass\n")
+
+        result = await mock_orchestrator._run_analysis()
+
+        assert "file_imports" in result
+        assert "example.py" in result["file_imports"]
+
+    @pytest.mark.asyncio
+    async def test_analysis_symbols_are_parsed_symbols(self, mock_orchestrator, tmp_path):
+        """Analysis phase returns ParsedSymbol objects, not dicts."""
+        from oya.parsing.models import ParsedSymbol
+
+        # Create a valid Python file
+        py_file = tmp_path / "valid.py"
+        py_file.write_text("class MyClass:\n    pass\n\ndef my_func():\n    pass\n")
+
+        result = await mock_orchestrator._run_analysis()
+
+        # All symbols should be ParsedSymbol objects
+        for symbol in result["symbols"]:
+            assert isinstance(symbol, ParsedSymbol), f"Expected ParsedSymbol, got {type(symbol)}"
+
+    @pytest.mark.asyncio
+    async def test_analysis_symbols_have_file_metadata(self, mock_orchestrator, tmp_path):
+        """Analysis phase sets file path in symbol metadata."""
+        # Create a valid Python file
+        py_file = tmp_path / "module.py"
+        py_file.write_text("def some_function():\n    pass\n")
+
+        result = await mock_orchestrator._run_analysis()
+
+        # All symbols should have file in metadata
+        for symbol in result["symbols"]:
+            assert "file" in symbol.metadata, "Symbol should have 'file' in metadata"
+            assert symbol.metadata["file"] == "module.py"
+
+    @pytest.mark.asyncio
+    async def test_fallback_parser_recovers_symbols(self, mock_orchestrator, tmp_path):
+        """Fallback parser extracts symbols from files that primary parser fails on."""
+        # Create a file with syntax that Python parser will fail on but fallback can handle
+        go_file = tmp_path / "main.go"
+        go_file.write_text("package main\n\nfunc main() {\n    fmt.Println(\"Hello\")\n}\n")
+
+        result = await mock_orchestrator._run_analysis()
+
+        # Go file should have symbols extracted by fallback parser
+        go_symbols = [s for s in result["symbols"] if s.metadata.get("file") == "main.go"]
+        assert len(go_symbols) > 0, "Fallback parser should extract symbols from Go file"
+
+    @pytest.mark.asyncio
+    async def test_symbol_to_dict_conversion(self, mock_orchestrator, tmp_path):
+        """_symbol_to_dict correctly converts ParsedSymbol to dict format."""
+        from oya.parsing.models import ParsedSymbol, SymbolType
+
+        symbol = ParsedSymbol(
+            name="test_func",
+            symbol_type=SymbolType.FUNCTION,
+            start_line=10,
+            end_line=20,
+            decorators=["@decorator"],
+            metadata={"file": "test.py"},
+        )
+
+        result = mock_orchestrator._symbol_to_dict(symbol)
+
+        assert result["name"] == "test_func"
+        assert result["type"] == "function"
+        assert result["file"] == "test.py"
+        assert result["line"] == 10
+        assert result["decorators"] == ["@decorator"]

@@ -31,6 +31,9 @@ from oya.generation.overview import GeneratedPage, OverviewGenerator
 from oya.generation.summaries import DirectorySummary, FileSummary, SynthesisMap
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
+from oya.constants.generation import PROGRESS_REPORT_INTERVAL
+from oya.parsing.fallback_parser import FallbackParser
+from oya.parsing.models import ParsedSymbol
 from oya.parsing.registry import ParserRegistry
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
 
@@ -155,6 +158,7 @@ class GenerationOrchestrator:
         self.db = db
         self.wiki_path = Path(wiki_path)
         self.parser_registry = parser_registry or ParserRegistry()
+        self._fallback_parser = FallbackParser()
         self.parallel_limit = parallel_limit
 
         # Initialize generators
@@ -499,12 +503,12 @@ class GenerationOrchestrator:
             progress_callback: Optional async callback for progress updates.
 
         Returns:
-            Analysis results with files, symbols, file_tree, file_contents.
+            Analysis results with files, symbols, file_tree, file_contents,
+            file_imports, and parse_errors.
         """
         # Use FileFilter to respect .oyaignore and default exclusions
         file_filter = FileFilter(self.repo.path)
         files = file_filter.get_files()
-        symbols: list[dict] = []
         file_contents: dict[str, str] = {}
 
         # Build file tree
@@ -524,33 +528,52 @@ class GenerationOrchestrator:
         )
 
         # Parse each file
+        parse_errors: list[dict] = []
+        all_symbols: list[ParsedSymbol] = []
+        file_imports: dict[str, list[str]] = {}
+
         for idx, file_path in enumerate(files):
+            full_path = self.repo.path / file_path
+            if not full_path.exists() or not full_path.is_file():
+                continue
+
             try:
-                full_path = self.repo.path / file_path
-                if full_path.exists() and full_path.is_file():
-                    content = full_path.read_text(encoding="utf-8", errors="ignore")
-                    file_contents[file_path] = content
+                content = full_path.read_text(encoding="utf-8", errors="ignore")
+                file_contents[file_path] = content
 
-                    # Parse for symbols
-                    result = self.parser_registry.parse_file(
-                        Path(file_path), content
-                    )
+                # Parse for symbols
+                result = self.parser_registry.parse_file(Path(file_path), content)
 
-                    for symbol in result.symbols:
-                        symbol_dict = {
-                            "name": symbol.name,
-                            "type": symbol.type.value,
-                            "file": file_path,
-                            "line": symbol.line,
-                            "decorators": symbol.decorators,
-                        }
-                        symbols.append(symbol_dict)
-            except Exception:
-                # Skip files that can't be parsed
-                pass
+                if result.ok and result.file:
+                    # Successful parse - use full symbol data
+                    file_imports[file_path] = result.file.imports
+                    for symbol in result.file.symbols:
+                        symbol.metadata["file"] = file_path
+                        all_symbols.append(symbol)
+                else:
+                    # Parse failed - try fallback for partial recovery
+                    parse_errors.append({
+                        "file": file_path,
+                        "error": result.error or "Unknown parse error",
+                        "recovered": True,
+                    })
+                    fallback_result = self._fallback_parser.parse(Path(file_path), content)
+                    if fallback_result.ok and fallback_result.file:
+                        file_imports[file_path] = fallback_result.file.imports
+                        for symbol in fallback_result.file.symbols:
+                            symbol.metadata["file"] = file_path
+                            all_symbols.append(symbol)
 
-            # Emit progress every 10 files or on last file
-            if (idx + 1) % 10 == 0 or idx == total_files - 1:
+            except Exception as e:
+                # File read error - track but continue
+                parse_errors.append({
+                    "file": file_path,
+                    "error": str(e),
+                    "recovered": False,
+                })
+
+            # Emit progress (configurable interval)
+            if (idx + 1) % PROGRESS_REPORT_INTERVAL == 0 or idx == total_files - 1:
                 await self._emit_progress(
                     progress_callback,
                     GenerationProgress(
@@ -563,9 +586,11 @@ class GenerationOrchestrator:
 
         return {
             "files": files,
-            "symbols": symbols,
+            "symbols": all_symbols,
             "file_tree": file_tree,
             "file_contents": file_contents,
+            "file_imports": file_imports,
+            "parse_errors": parse_errors,
         }
 
     def _build_file_tree(self, files: list[str]) -> str:
@@ -687,10 +712,10 @@ class GenerationOrchestrator:
                 synthesis_map=synthesis_map,
             )
 
-        # Legacy mode: use key symbols
+        # Legacy mode: use key symbols (convert ParsedSymbol to dict)
         key_symbols = [
-            s for s in analysis["symbols"]
-            if s.get("type") in ("class", "function", "method")
+            self._symbol_to_dict(s) for s in analysis["symbols"]
+            if s.symbol_type.value in ("class", "function", "method")
         ][:50]  # Limit to top 50
 
         return await self.architecture_generator.generate(
@@ -715,8 +740,9 @@ class GenerationOrchestrator:
         """
         pages = []
 
-        # Discover entry points
-        entry_points = self.workflow_discovery.find_entry_points(analysis["symbols"])
+        # Discover entry points (convert ParsedSymbol to dict for workflow discovery)
+        symbol_dicts = [self._symbol_to_dict(s) for s in analysis["symbols"]]
+        entry_points = self.workflow_discovery.find_entry_points(symbol_dicts)
 
         # Group into workflows
         workflows = self.workflow_discovery.group_into_workflows(entry_points)
@@ -866,9 +892,10 @@ class GenerationOrchestrator:
                 f for f in analysis["files"]
                 if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
             ]
+            # Filter symbols by file path and convert to dicts for generator
             dir_symbols = [
-                s for s in analysis["symbols"]
-                if s.get("file", "").startswith(dir_path + "/")
+                self._symbol_to_dict(s) for s in analysis["symbols"]
+                if s.metadata.get("file", "").startswith(dir_path + "/")
             ]
             # Get file summaries for files in this directory
             dir_file_summaries = [
@@ -1011,9 +1038,10 @@ class GenerationOrchestrator:
         ) -> tuple[GeneratedPage, FileSummary]:
             content = analysis["file_contents"].get(file_path, "")
             ext = Path(file_path).suffix.lower()
+            # Filter symbols by file path and convert to dicts for generator
             file_symbols = [
-                s for s in analysis["symbols"]
-                if s.get("file") == file_path
+                self._symbol_to_dict(s) for s in analysis["symbols"]
+                if s.metadata.get("file") == file_path
             ]
             imports = self._extract_imports(content, ext)
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
@@ -1082,6 +1110,23 @@ class GenerationOrchestrator:
                     imports.append(line)
 
         return imports
+
+    def _symbol_to_dict(self, symbol: ParsedSymbol) -> dict:
+        """Convert a ParsedSymbol to a dictionary for legacy consumers.
+
+        Args:
+            symbol: ParsedSymbol object.
+
+        Returns:
+            Dictionary with name, type, file, line, decorators keys.
+        """
+        return {
+            "name": symbol.name,
+            "type": symbol.symbol_type.value,
+            "file": symbol.metadata.get("file", ""),
+            "line": symbol.start_line,
+            "decorators": symbol.decorators,
+        }
 
     async def _save_page(self, page: GeneratedPage) -> None:
         """Save a generated page to the wiki directory.
