@@ -3,16 +3,20 @@
 import re
 from typing import Any
 
+from oya.config.qa import (
+    HIGH_CONFIDENCE_THRESHOLD,
+    MAX_CONTEXT_TOKENS,
+    MAX_RESULT_TOKENS,
+    MEDIUM_CONFIDENCE_THRESHOLD,
+    MIN_STRONG_MATCHES_FOR_HIGH,
+    STRONG_MATCH_THRESHOLD,
+)
+from oya.config.search import DEDUP_HASH_LENGTH, TYPE_PRIORITY
 from oya.db.connection import Database
 from oya.generation.chunking import estimate_tokens
 from oya.llm.client import LLMClient
 from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, SearchQuality
 from oya.vectorstore.store import VectorStore
-
-# Token budget for context in LLM prompt
-MAX_CONTEXT_TOKENS = 6000
-# Maximum tokens per individual search result
-MAX_RESULT_TOKENS = 1500
 
 QA_SYSTEM_PROMPT = """You are a helpful assistant that answers questions about a codebase.
 You have access to documentation, code, and notes from the repository.
@@ -141,8 +145,7 @@ class QAService:
             pass
 
         # Sort by type (notes first) then by distance
-        type_priority = {"note": 0, "code": 1, "wiki": 2}
-        results.sort(key=lambda r: (type_priority.get(r["type"], 3), r["distance"]))
+        results.sort(key=lambda r: (TYPE_PRIORITY.get(r["type"], 3), r["distance"]))
 
         # Deduplicate similar content
         results = self._deduplicate_results(results)
@@ -163,8 +166,8 @@ class QAService:
 
         for r in results:
             content = r.get("content", "")
-            # Hash first 500 chars (covers most duplicates)
-            content_hash = hash(content[:500].strip().lower())
+            # Hash first N chars (covers most duplicates)
+            content_hash = hash(content[:DEDUP_HASH_LENGTH].strip().lower())
 
             if content_hash not in seen_content_hashes:
                 seen_content_hashes.add(content_hash)
@@ -186,15 +189,17 @@ class QAService:
         if not results:
             return ConfidenceLevel.LOW
 
-        # Count results with good relevance (distance < 0.5)
-        strong_matches = sum(1 for r in results if r.get("distance", 1.0) < 0.5)
+        # Count results with good relevance
+        strong_matches = sum(
+            1 for r in results if r.get("distance", 1.0) < STRONG_MATCH_THRESHOLD
+        )
 
         # Check best result quality
         best_distance = min(r.get("distance", 1.0) for r in results)
 
-        if strong_matches >= 3 and best_distance < 0.3:
+        if strong_matches >= MIN_STRONG_MATCHES_FOR_HIGH and best_distance < HIGH_CONFIDENCE_THRESHOLD:
             return ConfidenceLevel.HIGH
-        elif strong_matches >= 1 and best_distance < 0.6:
+        elif strong_matches >= 1 and best_distance < MEDIUM_CONFIDENCE_THRESHOLD:
             return ConfidenceLevel.MEDIUM
         else:
             return ConfidenceLevel.LOW
