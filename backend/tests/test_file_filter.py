@@ -233,6 +233,67 @@ def test_default_excludes_oyawiki_subdirs_but_not_notes(temp_repo: Path):
 # Tests for extract_directories_from_files utility function
 
 
+def test_default_excludes_minified_js(temp_repo: Path):
+    """Default patterns exclude minified JavaScript files."""
+    (temp_repo / "app.min.js").write_text("minified code")
+    (temp_repo / "app.js").write_text("normal code")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "app.min.js" not in files
+    assert "app.js" in files
+
+
+def test_default_excludes_bundle_files(temp_repo: Path):
+    """Default patterns exclude bundle and chunk files."""
+    (temp_repo / "main.bundle.js").write_text("bundled")
+    (temp_repo / "vendor.chunk.js").write_text("chunked")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "main.bundle.js" not in files
+    assert "vendor.chunk.js" not in files
+
+
+def test_default_excludes_lock_files(temp_repo: Path):
+    """Default patterns exclude package lock files."""
+    (temp_repo / "package-lock.json").write_text("{}")
+    (temp_repo / "yarn.lock").write_text("lockfile")
+    (temp_repo / "pnpm-lock.yaml").write_text("lockfile")
+    (temp_repo / "Cargo.lock").write_text("lockfile")
+    (temp_repo / "poetry.lock").write_text("lockfile")
+    (temp_repo / "Gemfile.lock").write_text("lockfile")
+    (temp_repo / "composer.lock").write_text("{}")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "package-lock.json" not in files
+    assert "yarn.lock" not in files
+    assert "pnpm-lock.yaml" not in files
+    assert "Cargo.lock" not in files
+    assert "poetry.lock" not in files
+    assert "Gemfile.lock" not in files
+    assert "composer.lock" not in files
+
+
+def test_default_excludes_source_maps(temp_repo: Path):
+    """Default patterns exclude source map files."""
+    (temp_repo / "app.js.map").write_text("{}")
+    (temp_repo / "styles.css.map").write_text("{}")
+
+    filter = FileFilter(temp_repo)
+    files = filter.get_files()
+
+    assert "app.js.map" not in files
+    assert "styles.css.map" not in files
+
+
+# Tests for extract_directories_from_files utility function
+
+
 def test_extract_directories_from_files_basic():
     """Extract unique parent directories from file paths."""
     files = [

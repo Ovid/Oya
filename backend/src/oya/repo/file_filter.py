@@ -48,6 +48,20 @@ DEFAULT_EXCLUDES = [
     ".oyawiki/index",
     ".oyawiki/cache",
     ".oyawiki/config",
+    # Minified/bundled assets
+    "*.min.js",
+    "*.min.css",
+    "*.bundle.js",
+    "*.chunk.js",
+    "*.map",
+    # Lock files (large, not useful for docs)
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Cargo.lock",
+    "poetry.lock",
+    "Gemfile.lock",
+    "composer.lock",
 ]
 
 # Paths that are explicitly allowed even if they match DEFAULT_EXCLUDES
