@@ -91,3 +91,62 @@ def validate_mermaid(content: str) -> ValidationResult:
         errors=errors,
         line_numbers=line_numbers,
     )
+
+
+def sanitize_label(text: str, max_length: int = 40) -> str:
+    """Make text safe for Mermaid node labels.
+
+    Handles problematic characters and truncates long labels.
+
+    Args:
+        text: Raw text to sanitize.
+        max_length: Maximum length before truncation.
+
+    Returns:
+        Sanitized label safe for Mermaid diagrams.
+    """
+    # Replace newlines with spaces
+    result = text.replace("\n", " ").replace("\r", "")
+
+    # Remove or escape problematic characters
+    # Brackets in labels need special handling
+    result = result.replace("[", "(").replace("]", ")")
+    result = result.replace("{", "(").replace("}", ")")
+    result = result.replace('"', "'")
+    result = result.replace("<", "").replace(">", "")
+
+    # Collapse multiple spaces
+    result = " ".join(result.split())
+
+    # Truncate if too long
+    if len(result) > max_length:
+        result = result[: max_length - 3] + "..."
+
+    return result
+
+
+def sanitize_node_id(text: str) -> str:
+    """Make text safe for Mermaid node IDs.
+
+    Node IDs should only contain alphanumeric, underscore, and hyphen.
+
+    Args:
+        text: Raw text to convert to node ID.
+
+    Returns:
+        Valid Mermaid node ID.
+    """
+    # Replace common separators with underscores
+    result = text.replace(".", "_").replace("/", "_").replace("-", "_")
+
+    # Remove any remaining special characters
+    result = re.sub(r"[^a-zA-Z0-9_]", "", result)
+
+    # Collapse multiple underscores
+    result = re.sub(r"_+", "_", result)
+
+    # Ensure it doesn't start with a number
+    if result and result[0].isdigit():
+        result = "n" + result
+
+    return result.strip("_")
