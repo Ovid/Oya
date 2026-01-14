@@ -9,7 +9,7 @@ from oya.generation.chunking import (
     chunk_by_symbols,
     estimate_tokens,
 )
-from oya.parsing.models import ParsedSymbol
+from oya.parsing.models import ParsedSymbol, SymbolType
 
 
 def test_estimate_tokens_approximation():
@@ -53,9 +53,9 @@ class Baz:
         pass
 '''
     symbols = [
-        ParsedSymbol(name="foo", symbol_type="function", start_line=1, end_line=2),
-        ParsedSymbol(name="bar", symbol_type="function", start_line=4, end_line=5),
-        ParsedSymbol(name="Baz", symbol_type="class", start_line=7, end_line=9),
+        ParsedSymbol(name="foo", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=2),
+        ParsedSymbol(name="bar", symbol_type=SymbolType.FUNCTION, start_line=4, end_line=5),
+        ParsedSymbol(name="Baz", symbol_type=SymbolType.CLASS, start_line=7, end_line=9),
     ]
 
     chunks = chunk_by_symbols(content, "test.py", symbols, max_tokens=500)
