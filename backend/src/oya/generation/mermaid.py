@@ -8,7 +8,6 @@ from oya.generation.mermaid_validator import sanitize_label, sanitize_node_id
 
 if TYPE_CHECKING:
     from oya.generation.summaries import SynthesisMap
-    from oya.parsing.models import ParsedSymbol
 
 
 class LayerDiagramGenerator:
