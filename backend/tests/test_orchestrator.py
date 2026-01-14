@@ -849,3 +849,61 @@ class TestDirectoryProcessingOrder:
         result = get_processing_order([""])
 
         assert result == [""]
+
+
+# ============================================================================
+# Task 8: Enhanced Directory Signature Tests
+# ============================================================================
+
+
+class TestEnhancedDirectorySignature:
+    """Tests for enhanced directory signature computation."""
+
+    def test_signature_includes_child_purposes(self):
+        """Directory signature includes child directory purposes."""
+        from oya.generation.orchestrator import compute_directory_signature_with_children
+        from oya.generation.summaries import DirectorySummary
+
+        file_hashes = [("app.py", "abc123"), ("config.py", "def456")]
+        child_summaries = [
+            DirectorySummary(
+                directory_path="src/api/routes",
+                purpose="HTTP route handlers",
+                contains=[],
+                role_in_system="",
+            ),
+        ]
+
+        sig1 = compute_directory_signature_with_children(file_hashes, child_summaries)
+
+        # Change child purpose
+        child_summaries[0] = DirectorySummary(
+            directory_path="src/api/routes",
+            purpose="Changed purpose",
+            contains=[],
+            role_in_system="",
+        )
+
+        sig2 = compute_directory_signature_with_children(file_hashes, child_summaries)
+
+        assert sig1 != sig2  # Signature should change
+
+    def test_signature_stable_without_changes(self):
+        """Signature is stable when inputs don't change."""
+        from oya.generation.orchestrator import compute_directory_signature_with_children
+        from oya.generation.summaries import DirectorySummary
+
+        file_hashes = [("app.py", "abc123")]
+        child_summaries = [
+            DirectorySummary(
+                directory_path="src/routes",
+                purpose="Routes",
+                contains=[],
+                role_in_system="",
+            ),
+        ]
+
+        sig1 = compute_directory_signature_with_children(file_hashes, child_summaries)
+        sig2 = compute_directory_signature_with_children(file_hashes, child_summaries)
+
+        assert sig1 == sig2

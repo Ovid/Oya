@@ -116,6 +116,33 @@ def compute_directory_signature(file_hashes: list[tuple[str, str]]) -> str:
     return hashlib.sha256(signature.encode("utf-8")).hexdigest()
 
 
+def compute_directory_signature_with_children(
+    file_hashes: list[tuple[str, str]],
+    child_summaries: list[DirectorySummary],
+) -> str:
+    """Compute a signature hash for a directory including child directory purposes.
+
+    Args:
+        file_hashes: List of (filename, content_hash) tuples for files in directory.
+        child_summaries: List of DirectorySummary objects for child directories.
+
+    Returns:
+        Hex digest of SHA-256 hash combining file hashes and child purposes.
+    """
+    # Include file hashes
+    sorted_hashes = sorted(file_hashes, key=lambda x: x[0])
+    file_part = "|".join(f"{name}:{hash}" for name, hash in sorted_hashes)
+
+    # Include child directory purposes
+    sorted_children = sorted(child_summaries, key=lambda x: x.directory_path)
+    child_part = "|".join(
+        f"{c.directory_path}:{c.purpose}" for c in sorted_children
+    )
+
+    combined = f"{file_part}||{child_part}"
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+
 def group_directories_by_depth(directories: list[str]) -> dict[int, list[str]]:
     """Group directories by their depth level.
 
