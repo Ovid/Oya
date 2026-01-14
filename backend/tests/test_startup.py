@@ -93,30 +93,27 @@ class TestStartupInitialization:
 
 
 def test_logging_format_includes_timestamp():
-    """Verify logging format includes timestamp."""
-    import logging
+    """Verify main.py configures logging with timestamp format.
 
-    # Get the root logger's handler format
-    root_logger = logging.getLogger()
+    Tests that the LOG_FORMAT and DATE_FORMAT constants in main.py
+    match the expected format for timestamps in log output.
+    """
+    from oya.main import LOG_FORMAT, DATE_FORMAT
 
-    # Check that basicConfig was called with timestamp format
-    # We verify this by checking a logger outputs in expected format
-    import io
-    import re
+    # Verify LOG_FORMAT includes timestamp via %(asctime)s
+    assert "%(asctime)s" in LOG_FORMAT, \
+        f"LOG_FORMAT should include %(asctime)s for timestamps: {LOG_FORMAT}"
 
-    stream = io.StringIO()
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)-8s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    ))
+    # Verify LOG_FORMAT includes log level
+    assert "%(levelname)" in LOG_FORMAT, \
+        f"LOG_FORMAT should include %(levelname) for log level: {LOG_FORMAT}"
 
-    test_logger = logging.getLogger("test_timestamp")
-    test_logger.addHandler(handler)
-    test_logger.setLevel(logging.INFO)
-    test_logger.info("Test message")
+    # Verify LOG_FORMAT includes message
+    assert "%(message)s" in LOG_FORMAT, \
+        f"LOG_FORMAT should include %(message)s for the log message: {LOG_FORMAT}"
 
-    output = stream.getvalue()
-    # Should match format: 2026-01-14 10:23:45 INFO     Test message
-    pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} INFO\s+Test message"
-    assert re.match(pattern, output), f"Log format doesn't match expected pattern: {output}"
+    # Verify DATE_FORMAT uses ISO-style date format (YYYY-MM-DD HH:MM:SS)
+    assert "%Y-%m-%d" in DATE_FORMAT, \
+        f"DATE_FORMAT should include %Y-%m-%d for ISO date: {DATE_FORMAT}"
+    assert "%H:%M:%S" in DATE_FORMAT, \
+        f"DATE_FORMAT should include %H:%M:%S for time: {DATE_FORMAT}"
