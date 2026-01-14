@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from litellm import acompletion
+
+from oya.config.llm import DEFAULT_TEMPERATURE, JSON_TEMPERATURE, MAX_TOKENS
 from litellm.exceptions import (
     APIConnectionError,
     APIError,
@@ -129,8 +131,8 @@ class LLMClient:
         self,
         prompt: str,
         system_prompt: str | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
+        temperature: float = DEFAULT_TEMPERATURE,
+        max_tokens: int = MAX_TOKENS,
     ) -> str:
         """Generate completion from prompt.
 
@@ -220,5 +222,5 @@ class LLMClient:
         return await self.generate(
             prompt,
             system_prompt=full_system.strip(),
-            temperature=0.3,  # Lower temperature for structured output
+            temperature=JSON_TEMPERATURE,
         )
