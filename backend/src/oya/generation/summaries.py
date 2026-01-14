@@ -402,6 +402,10 @@ class SummaryParser:
 
         Used when YAML parsing fails or no YAML block is found.
         """
+        logger.warning(
+            f"YAML parsing failed for {file_path}, using fallback summary "
+            "(purpose='Unknown', layer='utility')"
+        )
         return FileSummary(
             file_path=file_path,
             purpose="Unknown",
@@ -457,6 +461,10 @@ class SummaryParser:
 
         Used when YAML parsing fails or no YAML block is found.
         """
+        logger.warning(
+            f"YAML parsing failed for {directory_path}, using fallback summary "
+            "(purpose='Unknown')"
+        )
         return DirectorySummary(
             directory_path=directory_path,
             purpose="Unknown",
