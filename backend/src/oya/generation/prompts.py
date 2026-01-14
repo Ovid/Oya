@@ -315,6 +315,10 @@ Format the output as clean Markdown suitable for a wiki page."""
 FILE_TEMPLATE = PromptTemplate(
     """Generate documentation for the file "{file_path}".
 
+AUDIENCE: You are writing for developers who will maintain, debug, and extend this code - NOT for end users of an API. Even files marked as "internal" or "no user-serviceable parts" need thorough documentation for the development team.
+
+REQUIREMENT: You MUST always produce documentation. Every file has value to developers - explain what it does, why it exists, and how it works. Never skip documentation because a file seems "internal" or "trivial".
+
 ## File Content
 ```{language}
 {content}
@@ -355,13 +359,14 @@ Layer classification guide:
 - config: Configuration, settings, environment handling
 - test: Test files, test utilities, fixtures
 
-After the YAML block, create file documentation that includes:
-1. **File Purpose**: What this file does and its role in the project
-2. **Classes**: Document each class with its purpose and methods
-3. **Functions**: Document each function with parameters and return values
-4. **Constants/Variables**: Document important module-level definitions
-5. **Dependencies**: What this file imports and why
-6. **Usage Examples**: How to use the components defined in this file
+Your documentation MUST include these sections in order:
+1. **Purpose** - What this file does and why it exists
+2. **Public API** - Exported classes, functions, constants (if any)
+3. **Internal Details** - Implementation specifics developers need to know
+4. **Dependencies** - What this file imports and why
+5. **Usage Examples** - How to use the components in this file
+
+You MAY add additional sections after these if there's important information that doesn't fit (e.g., "Concurrency Notes", "Migration History", "Known Limitations").
 
 Format the output as clean Markdown suitable for a wiki page."""
 )
