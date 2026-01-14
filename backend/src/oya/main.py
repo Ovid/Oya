@@ -7,7 +7,8 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Configure global logging format with timestamps
+# Logging constants defined here (not in constants/) because logging.basicConfig()
+# must run before any module imports that might create loggers.
 LOG_FORMAT = "%(asctime)s %(levelname)-8s %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
