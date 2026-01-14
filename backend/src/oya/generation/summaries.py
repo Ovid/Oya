@@ -198,6 +198,45 @@ class ComponentInfo:
 
 
 @dataclass
+class EntryPointInfo:
+    """Information about an entry point in the codebase.
+
+    Represents a CLI command, API route, or main function that serves
+    as a starting point for users interacting with the system.
+
+    Attributes:
+        name: The entry point name (e.g., function name).
+        entry_type: Type of entry point (cli_command, api_route, main_function).
+        file: Path to the file containing this entry point.
+        description: Route path, CLI command name, or other descriptor.
+    """
+
+    name: str
+    entry_type: str
+    file: str
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dictionary."""
+        return {
+            "name": self.name,
+            "entry_type": self.entry_type,
+            "file": self.file,
+            "description": self.description,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "EntryPointInfo":
+        """Deserialize from dictionary."""
+        return cls(
+            name=data.get("name", ""),
+            entry_type=data.get("entry_type", ""),
+            file=data.get("file", ""),
+            description=data.get("description", ""),
+        )
+
+
+@dataclass
 class SynthesisMap:
     """Aggregated codebase understanding synthesized from file and directory summaries.
 

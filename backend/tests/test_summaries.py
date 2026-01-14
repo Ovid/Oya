@@ -1637,6 +1637,64 @@ class TestSynthesisMapPersistence:
         assert loaded.project_summary == original.project_summary
 
 
+class TestEntryPointInfo:
+    """Tests for EntryPointInfo dataclass."""
+
+    def test_entry_point_info_creation(self):
+        """Test EntryPointInfo can be created with required fields."""
+        from oya.generation.summaries import EntryPointInfo
+
+        ep = EntryPointInfo(
+            name="create_user",
+            entry_type="api_route",
+            file="api/routers/users.py",
+            description="/users POST",
+        )
+
+        assert ep.name == "create_user"
+        assert ep.entry_type == "api_route"
+        assert ep.file == "api/routers/users.py"
+        assert ep.description == "/users POST"
+
+    def test_entry_point_info_to_dict(self):
+        """Test EntryPointInfo serializes to dict."""
+        from oya.generation.summaries import EntryPointInfo
+
+        ep = EntryPointInfo(
+            name="main",
+            entry_type="main_function",
+            file="src/main.py",
+            description="",
+        )
+
+        data = ep.to_dict()
+
+        assert data == {
+            "name": "main",
+            "entry_type": "main_function",
+            "file": "src/main.py",
+            "description": "",
+        }
+
+    def test_entry_point_info_from_dict(self):
+        """Test EntryPointInfo deserializes from dict."""
+        from oya.generation.summaries import EntryPointInfo
+
+        data = {
+            "name": "cli_init",
+            "entry_type": "cli_command",
+            "file": "cli/commands.py",
+            "description": "init",
+        }
+
+        ep = EntryPointInfo.from_dict(data)
+
+        assert ep.name == "cli_init"
+        assert ep.entry_type == "cli_command"
+        assert ep.file == "cli/commands.py"
+        assert ep.description == "init"
+
+
 def test_parse_file_summary_logs_warning_on_invalid_layer(caplog):
     """Test that invalid layer values log a warning before coercing to utility."""
     from oya.generation.summaries import SummaryParser
