@@ -11,6 +11,10 @@ from typing import Any
 
 import yaml
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # Valid layer classifications for code files
 VALID_LAYERS: frozenset[str] = frozenset(
@@ -376,6 +380,10 @@ class SummaryParser:
 
         # Validate layer, default to utility if invalid
         if layer not in VALID_LAYERS:
+            logger.warning(
+                f"Invalid layer '{layer}' for {file_path}, defaulting to 'utility'. "
+                f"Valid layers: {', '.join(sorted(VALID_LAYERS))}"
+            )
             layer = "utility"
 
         summary = FileSummary(

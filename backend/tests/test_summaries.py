@@ -3,6 +3,8 @@
 Feature: bottom-up-generation
 """
 
+import logging
+
 from hypothesis import given, settings, strategies as st, HealthCheck
 
 # Valid layer values as defined in requirements
@@ -1633,3 +1635,32 @@ class TestSynthesisMapPersistence:
         
         # Verify project_summary matches
         assert loaded.project_summary == original.project_summary
+
+
+def test_parse_file_summary_logs_warning_on_invalid_layer(caplog):
+    """Test that invalid layer values log a warning before coercing to utility."""
+    from oya.generation.summaries import SummaryParser
+
+    parser = SummaryParser()
+    markdown = """---
+file_summary:
+  purpose: "Test file"
+  layer: invalid_layer
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+---
+
+# Test File
+"""
+
+    with caplog.at_level(logging.WARNING, logger="oya.generation.summaries"):
+        clean_md, summary = parser.parse_file_summary(markdown, "test/file.py")
+
+    # Should coerce to utility
+    assert summary.layer == "utility"
+
+    # Should have logged a warning
+    assert "Invalid layer 'invalid_layer'" in caplog.text
+    assert "test/file.py" in caplog.text
+    assert "defaulting to 'utility'" in caplog.text
