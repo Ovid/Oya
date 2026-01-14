@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_workflow_prompt
+from oya.generation.summaries import SynthesisMap
 from oya.parsing.models import ParsedSymbol, SymbolType
 
 
@@ -201,12 +202,14 @@ class WorkflowGenerator:
         self,
         workflow: DiscoveredWorkflow,
         code_context: str,
+        synthesis_map: SynthesisMap | None = None,
     ) -> GeneratedPage:
         """Generate a workflow documentation page.
 
         Args:
             workflow: The discovered workflow to document.
             code_context: Relevant code snippets or context.
+            synthesis_map: Optional SynthesisMap for architectural context.
 
         Returns:
             GeneratedPage with workflow content.
@@ -227,6 +230,7 @@ class WorkflowGenerator:
             entry_points=entry_points_list,
             related_files=workflow.related_files,
             code_context=code_context,
+            synthesis_map=synthesis_map,
         )
 
         content = await self.llm_client.generate(
