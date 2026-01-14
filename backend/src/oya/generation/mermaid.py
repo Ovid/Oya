@@ -201,3 +201,51 @@ class ClassDiagramGenerator:
             lines.append("    }")
 
         return "\n".join(lines)
+
+
+class DiagramGenerator:
+    """Facade for generating all diagram types.
+
+    Provides a single interface to generate layer, dependency,
+    and class diagrams from analysis data.
+    """
+
+    def __init__(self):
+        """Initialize with default sub-generators."""
+        self.layer_generator = LayerDiagramGenerator()
+        self.dependency_generator = DependencyGraphGenerator()
+        self.class_generator = ClassDiagramGenerator()
+
+    def generate_all(
+        self,
+        synthesis_map: SynthesisMap | None = None,
+        file_imports: dict[str, list[str]] | None = None,
+        symbols: list[ParsedSymbol] | None = None,
+    ) -> dict[str, str]:
+        """Generate all diagram types from available data.
+
+        Args:
+            synthesis_map: SynthesisMap for layer diagram (optional).
+            file_imports: File import dict for dependency diagram (optional).
+            symbols: ParsedSymbol list for class diagram (optional).
+
+        Returns:
+            Dict mapping diagram name to Mermaid content.
+        """
+        from oya.generation.summaries import SynthesisMap as SynthesisMapClass
+
+        diagrams = {}
+
+        # Layer diagram
+        if synthesis_map is not None:
+            diagrams["layer"] = self.layer_generator.generate(synthesis_map)
+        else:
+            diagrams["layer"] = self.layer_generator.generate(SynthesisMapClass())
+
+        # Dependency diagram
+        diagrams["dependency"] = self.dependency_generator.generate(file_imports or {})
+
+        # Class diagram
+        diagrams["class"] = self.class_generator.generate(symbols or [])
+
+        return diagrams

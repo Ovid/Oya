@@ -5,6 +5,7 @@ import pytest
 from oya.generation.mermaid import (
     ClassDiagramGenerator,
     DependencyGraphGenerator,
+    DiagramGenerator,
     LayerDiagramGenerator,
 )
 from oya.generation.mermaid_validator import validate_mermaid
@@ -227,3 +228,112 @@ class TestClassDiagramGenerator:
 
         result = validate_mermaid(diagram)
         assert result.valid
+
+
+class TestDiagramGenerator:
+    """Tests for DiagramGenerator facade."""
+
+    @pytest.fixture
+    def sample_synthesis_map(self) -> SynthesisMap:
+        """Create a sample SynthesisMap for testing."""
+        return SynthesisMap(
+            layers={
+                "api": LayerInfo(
+                    name="api",
+                    purpose="HTTP endpoints",
+                    directories=["src/api"],
+                    files=["src/api/routes.py", "src/api/schemas.py"],
+                ),
+                "domain": LayerInfo(
+                    name="domain",
+                    purpose="Business logic",
+                    directories=["src/domain"],
+                    files=["src/domain/service.py"],
+                ),
+            },
+            key_components=[
+                ComponentInfo(name="Router", file="src/api/routes.py", role="HTTP routing", layer="api"),
+                ComponentInfo(name="Service", file="src/domain/service.py", role="Core logic", layer="domain"),
+            ],
+            dependency_graph={"api": ["domain"]},
+        )
+
+    @pytest.fixture
+    def sample_file_imports(self) -> dict[str, list[str]]:
+        """Sample file_imports dict from analysis."""
+        return {
+            "src/api/routes.py": ["src/domain/service.py", "src/config.py"],
+            "src/domain/service.py": ["src/db/connection.py"],
+            "src/config.py": [],
+            "src/db/connection.py": [],
+        }
+
+    @pytest.fixture
+    def sample_symbols(self) -> list[ParsedSymbol]:
+        """Sample ParsedSymbol list with classes and methods."""
+        return [
+            ParsedSymbol(
+                name="UserService",
+                symbol_type=SymbolType.CLASS,
+                start_line=1,
+                end_line=20,
+                metadata={"file": "src/service.py"},
+            ),
+            ParsedSymbol(
+                name="get_user",
+                symbol_type=SymbolType.METHOD,
+                start_line=5,
+                end_line=10,
+                parent="UserService",
+                signature="def get_user(self, user_id: int) -> User",
+                metadata={"file": "src/service.py"},
+            ),
+        ]
+
+    @pytest.fixture
+    def sample_data(self, sample_synthesis_map, sample_file_imports, sample_symbols):
+        """Combine all sample data."""
+        return {
+            "synthesis_map": sample_synthesis_map,
+            "file_imports": sample_file_imports,
+            "symbols": sample_symbols,
+        }
+
+    def test_generate_all_returns_dict_of_diagrams(self, sample_data):
+        """generate_all returns dict with all diagram types."""
+        generator = DiagramGenerator()
+        diagrams = generator.generate_all(
+            synthesis_map=sample_data["synthesis_map"],
+            file_imports=sample_data["file_imports"],
+            symbols=sample_data["symbols"],
+        )
+
+        assert "layer" in diagrams
+        assert "dependency" in diagrams
+        assert "class" in diagrams
+
+    def test_all_generated_diagrams_are_valid(self, sample_data):
+        """All generated diagrams pass validation."""
+        generator = DiagramGenerator()
+        diagrams = generator.generate_all(
+            synthesis_map=sample_data["synthesis_map"],
+            file_imports=sample_data["file_imports"],
+            symbols=sample_data["symbols"],
+        )
+
+        for name, diagram in diagrams.items():
+            result = validate_mermaid(diagram)
+            assert result.valid, f"{name} diagram invalid: {result.errors}"
+
+    def test_handles_missing_data_gracefully(self):
+        """Missing data produces valid minimal diagrams."""
+        generator = DiagramGenerator()
+        diagrams = generator.generate_all(
+            synthesis_map=None,
+            file_imports={},
+            symbols=[],
+        )
+
+        for name, diagram in diagrams.items():
+            result = validate_mermaid(diagram)
+            assert result.valid, f"{name} diagram invalid: {result.errors}"
