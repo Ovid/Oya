@@ -7,8 +7,6 @@ from oya.generation.prompts import (
     PromptTemplate,
     get_overview_prompt,
     get_architecture_prompt,
-    get_workflow_prompt,
-    get_directory_prompt,
     get_file_prompt,
 )
 
