@@ -86,6 +86,23 @@ docker-compose up  # Runs both services
 - **Tests**: pytest with `asyncio_mode = "auto"`, hypothesis for property testing
 - **Staging**: Generation writes to `.oyawiki-building/`, promotes atomically on success
 
+### Configuration Constants
+
+Hard-coded values that control application behavior are extracted to config files for easier tuning and documentation.
+
+**Backend:** `backend/src/oya/constants/`
+- `qa.py` - Q&A token budgets, confidence thresholds
+- `generation.py` - LLM temperatures, chunking parameters
+- `llm.py` - Default LLM client settings
+- `search.py` - Result limits, prioritization, deduplication
+- `files.py` - File size limits, concurrency
+
+**Frontend:** `frontend/src/config/`
+- `layout.ts` - Panel dimensions, z-index layers
+- `qa.ts` - Confidence level colors
+- `storage.ts` - localStorage keys
+- `timing.ts` - Polling intervals, relative time thresholds
+
 ## Environment Variables
 
 Required: `WORKSPACE_PATH` - path to the repo being documented
