@@ -277,3 +277,101 @@ async def test_handles_nested_directories(generator):
 
     assert page.target == "src/services/auth/providers"
     assert "providers" in page.path
+
+
+class TestDirectoryGeneratorWithChildSummaries:
+    """Tests for DirectoryGenerator with child directory summaries."""
+
+    @pytest.fixture
+    def sample_child_summaries(self):
+        """Create sample child DirectorySummaries for testing."""
+        return [
+            DirectorySummary(
+                directory_path="src/auth/providers",
+                purpose="Authentication provider implementations",
+                contains=["oauth.py", "jwt.py"],
+                role_in_system="Pluggable auth backends",
+            ),
+            DirectorySummary(
+                directory_path="src/auth/middleware",
+                purpose="Auth middleware for request processing",
+                contains=["verify.py"],
+                role_in_system="Request authentication layer",
+            ),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_generate_accepts_child_summaries(
+        self, generator_with_yaml, sample_file_summaries, sample_child_summaries
+    ):
+        """Test that generate() accepts child_summaries parameter."""
+        page, summary = await generator_with_yaml.generate(
+            directory_path="src/auth",
+            file_list=["login.py", "session.py"],
+            symbols=[],
+            architecture_context="",
+            file_summaries=sample_file_summaries,
+            child_summaries=sample_child_summaries,
+        )
+
+        assert page.content
+        assert isinstance(summary, DirectorySummary)
+
+    @pytest.mark.asyncio
+    async def test_generate_includes_child_summaries_in_prompt(
+        self, generator_with_yaml, mock_llm_client_with_yaml, sample_child_summaries
+    ):
+        """Test that child summaries appear in the LLM prompt."""
+        await generator_with_yaml.generate(
+            directory_path="src/auth",
+            file_list=["login.py"],
+            symbols=[],
+            architecture_context="",
+            file_summaries=[],
+            child_summaries=sample_child_summaries,
+        )
+
+        call_args = mock_llm_client_with_yaml.generate.call_args
+        prompt = call_args.kwargs.get("prompt") or call_args.args[0]
+
+        # Should contain subdirectory info
+        assert "providers" in prompt
+        assert "middleware" in prompt
+
+    @pytest.mark.asyncio
+    async def test_generate_accepts_project_name(
+        self, generator_with_yaml, mock_llm_client_with_yaml
+    ):
+        """Test that generate() accepts project_name for breadcrumb."""
+        await generator_with_yaml.generate(
+            directory_path="src/auth",
+            file_list=["login.py"],
+            symbols=[],
+            architecture_context="",
+            file_summaries=[],
+            child_summaries=[],
+            project_name="my-awesome-project",
+        )
+
+        call_args = mock_llm_client_with_yaml.generate.call_args
+        prompt = call_args.kwargs.get("prompt") or call_args.args[0]
+
+        assert "my-awesome-project" in prompt
+
+    @pytest.mark.asyncio
+    async def test_generate_handles_root_directory_slug(
+        self, generator_with_yaml
+    ):
+        """Test that root directory (empty path) uses 'root' slug."""
+        page, summary = await generator_with_yaml.generate(
+            directory_path="",  # Root directory
+            file_list=["setup.py", "README.md"],
+            symbols=[],
+            architecture_context="",
+            file_summaries=[],
+            child_summaries=[],
+        )
+
+        # Should use "root" slug for the root directory
+        assert page.path == "directories/root.md"
+        assert page.target == ""
