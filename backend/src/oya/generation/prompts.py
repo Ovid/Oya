@@ -636,6 +636,30 @@ def format_subdirectory_summaries(
     return "\n".join(lines)
 
 
+def format_file_links(file_summaries: list[Any]) -> str:
+    """Format file summaries as a markdown table with links.
+
+    Args:
+        file_summaries: List of FileSummary objects.
+
+    Returns:
+        Markdown table string with file links and purposes.
+    """
+    if not file_summaries:
+        return "No files in this directory."
+
+    lines = ["| File | Purpose |", "|------|---------|"]
+    for summary in sorted(file_summaries, key=lambda s: s.file_path):
+        filename = summary.file_path.split("/")[-1]
+        # File slug: replace / with - and . with -
+        slug = summary.file_path.replace("/", "-").replace(".", "-").lower()
+        link = f"[{filename}](../files/{slug}.md)"
+        purpose = summary.purpose or "No description"
+        lines.append(f"| {link} | {purpose} |")
+
+    return "\n".join(lines)
+
+
 def generate_breadcrumb(directory_path: str, project_name: str) -> str:
     """Generate a breadcrumb trail for directory navigation.
 

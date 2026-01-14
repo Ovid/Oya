@@ -215,3 +215,46 @@ class TestSubdirectorySummariesFormatter:
 
         assert "routes" in result
         assert "v1" not in result.lower() or "[v1]" not in result
+
+
+class TestFileLinksFormatter:
+    """Tests for file links formatter."""
+
+    def test_format_file_links_with_summaries(self):
+        """Formats files as markdown table with links."""
+        from oya.generation.prompts import format_file_links
+        from oya.generation.summaries import FileSummary
+
+        summaries = [
+            FileSummary(
+                file_path="src/api/app.py",
+                purpose="FastAPI application setup",
+                layer="api",
+                key_abstractions=["create_app"],
+                internal_deps=[],
+                external_deps=["fastapi"],
+            ),
+            FileSummary(
+                file_path="src/api/__init__.py",
+                purpose="Package initialization",
+                layer="config",
+                key_abstractions=[],
+                internal_deps=[],
+                external_deps=[],
+            ),
+        ]
+
+        result = format_file_links(summaries)
+
+        assert "| File | Purpose |" in result
+        assert "[app.py](../files/src-api-app-py.md)" in result
+        assert "FastAPI application setup" in result
+        assert "[__init__.py](../files/src-api-__init__-py.md)" in result
+
+    def test_format_file_links_empty(self):
+        """Returns message when no files."""
+        from oya.generation.prompts import format_file_links
+
+        result = format_file_links([])
+
+        assert "No files" in result
