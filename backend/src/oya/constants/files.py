@@ -23,6 +23,15 @@ MAX_FILE_SIZE_KB = 500
 BINARY_CHECK_BYTES = 1024
 
 # =============================================================================
+# Minified/Generated File Detection
+# =============================================================================
+# Files with average line length exceeding this threshold are considered
+# minified or generated and excluded from analysis. Minified files have
+# extremely long lines (often entire file on one line).
+
+MINIFIED_AVG_LINE_LENGTH = 500
+
+# =============================================================================
 # Concurrency
 # =============================================================================
 # Number of files to process in parallel during generation. Lower values

@@ -33,3 +33,16 @@ DEFAULT_CONTEXT_LIMIT = 100_000
 
 MAX_CHUNK_TOKENS = 1000
 CHUNK_OVERLAP_LINES = 5
+
+# =============================================================================
+# Progress Reporting
+# =============================================================================
+# PROGRESS_REPORT_INTERVAL controls how often progress updates are emitted
+# during the analysis phase. Set to 1 for per-file updates.
+
+PROGRESS_REPORT_INTERVAL = 1
+
+# PARALLEL_LIMIT_DEFAULT is the default number of concurrent LLM calls
+# during file/directory generation phases.
+
+PARALLEL_LIMIT_DEFAULT = 10
