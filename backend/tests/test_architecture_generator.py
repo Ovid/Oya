@@ -260,3 +260,47 @@ async def test_backward_compatible_with_key_symbols(generator, mock_llm_client):
     assert result is not None
     assert result.page_type == "architecture"
     mock_llm_client.generate.assert_called_once()
+
+
+# =============================================================================
+# Tests for Python-generated Mermaid diagrams (Task 8)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_architecture_includes_generated_diagrams(tmp_path):
+    """Architecture page includes Python-generated diagrams."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from oya.generation.architecture import ArchitectureGenerator
+    from oya.generation.summaries import SynthesisMap, LayerInfo, ComponentInfo
+
+    repo = MagicMock()
+    repo.path = tmp_path
+
+    mock_client = AsyncMock()
+    # Mock LLM to return prose content without diagrams
+    mock_client.generate.return_value = "# Architecture\n\nThis is the architecture."
+
+    generator = ArchitectureGenerator(mock_client, repo)
+
+    synthesis_map = SynthesisMap(
+        layers={
+            "api": LayerInfo(name="api", purpose="HTTP endpoints", directories=[], files=[]),
+        },
+        key_components=[
+            ComponentInfo(name="Router", file="routes.py", role="Routing", layer="api"),
+        ],
+        dependency_graph={},
+    )
+
+    page = await generator.generate(
+        file_tree="src/\n  api/",
+        synthesis_map=synthesis_map,
+        file_imports={"routes.py": []},
+        symbols=[],
+    )
+
+    # Should include mermaid code blocks
+    assert "```mermaid" in page.content
+    assert "flowchart" in page.content.lower()
