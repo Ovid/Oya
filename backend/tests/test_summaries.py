@@ -1664,3 +1664,4 @@ file_summary:
     assert "Invalid layer 'invalid_layer'" in caplog.text
     assert "test/file.py" in caplog.text
     assert "defaulting to 'utility'" in caplog.text
+    assert "Valid layers: api, config, domain, infrastructure, test, utility" in caplog.text
