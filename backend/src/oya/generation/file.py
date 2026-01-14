@@ -1,11 +1,14 @@
 # backend/src/oya/generation/file.py
 """File page generator."""
 
+import logging
 from pathlib import Path
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_file_prompt
 from oya.generation.summaries import FileSummary, SummaryParser, path_to_slug
+
+logger = logging.getLogger(__name__)
 
 
 # Extension to language mapping for syntax highlighting
@@ -79,6 +82,7 @@ class FileGenerator:
             language=language,
         )
 
+        # First attempt
         generated_content = await self.llm_client.generate(
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
@@ -86,6 +90,22 @@ class FileGenerator:
 
         # Parse the YAML summary block and get clean markdown
         clean_content, file_summary = self._parser.parse_file_summary(generated_content, file_path)
+
+        # Check if parsing produced fallback (indicates failure)
+        if file_summary.purpose == "Unknown":
+            logger.warning(f"YAML parsing failed for {file_path}, retrying...")
+
+            # Retry once with same prompt
+            generated_content = await self.llm_client.generate(
+                prompt=prompt,
+                system_prompt=SYSTEM_PROMPT,
+            )
+            clean_content, file_summary = self._parser.parse_file_summary(
+                generated_content, file_path
+            )
+
+            if file_summary.purpose == "Unknown":
+                logger.error(f"YAML parsing failed after retry for {file_path}")
 
         word_count = len(clean_content.split())
         slug = path_to_slug(file_path, include_extension=True)
