@@ -3,6 +3,8 @@
 
 from dataclasses import dataclass, field
 
+from oya.config.generation import CHUNK_OVERLAP_LINES, MAX_CHUNK_TOKENS
+
 
 @dataclass
 class Chunk:
@@ -43,8 +45,8 @@ def estimate_tokens(text: str) -> int:
 def chunk_file_content(
     content: str,
     file_path: str,
-    max_tokens: int = 1000,
-    overlap_lines: int = 5,
+    max_tokens: int = MAX_CHUNK_TOKENS,
+    overlap_lines: int = CHUNK_OVERLAP_LINES,
 ) -> list[Chunk]:
     """Split file content into chunks by line count.
 
@@ -116,7 +118,7 @@ def chunk_by_symbols(
     content: str,
     file_path: str,
     symbols: list[dict],
-    max_tokens: int = 1000,
+    max_tokens: int = MAX_CHUNK_TOKENS,
 ) -> list[Chunk]:
     """Split file content by symbol boundaries.
 
