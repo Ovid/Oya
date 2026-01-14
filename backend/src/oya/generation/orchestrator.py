@@ -571,7 +571,9 @@ class GenerationOrchestrator:
         # Phase 7: Workflows
         # Cascade: regenerate workflows only if synthesis was regenerated (Requirement 7.5)
         if should_regenerate_synthesis:
-            workflow_pages = await self._run_workflows(analysis, progress_callback)
+            workflow_pages = await self._run_workflows(
+                analysis, progress_callback, synthesis_map=synthesis_map
+            )
             for page in workflow_pages:
                 await self._save_page(page)
 
@@ -830,12 +832,14 @@ class GenerationOrchestrator:
         self,
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
+        synthesis_map: SynthesisMap | None = None,
     ) -> list[GeneratedPage]:
         """Run workflow generation phase.
 
         Args:
             analysis: Analysis results.
             progress_callback: Optional async callback for progress updates.
+            synthesis_map: Optional SynthesisMap for architectural context.
 
         Returns:
             List of generated workflow pages.
@@ -875,6 +879,7 @@ class GenerationOrchestrator:
             page = await self.workflow_generator.generate(
                 workflow=workflow,
                 code_context=code_context,
+                synthesis_map=synthesis_map,
             )
             pages.append(page)
 

@@ -224,7 +224,7 @@ class TestPipelinePhaseOrder:
                 word_count=1,
             )
 
-        async def mock_workflows(analysis, progress_callback=None):
+        async def mock_workflows(analysis, progress_callback=None, synthesis_map=None):
             call_order.append("workflows")
             return []
 
@@ -356,7 +356,7 @@ class TestFileSummariesPassedToSynthesis:
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis, progress_callback=None):
+        async def mock_workflows(analysis, progress_callback=None, synthesis_map=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):
@@ -470,7 +470,7 @@ class TestDirectorySummariesPassedToSynthesis:
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis, progress_callback=None):
+        async def mock_workflows(analysis, progress_callback=None, synthesis_map=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):
@@ -538,7 +538,7 @@ class TestSynthesisMapPassedToArchAndOverview:
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis, progress_callback=None):
+        async def mock_workflows(analysis, progress_callback=None, synthesis_map=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):
@@ -589,7 +589,7 @@ class TestSynthesisMapPassedToArchAndOverview:
             captured_synthesis_map.append(synthesis_map)
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
 
-        async def mock_workflows(analysis, progress_callback=None):
+        async def mock_workflows(analysis, progress_callback=None, synthesis_map=None):
             return []
 
         with patch.object(orchestrator_with_mocks, "_run_analysis", mock_analysis):
