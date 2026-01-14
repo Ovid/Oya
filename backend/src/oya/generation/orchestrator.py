@@ -305,6 +305,32 @@ class GenerationOrchestrator:
         except Exception:
             return False
 
+    def _get_direct_child_summaries(
+        self,
+        parent_path: str,
+        all_summaries: dict[str, DirectorySummary],
+    ) -> list[DirectorySummary]:
+        """Get DirectorySummaries for direct children of a directory.
+
+        Args:
+            parent_path: Path to the parent directory (empty string for root).
+            all_summaries: Dict mapping directory path to its DirectorySummary.
+
+        Returns:
+            List of DirectorySummary objects for direct child directories.
+        """
+        result = []
+        prefix = f"{parent_path}/" if parent_path else ""
+
+        for child_path, summary in all_summaries.items():
+            if not child_path.startswith(prefix):
+                continue
+            remaining = child_path[len(prefix):]
+            if "/" not in remaining and remaining:
+                result.append(summary)
+
+        return result
+
     def _should_regenerate_file(
         self, file_path: str, content: str, file_hashes: dict[str, str]
     ) -> tuple[bool, str]:
@@ -897,7 +923,10 @@ class GenerationOrchestrator:
         progress_callback: ProgressCallback | None = None,
         file_summaries: list[FileSummary] | None = None,
     ) -> tuple[list[GeneratedPage], list[DirectorySummary]]:
-        """Run directory generation phase with parallel processing and incremental support.
+        """Run directory generation phase with depth-first processing and incremental support.
+
+        Directories are processed in depth-first order (deepest first, root last) so that
+        child directory summaries are available when generating parent directories.
 
         Args:
             analysis: Analysis results.
@@ -911,6 +940,9 @@ class GenerationOrchestrator:
         pages: list[GeneratedPage] = []
         directory_summaries: list[DirectorySummary] = []
         file_summaries = file_summaries or []
+
+        # Track all generated summaries for parent access
+        all_summaries: dict[str, DirectorySummary] = {}
 
         # Build a lookup of file summaries by file path for quick access
         file_summary_lookup: dict[str, FileSummary] = {
@@ -926,94 +958,135 @@ class GenerationOrchestrator:
         # Compute direct files for each directory
         for file_path in analysis["files"]:
             parts = file_path.split("/")
-            if len(parts) > 1:
+            if len(parts) == 1:
+                # Root-level file (e.g., README.md)
+                directories[""].append(file_path)
+            else:
                 parent_dir = "/".join(parts[:-1])
                 if parent_dir in directories:
                     directories[parent_dir].append(file_path)
 
-        # Check which directories need regeneration
-        dirs_to_generate: list[tuple[str, str]] = []  # (dir_path, signature_hash)
-        skipped_count = 0
+        # Get processing order: depth-first (deepest directories first, root last)
+        processing_order = get_processing_order(all_directories)
+        total_dirs = len(processing_order)
 
-        for dir_path in sorted(directories.keys()):
-            dir_files = directories[dir_path]
-            should_regen, signature_hash = self._should_regenerate_directory(
-                dir_path, dir_files, file_hashes
-            )
-            if should_regen:
-                dirs_to_generate.append((dir_path, signature_hash))
-            else:
-                skipped_count += 1
+        # Project name for breadcrumbs
+        project_name = self.repo.path.name
 
-        # Total includes both generated and skipped for accurate progress display
-        total_dirs = len(dirs_to_generate) + skipped_count
-
-        # Emit initial progress with total count
+        # Emit initial progress
         await self._emit_progress(
             progress_callback,
             GenerationProgress(
                 phase=GenerationPhase.DIRECTORIES,
-                step=skipped_count,
+                step=0,
                 total_steps=total_dirs,
-                message=f"Generating directory pages ({skipped_count} unchanged, 0/{len(dirs_to_generate)} generating)...",
+                message=f"Generating directory pages (0/{total_dirs})...",
             ),
         )
 
-        # Helper to generate a single directory page with hash and return both page and summary
-        async def generate_dir_page(
-            dir_path: str, signature_hash: str
-        ) -> tuple[GeneratedPage, DirectorySummary]:
-            dir_files = [
-                f for f in analysis["files"]
-                if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
+        # Process directories sequentially in depth-first order
+        # (children must complete before parents to provide child summaries)
+        completed = 0
+        skipped_count = 0
+
+        for dir_path in processing_order:
+            dir_files = directories[dir_path]
+
+            # Get child summaries for this directory
+            child_summaries = self._get_direct_child_summaries(dir_path, all_summaries)
+
+            # Compute signature including child purposes
+            file_hash_pairs = [
+                (f.split("/")[-1], file_hashes.get(f, ""))
+                for f in dir_files
+                if f in file_hashes
             ]
+            signature_hash = compute_directory_signature_with_children(
+                file_hash_pairs, child_summaries
+            )
+
+            # Check if regeneration is needed
+            existing = self._get_existing_page_info(dir_path, "directory")
+            should_regenerate = True
+
+            if existing:
+                if existing.get("source_hash") == signature_hash:
+                    if not self._has_new_notes(dir_path, existing.get("generated_at")):
+                        should_regenerate = False
+
+            if not should_regenerate:
+                skipped_count += 1
+                completed += 1
+                # For skipped directories, we need a placeholder summary for parent access
+                # Create a minimal summary based on what we know
+                placeholder_summary = DirectorySummary(
+                    directory_path=dir_path,
+                    purpose="",  # Unknown for skipped directories
+                    contains=[f.split("/")[-1] for f in dir_files],
+                    role_in_system="",
+                )
+                all_summaries[dir_path] = placeholder_summary
+                continue
+
+            # Get direct files for this directory
+            if dir_path == "":
+                # Root directory: files without "/" are root-level
+                direct_files = [f for f in analysis["files"] if "/" not in f]
+            else:
+                direct_files = [
+                    f for f in analysis["files"]
+                    if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
+                ]
+
             # Filter symbols by file path and convert to dicts for generator
-            dir_symbols = [
-                self._symbol_to_dict(s) for s in analysis["symbols"]
-                if s.metadata.get("file", "").startswith(dir_path + "/")
-            ]
+            if dir_path == "":
+                # Root: symbols from root-level files
+                dir_symbols = [
+                    self._symbol_to_dict(s) for s in analysis["symbols"]
+                    if "/" not in s.metadata.get("file", "")
+                ]
+            else:
+                dir_symbols = [
+                    self._symbol_to_dict(s) for s in analysis["symbols"]
+                    if s.metadata.get("file", "").startswith(dir_path + "/")
+                ]
+
             # Get file summaries for files in this directory
             dir_file_summaries = [
                 file_summary_lookup[f]
-                for f in dir_files
+                for f in direct_files
                 if f in file_summary_lookup
             ]
-            # DirectoryGenerator.generate() returns (GeneratedPage, DirectorySummary)
+
+            # Generate directory page with child summaries
             page, directory_summary = await self.directory_generator.generate(
                 directory_path=dir_path,
-                file_list=dir_files,
+                file_list=direct_files,
                 symbols=dir_symbols,
                 architecture_context="",
                 file_summaries=dir_file_summaries,
+                child_summaries=child_summaries,
+                project_name=project_name,
             )
+
             # Add signature hash to the page for storage
             page.source_hash = signature_hash
-            return page, directory_summary
 
-        # Process directories in parallel batches, report as each completes
-        completed = skipped_count
-        for batch in batched(dirs_to_generate, self.parallel_limit):
-            tasks = [
-                asyncio.create_task(generate_dir_page(dir_path, signature_hash))
-                for dir_path, signature_hash in batch
-            ]
+            pages.append(page)
+            directory_summaries.append(directory_summary)
+            all_summaries[dir_path] = directory_summary
 
-            for coro in asyncio.as_completed(tasks):
-                page, summary = await coro
-                pages.append(page)
-                directory_summaries.append(summary)
-
-                completed += 1
-                generated_so_far = completed - skipped_count
-                await self._emit_progress(
-                    progress_callback,
-                    GenerationProgress(
-                        phase=GenerationPhase.DIRECTORIES,
-                        step=completed,
-                        total_steps=total_dirs,
-                        message=f"Generated {generated_so_far}/{len(dirs_to_generate)} directories ({skipped_count} unchanged)...",
-                    ),
-                )
+            completed += 1
+            generated_so_far = completed - skipped_count
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.DIRECTORIES,
+                    step=completed,
+                    total_steps=total_dirs,
+                    message=f"Generated {generated_so_far}/{total_dirs - skipped_count} directories ({skipped_count} unchanged)...",
+                ),
+            )
 
         return pages, directory_summaries
 
