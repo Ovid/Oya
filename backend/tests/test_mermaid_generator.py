@@ -337,3 +337,69 @@ class TestDiagramGenerator:
         for name, diagram in diagrams.items():
             result = validate_mermaid(diagram)
             assert result.valid, f"{name} diagram invalid: {result.errors}"
+
+
+class TestDependencyGraphGeneratorForFile:
+    """Tests for single-file dependency diagram generation."""
+
+    @pytest.fixture
+    def sample_imports(self) -> dict[str, list[str]]:
+        """Create sample import data."""
+        return {
+            "src/api/routes.py": ["src/domain/service.py", "src/utils/helpers.py"],
+            "src/domain/service.py": ["src/db/models.py"],
+            "src/utils/helpers.py": [],
+            "src/db/models.py": [],
+            "src/other/unrelated.py": ["src/other/another.py"],
+        }
+
+    def test_generate_for_file_shows_imports(self, sample_imports):
+        """Diagram shows files that target imports."""
+        generator = DependencyGraphGenerator()
+        diagram = generator.generate_for_file("src/api/routes.py", sample_imports)
+
+        # Should show the file imports
+        assert "service" in diagram.lower()
+        assert "helpers" in diagram.lower()
+
+    def test_generate_for_file_shows_importers(self, sample_imports):
+        """Diagram shows files that import the target."""
+        generator = DependencyGraphGenerator()
+        diagram = generator.generate_for_file("src/domain/service.py", sample_imports)
+
+        # routes.py imports service.py, so routes should appear
+        assert "routes" in diagram.lower()
+
+    def test_generate_for_file_excludes_unrelated(self, sample_imports):
+        """Diagram excludes files with no relationship to target."""
+        generator = DependencyGraphGenerator()
+        diagram = generator.generate_for_file("src/api/routes.py", sample_imports)
+
+        # other/unrelated.py has no relationship to routes.py
+        assert "unrelated" not in diagram.lower()
+        assert "another" not in diagram.lower()
+
+    def test_generate_for_file_valid_mermaid(self, sample_imports):
+        """Generated diagram is valid Mermaid."""
+        generator = DependencyGraphGenerator()
+        diagram = generator.generate_for_file("src/api/routes.py", sample_imports)
+
+        result = validate_mermaid(diagram)
+        assert result.valid, f"Invalid diagram: {result.errors}"
+
+    def test_generate_for_file_empty_when_no_deps(self, sample_imports):
+        """Returns empty string for file with no dependencies."""
+        generator = DependencyGraphGenerator()
+        # helpers.py has no imports and nothing imports it except routes
+        diagram = generator.generate_for_file("src/db/models.py", sample_imports)
+
+        # Should still be valid but minimal (service imports models)
+        assert "service" in diagram.lower()
+
+    def test_generate_for_file_unknown_file(self, sample_imports):
+        """Returns empty string for unknown file."""
+        generator = DependencyGraphGenerator()
+        diagram = generator.generate_for_file("src/unknown/file.py", sample_imports)
+
+        # Should return empty string for unknown files
+        assert diagram == ""

@@ -133,6 +133,57 @@ class DependencyGraphGenerator:
 
         return "\n".join(lines)
 
+    def generate_for_file(self, file_path: str, all_imports: dict[str, list[str]]) -> str:
+        """Generate a dependency diagram focused on a single file.
+
+        Shows:
+        - What this file imports (outgoing edges)
+        - What files import this file (incoming edges)
+
+        Args:
+            file_path: The file to focus on.
+            all_imports: Dict mapping all file paths to their imports.
+
+        Returns:
+            Mermaid diagram string, or empty string if no dependencies.
+        """
+        if file_path not in all_imports:
+            # Check if anything imports this file
+            importers = [f for f, imports in all_imports.items() if file_path in imports]
+            if not importers:
+                return ""
+
+        # Collect related files: imports and importers
+        imports = set(all_imports.get(file_path, []))
+        importers = {f for f, imp_list in all_imports.items() if file_path in imp_list}
+
+        related_files = imports | importers | {file_path}
+
+        if len(related_files) <= 1:
+            return ""
+
+        lines = ["flowchart LR"]
+
+        # Create nodes for all related files
+        for fp in sorted(related_files):
+            node_id = sanitize_node_id(fp)
+            filename = fp.split("/")[-1]
+            label = sanitize_label(filename, max_length=30)
+            lines.append(f'    {node_id}["{label}"]')
+
+        # Add edges: target imports
+        target_id = sanitize_node_id(file_path)
+        for imp in imports:
+            imp_id = sanitize_node_id(imp)
+            lines.append(f"    {target_id} --> {imp_id}")
+
+        # Add edges: files that import target
+        for importer in importers:
+            importer_id = sanitize_node_id(importer)
+            lines.append(f"    {importer_id} --> {target_id}")
+
+        return "\n".join(lines)
+
 
 class ClassDiagramGenerator:
     """Generates class diagrams from parsed symbols.
