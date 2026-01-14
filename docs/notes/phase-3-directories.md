@@ -1,111 +1,102 @@
-# Phase 2 (File Documentation) in the Oya Generation Pipeline
+# Phase 3: Directory Documentation in the Oya Generation Pipeline
 
-## What It Does
+## Overview
 
-Phase 2 is the **Files phase** of the bottom-up generation pipeline, responsible for generating documentation for individual source files and extracting structured metadata. [1](#7-0)  It executes after Phase 1 (Analysis) and before Phase 3 (Directories), processing each source file in the repository to create detailed documentation pages and structured `FileSummary` objects. [2](#7-1) 
+Phase 3 (Directory Documentation) is the third phase in Oya's 8-phase wiki generation pipeline. It runs after Phase 2 (Files) and before Phase 4 (Synthesis), generating documentation for each directory in the codebase while extracting structured `DirectorySummary` objects. [1](#8-0) 
 
-## How It Works
+## Main Components
 
-### Pipeline Flow
+### 1. **GenerationOrchestrator._run_directories()**
+The orchestration method that coordinates the entire directory generation phase, handling incremental regeneration, parallel processing, and progress tracking. [2](#8-1) 
 
-Phase 2 is executed by the `_run_files()` method in the `GenerationOrchestrator` class. [2](#7-1)  The process follows these steps:
+### 2. **DirectoryGenerator**
+The core generator class that creates directory documentation by calling the LLM with a structured prompt. [3](#8-2) 
 
-1. **File Filtering**: Uses a denylist approach to filter out non-code files like `.md`, `.json`, `.yaml`, configuration files, and documentation files. [3](#7-2)  This ensures only programming language files receive documentation.
+The generator's `generate()` method accepts file summaries from Phase 2 as context and returns both a `GeneratedPage` and a `DirectorySummary`. [4](#8-3) 
 
-2. **Incremental Regeneration**: For each file, computes a SHA-256 content hash and compares it with the existing page's hash in the database. [4](#7-3)  Files are skipped if their content hasn't changed and there are no new notes.
+### 3. **SummaryParser**
+Extracts structured `DirectorySummary` objects from the YAML blocks in LLM-generated markdown. [5](#8-4) 
 
-3. **Parallel Processing**: Files are processed in parallel batches using `asyncio.gather()`, with a configurable `parallel_limit` (default: 10). [5](#7-4) 
+### 4. **DIRECTORY_TEMPLATE Prompt**
+The LLM prompt template that instructs the model to generate directory documentation with a YAML summary block. [6](#8-5) 
 
-4. **LLM Generation**: Each file is sent to the LLM with its content, symbols, imports, and architecture context. [6](#7-5) 
+## Responsibilities
 
-5. **YAML Extraction**: The generated content is parsed to extract a YAML frontmatter block containing structured metadata. [7](#7-6) 
+### Directory Discovery
+Directories are extracted from the file list using a shared utility function that ensures consistency with Phase 1's analysis: [7](#8-6) 
 
-6. **Summary Creation**: A `FileSummary` object is created from the parsed YAML data. [8](#7-7) 
+### Incremental Regeneration via Directory Signatures
+Phase 3 implements smart change detection using directory signatures computed from direct file content hashes (not recursive): [8](#8-7) 
 
-## Main Components and Responsibilities
+The signature only changes when direct files are added, removed, or modified, preventing unnecessary regeneration when nested subdirectories change: [9](#8-8) 
 
-### FileGenerator
+### FileSummary Context Integration
+A key innovation of Phase 3 is using `FileSummary` objects from Phase 2 as context. The orchestrator builds a lookup and passes relevant file summaries to the directory generator: [10](#8-9) [11](#8-10) 
 
-The `FileGenerator` class generates documentation for individual files using LLM-based generation. [9](#7-8)  It detects the programming language, formats the prompt, calls the LLM, and returns both a `GeneratedPage` and `FileSummary`. [10](#7-9) 
+These summaries are formatted into the prompt to provide structured information about each file's purpose, layer, and key abstractions: [12](#8-11) 
 
-### SummaryParser
+### Parallel Batch Processing
+Directories are processed in parallel batches (default: 10 concurrent requests) to optimize throughput while avoiding API rate limits: [13](#8-12) 
 
-The `SummaryParser` class extracts structured summaries from LLM-generated markdown. [11](#7-10)  It uses regex to locate YAML blocks delimited by `---`, parses the YAML safely, validates the structure, and returns clean markdown with the YAML removed. [12](#7-11) 
+### YAML Summary Extraction
+The LLM is instructed to prepend a YAML block containing structured directory information. The parser extracts this block and converts it to a `DirectorySummary` object: [14](#8-13) 
 
-### FILE_TEMPLATE
-
-The prompt template that instructs the LLM to generate file documentation with a specific YAML frontmatter format. [13](#7-12)  It mandates that responses include a `file_summary` block with fields like `purpose`, `layer`, `key_abstractions`, `internal_deps`, and `external_deps`.
-
-### Content Hash System
-
-Functions for computing and comparing file content hashes to enable incremental regeneration. [14](#7-13)  The system also checks for new notes that would require regeneration even if content is unchanged. [15](#7-14) 
+### Fallback Handling
+If YAML parsing fails or produces invalid data, the system returns a fallback summary with safe defaults, ensuring the pipeline continues without exceptions: [15](#8-14) 
 
 ## Data Structures Produced
 
-### FileSummary
+### DirectorySummary
+The primary structured output containing: [16](#8-15) 
 
-The primary data structure produced by Phase 2, containing structured metadata about each file: [16](#7-15) 
-
-- **file_path**: Path relative to repository root
-- **purpose**: One-sentence description of the file's role
-- **layer**: Architectural layer classification (api, domain, infrastructure, utility, config, or test) [17](#7-16) 
-- **key_abstractions**: Primary classes/functions defined in the file
-- **internal_deps**: Internal file dependencies
-- **external_deps**: External library imports
-
-FileSummary objects support serialization to/from dictionaries for JSON storage. [18](#7-17) 
+This data model supports serialization for storage and includes methods for JSON conversion: [17](#8-16) 
 
 ### GeneratedPage
+Each directory produces a `GeneratedPage` object with the markdown content, metadata, and a signature hash for incremental regeneration: [18](#8-17) 
 
-Standard page objects containing the markdown content, metadata, and file paths. [19](#7-18) 
+### Return Tuple
+Phase 3 returns both the generated pages and the extracted summaries for use in Phase 4: [19](#8-18) 
 
-### Return Values
+## Pipeline Integration
 
-`_run_files()` returns a tuple of three values: a list of generated pages, a dictionary mapping file paths to content hashes, and a list of FileSummary objects. [20](#7-19)  The file hashes are used by Phase 3 for directory signature computation, and the FileSummaries are passed to Phase 4 (Synthesis).
+### Input from Phase 2
+Phase 3 receives file hashes and file summaries from Phase 2, enabling both incremental regeneration and enriched context: [20](#8-19) 
+
+### Output to Phase 4
+The extracted `DirectorySummary` objects are passed to Phase 4 (Synthesis) along with file summaries to create a unified `SynthesisMap`: [21](#8-20) 
+
+### Cascade Regeneration
+If any directories are regenerated, the synthesis phase must also regenerate to maintain consistency: [22](#8-21) 
 
 ## Strengths
 
-### 1. Robust Fallback Behavior
-When YAML parsing fails or produces invalid data, the parser returns safe default FileSummary objects with `purpose="Unknown"` and `layer="utility"`. [21](#7-20)  This prevents pipeline failures and allows generation to continue even with LLM errors.
+1. **Efficient Incremental Regeneration**: Directory signatures based on direct file hashes minimize unnecessary LLM calls, significantly reducing token costs during regeneration.
 
-### 2. Efficient Incremental Regeneration
-The content hash system efficiently skips unchanged files, reducing token costs and generation time. [4](#7-3)  Progress tracking accounts for both generated and skipped files for accurate reporting. [22](#7-21) 
+2. **Rich Contextual Information**: Integration of `FileSummary` objects provides the LLM with structured context about each file's purpose and architecture, leading to more accurate directory documentation.
 
-### 3. Language-Agnostic File Filtering
-The denylist approach documents all programming language files without maintaining an allowlist, supporting any language automatically. [3](#7-2) 
+3. **Resilient YAML Parsing**: Fallback mechanisms ensure the pipeline continues even when LLM output is malformed, preventing cascading failures.
 
-### 4. Structured Metadata Extraction
-The YAML block approach provides structured, parseable metadata that can be validated and used programmatically in later phases. [8](#7-7) 
+4. **Parallel Processing**: Batched concurrent requests optimize throughput while respecting API rate limits.
 
-### 5. Parallel Processing
-Batched parallel execution with `asyncio.gather()` maintains good throughput while preventing API overload. [5](#7-4) 
+5. **Bottom-Up Architecture**: Generating directory documentation after file documentation ensures directories can accurately reflect the actual contents based on file-level analysis.
 
-## Weaknesses and Limitations
+6. **Structured Output**: `DirectorySummary` objects provide machine-readable metadata that enables sophisticated synthesis in Phase 4.
 
-### 1. File Filtering False Positives
-The denylist approach may send non-code files to the LLM if they have unusual extensions not in the exclusion list, wasting tokens. [23](#7-22) 
+## Weaknesses
 
-### 2. Low-Quality Fallback Summaries
-When YAML parsing fails, the fallback summary provides no useful information (`purpose="Unknown"`, `layer="utility"`), which can propagate to Phase 4 and degrade higher-level documentation quality. [21](#7-20) 
+1. **Non-Recursive Signatures**: Directory signatures only consider direct files, not nested subdirectories. Changes in deeply nested files won't trigger parent directory regeneration unless those files are direct children.
 
-### 3. No LLM Output Quality Validation
-The system only validates YAML structure, not semantic correctness. The LLM could generate syntactically valid but meaningless summaries (wrong layer classifications, missing dependencies, incorrect purposes). [24](#7-23) 
+2. **LLM Dependency for Structure**: The quality of extracted summaries depends on the LLM correctly following YAML formatting instructions. While fallbacks exist, malformed output reduces the quality of synthesis inputs.
 
-### 4. Limited Layer Classification System
-The fixed set of six architectural layers may not fit all projects. Invalid layers are silently coerced to "utility" without warning. [25](#7-24) 
+3. **Limited Architectural Context**: The `architecture_context` parameter is currently passed as an empty string in the orchestrator, meaning directories don't receive higher-level architectural guidance during generation. [23](#8-22) 
 
-### 5. Static Parallel Limit
-The default `parallel_limit=10` is fixed and doesn't adapt to API performance or rate limits. [26](#7-25) 
+4. **Fixed Batch Size**: The parallel limit is set at initialization and cannot be dynamically adjusted based on API response times or rate limiting.
 
-### 6. Incremental Regeneration Edge Cases
-Content hash comparison doesn't account for changes in architecture context, prompt templates, or LLM model versions. A file might need regeneration even if its content is unchanged. [4](#7-3) 
-
-### 7. Layer Validation Weakness
-Invalid layer values are automatically coerced to "utility" rather than raising an error or warning, which can hide prompt issues. [27](#7-26) 
+5. **No Cross-Directory Analysis**: Each directory is generated independently without awareness of sibling or parent directories, potentially missing important relationships in the module hierarchy.
 
 ## Notes
 
-Phase 2 is critical to the bottom-up generation approach because the FileSummary objects it produces are consumed by Phase 4 (Synthesis) to create the SynthesisMap, which informs all higher-level documentation. [28](#7-27)  The quality and accuracy of Phase 2's output directly impacts the quality of Architecture, Overview, and other high-level pages.
+Phase 3 is a critical bridge between file-level analysis and codebase-wide synthesis. Its use of `FileSummary` objects as context represents a significant architectural improvement over generating directory documentation from raw file lists alone. The incremental regeneration system, while not perfect (non-recursive signatures), provides substantial efficiency gains for large codebases. The structured `DirectorySummary` outputs enable Phase 4 (Synthesis) to build a comprehensive architectural understanding of the entire codebase.
 
 ### Citations
 
@@ -126,242 +117,225 @@ of wiki generation in a bottom-up approach:
 """
 ```
 
-**File:** backend/src/oya/generation/orchestrator.py (L88-97)
+**File:** backend/src/oya/generation/orchestrator.py (L100-112)
 ```python
-def compute_content_hash(content: str) -> str:
-    """Compute SHA-256 hash of content.
+def compute_directory_signature(file_hashes: list[tuple[str, str]]) -> str:
+    """Compute a signature hash for a directory based on its files.
 
     Args:
-        content: String content to hash.
+        file_hashes: List of (filename, content_hash) tuples for files in directory.
 
     Returns:
-        Hex digest of SHA-256 hash.
+        Hex digest of SHA-256 hash of the sorted file hashes.
     """
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+    # Sort by filename for deterministic ordering
+    sorted_hashes = sorted(file_hashes, key=lambda x: x[0])
+    signature = "|".join(f"{name}:{hash}" for name, hash in sorted_hashes)
+    return hashlib.sha256(signature.encode("utf-8")).hexdigest()
 ```
 
-**File:** backend/src/oya/generation/orchestrator.py (L141-151)
+**File:** backend/src/oya/generation/orchestrator.py (L262-295)
 ```python
-        parallel_limit: int = 10,
-    ):
-        """Initialize the orchestrator.
-
-        Args:
-            llm_client: LLM client for generation.
-            repo: Repository wrapper.
-            db: Database for recording pages.
-            wiki_path: Path where wiki files will be saved.
-            parser_registry: Optional parser registry for code analysis.
-            parallel_limit: Max concurrent LLM calls for file/directory generation.
-```
-
-**File:** backend/src/oya/generation/orchestrator.py (L206-230)
-```python
-    def _has_new_notes(self, target: str, generated_at: str | None) -> bool:
-        """Check if there are notes created after the page was generated.
-
-        Args:
-            target: Target path to check for notes.
-            generated_at: Timestamp when the page was last generated.
-
-        Returns:
-            True if there are new notes, False otherwise.
-        """
-        if not generated_at or not hasattr(self.db, "execute"):
-            return False
-
-        try:
-            cursor = self.db.execute(
-                """
-                SELECT COUNT(*) FROM notes
-                WHERE target = ? AND created_at > ?
-                """,
-                (target, generated_at),
-            )
-            row = cursor.fetchone()
-            return row[0] > 0 if row else False
-        except Exception:
-            return False
-```
-
-**File:** backend/src/oya/generation/orchestrator.py (L232-260)
-```python
-    def _should_regenerate_file(
-        self, file_path: str, content: str, file_hashes: dict[str, str]
+    def _should_regenerate_directory(
+        self, dir_path: str, dir_files: list[str], file_hashes: dict[str, str]
     ) -> tuple[bool, str]:
-        """Check if a file page needs regeneration.
+        """Check if a directory page needs regeneration.
 
         Args:
-            file_path: Path to the source file.
-            content: Content of the source file.
-            file_hashes: Dict to store computed hashes (modified in place).
+            dir_path: Path to the directory.
+            dir_files: List of files in this directory.
+            file_hashes: Dict of file path to content hash.
 
         Returns:
-            Tuple of (should_regenerate, content_hash).
+            Tuple of (should_regenerate, signature_hash).
         """
-        content_hash = compute_content_hash(content)
-        file_hashes[file_path] = content_hash
+        # Build signature from files in this directory
+        file_hash_pairs = [
+            (f.split("/")[-1], file_hashes.get(f, ""))
+            for f in dir_files
+            if f in file_hashes
+        ]
+        signature_hash = compute_directory_signature(file_hash_pairs)
 
-        existing = self._get_existing_page_info(file_path, "file")
+        existing = self._get_existing_page_info(dir_path, "directory")
         if not existing:
-            return True, content_hash
+            return True, signature_hash
 
-        # Check if content changed
-        if existing.get("source_hash") != content_hash:
-            return True, content_hash
+        # Check if directory signature changed
+        if existing.get("source_hash") != signature_hash:
+            return True, signature_hash
 
         # Check if there are new notes
-        if self._has_new_notes(file_path, existing.get("generated_at")):
-            return True, content_hash
+        if self._has_new_notes(dir_path, existing.get("generated_at")):
+            return True, signature_hash
 
-        return False, content_hash
+        return False, signature_hash
 ```
 
-**File:** backend/src/oya/generation/orchestrator.py (L360-396)
+**File:** backend/src/oya/generation/orchestrator.py (L297-325)
 ```python
-        # Phase 2: Files (run before directories to compute content hashes and collect summaries)
-        file_pages, file_hashes, file_summaries = await self._run_files(
-            analysis, progress_callback
-        )
-        for page in file_pages:
-            await self._save_page(page)
+    def _should_regenerate_synthesis(
+        self,
+        files_regenerated: bool,
+        directories_regenerated: bool,
+    ) -> bool:
+        """Check if synthesis needs to be regenerated.
 
-        # Track if any files were regenerated (for cascade)
-        files_regenerated = len(file_pages) > 0
+        Synthesis should be regenerated when:
+        - Any file's documentation was regenerated (cascade from files)
+        - Any directory's documentation was regenerated (cascade from directories)
+        - No existing synthesis.json exists
 
+        Args:
+            files_regenerated: True if any file was regenerated.
+            directories_regenerated: True if any directory was regenerated.
+
+        Returns:
+            True if synthesis should be regenerated.
+        """
+        # If any files or directories were regenerated, synthesis must be regenerated
+        if files_regenerated or directories_regenerated:
+            return True
+
+        # Check if synthesis.json exists
+        synthesis_path = self.meta_path / "synthesis.json"
+        if not synthesis_path.exists():
+            return True
+
+        return False
+```
+
+**File:** backend/src/oya/generation/orchestrator.py (L370-373)
+```python
         # Phase 3: Directories (uses file_hashes for signature computation and file_summaries for context)
         directory_pages, directory_summaries = await self._run_directories(
             analysis, file_hashes, progress_callback, file_summaries=file_summaries
         )
-        for page in directory_pages:
-            await self._save_page(page)
-
-        # Track if any directories were regenerated (for cascade)
-        directories_regenerated = len(directory_pages) > 0
-
-        # Phase 4: Synthesis (combine file and directory summaries into SynthesisMap)
-        # Cascade: regenerate synthesis if any files or directories were regenerated
-        should_regenerate_synthesis = self._should_regenerate_synthesis(
-            files_regenerated, directories_regenerated
-        )
-
-        if should_regenerate_synthesis:
-            await self._emit_progress(
-                progress_callback,
-                GenerationProgress(
-                    phase=GenerationPhase.SYNTHESIS,
-                    step=0,
-                    total_steps=1,
-                    message="Synthesizing codebase understanding...",
-                ),
-            )
-            synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
 ```
 
-**File:** backend/src/oya/generation/orchestrator.py (L919-932)
+**File:** backend/src/oya/generation/orchestrator.py (L767-790)
 ```python
-    async def _run_files(
+    async def _run_synthesis(
         self,
-        analysis: dict,
-        progress_callback: ProgressCallback | None = None,
-    ) -> tuple[list[GeneratedPage], dict[str, str], list[FileSummary]]:
-        """Run file generation phase with parallel processing and incremental support.
+        file_summaries: list[FileSummary],
+        directory_summaries: list[DirectorySummary],
+    ) -> SynthesisMap:
+        """Run synthesis phase to combine summaries into a SynthesisMap.
 
         Args:
-            analysis: Analysis results.
-            progress_callback: Optional async callback for progress updates.
+            file_summaries: List of FileSummary objects from files phase.
+            directory_summaries: List of DirectorySummary objects from directories phase.
 
         Returns:
-            Tuple of (list of generated file pages, dict of file_path to content_hash, list of FileSummaries).
+            SynthesisMap containing aggregated codebase understanding.
         """
-```
-
-**File:** backend/src/oya/generation/orchestrator.py (L938-982)
-```python
-        # Use denylist approach: document everything EXCEPT known non-code files
-        # This ensures we support any programming language without maintaining an allowlist
-        non_code_extensions = {
-            # Documentation
-            ".md", ".rst", ".txt", ".adoc", ".asciidoc",
-            # Data/config formats
-            ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
-            ".xml", ".csv", ".tsv",
-            # Lock files
-            ".lock",
-            # Images (shouldn't be here, but just in case binary detection missed them)
-            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
-            # Other non-code
-            ".log", ".pid", ".env", ".env.example",
-        }
-        non_code_names = {
-            # Common non-code files (case-insensitive matching below)
-            "readme", "readme.md", "readme.rst", "readme.txt",
-            "license", "license.md", "license.txt", "copying",
-            "changelog", "changelog.md", "changes", "changes.md", "history.md",
-            "contributing", "contributing.md",
-            "authors", "authors.md", "contributors",
-            "makefile", "dockerfile", "vagrantfile",
-            "gemfile", "gemfile.lock",
-            "package.json", "package-lock.json",
-            "composer.json", "composer.lock",
-            "cargo.toml", "cargo.lock",
-            "pyproject.toml", "poetry.lock", "pipfile", "pipfile.lock",
-            "requirements.txt", "setup.py", "setup.cfg",
-            ".gitignore", ".gitattributes", ".dockerignore",
-            ".editorconfig", ".prettierrc", ".eslintrc",
-        }
-
-        # Filter to source files and check which need regeneration
-        files_to_generate: list[tuple[str, str]] = []  # (file_path, content_hash)
-        skipped_count = 0
-
-        for file_path in analysis["files"]:
-            ext = Path(file_path).suffix.lower()
-            filename = Path(file_path).name.lower()
-
-            # Skip known non-code files
-            if ext in non_code_extensions or filename in non_code_names:
-                continue
-
-```
-
-**File:** backend/src/oya/generation/orchestrator.py (L997-1006)
-```python
-        # Emit initial progress with total count
-        await self._emit_progress(
-            progress_callback,
-            GenerationProgress(
-                phase=GenerationPhase.FILES,
-                step=skipped_count,
-                total_steps=total_files,
-                message=f"Generating file pages ({skipped_count} unchanged, 0/{len(files_to_generate)} generating)...",
-            ),
+        # Generate the synthesis map
+        synthesis_map = await self.synthesis_generator.generate(
+            file_summaries=file_summaries,
+            directory_summaries=directory_summaries,
         )
+
+        # Save to synthesis.json
+        save_synthesis_map(synthesis_map, str(self.meta_path))
+
+        return synthesis_map
 ```
 
-**File:** backend/src/oya/generation/orchestrator.py (L1031-1042)
+**File:** backend/src/oya/generation/orchestrator.py (L792-798)
 ```python
-        # Process files in parallel batches
+    async def _run_directories(
+        self,
+        analysis: dict,
+        file_hashes: dict[str, str],
+        progress_callback: ProgressCallback | None = None,
+        file_summaries: list[FileSummary] | None = None,
+    ) -> tuple[list[GeneratedPage], list[DirectorySummary]]:
+```
+
+**File:** backend/src/oya/generation/orchestrator.py (L814-817)
+```python
+        # Build a lookup of file summaries by file path for quick access
+        file_summary_lookup: dict[str, FileSummary] = {
+            fs.file_path: fs for fs in file_summaries if isinstance(fs, FileSummary)
+        }
+```
+
+**File:** backend/src/oya/generation/orchestrator.py (L819-831)
+```python
+        # Get unique directories using the shared utility function
+        all_directories = extract_directories_from_files(analysis["files"])
+
+        # Build directories dict with their direct files
+        directories: dict[str, list[str]] = {d: [] for d in all_directories}
+
+        # Compute direct files for each directory
+        for file_path in analysis["files"]:
+            parts = file_path.split("/")
+            if len(parts) > 1:
+                parent_dir = "/".join(parts[:-1])
+                if parent_dir in directories:
+                    directories[parent_dir].append(file_path)
+```
+
+**File:** backend/src/oya/generation/orchestrator.py (L873-886)
+```python
+            # Get file summaries for files in this directory
+            dir_file_summaries = [
+                file_summary_lookup[f]
+                for f in dir_files
+                if f in file_summary_lookup
+            ]
+            # DirectoryGenerator.generate() returns (GeneratedPage, DirectorySummary)
+            page, directory_summary = await self.directory_generator.generate(
+                directory_path=dir_path,
+                file_list=dir_files,
+                symbols=dir_symbols,
+                architecture_context="",
+                file_summaries=dir_file_summaries,
+            )
+```
+
+**File:** backend/src/oya/generation/orchestrator.py (L891-915)
+```python
+        # Process directories in parallel batches
         completed = skipped_count
-        for batch in batched(files_to_generate, self.parallel_limit):
+        for batch in batched(dirs_to_generate, self.parallel_limit):
             # Process batch concurrently
             batch_results = await asyncio.gather(*[
-                generate_file_page(file_path, content_hash)
-                for file_path, content_hash in batch
+                generate_dir_page(dir_path, signature_hash)
+                for dir_path, signature_hash in batch
             ])
             # Unpack results into pages and summaries
             for page, summary in batch_results:
                 pages.append(page)
-                file_summaries.append(summary)
+                directory_summaries.append(summary)
+
+            # Report progress after batch completes
+            completed += len(batch)
+            generated_so_far = completed - skipped_count
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.DIRECTORIES,
+                    step=completed,
+                    total_steps=total_dirs,
+                    message=f"Generated {generated_so_far}/{len(dirs_to_generate)} directories ({skipped_count} unchanged)...",
+                ),
+            )
 ```
 
-**File:** backend/src/oya/generation/file.py (L37-48)
+**File:** backend/src/oya/generation/orchestrator.py (L917-917)
 ```python
-class FileGenerator:
-    """Generates file documentation pages."""
+        return pages, directory_summaries
+```
+
+**File:** backend/src/oya/generation/directory.py (L14-27)
+```python
+class DirectoryGenerator:
+    """Generates directory documentation pages."""
 
     def __init__(self, llm_client, repo):
-        """Initialize the file generator.
+        """Initialize the directory generator.
 
         Args:
             llm_client: LLM client for generation.
@@ -369,268 +343,186 @@ class FileGenerator:
         """
         self.llm_client = llm_client
         self.repo = repo
+        self._parser = SummaryParser()
+
 ```
 
-**File:** backend/src/oya/generation/file.py (L51-101)
+**File:** backend/src/oya/generation/directory.py (L28-47)
 ```python
     async def generate(
         self,
-        file_path: str,
-        content: str,
+        directory_path: str,
+        file_list: list[str],
         symbols: list[dict],
-        imports: list[str],
-        architecture_summary: str,
-    ) -> tuple[GeneratedPage, FileSummary]:
-        """Generate documentation for a file.
+        architecture_context: str,
+        file_summaries: list[FileSummary] | None = None,
+    ) -> tuple[GeneratedPage, DirectorySummary]:
+        """Generate directory documentation and extract summary.
 
         Args:
-            file_path: Path to the file being documented.
-            content: Content of the file.
-            symbols: List of symbol dictionaries defined in the file.
-            imports: List of import statements.
-            architecture_summary: Summary of how this file fits in the architecture.
+            directory_path: Path to the directory.
+            file_list: List of files in the directory.
+            symbols: List of symbol dictionaries defined in the directory.
+            architecture_context: Summary of how this directory fits in the architecture.
+            file_summaries: Optional list of FileSummary objects for files in the directory.
 
         Returns:
-            Tuple of (GeneratedPage with file documentation, FileSummary extracted from output).
+            A tuple of (GeneratedPage, DirectorySummary).
         """
-        language = self._detect_language(file_path)
+```
 
-        prompt = get_file_prompt(
-            file_path=file_path,
-            content=content,
-            symbols=symbols,
-            imports=imports,
-            architecture_summary=architecture_summary,
-            language=language,
-        )
-
-        generated_content = await self.llm_client.generate(
-            prompt=prompt,
-            system_prompt=SYSTEM_PROMPT,
-        )
-
-        # Parse the YAML summary block and get clean markdown
-        clean_content, file_summary = self._parser.parse_file_summary(generated_content, file_path)
+**File:** backend/src/oya/generation/directory.py (L64-77)
+```python
+        # Parse the DirectorySummary from the LLM output
+        clean_content, summary = self._parser.parse_directory_summary(content, directory_path)
 
         word_count = len(clean_content.split())
-        slug = path_to_slug(file_path, include_extension=True)
+        slug = path_to_slug(directory_path, include_extension=False)
 
         page = GeneratedPage(
             content=clean_content,
-            page_type="file",
-            path=f"files/{slug}.md",
+            page_type="directory",
+            path=f"directories/{slug}.md",
             word_count=word_count,
-            target=file_path,
+            target=directory_path,
         )
 
-        return page, file_summary
 ```
 
-**File:** backend/src/oya/generation/summaries.py (L16-18)
-```python
-VALID_LAYERS: frozenset[str] = frozenset(
-    ["api", "domain", "infrastructure", "utility", "config", "test"]
-)
-```
-
-**File:** backend/src/oya/generation/summaries.py (L40-62)
+**File:** backend/src/oya/generation/summaries.py (L106-123)
 ```python
 @dataclass
-class FileSummary:
-    """Structured summary extracted from file documentation.
+class DirectorySummary:
+    """Structured summary extracted from directory documentation.
 
-    Captures the essential information about a source file including its purpose,
-    architectural layer, key abstractions, and dependencies.
+    Captures the essential information about a directory/module including its purpose,
+    contained files, and role in the overall system architecture.
 
     Attributes:
-        file_path: Path to the source file relative to repository root.
-        purpose: One-sentence description of what the file does.
-        layer: Classification of code responsibility (api, domain, infrastructure,
-               utility, config, or test).
-        key_abstractions: Primary classes, functions, or types defined in the file.
-        internal_deps: Paths to other files in the repository that this file depends on.
-        external_deps: External libraries or packages the file imports.
+        directory_path: Path to the directory relative to repository root.
+        purpose: One-sentence description of what the directory/module is responsible for.
+        contains: List of files contained in the directory.
+        role_in_system: Description of how this directory fits into the overall architecture.
     """
 
-    file_path: str
+    directory_path: str
     purpose: str
-    layer: str
-    key_abstractions: list[str] = field(default_factory=list)
-    internal_deps: list[str] = field(default_factory=list)
-    external_deps: list[str] = field(default_factory=list)
+    contains: list[str] = field(default_factory=list)
+    role_in_system: str = ""
 ```
 
-**File:** backend/src/oya/generation/summaries.py (L64-69)
-```python
-    def __post_init__(self):
-        """Validate layer field after initialization."""
-        if self.layer not in VALID_LAYERS:
-            raise ValueError(
-                f"Invalid layer '{self.layer}'. Must be one of: {', '.join(sorted(VALID_LAYERS))}"
-            )
-```
-
-**File:** backend/src/oya/generation/summaries.py (L71-103)
+**File:** backend/src/oya/generation/summaries.py (L125-153)
 ```python
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the FileSummary to a dictionary.
+        """Serialize the DirectorySummary to a dictionary.
 
         Returns:
-            Dictionary representation of the FileSummary for JSON storage.
+            Dictionary representation of the DirectorySummary for JSON storage.
         """
         return {
-            "file_path": self.file_path,
+            "directory_path": self.directory_path,
             "purpose": self.purpose,
-            "layer": self.layer,
-            "key_abstractions": self.key_abstractions,
-            "internal_deps": self.internal_deps,
-            "external_deps": self.external_deps,
+            "contains": self.contains,
+            "role_in_system": self.role_in_system,
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FileSummary":
-        """Deserialize a FileSummary from a dictionary.
+    def from_dict(cls, data: dict[str, Any]) -> "DirectorySummary":
+        """Deserialize a DirectorySummary from a dictionary.
 
         Args:
-            data: Dictionary representation of a FileSummary.
+            data: Dictionary representation of a DirectorySummary.
 
         Returns:
-            A new FileSummary instance.
+            A new DirectorySummary instance.
         """
         return cls(
-            file_path=data.get("file_path", ""),
+            directory_path=data.get("directory_path", ""),
             purpose=data.get("purpose", "Unknown"),
-            layer=data.get("layer", "utility"),
-            key_abstractions=data.get("key_abstractions", []),
-            internal_deps=data.get("internal_deps", []),
-            external_deps=data.get("external_deps", []),
+            contains=data.get("contains", []),
+            role_in_system=data.get("role_in_system", ""),
         )
 ```
 
-**File:** backend/src/oya/generation/summaries.py (L286-292)
+**File:** backend/src/oya/generation/summaries.py (L406-422)
 ```python
-class SummaryParser:
-    """Parses structured summaries from LLM-generated markdown.
+    def parse_directory_summary(
+        self, markdown: str, directory_path: str
+    ) -> tuple[str, DirectorySummary]:
+        """Parse Directory_Summary from markdown, return (clean_markdown, summary).
 
-    Extracts YAML summary blocks from markdown content and converts them
-    to FileSummary or DirectorySummary objects. The YAML block is stripped
-    from the returned markdown content.
-    """
-```
-
-**File:** backend/src/oya/generation/summaries.py (L294-315)
-```python
-    # Regex pattern to match YAML blocks delimited by ---
-    YAML_BLOCK_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.MULTILINE | re.DOTALL)
-
-    def _extract_yaml_block(self, markdown: str) -> tuple[str | None, str]:
-        """Extract YAML content from markdown and return clean markdown.
-
-        Args:
-            markdown: The full markdown content potentially containing a YAML block.
-
-        Returns:
-            A tuple of (yaml_content, clean_markdown) where yaml_content is None
-            if no valid YAML block was found.
-        """
-        match = self.YAML_BLOCK_PATTERN.search(markdown)
-
-        if not match:
-            return None, markdown
-
-        yaml_content = match.group(1)
-        clean_markdown = self.YAML_BLOCK_PATTERN.sub("", markdown).strip()
-
-        return yaml_content, clean_markdown
-```
-
-**File:** backend/src/oya/generation/summaries.py (L343-390)
-```python
-    def parse_file_summary(self, markdown: str, file_path: str) -> tuple[str, FileSummary]:
-        """Parse File_Summary from markdown, return (clean_markdown, summary).
-
-        Extracts the YAML block containing file_summary data from the markdown,
-        parses it into a FileSummary object, and returns the markdown with the
+        Extracts the YAML block containing directory_summary data from the markdown,
+        parses it into a DirectorySummary object, and returns the markdown with the
         YAML block removed.
 
         Args:
             markdown: The full markdown content potentially containing a YAML block.
-            file_path: The path to the file being summarized.
+            directory_path: The path to the directory being summarized.
 
         Returns:
-            A tuple of (clean_markdown, FileSummary) where clean_markdown has
+            A tuple of (clean_markdown, DirectorySummary) where clean_markdown has
             the YAML block removed.
         """
+```
+
+**File:** backend/src/oya/generation/summaries.py (L423-445)
+```python
         yaml_content, clean_markdown = self._extract_yaml_block(markdown)
 
         if yaml_content is None:
-            return markdown, self._fallback_file_summary(file_path)
+            return markdown, self._fallback_directory_summary(directory_path)
 
         data = self._parse_yaml_safely(yaml_content)
 
-        if data is None or "file_summary" not in data:
-            return markdown, self._fallback_file_summary(file_path)
+        if data is None or "directory_summary" not in data:
+            return markdown, self._fallback_directory_summary(directory_path)
 
-        summary_data = data["file_summary"]
+        summary_data = data["directory_summary"]
 
         if not isinstance(summary_data, dict):
-            return markdown, self._fallback_file_summary(file_path)
+            return markdown, self._fallback_directory_summary(directory_path)
 
-        # Extract and validate fields
-        purpose = summary_data.get("purpose", "Unknown")
-        layer = summary_data.get("layer", "utility")
-
-        # Validate layer, default to utility if invalid
-        if layer not in VALID_LAYERS:
-            layer = "utility"
-
-        summary = FileSummary(
-            file_path=file_path,
-            purpose=purpose,
-            layer=layer,
-            key_abstractions=self._ensure_list(summary_data.get("key_abstractions", [])),
-            internal_deps=self._ensure_list(summary_data.get("internal_deps", [])),
-            external_deps=self._ensure_list(summary_data.get("external_deps", [])),
+        summary = DirectorySummary(
+            directory_path=directory_path,
+            purpose=summary_data.get("purpose", "Unknown"),
+            contains=self._ensure_list(summary_data.get("contains", [])),
+            role_in_system=summary_data.get("role_in_system", ""),
         )
 
         return clean_markdown, summary
 ```
 
-**File:** backend/src/oya/generation/summaries.py (L392-404)
+**File:** backend/src/oya/generation/summaries.py (L447-457)
 ```python
-    def _fallback_file_summary(self, file_path: str) -> FileSummary:
-        """Create a fallback FileSummary with default values.
+    def _fallback_directory_summary(self, directory_path: str) -> DirectorySummary:
+        """Create a fallback DirectorySummary with default values.
 
         Used when YAML parsing fails or no YAML block is found.
         """
-        return FileSummary(
-            file_path=file_path,
+        return DirectorySummary(
+            directory_path=directory_path,
             purpose="Unknown",
-            layer="utility",
-            key_abstractions=[],
-            internal_deps=[],
-            external_deps=[],
+            contains=[],
+            role_in_system="",
         )
 ```
 
-**File:** backend/src/oya/generation/prompts.py (L315-367)
+**File:** backend/src/oya/generation/prompts.py (L270-308)
 ```python
-FILE_TEMPLATE = PromptTemplate(
-    """Generate documentation for the file "{file_path}".
+DIRECTORY_TEMPLATE = PromptTemplate(
+    """Generate a directory documentation page for "{directory_path}" in "{repo_name}".
 
-## File Content
-```{language}
-{content}
-```
+## Files in Directory
+{file_list}
 
-## Symbols
+## File Summaries
+{file_summaries}
+
+## Symbols Defined
 {symbols}
 
-## Imports
-{imports}
-
 ## Architecture Context
-{architecture_summary}
+{architecture_context}
 
 ---
 
@@ -638,35 +530,56 @@ IMPORTANT: You MUST start your response with a YAML summary block in the followi
 
 ```
 ---
-file_summary:
-  purpose: "One-sentence description of what this file does"
-  layer: <one of: api, domain, infrastructure, utility, config, test>
-  key_abstractions:
-    - "ClassName or function_name"
-  internal_deps:
-    - "path/to/other/file.py"
-  external_deps:
-    - "library_name"
+directory_summary:
+  purpose: "One-sentence description of what this directory/module is responsible for"
+  contains:
+    - "file1.py"
+    - "file2.py"
+  role_in_system: "Description of how this directory fits into the overall architecture"
 ---
 ```
 
-Layer classification guide:
-- api: REST endpoints, request handlers, API routes
-- domain: Core business logic, services, use cases
-- infrastructure: Database, external services, I/O operations
-- utility: Helper functions, shared utilities, common tools
-- config: Configuration, settings, environment handling
-- test: Test files, test utilities, fixtures
-
-After the YAML block, create file documentation that includes:
-1. **File Purpose**: What this file does and its role in the project
-2. **Classes**: Document each class with its purpose and methods
-3. **Functions**: Document each function with parameters and return values
-4. **Constants/Variables**: Document important module-level definitions
-5. **Dependencies**: What this file imports and why
-6. **Usage Examples**: How to use the components defined in this file
+After the YAML block, create directory documentation that includes:
+1. **Directory Purpose**: What this directory contains and why
+2. **File Overview**: Brief description of each file
+3. **Key Components**: Important classes, functions, or modules
+4. **Dependencies**: What this directory depends on and what depends on it
+5. **Usage Examples**: How to use the components in this directory
 
 Format the output as clean Markdown suitable for a wiki page."""
 )
+```
+
+**File:** backend/src/oya/generation/prompts.py (L530-558)
+```python
+def _format_file_summaries(file_summaries: list[Any]) -> str:
+    """Format a list of FileSummaries for inclusion in a prompt.
+
+    Args:
+        file_summaries: List of FileSummary objects.
+
+    Returns:
+        Formatted string representation of file summaries.
+    """
+    if not file_summaries:
+        return "No file summaries available."
+
+    lines = []
+    for summary in file_summaries:
+        lines.append(f"### {summary.file_path}")
+        lines.append(f"- **Purpose**: {summary.purpose}")
+        lines.append(f"- **Layer**: {summary.layer}")
+        if summary.key_abstractions:
+            abstractions = ", ".join(summary.key_abstractions)
+            lines.append(f"- **Key Abstractions**: {abstractions}")
+        if summary.internal_deps:
+            deps = ", ".join(summary.internal_deps)
+            lines.append(f"- **Internal Dependencies**: {deps}")
+        if summary.external_deps:
+            ext_deps = ", ".join(summary.external_deps)
+            lines.append(f"- **External Dependencies**: {ext_deps}")
+        lines.append("")
+
+    return "\n".join(lines)
 ```
 
