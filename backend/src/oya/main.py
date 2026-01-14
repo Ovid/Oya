@@ -18,6 +18,14 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
+# Unify uvicorn loggers with app format
+for uvicorn_logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
+    uvicorn_logger = logging.getLogger(uvicorn_logger_name)
+    uvicorn_logger.handlers.clear()
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
+    uvicorn_logger.addHandler(handler)
+
 from oya.api.routers import repos, wiki, jobs, search, qa, notes
 from oya.config import load_settings
 from oya.workspace import initialize_workspace
