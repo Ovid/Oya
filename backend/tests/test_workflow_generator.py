@@ -11,6 +11,7 @@ from oya.generation.workflows import (
     WorkflowGenerator,
     DiscoveredWorkflow,
 )
+from oya.parsing.models import ParsedSymbol, SymbolType
 
 
 @pytest.fixture
@@ -37,42 +38,48 @@ class TestWorkflowDiscovery:
         discovery = WorkflowDiscovery()
 
         symbols = [
-            {
-                "file": "cli.py",
-                "name": "main",
-                "type": "function",
-                "decorators": ["click.command"],
-            },
-            {
-                "file": "cli.py",
-                "name": "init_db",
-                "type": "function",
-                "decorators": ["click.command"],
-            },
+            ParsedSymbol(
+                name="main",
+                symbol_type=SymbolType.FUNCTION,
+                start_line=1,
+                end_line=10,
+                decorators=["click.command"],
+                metadata={"file": "cli.py"},
+            ),
+            ParsedSymbol(
+                name="init_db",
+                symbol_type=SymbolType.FUNCTION,
+                start_line=12,
+                end_line=20,
+                decorators=["click.command"],
+                metadata={"file": "cli.py"},
+            ),
         ]
 
         entry_points = discovery.find_entry_points(symbols)
 
         assert len(entry_points) >= 2
-        assert any(e["name"] == "main" for e in entry_points)
+        assert any(e.name == "main" for e in entry_points)
 
     def test_discovers_api_routes(self):
         """Finds API routes as workflow entry points."""
         discovery = WorkflowDiscovery()
 
         symbols = [
-            {
-                "file": "api/users.py",
-                "name": "get_users",
-                "type": "route",
-                "metadata": {"method": "GET", "path": "/users"},
-            },
-            {
-                "file": "api/users.py",
-                "name": "create_user",
-                "type": "route",
-                "metadata": {"method": "POST", "path": "/users"},
-            },
+            ParsedSymbol(
+                name="get_users",
+                symbol_type=SymbolType.ROUTE,
+                start_line=1,
+                end_line=10,
+                metadata={"file": "api/users.py", "method": "GET", "path": "/users"},
+            ),
+            ParsedSymbol(
+                name="create_user",
+                symbol_type=SymbolType.ROUTE,
+                start_line=12,
+                end_line=20,
+                metadata={"file": "api/users.py", "method": "POST", "path": "/users"},
+            ),
         ]
 
         entry_points = discovery.find_entry_points(symbols)
@@ -84,8 +91,20 @@ class TestWorkflowDiscovery:
         discovery = WorkflowDiscovery()
 
         symbols = [
-            {"file": "main.py", "name": "main", "type": "function"},
-            {"file": "app.py", "name": "__main__", "type": "function"},
+            ParsedSymbol(
+                name="main",
+                symbol_type=SymbolType.FUNCTION,
+                start_line=1,
+                end_line=10,
+                metadata={"file": "main.py"},
+            ),
+            ParsedSymbol(
+                name="__main__",
+                symbol_type=SymbolType.FUNCTION,
+                start_line=1,
+                end_line=10,
+                metadata={"file": "app.py"},
+            ),
         ]
 
         entry_points = discovery.find_entry_points(symbols)
@@ -111,7 +130,13 @@ class TestWorkflowGenerator:
             name="User Authentication",
             slug="user-authentication",
             entry_points=[
-                {"file": "auth/login.py", "name": "login", "type": "route"}
+                ParsedSymbol(
+                    name="login",
+                    symbol_type=SymbolType.ROUTE,
+                    start_line=1,
+                    end_line=10,
+                    metadata={"file": "auth/login.py"},
+                )
             ],
             related_files=["auth/login.py", "auth/session.py"],
         )

@@ -740,9 +740,8 @@ class GenerationOrchestrator:
         """
         pages = []
 
-        # Discover entry points (convert ParsedSymbol to dict for workflow discovery)
-        symbol_dicts = [self._symbol_to_dict(s) for s in analysis["symbols"]]
-        entry_points = self.workflow_discovery.find_entry_points(symbol_dicts)
+        # Discover entry points (workflows.py now accepts ParsedSymbol objects directly)
+        entry_points = self.workflow_discovery.find_entry_points(analysis["symbols"])
 
         # Group into workflows
         workflows = self.workflow_discovery.group_into_workflows(entry_points)

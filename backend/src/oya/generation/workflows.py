@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_workflow_prompt
+from oya.parsing.models import ParsedSymbol, SymbolType
 
 
 @dataclass
@@ -15,13 +16,13 @@ class DiscoveredWorkflow:
     Attributes:
         name: Human-readable name of the workflow.
         slug: URL-friendly identifier.
-        entry_points: List of entry point dictionaries.
+        entry_points: List of ParsedSymbol entry points.
         related_files: List of file paths related to the workflow.
     """
 
     name: str
     slug: str
-    entry_points: list[dict] = field(default_factory=list)
+    entry_points: list[ParsedSymbol] = field(default_factory=list)
     related_files: list[str] = field(default_factory=list)
 
 
@@ -68,11 +69,11 @@ class WorkflowDiscovery:
         "execute",
     }
 
-    def find_entry_points(self, symbols: list[dict]) -> list[dict]:
+    def find_entry_points(self, symbols: list[ParsedSymbol]) -> list[ParsedSymbol]:
         """Find entry points from a list of symbols.
 
         Args:
-            symbols: List of symbol dictionaries from parsing.
+            symbols: List of ParsedSymbol objects from parsing.
 
         Returns:
             List of symbols that are entry points.
@@ -85,23 +86,21 @@ class WorkflowDiscovery:
 
         return entry_points
 
-    def _is_entry_point(self, symbol: dict) -> bool:
+    def _is_entry_point(self, symbol: ParsedSymbol) -> bool:
         """Check if a symbol is an entry point.
 
         Args:
-            symbol: Symbol dictionary.
+            symbol: ParsedSymbol object.
 
         Returns:
             True if the symbol is an entry point.
         """
         # Check symbol type
-        sym_type = symbol.get("type", "")
-        if sym_type in ("route", "cli_command"):
+        if symbol.symbol_type in (SymbolType.ROUTE, SymbolType.CLI_COMMAND):
             return True
 
         # Check decorators
-        decorators = symbol.get("decorators", [])
-        for decorator in decorators:
+        for decorator in symbol.decorators:
             if decorator in self.ENTRY_POINT_DECORATORS:
                 return True
             # Also check partial matches (e.g., "app.get" in "@app.get('/users')")
@@ -110,21 +109,20 @@ class WorkflowDiscovery:
                     return True
 
         # Check function name
-        name = symbol.get("name", "")
-        if name in self.ENTRY_POINT_NAMES:
+        if symbol.name in self.ENTRY_POINT_NAMES:
             return True
 
         return False
 
     def group_into_workflows(
         self,
-        entry_points: list[dict],
+        entry_points: list[ParsedSymbol],
         file_imports: dict[str, list[str]] | None = None,
     ) -> list[DiscoveredWorkflow]:
         """Group entry points into logical workflows.
 
         Args:
-            entry_points: List of entry point symbols.
+            entry_points: List of entry point ParsedSymbol objects.
             file_imports: Optional mapping of file paths to their imports.
 
         Returns:
@@ -133,12 +131,11 @@ class WorkflowDiscovery:
         workflows = []
 
         for entry_point in entry_points:
-            name = entry_point.get("name", "unknown")
             workflow = DiscoveredWorkflow(
-                name=self._humanize_name(name),
-                slug=self._slugify(name),
+                name=self._humanize_name(entry_point.name),
+                slug=self._slugify(entry_point.name),
                 entry_points=[entry_point],
-                related_files=[entry_point.get("file", "")],
+                related_files=[entry_point.metadata.get("file", "")],
             )
             workflows.append(workflow)
 
@@ -219,9 +216,9 @@ class WorkflowGenerator:
         # Format entry points for the prompt
         entry_points_list = []
         for ep in workflow.entry_points:
-            ep_file = ep.get("file", "")
-            ep_name = ep.get("name", "")
-            ep_type = ep.get("type", "")
+            ep_file = ep.metadata.get("file", "")
+            ep_name = ep.name
+            ep_type = ep.symbol_type.value
             entry_points_list.append(f"{ep_name} ({ep_type}) in {ep_file}")
 
         prompt = get_workflow_prompt(
