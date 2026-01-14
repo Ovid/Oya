@@ -1,5 +1,7 @@
 # TODO
 
+* "Are there any architectural flaws in the frontend?" DeepWiki caught one. We
+  missed it. Investigate it. Check the jsonl logs and feed it back.
 * Have AI use the vector database and code to independently validate logic and
   behavior.
 * faa427b - (HEAD -> ovid/fix-missing-spec-issues) Move .oyaignore back to
