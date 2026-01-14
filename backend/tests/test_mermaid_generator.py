@@ -2,9 +2,14 @@
 
 import pytest
 
-from oya.generation.mermaid import DependencyGraphGenerator, LayerDiagramGenerator
+from oya.generation.mermaid import (
+    ClassDiagramGenerator,
+    DependencyGraphGenerator,
+    LayerDiagramGenerator,
+)
 from oya.generation.mermaid_validator import validate_mermaid
 from oya.generation.summaries import ComponentInfo, LayerInfo, SynthesisMap
+from oya.parsing.models import ParsedSymbol, SymbolType
 
 
 class TestLayerDiagramGenerator:
@@ -128,5 +133,97 @@ class TestDependencyGraphGenerator:
         diagram = generator.generate(large_imports)
 
         # Should still be valid
+        result = validate_mermaid(diagram)
+        assert result.valid
+
+
+class TestClassDiagramGenerator:
+    """Tests for ClassDiagramGenerator."""
+
+    @pytest.fixture
+    def sample_symbols(self) -> list[ParsedSymbol]:
+        """Sample ParsedSymbol list with classes and methods."""
+        return [
+            ParsedSymbol(
+                name="UserService",
+                symbol_type=SymbolType.CLASS,
+                start_line=1,
+                end_line=20,
+                metadata={"file": "src/service.py"},
+            ),
+            ParsedSymbol(
+                name="get_user",
+                symbol_type=SymbolType.METHOD,
+                start_line=5,
+                end_line=10,
+                parent="UserService",
+                signature="def get_user(self, user_id: int) -> User",
+                metadata={"file": "src/service.py"},
+            ),
+            ParsedSymbol(
+                name="create_user",
+                symbol_type=SymbolType.METHOD,
+                start_line=12,
+                end_line=18,
+                parent="UserService",
+                signature="def create_user(self, name: str) -> User",
+                metadata={"file": "src/service.py"},
+            ),
+            ParsedSymbol(
+                name="Database",
+                symbol_type=SymbolType.CLASS,
+                start_line=1,
+                end_line=15,
+                metadata={"file": "src/db.py"},
+            ),
+        ]
+
+    def test_generates_valid_mermaid(self, sample_symbols):
+        """Generated diagram passes Mermaid validation."""
+        generator = ClassDiagramGenerator()
+        diagram = generator.generate(sample_symbols)
+
+        result = validate_mermaid(diagram)
+        assert result.valid, f"Invalid diagram: {result.errors}"
+
+    def test_includes_classes(self, sample_symbols):
+        """Classes appear in the diagram."""
+        generator = ClassDiagramGenerator()
+        diagram = generator.generate(sample_symbols)
+
+        assert "UserService" in diagram
+        assert "Database" in diagram
+
+    def test_includes_methods(self, sample_symbols):
+        """Methods appear under their parent class."""
+        generator = ClassDiagramGenerator()
+        diagram = generator.generate(sample_symbols)
+
+        assert "get_user" in diagram
+        assert "create_user" in diagram
+
+    def test_empty_symbols_returns_minimal_diagram(self):
+        """Empty input produces valid minimal diagram."""
+        generator = ClassDiagramGenerator()
+        diagram = generator.generate([])
+
+        result = validate_mermaid(diagram)
+        assert result.valid
+
+    def test_limits_classes_for_large_codebases(self):
+        """Large symbol lists are limited."""
+        many_classes = [
+            ParsedSymbol(
+                name=f"Class{i}",
+                symbol_type=SymbolType.CLASS,
+                start_line=1,
+                end_line=10,
+                metadata={"file": f"file{i}.py"},
+            )
+            for i in range(50)
+        ]
+        generator = ClassDiagramGenerator(max_classes=10)
+        diagram = generator.generate(many_classes)
+
         result = validate_mermaid(diagram)
         assert result.valid

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from oya.generation.mermaid_validator import sanitize_label, sanitize_node_id
+from oya.parsing.models import ParsedSymbol, SymbolType
 
 if TYPE_CHECKING:
     from oya.generation.summaries import SynthesisMap
@@ -129,5 +130,74 @@ class DependencyGraphGenerator:
                 if target in included_files:
                     target_id = sanitize_node_id(target)
                     lines.append(f"    {source_id} --> {target_id}")
+
+        return "\n".join(lines)
+
+
+class ClassDiagramGenerator:
+    """Generates class diagrams from parsed symbols.
+
+    Creates a classDiagram showing classes and their methods.
+    """
+
+    def __init__(self, max_classes: int = 15, max_methods_per_class: int = 5):
+        """Initialize the generator.
+
+        Args:
+            max_classes: Maximum number of classes to include.
+            max_methods_per_class: Maximum methods to show per class.
+        """
+        self.max_classes = max_classes
+        self.max_methods_per_class = max_methods_per_class
+
+    def generate(self, symbols: list[ParsedSymbol]) -> str:
+        """Generate a class diagram from parsed symbols.
+
+        Args:
+            symbols: List of ParsedSymbol objects from parsing.
+
+        Returns:
+            Mermaid classDiagram string.
+        """
+        lines = ["classDiagram"]
+
+        # Extract classes and their methods
+        classes = [s for s in symbols if s.symbol_type == SymbolType.CLASS]
+        methods = [s for s in symbols if s.symbol_type == SymbolType.METHOD]
+
+        if not classes:
+            lines.append("    class NoClasses {")
+            lines.append("        No classes found")
+            lines.append("    }")
+            return "\n".join(lines)
+
+        # Group methods by parent class
+        methods_by_class: dict[str, list[ParsedSymbol]] = {}
+        for method in methods:
+            if method.parent:
+                methods_by_class.setdefault(method.parent, []).append(method)
+
+        # Generate class definitions (limited)
+        for cls in classes[: self.max_classes]:
+            class_name = sanitize_node_id(cls.name)
+            lines.append(f"    class {class_name} {{")
+
+            # Add methods for this class
+            cls_methods = methods_by_class.get(cls.name, [])
+            for method in cls_methods[: self.max_methods_per_class]:
+                method_name = sanitize_label(method.name, max_length=30)
+                # Extract simple signature if available
+                if method.signature:
+                    # Simplify signature for display
+                    sig = method.signature.replace("def ", "").replace("self, ", "")
+                    sig = sanitize_label(sig, max_length=40)
+                    lines.append(f"        +{sig}")
+                else:
+                    lines.append(f"        +{method_name}()")
+
+            if not cls_methods:
+                lines.append("        ...")
+
+            lines.append("    }")
 
         return "\n".join(lines)
