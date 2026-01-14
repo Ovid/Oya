@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { ProgressEvent } from '../types';
 import { streamJobProgress, cancelJob } from '../api/client';
+import { ELAPSED_TIME_UPDATE_MS } from '../config';
 import { formatElapsedTime, PHASES, PHASE_ORDER } from './generationConstants';
 
 interface GenerationProgressProps {
@@ -29,7 +30,7 @@ export function GenerationProgress({ jobId, onComplete, onError, onCancelled }: 
   useEffect(() => {
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
-    }, 1000);
+    }, ELAPSED_TIME_UPDATE_MS);
     return () => clearInterval(timer);
   }, [startTime]);
 

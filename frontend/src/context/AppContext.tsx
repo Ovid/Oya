@@ -1,5 +1,6 @@
 import { createContext, useReducer, useEffect, type ReactNode } from 'react';
 import type { RepoStatus, WikiTree, WikiPage, JobStatus, NoteScope, GenerationStatus } from '../types';
+import { STORAGE_KEY_ASK_PANEL_OPEN, STORAGE_KEY_DARK_MODE } from '../config';
 import * as api from '../api/client';
 
 interface NoteEditorState {
@@ -38,14 +39,14 @@ type Action =
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') return false;
-  const stored = localStorage.getItem('oya-dark-mode');
+  const stored = localStorage.getItem(STORAGE_KEY_DARK_MODE);
   if (stored !== null) return stored === 'true';
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 function getInitialAskPanelOpen(): boolean {
   if (typeof window === 'undefined') return false;
-  const stored = localStorage.getItem('oya-ask-panel-open');
+  const stored = localStorage.getItem(STORAGE_KEY_ASK_PANEL_OPEN);
   return stored === 'true';
 }
 
@@ -182,12 +183,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const toggleDarkMode = () => {
     const newValue = !state.darkMode;
-    localStorage.setItem('oya-dark-mode', String(newValue));
+    localStorage.setItem(STORAGE_KEY_DARK_MODE, String(newValue));
     dispatch({ type: 'SET_DARK_MODE', payload: newValue });
   };
 
   const setAskPanelOpen = (open: boolean) => {
-    localStorage.setItem('oya-ask-panel-open', String(open));
+    localStorage.setItem(STORAGE_KEY_ASK_PANEL_OPEN, String(open));
     dispatch({ type: 'SET_ASK_PANEL_OPEN', payload: open });
   };
 

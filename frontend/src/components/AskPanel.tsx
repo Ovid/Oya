@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { askQuestion } from '../api/client';
-import type { QAResponse, Citation, ConfidenceLevel } from '../types';
+import { CONFIDENCE_COLORS } from '../config';
+import type { QAResponse, Citation } from '../types';
 
 interface QAMessage {
   question: string;
@@ -14,12 +15,6 @@ interface AskPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const confidenceColors: Record<ConfidenceLevel, string> = {
-  high: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  low: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-};
 
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   const [question, setQuestion] = useState('');
@@ -92,7 +87,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             {/* Answer */}
             <div className="space-y-2">
               {/* Confidence banner */}
-              <div className={`px-3 py-1 rounded text-xs ${confidenceColors[msg.response.confidence]}`}>
+              <div className={`px-3 py-1 rounded text-xs ${CONFIDENCE_COLORS[msg.response.confidence]}`}>
                 {msg.response.disclaimer}
               </div>
 
