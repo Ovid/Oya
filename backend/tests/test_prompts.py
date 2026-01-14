@@ -249,7 +249,8 @@ class TestFileLinksFormatter:
         assert "| File | Purpose |" in result
         assert "[app.py](../files/src-api-app-py.md)" in result
         assert "FastAPI application setup" in result
-        assert "[__init__.py](../files/src-api-__init__-py.md)" in result
+        # Canonical path_to_slug strips underscores: __init__.py -> init-py
+        assert "[__init__.py](../files/src-api-init-py.md)" in result
 
     def test_format_file_links_empty(self):
         """Returns message when no files."""

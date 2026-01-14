@@ -4,6 +4,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from oya.generation.summaries import path_to_slug
+
 
 @dataclass
 class PromptTemplate:
@@ -628,7 +630,7 @@ def format_subdirectory_summaries(
     lines = ["| Directory | Purpose |", "|-----------|---------|"]
     for summary in sorted(direct_children, key=lambda s: s.directory_path):
         name = summary.directory_path.split("/")[-1]
-        slug = summary.directory_path.replace("/", "-").lower()
+        slug = path_to_slug(summary.directory_path, include_extension=False)
         link = f"[{name}](./{slug}.md)"
         purpose = summary.purpose or "No description"
         lines.append(f"| {link} | {purpose} |")
@@ -651,8 +653,7 @@ def format_file_links(file_summaries: list[Any]) -> str:
     lines = ["| File | Purpose |", "|------|---------|"]
     for summary in sorted(file_summaries, key=lambda s: s.file_path):
         filename = summary.file_path.split("/")[-1]
-        # File slug: replace / with - and . with -
-        slug = summary.file_path.replace("/", "-").replace(".", "-").lower()
+        slug = path_to_slug(summary.file_path)
         link = f"[{filename}](../files/{slug}.md)"
         purpose = summary.purpose or "No description"
         lines.append(f"| {link} | {purpose} |")
@@ -680,10 +681,6 @@ def generate_breadcrumb(directory_path: str, project_name: str) -> str:
     parts = directory_path.split("/")
     depth = len(parts)
 
-    # Build slugs for each ancestor
-    def build_slug(path_parts: list[str]) -> str:
-        return "-".join(path_parts).lower()
-
     # Root link
     root_link = f"[{project_name}](./root.md)"
 
@@ -691,13 +688,15 @@ def generate_breadcrumb(directory_path: str, project_name: str) -> str:
         # Show full path
         links = [root_link]
         for i in range(len(parts) - 1):
-            slug = build_slug(parts[: i + 1])
+            ancestor_path = "/".join(parts[: i + 1])
+            slug = path_to_slug(ancestor_path, include_extension=False)
             links.append(f"[{parts[i]}](./{slug}.md)")
         links.append(parts[-1])  # Current directory (no link)
         return " / ".join(links)
     else:
         # Truncate middle: root / ... / parent / current
-        parent_slug = build_slug(parts[:-1])
+        parent_path = "/".join(parts[:-1])
+        parent_slug = path_to_slug(parent_path, include_extension=False)
         parent_link = f"[{parts[-2]}](./{parent_slug}.md)"
         return f"{root_link} / ... / {parent_link} / {parts[-1]}"
 
