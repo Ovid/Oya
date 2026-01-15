@@ -13,6 +13,8 @@ import yaml
 
 import logging
 
+from oya.constants.issues import ISSUE_CATEGORIES, ISSUE_SEVERITIES
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +41,76 @@ def path_to_slug(path: str, include_extension: bool = True) -> str:
     slug = re.sub(r"[^a-z0-9-]", "", slug.lower())
     slug = re.sub(r"-+", "-", slug)
     return slug.strip("-")
+
+
+@dataclass
+class FileIssue:
+    """A potential issue identified in a source file.
+
+    Represents bugs, security concerns, or design flaws detected during
+    file analysis. Issues are stored both in FileSummary (for display)
+    and in a dedicated ChromaDB collection (for Q&A queries).
+
+    Attributes:
+        file_path: Path to the source file containing the issue.
+        category: Type of issue (security, reliability, maintainability).
+        severity: Urgency level (problem, suggestion).
+        title: Brief description of the issue.
+        description: Detailed explanation of why this matters.
+        line_range: Optional (start, end) line numbers where issue occurs.
+    """
+
+    file_path: str
+    category: str
+    severity: str
+    title: str
+    description: str
+    line_range: tuple[int, int] | None = None
+
+    def __post_init__(self):
+        """Validate category and severity fields."""
+        if self.category not in ISSUE_CATEGORIES:
+            raise ValueError(
+                f"Invalid category '{self.category}'. "
+                f"Must be one of: {', '.join(sorted(ISSUE_CATEGORIES))}"
+            )
+        if self.severity not in ISSUE_SEVERITIES:
+            raise ValueError(
+                f"Invalid severity '{self.severity}'. "
+                f"Must be one of: {', '.join(sorted(ISSUE_SEVERITIES))}"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dictionary for storage."""
+        result = {
+            "file_path": self.file_path,
+            "category": self.category,
+            "severity": self.severity,
+            "title": self.title,
+            "description": self.description,
+        }
+        if self.line_range:
+            result["line_start"] = self.line_range[0]
+            result["line_end"] = self.line_range[1]
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FileIssue":
+        """Deserialize from dictionary."""
+        line_range = None
+        if "line_start" in data and "line_end" in data:
+            line_range = (data["line_start"], data["line_end"])
+        elif "lines" in data and isinstance(data["lines"], list) and len(data["lines"]) >= 2:
+            line_range = (data["lines"][0], data["lines"][1])
+
+        return cls(
+            file_path=data.get("file_path", ""),
+            category=data.get("category", "maintainability"),
+            severity=data.get("severity", "suggestion"),
+            title=data.get("title", ""),
+            description=data.get("description", ""),
+            line_range=line_range,
+        )
 
 
 @dataclass

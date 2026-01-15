@@ -1937,6 +1937,82 @@ class TestSynthesisMapExtended:
         assert restored.layer_interactions == ""
 
 
+class TestFileIssue:
+    """Tests for FileIssue dataclass."""
+
+    def test_file_issue_creation(self):
+        """FileIssue can be created with all fields."""
+        from oya.generation.summaries import FileIssue
+
+        issue = FileIssue(
+            file_path="src/api/routes.py",
+            category="security",
+            severity="problem",
+            title="SQL injection risk",
+            description="Query built with string concatenation",
+            line_range=(45, 47),
+        )
+
+        assert issue.file_path == "src/api/routes.py"
+        assert issue.category == "security"
+        assert issue.severity == "problem"
+        assert issue.title == "SQL injection risk"
+        assert issue.line_range == (45, 47)
+
+    def test_file_issue_optional_line_range(self):
+        """FileIssue line_range is optional."""
+        from oya.generation.summaries import FileIssue
+
+        issue = FileIssue(
+            file_path="src/utils.py",
+            category="maintainability",
+            severity="suggestion",
+            title="Consider extracting method",
+            description="Function is too long",
+            line_range=None,
+        )
+
+        assert issue.line_range is None
+
+    def test_file_issue_to_dict(self):
+        """FileIssue serializes to dict correctly."""
+        from oya.generation.summaries import FileIssue
+
+        issue = FileIssue(
+            file_path="test.py",
+            category="reliability",
+            severity="problem",
+            title="Unhandled exception",
+            description="Missing try/except",
+            line_range=(10, 15),
+        )
+
+        d = issue.to_dict()
+        assert d["file_path"] == "test.py"
+        assert d["category"] == "reliability"
+        assert d["severity"] == "problem"
+        assert d["line_start"] == 10
+        assert d["line_end"] == 15
+
+    def test_file_issue_from_dict(self):
+        """FileIssue deserializes from dict correctly."""
+        from oya.generation.summaries import FileIssue
+
+        data = {
+            "file_path": "test.py",
+            "category": "security",
+            "severity": "suggestion",
+            "title": "Hardcoded secret",
+            "description": "API key in source",
+            "line_start": 5,
+            "line_end": 5,
+        }
+
+        issue = FileIssue.from_dict(data)
+        assert issue.file_path == "test.py"
+        assert issue.line_range == (5, 5)
+
+
 class TestCodeMetrics:
     """Tests for CodeMetrics dataclass."""
 
