@@ -404,3 +404,66 @@ class TestOverviewSynthesisTemplate:
         assert "Technology Stack" in template_str
         assert "Getting Started" in template_str
         assert "Architecture" in template_str
+
+
+class TestGetOverviewPrompt:
+    """Tests for get_overview_prompt function."""
+
+    def test_includes_entry_points_in_prompt(self):
+        """Test that entry points are included in generated prompt."""
+        from oya.generation.prompts import get_overview_prompt
+        from oya.generation.summaries import (
+            SynthesisMap,
+            EntryPointInfo,
+            CodeMetrics,
+            LayerInfo,
+        )
+
+        synthesis_map = SynthesisMap(
+            layers={"api": LayerInfo(name="api", purpose="HTTP", directories=[], files=[])},
+            project_summary="Test project",
+            entry_points=[
+                EntryPointInfo(name="main", entry_type="main_function", file="main.py", description="")
+            ],
+            tech_stack={"python": {"web_framework": ["FastAPI"]}},
+            metrics=CodeMetrics(
+                total_files=10,
+                files_by_layer={"api": 10},
+                lines_by_layer={"api": 500},
+                total_lines=500,
+            ),
+            layer_interactions="API calls domain directly.",
+        )
+
+        result = get_overview_prompt(
+            repo_name="test-repo",
+            readme_content="Test README",
+            file_tree="test/\n  main.py",
+            package_info={},
+            synthesis_map=synthesis_map,
+            architecture_diagram="```mermaid\ngraph TD\n```",
+        )
+
+        assert "main" in result
+        assert "main_function" in result
+        assert "FastAPI" in result
+        assert "500" in result
+        assert "API calls domain" in result
+        assert "mermaid" in result
+
+    def test_works_without_architecture_diagram(self):
+        """Test that function works when no diagram is provided."""
+        from oya.generation.prompts import get_overview_prompt
+        from oya.generation.summaries import SynthesisMap
+
+        synthesis_map = SynthesisMap(project_summary="Test")
+
+        result = get_overview_prompt(
+            repo_name="test-repo",
+            readme_content="Test",
+            file_tree="test/",
+            package_info={},
+            synthesis_map=synthesis_map,
+        )
+
+        assert "test-repo" in result
