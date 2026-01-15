@@ -359,3 +359,20 @@ class TestWorkflowGrouper:
         sync_group = next((g for g in groups if "sync" in g.slug.lower()), None)
         assert sync_group is not None
         assert len(sync_group.entry_points) == 3
+
+    def test_groups_by_type_fallback(self):
+        """Groups remaining entry points by type as fallback."""
+        grouper = WorkflowGrouper()
+
+        entry_points = [
+            EntryPointInfo(name="init", entry_type="cli_command", file="cli/init.py", description="init"),
+            EntryPointInfo(name="build", entry_type="cli_command", file="cli/build.py", description="build"),
+            EntryPointInfo(name="main", entry_type="main_function", file="main.py", description=""),
+        ]
+
+        groups = grouper.group(entry_points, file_imports={})
+
+        # CLI commands should be grouped together, main is separate
+        cli_group = next((g for g in groups if "cli" in g.slug.lower()), None)
+        assert cli_group is not None
+        assert len(cli_group.entry_points) == 2

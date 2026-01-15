@@ -105,7 +105,13 @@ class WorkflowGrouper:
         grouped_names = {ep.name for g in name_groups for ep in g.entry_points}
         ungrouped = [ep for ep in ungrouped if ep.name not in grouped_names]
 
-        # Create individual groups for any remaining
+        # 4. Type-based fallback for remaining
+        type_groups = self._group_by_type(ungrouped)
+        groups.extend(type_groups)
+        grouped_names = {ep.name for g in type_groups for ep in g.entry_points}
+        ungrouped = [ep for ep in ungrouped if ep.name not in grouped_names]
+
+        # Create individual groups for any still remaining
         for ep in ungrouped:
             groups.append(
                 WorkflowGroup(
@@ -244,6 +250,42 @@ class WorkflowGrouper:
             # Only create group if multiple entry points share the prefix
             if len(eps) >= 2:
                 name = f"{prefix.title()} Operations"
+                groups.append(
+                    WorkflowGroup(
+                        name=name,
+                        slug=self._slugify(name),
+                        entry_points=eps,
+                        related_files=list({ep.file for ep in eps if ep.file}),
+                        primary_layer="",
+                    )
+                )
+
+        return groups
+
+    def _group_by_type(
+        self, entry_points: list[EntryPointInfo]
+    ) -> list[WorkflowGroup]:
+        """Group entry points by their type as fallback."""
+        TYPE_NAMES = {
+            "cli_command": "CLI Commands",
+            "api_route": "API Routes",
+            "main_function": "Main Entry Points",
+            "background_task": "Background Tasks",
+        }
+
+        type_groups: dict[str, list[EntryPointInfo]] = {}
+
+        for ep in entry_points:
+            entry_type = ep.entry_type
+            if entry_type not in type_groups:
+                type_groups[entry_type] = []
+            type_groups[entry_type].append(ep)
+
+        groups = []
+        for entry_type, eps in type_groups.items():
+            # Only create group if multiple entry points of same type
+            if len(eps) >= 2:
+                name = TYPE_NAMES.get(entry_type, f"{entry_type.title()} Workflows")
                 groups.append(
                     WorkflowGroup(
                         name=name,
