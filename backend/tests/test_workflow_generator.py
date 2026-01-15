@@ -321,3 +321,22 @@ class TestWorkflowGrouper:
         assert orders_group is not None
         assert len(users_group.entry_points) == 2
         assert len(orders_group.entry_points) == 2
+
+    def test_groups_by_file_path(self):
+        """Groups non-route entry points by file."""
+        grouper = WorkflowGrouper()
+
+        entry_points = [
+            EntryPointInfo(name="export_csv", entry_type="cli_command", file="commands/export.py", description="csv"),
+            EntryPointInfo(name="export_json", entry_type="cli_command", file="commands/export.py", description="json"),
+            EntryPointInfo(name="import_data", entry_type="cli_command", file="commands/import.py", description="data"),
+        ]
+
+        groups = grouper.group(entry_points, file_imports={})
+
+        # Should have 2 groups: export.py and import.py
+        assert len(groups) == 2
+
+        export_group = next((g for g in groups if "export" in g.slug.lower()), None)
+        assert export_group is not None
+        assert len(export_group.entry_points) == 2

@@ -93,9 +93,13 @@ class WorkflowGrouper:
         grouped_names = {ep.name for g in route_groups for ep in g.entry_points}
         ungrouped = [ep for ep in ungrouped if ep.name not in grouped_names]
 
-        # TODO: Add more grouping strategies in subsequent tasks
+        # 2. File-based grouping for remaining
+        file_groups = self._group_by_file(ungrouped)
+        groups.extend(file_groups)
+        grouped_names = {ep.name for g in file_groups for ep in g.entry_points}
+        ungrouped = [ep for ep in ungrouped if ep.name not in grouped_names]
 
-        # For now, create individual groups for remaining
+        # Create individual groups for any remaining
         for ep in ungrouped:
             groups.append(
                 WorkflowGroup(
@@ -176,6 +180,42 @@ class WorkflowGrouper:
     def _prefix_to_name(self, prefix: str) -> str:
         """Convert route prefix to human-readable name."""
         return f"{prefix.replace('_', ' ').replace('-', ' ').title()} API"
+
+    def _group_by_file(
+        self, entry_points: list[EntryPointInfo]
+    ) -> list[WorkflowGroup]:
+        """Group entry points by their source file."""
+        file_groups: dict[str, list[EntryPointInfo]] = {}
+
+        for ep in entry_points:
+            if ep.file:
+                if ep.file not in file_groups:
+                    file_groups[ep.file] = []
+                file_groups[ep.file].append(ep)
+
+        groups = []
+        for file_path, eps in file_groups.items():
+            # Only create group if multiple entry points in same file
+            if len(eps) >= 2:
+                name = self._file_to_name(file_path)
+                groups.append(
+                    WorkflowGroup(
+                        name=name,
+                        slug=self._slugify(name),
+                        entry_points=eps,
+                        related_files=[file_path],
+                        primary_layer="",
+                    )
+                )
+
+        return groups
+
+    def _file_to_name(self, file_path: str) -> str:
+        """Convert file path to human-readable workflow name."""
+        # Get filename without extension
+        from pathlib import Path
+        name = Path(file_path).stem
+        return self._humanize_name(name)
 
     def _humanize_name(self, name: str) -> str:
         """Convert a symbol name to a human-readable name."""
