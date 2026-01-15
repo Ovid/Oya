@@ -57,6 +57,140 @@ class WorkflowGroup:
     primary_layer: str = ""
 
 
+class WorkflowGrouper:
+    """Groups entry points into workflow domains using pattern heuristics.
+
+    Grouping strategy (priority order):
+    1. Route path prefix - for HTTP endpoints
+    2. File path - entry points in same file
+    3. Function name prefix - common prefixes like export_, sync_
+    4. Entry point type - fallback grouping by type
+    """
+
+    def group(
+        self,
+        entry_points: list[EntryPointInfo],
+        file_imports: dict[str, list[str]],
+    ) -> list[WorkflowGroup]:
+        """Group entry points by domain and trace related files.
+
+        Args:
+            entry_points: List of EntryPointInfo from SynthesisMap.
+            file_imports: Map of file paths to their imports.
+
+        Returns:
+            List of WorkflowGroup objects.
+        """
+        if not entry_points:
+            return []
+
+        groups: list[WorkflowGroup] = []
+        ungrouped = list(entry_points)
+
+        # 1. Route-based grouping for HTTP endpoints
+        route_groups = self._group_by_route_prefix(ungrouped)
+        groups.extend(route_groups)
+        grouped_names = {ep.name for g in route_groups for ep in g.entry_points}
+        ungrouped = [ep for ep in ungrouped if ep.name not in grouped_names]
+
+        # TODO: Add more grouping strategies in subsequent tasks
+
+        # For now, create individual groups for remaining
+        for ep in ungrouped:
+            groups.append(
+                WorkflowGroup(
+                    name=self._humanize_name(ep.name),
+                    slug=self._slugify(ep.name),
+                    entry_points=[ep],
+                    related_files=[ep.file] if ep.file else [],
+                    primary_layer="",
+                )
+            )
+
+        return groups
+
+    def _group_by_route_prefix(
+        self, entry_points: list[EntryPointInfo]
+    ) -> list[WorkflowGroup]:
+        """Group API routes by common URL prefix.
+
+        Extracts first 2 path segments after common bases (/api/, /v1/, etc).
+        """
+        # Filter to route entry points with descriptions (route paths)
+        routes = [ep for ep in entry_points if ep.entry_type == "api_route" and ep.description]
+
+        if not routes:
+            return []
+
+        # Extract route prefixes
+        prefix_groups: dict[str, list[EntryPointInfo]] = {}
+        for ep in routes:
+            prefix = self._extract_route_prefix(ep.description)
+            if prefix:
+                if prefix not in prefix_groups:
+                    prefix_groups[prefix] = []
+                prefix_groups[prefix].append(ep)
+
+        # Convert to WorkflowGroups
+        groups = []
+        for prefix, eps in prefix_groups.items():
+            # Only create group if multiple entry points share the prefix
+            if len(eps) >= 1:
+                name = self._prefix_to_name(prefix)
+                groups.append(
+                    WorkflowGroup(
+                        name=name,
+                        slug=self._slugify(name),
+                        entry_points=eps,
+                        related_files=list({ep.file for ep in eps if ep.file}),
+                        primary_layer="api",
+                    )
+                )
+
+        return groups
+
+    def _extract_route_prefix(self, route_path: str) -> str:
+        """Extract grouping prefix from route path.
+
+        /api/users -> users
+        /api/v1/orders/{id} -> orders
+        /users -> users
+        """
+        # Remove common API prefixes
+        path = route_path.lstrip("/")
+        for prefix in ["api/v1/", "api/v2/", "api/", "v1/", "v2/"]:
+            if path.startswith(prefix):
+                path = path[len(prefix) :]
+                break
+
+        # Get first segment (the resource name)
+        segments = path.split("/")
+        if segments:
+            # Remove path parameters like {id}
+            first = segments[0]
+            if not first.startswith("{"):
+                return first.lower()
+
+        return ""
+
+    def _prefix_to_name(self, prefix: str) -> str:
+        """Convert route prefix to human-readable name."""
+        return f"{prefix.replace('_', ' ').replace('-', ' ').title()} API"
+
+    def _humanize_name(self, name: str) -> str:
+        """Convert a symbol name to a human-readable name."""
+        human = name.replace("_", " ")
+        human = re.sub(r"([a-z])([A-Z])", r"\1 \2", human)
+        return human.title()
+
+    def _slugify(self, name: str) -> str:
+        """Convert a name to a URL-friendly slug."""
+        slug = name.replace("_", "-").replace(" ", "-").lower()
+        slug = re.sub(r"[^a-z0-9-]", "", slug)
+        slug = re.sub(r"-+", "-", slug)
+        return slug.strip("-")
+
+
 @dataclass
 class DiscoveredWorkflow:
     """Represents a discovered workflow.

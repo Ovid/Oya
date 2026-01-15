@@ -10,6 +10,7 @@ from oya.generation.workflows import (
     WorkflowDiscovery,
     WorkflowGenerator,
     WorkflowGroup,
+    WorkflowGrouper,
     DiscoveredWorkflow,
 )
 from oya.generation.summaries import EntryPointInfo
@@ -272,3 +273,51 @@ class TestWorkflowGroup:
         assert len(group.entry_points) == 2
         assert "api/users.py" in group.related_files
         assert group.primary_layer == "api"
+
+
+class TestWorkflowGrouper:
+    """Tests for WorkflowGrouper."""
+
+    def test_groups_by_route_prefix(self):
+        """Groups API routes by common URL prefix."""
+        grouper = WorkflowGrouper()
+
+        entry_points = [
+            EntryPointInfo(
+                name="get_users",
+                entry_type="api_route",
+                file="api/users.py",
+                description="/api/users",
+            ),
+            EntryPointInfo(
+                name="create_user",
+                entry_type="api_route",
+                file="api/users.py",
+                description="/api/users",
+            ),
+            EntryPointInfo(
+                name="get_orders",
+                entry_type="api_route",
+                file="api/orders.py",
+                description="/api/orders",
+            ),
+            EntryPointInfo(
+                name="list_orders",
+                entry_type="api_route",
+                file="api/orders.py",
+                description="/api/orders/{id}",
+            ),
+        ]
+
+        groups = grouper.group(entry_points, file_imports={})
+
+        # Should have 2 groups: users and orders
+        assert len(groups) == 2
+
+        users_group = next((g for g in groups if "users" in g.slug.lower()), None)
+        orders_group = next((g for g in groups if "orders" in g.slug.lower()), None)
+
+        assert users_group is not None
+        assert orders_group is not None
+        assert len(users_group.entry_points) == 2
+        assert len(orders_group.entry_points) == 2
