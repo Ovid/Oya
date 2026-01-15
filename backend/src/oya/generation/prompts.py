@@ -79,7 +79,8 @@ Analyze the summaries above and produce a JSON response with the following struc
   "dependency_graph": {{
     "layer_name": ["dependent_layer1", "dependent_layer2"]
   }},
-  "project_summary": "A comprehensive 2-3 sentence summary of what this project does, its main purpose, and key technologies used."
+  "project_summary": "A comprehensive 2-3 sentence summary of what this project does, its main purpose, and key technologies used.",
+  "layer_interactions": "A 2-4 sentence description of how the architectural layers communicate with each other. Describe the flow of data and control between layers, including patterns used (direct calls, dependency injection, events, etc.)."
 }}
 ```
 
@@ -93,6 +94,8 @@ Guidelines:
 2. **dependency_graph**: Map which layers depend on which other layers. For example, "api" typically depends on "domain", and "domain" may depend on "infrastructure".
 
 3. **project_summary**: Write a clear, informative summary that would help a new developer understand what this codebase does at a glance.
+
+4. **layer_interactions**: Describe how code flows between layers. Focus on the patterns used for communication and the direction of dependencies. Be concrete but concise. For example: "API handlers delegate to domain services via dependency injection. Domain services access data through repository interfaces implemented in the infrastructure layer."
 
 Respond with valid JSON only, no additional text."""
 )

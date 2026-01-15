@@ -259,3 +259,25 @@ class TestFileLinksFormatter:
         result = format_file_links([])
 
         assert "No files" in result
+
+
+class TestSynthesisTemplate:
+    """Tests for synthesis prompt template."""
+
+    def test_synthesis_template_requests_layer_interactions(self):
+        """Test that synthesis template asks for layer_interactions field."""
+        from oya.generation.prompts import SYNTHESIS_TEMPLATE
+
+        template_str = SYNTHESIS_TEMPLATE.template
+
+        assert "layer_interactions" in template_str
+        assert "how" in template_str.lower() and "layer" in template_str.lower()
+
+    def test_synthesis_template_json_schema_includes_layer_interactions(self):
+        """Test that JSON schema in synthesis template includes layer_interactions."""
+        from oya.generation.prompts import SYNTHESIS_TEMPLATE
+
+        template_str = SYNTHESIS_TEMPLATE.template
+
+        # Should have layer_interactions in the JSON example
+        assert '"layer_interactions"' in template_str
