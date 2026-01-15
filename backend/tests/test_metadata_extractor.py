@@ -1,7 +1,5 @@
 """Tests for metadata extraction."""
 
-import pytest
-
 from oya.indexing.metadata import MetadataExtractor
 from oya.generation.summaries import SynthesisMap, LayerInfo, EntryPointInfo
 
