@@ -470,3 +470,49 @@ class TestGetOverviewPrompt:
         )
 
         assert "test-repo" in result
+
+
+class TestFileTemplateIssues:
+    """Tests for FILE_TEMPLATE issue detection instructions."""
+
+    def test_file_template_includes_issues_instructions(self):
+        """FILE_TEMPLATE includes issue detection instructions."""
+        from oya.generation.prompts import FILE_TEMPLATE
+
+        template = FILE_TEMPLATE.template
+
+        # Check for issue detection section
+        assert "Code Analysis" in template or "issues" in template.lower()
+        assert "security" in template.lower()
+        assert "reliability" in template.lower()
+        assert "maintainability" in template.lower()
+
+    def test_file_template_yaml_schema_includes_issues(self):
+        """FILE_TEMPLATE YAML schema includes issues field."""
+        from oya.generation.prompts import FILE_TEMPLATE
+
+        template = FILE_TEMPLATE.template
+
+        # YAML schema should show issues structure
+        assert "issues:" in template
+        assert "category:" in template
+        assert "severity:" in template
+        assert "title:" in template
+        assert "description:" in template
+
+    def test_get_file_prompt_renders_correctly(self):
+        """get_file_prompt renders without errors."""
+        from oya.generation.prompts import get_file_prompt
+
+        prompt = get_file_prompt(
+            file_path="test.py",
+            content="def hello(): pass",
+            symbols=[{"name": "hello", "type": "function", "line": 1}],
+            imports=["import os"],
+            architecture_summary="Utility module",
+            language="python",
+        )
+
+        assert "test.py" in prompt
+        assert "def hello()" in prompt
+        assert "issues:" in prompt
