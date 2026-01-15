@@ -246,3 +246,65 @@ async def test_backward_compatible_without_synthesis_map(generator, mock_llm_cli
     assert result is not None
     assert result.page_type == "overview"
     mock_llm_client.generate.assert_called_once()
+
+
+# =============================================================================
+# Tests for architecture diagram parameter (Task 12)
+# =============================================================================
+
+
+class TestOverviewGeneratorWithDiagram:
+    """Tests for OverviewGenerator with architecture diagram."""
+
+    @pytest.mark.asyncio
+    async def test_generate_accepts_architecture_diagram(self):
+        """Test that generate method accepts architecture_diagram parameter."""
+        from oya.generation.overview import OverviewGenerator
+        from oya.generation.summaries import (
+            SynthesisMap,
+            EntryPointInfo,
+            CodeMetrics,
+            LayerInfo,
+        )
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Test Overview\n\nGenerated content."
+
+        mock_repo = MagicMock()
+        mock_repo.path.name = "test-repo"
+
+        generator = OverviewGenerator(mock_llm, mock_repo)
+
+        synthesis_map = SynthesisMap(
+            layers={"api": LayerInfo(name="api", purpose="HTTP", directories=[], files=[])},
+            project_summary="Test project",
+            entry_points=[
+                EntryPointInfo(
+                    name="main", entry_type="main_function", file="main.py", description=""
+                )
+            ],
+            tech_stack={"python": {"web_framework": ["FastAPI"]}},
+            metrics=CodeMetrics(
+                total_files=5,
+                files_by_layer={"api": 5},
+                lines_by_layer={"api": 250},
+                total_lines=250,
+            ),
+            layer_interactions="Simple architecture.",
+        )
+
+        result = await generator.generate(
+            readme_content="Test README",
+            file_tree="test/\n  main.py",
+            package_info={"name": "test"},
+            synthesis_map=synthesis_map,
+            architecture_diagram="```mermaid\ngraph TD\n  A-->B\n```",
+        )
+
+        assert result.content == "# Test Overview\n\nGenerated content."
+        assert result.page_type == "overview"
+
+        # Verify the diagram was passed to the prompt
+        call_args = mock_llm.generate.call_args
+        prompt = call_args.kwargs.get("prompt") or call_args.args[0]
+        assert "mermaid" in prompt

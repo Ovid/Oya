@@ -60,6 +60,7 @@ class OverviewGenerator:
         file_tree: str,
         package_info: dict[str, Any],
         synthesis_map: SynthesisMap | None = None,
+        architecture_diagram: str = "",
     ) -> GeneratedPage:
         """Generate the overview page.
 
@@ -72,6 +73,7 @@ class OverviewGenerator:
             file_tree: String representation of file structure.
             package_info: Package metadata dict.
             synthesis_map: SynthesisMap with layer and component info (preferred).
+            architecture_diagram: Pre-generated Mermaid diagram for architecture visualization.
 
         Returns:
             GeneratedPage with overview content.
@@ -84,6 +86,7 @@ class OverviewGenerator:
             file_tree=file_tree,
             package_info=package_info,
             synthesis_map=synthesis_map,
+            architecture_diagram=architecture_diagram,
         )
 
         content = await self.llm_client.generate(
