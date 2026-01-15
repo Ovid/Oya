@@ -9,8 +9,10 @@ import pytest
 from oya.generation.workflows import (
     WorkflowDiscovery,
     WorkflowGenerator,
+    WorkflowGroup,
     DiscoveredWorkflow,
 )
+from oya.generation.summaries import EntryPointInfo
 from oya.parsing.models import ParsedSymbol, SymbolType
 
 
@@ -238,3 +240,35 @@ class TestExtractEntryPointDescription:
         result = extract_entry_point_description(symbol)
 
         assert result == "/api/v1/users"
+
+
+class TestWorkflowGroup:
+    """Tests for WorkflowGroup dataclass."""
+
+    def test_workflow_group_creation(self):
+        """WorkflowGroup holds grouped entry points."""
+        entry_points = [
+            EntryPointInfo(
+                name="get_users", entry_type="api_route", file="api/users.py", description="/users"
+            ),
+            EntryPointInfo(
+                name="create_user",
+                entry_type="api_route",
+                file="api/users.py",
+                description="/users",
+            ),
+        ]
+
+        group = WorkflowGroup(
+            name="Users API",
+            slug="users-api",
+            entry_points=entry_points,
+            related_files=["api/users.py", "services/user_service.py"],
+            primary_layer="api",
+        )
+
+        assert group.name == "Users API"
+        assert group.slug == "users-api"
+        assert len(group.entry_points) == 2
+        assert "api/users.py" in group.related_files
+        assert group.primary_layer == "api"

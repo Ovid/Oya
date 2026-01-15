@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_workflow_prompt
-from oya.generation.summaries import SynthesisMap
+from oya.generation.summaries import EntryPointInfo, SynthesisMap
 from oya.parsing.models import ParsedSymbol, SymbolType
 
 
@@ -36,6 +36,25 @@ def extract_entry_point_description(symbol: ParsedSymbol) -> str:
             return cli_match.group(1)
 
     return ""
+
+
+@dataclass
+class WorkflowGroup:
+    """Represents a group of related entry points forming a workflow.
+
+    Attributes:
+        name: Human-readable name of the workflow group.
+        slug: URL-friendly identifier.
+        entry_points: List of EntryPointInfo objects in this group.
+        related_files: List of file paths related to this workflow (traced via imports).
+        primary_layer: Dominant architectural layer for this workflow.
+    """
+
+    name: str
+    slug: str
+    entry_points: list[EntryPointInfo] = field(default_factory=list)
+    related_files: list[str] = field(default_factory=list)
+    primary_layer: str = ""
 
 
 @dataclass
