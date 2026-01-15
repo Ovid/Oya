@@ -164,3 +164,9 @@ Content here.
         assert all(c.section_header == "Big Section" for c in chunks)
         # Chunk indices should be sequential
         assert [c.chunk_index for c in chunks] == list(range(len(chunks)))
+        # All chunk IDs must be unique (required for vector DB storage)
+        chunk_ids = [c.id for c in chunks]
+        assert len(chunk_ids) == len(set(chunk_ids)), "Chunk IDs must be unique"
+        # First chunk has base ID, subsequent chunks include index
+        assert chunks[0].id == "wiki_files_big_big-section"
+        assert chunks[1].id == "wiki_files_big_big-section_1"

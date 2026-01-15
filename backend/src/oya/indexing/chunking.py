@@ -328,9 +328,13 @@ class ChunkingService:
         token_count = estimate_tokens(prefixed_content)
 
         # Generate chunk ID
+        # Include chunk_index for split sections to ensure uniqueness
         path_slug = self._slugify(document_path.replace(".md", ""))
         header_slug = self._slugify(header)
-        chunk_id = f"wiki_{path_slug}_{header_slug}"
+        if chunk_index > 0:
+            chunk_id = f"wiki_{path_slug}_{header_slug}_{chunk_index}"
+        else:
+            chunk_id = f"wiki_{path_slug}_{header_slug}"
 
         # Create metadata
         if base_metadata:
