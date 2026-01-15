@@ -11,9 +11,8 @@ from oya.generation.workflows import (
     WorkflowGenerator,
     WorkflowGroup,
     WorkflowGrouper,
-    DiscoveredWorkflow,
 )
-from oya.generation.summaries import EntryPointInfo
+from oya.generation.summaries import EntryPointInfo, SynthesisMap, LayerInfo, ComponentInfo
 from oya.parsing.models import ParsedSymbol, SymbolType
 
 
@@ -127,44 +126,136 @@ class TestWorkflowGenerator:
         )
 
     @pytest.mark.asyncio
-    async def test_generates_workflow_page(self, generator, mock_llm_client):
-        """Generates workflow markdown."""
-        workflow = DiscoveredWorkflow(
+    async def test_generates_workflow_page_with_full_context(self, generator, mock_llm_client):
+        """Generates workflow markdown with full architectural context."""
+        workflow_group = WorkflowGroup(
+            name="Users API",
+            slug="users-api",
+            entry_points=[
+                EntryPointInfo(
+                    name="get_users",
+                    entry_type="api_route",
+                    file="api/users.py",
+                    description="/users",
+                ),
+            ],
+            related_files=["api/users.py", "services/user_service.py"],
+            primary_layer="api",
+        )
+
+        synthesis_map = SynthesisMap(
+            layers={
+                "api": LayerInfo(
+                    name="api", purpose="HTTP endpoints", files=["api/users.py"]
+                )
+            },
+            key_components=[
+                ComponentInfo(
+                    name="UserService",
+                    file="services/user_service.py",
+                    role="User operations",
+                    layer="domain",
+                )
+            ],
+            project_summary="A user management system",
+            layer_interactions="API calls domain services",
+        )
+
+        symbols = []
+        file_imports = {}
+
+        result = await generator.generate(
+            workflow_group=workflow_group,
+            synthesis_map=synthesis_map,
+            symbols=symbols,
+            file_imports=file_imports,
+        )
+
+        assert result.page_type == "workflow"
+        assert result.path == "workflows/users-api.md"
+        mock_llm_client.generate.assert_called_once()
+
+        # Verify the prompt includes synthesis context
+        call_args = mock_llm_client.generate.call_args
+        prompt = call_args.kwargs.get("prompt", call_args.args[0] if call_args.args else "")
+        assert "Users API" in prompt
+        assert "api" in prompt.lower()  # Layer info
+
+    @pytest.mark.asyncio
+    async def test_generates_workflow_page_with_symbols(self, generator, mock_llm_client):
+        """Generates workflow with code context from symbols."""
+        workflow_group = WorkflowGroup(
             name="User Authentication",
             slug="user-authentication",
             entry_points=[
-                ParsedSymbol(
+                EntryPointInfo(
                     name="login",
-                    symbol_type=SymbolType.ROUTE,
-                    start_line=1,
-                    end_line=10,
-                    metadata={"file": "auth/login.py"},
-                )
+                    entry_type="api_route",
+                    file="auth/login.py",
+                    description="/login",
+                ),
             ],
             related_files=["auth/login.py", "auth/session.py"],
+            primary_layer="api",
         )
+
+        synthesis_map = SynthesisMap(
+            layers={"api": LayerInfo(name="api", purpose="HTTP endpoints", files=[])},
+            project_summary="Auth system",
+        )
+
+        symbols = [
+            ParsedSymbol(
+                name="login_user",
+                symbol_type=SymbolType.FUNCTION,
+                start_line=1,
+                end_line=10,
+                metadata={"file": "auth/login.py"},
+            ),
+            ParsedSymbol(
+                name="create_session",
+                symbol_type=SymbolType.FUNCTION,
+                start_line=12,
+                end_line=20,
+                metadata={"file": "auth/session.py"},
+            ),
+        ]
 
         result = await generator.generate(
-            workflow=workflow,
-            code_context="def login(): pass",
+            workflow_group=workflow_group,
+            synthesis_map=synthesis_map,
+            symbols=symbols,
+            file_imports={},
         )
 
-        assert "Authentication" in result.content
+        assert result.page_type == "workflow"
+        assert "user-authentication" in result.path
         mock_llm_client.generate.assert_called_once()
+
+        # Verify symbols are included in the prompt
+        call_args = mock_llm_client.generate.call_args
+        prompt = call_args.kwargs.get("prompt", call_args.args[0] if call_args.args else "")
+        assert "login_user" in prompt
+        assert "create_session" in prompt
 
     @pytest.mark.asyncio
     async def test_returns_workflow_metadata(self, generator):
         """Returns correct page metadata."""
-        workflow = DiscoveredWorkflow(
+        workflow_group = WorkflowGroup(
             name="Test Workflow",
             slug="test-workflow",
             entry_points=[],
             related_files=[],
+            primary_layer="",
         )
 
+        synthesis_map = SynthesisMap()
+
         result = await generator.generate(
-            workflow=workflow,
-            code_context="",
+            workflow_group=workflow_group,
+            synthesis_map=synthesis_map,
+            symbols=[],
+            file_imports={},
         )
 
         assert result.page_type == "workflow"

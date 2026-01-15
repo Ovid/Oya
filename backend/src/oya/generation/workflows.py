@@ -583,36 +583,39 @@ class WorkflowGenerator:
 
     async def generate(
         self,
-        workflow: DiscoveredWorkflow,
-        code_context: str,
-        synthesis_map: SynthesisMap | None = None,
+        workflow_group: WorkflowGroup,
+        synthesis_map: SynthesisMap,
+        symbols: list[ParsedSymbol],
+        file_imports: dict[str, list[str]],
     ) -> GeneratedPage:
-        """Generate a workflow documentation page.
+        """Generate a workflow documentation page with full architectural context.
 
         Args:
-            workflow: The discovered workflow to document.
-            code_context: Relevant code snippets or context.
-            synthesis_map: Optional SynthesisMap for architectural context.
+            workflow_group: The workflow group to document.
+            synthesis_map: Full synthesis context (layers, components, etc.)
+            symbols: Parsed symbols for code context.
+            file_imports: Import relationships for dependency info.
 
         Returns:
             GeneratedPage with workflow content.
         """
         repo_name = self.repo.path.name
 
+        # Build context for the prompt
+        context = self._build_context(workflow_group, synthesis_map, symbols)
+
         # Format entry points for the prompt
-        entry_points_list = []
-        for ep in workflow.entry_points:
-            ep_file = ep.metadata.get("file", "")
-            ep_name = ep.name
-            ep_type = ep.symbol_type.value
-            entry_points_list.append(f"{ep_name} ({ep_type}) in {ep_file}")
+        entry_points_list = [
+            f"{ep.name} ({ep.entry_type}) - {ep.description or 'N/A'} in {ep.file}"
+            for ep in workflow_group.entry_points
+        ]
 
         prompt = get_workflow_prompt(
             repo_name=repo_name,
-            workflow_name=workflow.name,
+            workflow_name=workflow_group.name,
             entry_points=entry_points_list,
-            related_files=workflow.related_files,
-            code_context=code_context,
+            related_files=workflow_group.related_files,
+            code_context=context.get("code_context", ""),
             synthesis_map=synthesis_map,
         )
 
@@ -626,6 +629,37 @@ class WorkflowGenerator:
         return GeneratedPage(
             content=content,
             page_type="workflow",
-            path=f"workflows/{workflow.slug}.md",
+            path=f"workflows/{workflow_group.slug}.md",
             word_count=word_count,
         )
+
+    def _build_context(
+        self,
+        workflow_group: WorkflowGroup,
+        synthesis_map: SynthesisMap,
+        symbols: list[ParsedSymbol],
+    ) -> dict:
+        """Build prompt context from available data.
+
+        Args:
+            workflow_group: The workflow group being documented.
+            synthesis_map: Full synthesis context.
+            symbols: All parsed symbols from the codebase.
+
+        Returns:
+            Dictionary with context for the prompt.
+        """
+        # Filter symbols to related files
+        related_symbols = [
+            s for s in symbols if s.metadata.get("file") in workflow_group.related_files
+        ]
+
+        # Format code context from symbols
+        code_context = ""
+        for symbol in related_symbols[:20]:  # Limit to avoid huge prompts
+            file = symbol.metadata.get("file", "")
+            code_context += f"- {symbol.name} ({symbol.symbol_type.value}) in {file}\n"
+
+        return {
+            "code_context": code_context or "No specific code context available.",
+        }
