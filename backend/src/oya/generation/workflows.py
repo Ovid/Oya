@@ -203,9 +203,7 @@ class WorkflowGrouper:
 
         # Trace related files and determine primary layer for all groups
         for group in groups:
-            group.related_files = self._find_related_files(
-                group.entry_points, file_imports
-            )
+            group.related_files = self._find_related_files(group.entry_points, file_imports)
             if synthesis_map:
                 group.primary_layer = self._determine_primary_layer(
                     group.entry_points, synthesis_map
@@ -213,9 +211,7 @@ class WorkflowGrouper:
 
         return groups
 
-    def _group_by_route_prefix(
-        self, entry_points: list[EntryPointInfo]
-    ) -> list[WorkflowGroup]:
+    def _group_by_route_prefix(self, entry_points: list[EntryPointInfo]) -> list[WorkflowGroup]:
         """Group API routes by common URL prefix.
 
         Extracts first 2 path segments after common bases (/api/, /v1/, etc).
@@ -281,9 +277,7 @@ class WorkflowGrouper:
         """Convert route prefix to human-readable name."""
         return f"{prefix.replace('_', ' ').replace('-', ' ').title()} API"
 
-    def _group_by_file(
-        self, entry_points: list[EntryPointInfo]
-    ) -> list[WorkflowGroup]:
+    def _group_by_file(self, entry_points: list[EntryPointInfo]) -> list[WorkflowGroup]:
         """Group entry points by their source file."""
         file_groups: dict[str, list[EntryPointInfo]] = {}
 
@@ -310,15 +304,25 @@ class WorkflowGrouper:
 
         return groups
 
-    def _group_by_name_prefix(
-        self, entry_points: list[EntryPointInfo]
-    ) -> list[WorkflowGroup]:
+    def _group_by_name_prefix(self, entry_points: list[EntryPointInfo]) -> list[WorkflowGroup]:
         """Group entry points by common function name prefix."""
         # Common prefixes that indicate related functionality
         COMMON_PREFIXES = [
-            "sync_", "export_", "import_", "process_", "handle_",
-            "create_", "update_", "delete_", "get_", "list_",
-            "validate_", "send_", "fetch_", "load_", "save_",
+            "sync_",
+            "export_",
+            "import_",
+            "process_",
+            "handle_",
+            "create_",
+            "update_",
+            "delete_",
+            "get_",
+            "list_",
+            "validate_",
+            "send_",
+            "fetch_",
+            "load_",
+            "save_",
         ]
 
         prefix_groups: dict[str, list[EntryPointInfo]] = {}
@@ -350,9 +354,7 @@ class WorkflowGrouper:
 
         return groups
 
-    def _group_by_type(
-        self, entry_points: list[EntryPointInfo]
-    ) -> list[WorkflowGroup]:
+    def _group_by_type(self, entry_points: list[EntryPointInfo]) -> list[WorkflowGroup]:
         """Group entry points by their type as fallback."""
         TYPE_NAMES = {
             "cli_command": "CLI Commands",
@@ -390,6 +392,7 @@ class WorkflowGrouper:
         """Convert file path to human-readable workflow name."""
         # Get filename without extension
         from pathlib import Path
+
         name = Path(file_path).stem
         return self._humanize_name(name)
 
@@ -433,8 +436,7 @@ class WorkflowGrouper:
                 # Filter to internal imports only (files that exist in our import map
                 # or look like relative paths)
                 internal = [
-                    f for f in imports
-                    if f in file_imports or "/" in f or f.endswith(".py")
+                    f for f in imports if f in file_imports or "/" in f or f.endswith(".py")
                 ]
                 next_frontier.update(internal)
             new_files = next_frontier - related

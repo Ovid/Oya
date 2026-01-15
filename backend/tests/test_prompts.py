@@ -13,9 +13,7 @@ from oya.generation.prompts import (
 
 def test_prompt_template_renders_variables():
     """PromptTemplate substitutes variables correctly."""
-    template = PromptTemplate(
-        "Hello {name}, welcome to {project}!"
-    )
+    template = PromptTemplate("Hello {name}, welcome to {project}!")
     result = template.render(name="Alice", project="Oya")
 
     assert result == "Hello Alice, welcome to Oya!"
@@ -87,7 +85,9 @@ def test_file_template_includes_developer_audience():
     assert "maintain" in template_text or "debug" in template_text or "extend" in template_text
 
     # Must NOT skip documentation for internal files
-    assert "must" in template_text and "always" in template_text and "documentation" in template_text
+    assert (
+        "must" in template_text and "always" in template_text and "documentation" in template_text
+    )
 
 
 def test_file_template_rejects_skip_documentation():
@@ -120,10 +120,7 @@ class TestBreadcrumbGeneration:
         """Deep directories (>4 levels) truncate middle."""
         from oya.generation.prompts import generate_breadcrumb
 
-        result = generate_breadcrumb(
-            "src/components/ui/forms/inputs/validation",
-            "my-project"
-        )
+        result = generate_breadcrumb("src/components/ui/forms/inputs/validation", "my-project")
 
         assert "[my-project](./root.md)" in result
         assert "..." in result
@@ -293,8 +290,12 @@ class TestFormatHelpers:
 
         entry_points = [
             EntryPointInfo(name="main", entry_type="main_function", file="main.py", description=""),
-            EntryPointInfo(name="get_users", entry_type="api_route", file="api/users.py", description="/users"),
-            EntryPointInfo(name="init", entry_type="cli_command", file="cli/main.py", description="init"),
+            EntryPointInfo(
+                name="get_users", entry_type="api_route", file="api/users.py", description="/users"
+            ),
+            EntryPointInfo(
+                name="init", entry_type="cli_command", file="cli/main.py", description="init"
+            ),
         ]
 
         result = _format_entry_points(entry_points)
@@ -423,7 +424,9 @@ class TestGetOverviewPrompt:
             layers={"api": LayerInfo(name="api", purpose="HTTP", directories=[], files=[])},
             project_summary="Test project",
             entry_points=[
-                EntryPointInfo(name="main", entry_type="main_function", file="main.py", description="")
+                EntryPointInfo(
+                    name="main", entry_type="main_function", file="main.py", description=""
+                )
             ],
             tech_stack={"python": {"web_framework": ["FastAPI"]}},
             metrics=CodeMetrics(

@@ -14,10 +14,10 @@
 // itself and the margin applied to the main content area when panels are open.
 // Values are in pixels and correspond to Tailwind classes (w-64 = 256px, etc.)
 
-export const SIDEBAR_WIDTH = 256;        // w-64 - Left navigation sidebar
-export const RIGHT_SIDEBAR_WIDTH = 224;  // w-56 - Table of contents
-export const ASK_PANEL_WIDTH = 350;      // w-[350px] - Q&A panel
-export const TOP_BAR_HEIGHT = 56;        // h-14 - Fixed header height
+export const SIDEBAR_WIDTH = 256 // w-64 - Left navigation sidebar
+export const RIGHT_SIDEBAR_WIDTH = 224 // w-56 - Table of contents
+export const ASK_PANEL_WIDTH = 350 // w-[350px] - Q&A panel
+export const TOP_BAR_HEIGHT = 56 // h-14 - Fixed header height
 
 // =============================================================================
 // Z-Index Layers
@@ -25,6 +25,6 @@ export const TOP_BAR_HEIGHT = 56;        // h-14 - Fixed header height
 // Stacking order for overlapping elements. Higher values appear on top.
 // Modals and their backdrops should be above all other content.
 
-export const Z_INDEX_TOP_BAR = 50;
-export const Z_INDEX_MODAL_BACKDROP = 50;
-export const Z_INDEX_MODAL = 50;
+export const Z_INDEX_TOP_BAR = 50
+export const Z_INDEX_MODAL_BACKDROP = 50
+export const Z_INDEX_MODAL = 50

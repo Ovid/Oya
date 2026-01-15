@@ -17,7 +17,9 @@ def workspace(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
+    )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=workspace, capture_output=True)
 
     (workspace / "README.md").write_text("# Test Repo")
@@ -27,6 +29,7 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     from oya.config import load_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
     _reset_db_instance()
@@ -45,7 +48,9 @@ def mock_qa_service():
         answer="The authentication system uses JWT tokens.",
         citations=[
             Citation(path="src/auth.py", title="auth.py", lines="10-20", url="/files/src_auth-py"),
-            Citation(path="docs/auth.md", title="Authentication", lines=None, url="/files/docs_auth-md"),
+            Citation(
+                path="docs/auth.md", title="Authentication", lines=None, url="/files/docs_auth-md"
+            ),
         ],
         confidence=ConfidenceLevel.HIGH,
         disclaimer="Based on strong evidence from the codebase.",
@@ -134,7 +139,10 @@ class TestQAEndpoint:
             assert response.status_code == 200
             data = response.json()
             assert data["confidence"] == "low"
-            assert "limited" in data["disclaimer"].lower() or "speculative" in data["disclaimer"].lower()
+            assert (
+                "limited" in data["disclaimer"].lower()
+                or "speculative" in data["disclaimer"].lower()
+            )
         finally:
             app.dependency_overrides.clear()
 
@@ -155,10 +163,12 @@ class TestQAServiceSearch:
         mock_vectorstore.query.return_value = {
             "ids": [["chunk_a", "chunk_c"]],
             "documents": [["Content A", "Content C"]],
-            "metadatas": [[
-                {"path": "a.md", "title": "A", "type": "file"},
-                {"path": "c.md", "title": "C", "type": "file"},
-            ]],
+            "metadatas": [
+                [
+                    {"path": "a.md", "title": "A", "type": "file"},
+                    {"path": "c.md", "title": "C", "type": "file"},
+                ]
+            ],
             "distances": [[0.1, 0.2]],
         }
 

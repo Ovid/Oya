@@ -18,6 +18,7 @@ def workspace_with_job(tmp_path, monkeypatch):
     monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     from oya.config import load_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
     _reset_db_instance()

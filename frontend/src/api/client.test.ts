@@ -1,25 +1,25 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { switchWorkspace, ApiError } from './client';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { switchWorkspace, ApiError } from './client'
 
 /**
  * Tests for switchWorkspace API function.
- * 
+ *
  * Feature: oya-config-improvements
- * Validates: Requirements 3.3 - WHEN a user submits a directory path, 
+ * Validates: Requirements 3.3 - WHEN a user submits a directory path,
  * THE System SHALL call the backend API to switch workspaces
  */
 
 describe('switchWorkspace', () => {
-  const originalFetch = global.fetch;
+  const originalFetch = global.fetch
 
   beforeEach(() => {
     // Reset fetch mock before each test
-    global.fetch = vi.fn();
-  });
+    global.fetch = vi.fn()
+  })
 
   afterEach(() => {
-    global.fetch = originalFetch;
-  });
+    global.fetch = originalFetch
+  })
 
   it('should call POST /api/repos/workspace with the provided path', async () => {
     const mockResponse = {
@@ -33,14 +33,14 @@ describe('switchWorkspace', () => {
         generation_status: null,
       },
       message: 'Workspace switched successfully',
-    };
+    }
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
       json: async () => mockResponse,
-    });
+    })
 
-    const result = await switchWorkspace('/new/workspace');
+    const result = await switchWorkspace('/new/workspace')
 
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/repos/workspace'),
@@ -51,36 +51,36 @@ describe('switchWorkspace', () => {
         }),
         body: JSON.stringify({ path: '/new/workspace' }),
       })
-    );
+    )
 
-    expect(result).toEqual(mockResponse);
-  });
+    expect(result).toEqual(mockResponse)
+  })
 
   it('should throw ApiError when the request fails', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
       status: 400,
       text: async () => 'Path does not exist',
       statusText: 'Bad Request',
-    });
+    })
 
-    await expect(switchWorkspace('/nonexistent/path')).rejects.toThrow(ApiError);
-  });
+    await expect(switchWorkspace('/nonexistent/path')).rejects.toThrow(ApiError)
+  })
 
   it('should throw ApiError with 403 status for paths outside allowed area', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
       status: 403,
       text: async () => 'Path is outside allowed workspace area',
       statusText: 'Forbidden',
-    });
+    })
 
     try {
-      await switchWorkspace('/etc/passwd');
-      expect.fail('Should have thrown an error');
+      await switchWorkspace('/etc/passwd')
+      expect.fail('Should have thrown an error')
     } catch (error) {
-      expect(error).toBeInstanceOf(ApiError);
-      expect((error as ApiError).status).toBe(403);
+      expect(error).toBeInstanceOf(ApiError)
+      expect((error as ApiError).status).toBe(403)
     }
-  });
-});
+  })
+})

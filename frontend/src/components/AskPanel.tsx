@@ -1,44 +1,44 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { askQuestion } from '../api/client';
-import { CONFIDENCE_COLORS } from '../config';
-import type { QAResponse, Citation } from '../types';
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { askQuestion } from '../api/client'
+import { CONFIDENCE_COLORS } from '../config'
+import type { QAResponse, Citation } from '../types'
 
 interface QAMessage {
-  question: string;
-  response: QAResponse;
+  question: string
+  response: QAResponse
 }
 
 interface AskPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
 }
 
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
-  const [question, setQuestion] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<QAMessage[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [question, setQuestion] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [messages, setMessages] = useState<QAMessage[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!question.trim() || isLoading) return;
+    e.preventDefault()
+    if (!question.trim() || isLoading) return
 
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true)
+    setError(null)
 
     try {
-      const response = await askQuestion({ question: question.trim() });
-      setMessages(prev => [...prev, { question: question.trim(), response }]);
-      setQuestion('');
+      const response = await askQuestion({ question: question.trim() })
+      setMessages((prev) => [...prev, { question: question.trim(), response }])
+      setQuestion('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get answer');
+      setError(err instanceof Error ? err.message : 'Failed to get answer')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const renderCitation = (citation: Citation, index: number) => (
     <Link
@@ -49,9 +49,9 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
     >
       {citation.title}
     </Link>
-  );
+  )
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="w-[350px] border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col h-full">
@@ -63,7 +63,12 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
           className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -87,15 +92,15 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             {/* Answer */}
             <div className="space-y-2">
               {/* Confidence banner */}
-              <div className={`px-3 py-1 rounded text-xs ${CONFIDENCE_COLORS[msg.response.confidence]}`}>
+              <div
+                className={`px-3 py-1 rounded text-xs ${CONFIDENCE_COLORS[msg.response.confidence]}`}
+              >
                 {msg.response.disclaimer}
               </div>
 
               {/* Answer content */}
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {msg.response.answer}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.response.answer}</ReactMarkdown>
               </div>
 
               {/* Citations */}
@@ -107,7 +112,8 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
               )}
 
               {/* Search quality warning */}
-              {(!msg.response.search_quality.semantic_searched || !msg.response.search_quality.fts_searched) && (
+              {(!msg.response.search_quality.semantic_searched ||
+                !msg.response.search_quality.fts_searched) && (
                 <div className="text-xs text-yellow-600 dark:text-yellow-400">
                   {!msg.response.search_quality.semantic_searched && 'Vector search unavailable. '}
                   {!msg.response.search_quality.fts_searched && 'Text search unavailable.'}
@@ -145,5 +151,5 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
         </div>
       </form>
     </div>
-  );
+  )
 }

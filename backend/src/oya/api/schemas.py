@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class EmbeddingMetadata(BaseModel):
     """Metadata about the embedding model used for indexing."""
+
     provider: str
     model: str
     indexed_at: str
@@ -13,6 +14,7 @@ class EmbeddingMetadata(BaseModel):
 
 class RepoStatus(BaseModel):
     """Repository status response."""
+
     path: str
     head_commit: str | None
     head_message: str | None
@@ -29,6 +31,7 @@ class RepoStatus(BaseModel):
 
 class JobCreated(BaseModel):
     """Job creation response."""
+
     job_id: str
     status: str = "pending"
     message: str = "Job started"
@@ -36,17 +39,20 @@ class JobCreated(BaseModel):
 
 class WorkspaceSwitch(BaseModel):
     """Request to switch workspace."""
+
     path: str = Field(..., description="Absolute path to the new workspace directory")
 
 
 class WorkspaceSwitchResponse(BaseModel):
     """Response after switching workspace."""
+
     status: RepoStatus
     message: str
 
 
 class DirectoryEntry(BaseModel):
     """A directory entry for the directory browser."""
+
     name: str
     path: str
     is_dir: bool
@@ -54,6 +60,7 @@ class DirectoryEntry(BaseModel):
 
 class DirectoryListing(BaseModel):
     """Response for directory listing."""
+
     path: str
     parent: str | None
     entries: list[DirectoryEntry]
@@ -61,6 +68,7 @@ class DirectoryListing(BaseModel):
 
 class IndexableItems(BaseModel):
     """List of indexable directories and files for preview."""
+
     directories: list[str]
     files: list[str]
     total_directories: int
@@ -69,12 +77,14 @@ class IndexableItems(BaseModel):
 
 class OyaignoreUpdateRequest(BaseModel):
     """Request to update .oyaignore with new exclusions."""
+
     directories: list[str] = Field(default_factory=list)
     files: list[str] = Field(default_factory=list)
 
 
 class OyaignoreUpdateResponse(BaseModel):
     """Response after updating .oyaignore."""
+
     added_directories: list[str]
     added_files: list[str]
     total_added: int

@@ -144,7 +144,6 @@ class TestStagingDirectory:
         assert not has_incomplete_build(tmp_path)
 
 
-
 class TestGenerationStatusAPI:
     """Tests for the generation status API endpoint."""
 
@@ -165,6 +164,7 @@ class TestGenerationStatusAPI:
         # Clear caches
         from oya.config import load_settings
         from oya.api.deps import get_settings
+
         load_settings.cache_clear()
         get_settings.cache_clear()
 
@@ -191,6 +191,7 @@ class TestGenerationStatusAPI:
         # Clear caches
         from oya.config import load_settings
         from oya.api.deps import get_settings
+
         load_settings.cache_clear()
         get_settings.cache_clear()
 

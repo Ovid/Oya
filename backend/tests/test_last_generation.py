@@ -15,7 +15,9 @@ def workspace(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
+    )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=workspace, capture_output=True)
     (workspace / "README.md").write_text("# Test Repo")
     subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
@@ -63,10 +65,10 @@ class TestLastGenerationInRepoStatus:
 
         # Make request to get repo status
         response = await client.get("/api/repos/status")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should have last_generation field with the completed_at time
         assert "last_generation" in data
         assert data["last_generation"] is not None
@@ -78,10 +80,10 @@ class TestLastGenerationInRepoStatus:
         """RepoStatus should have null last_generation when no completed generations exist."""
         # Make request to get repo status (no generations inserted)
         response = await client.get("/api/repos/status")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should have last_generation field but it should be null
         assert "last_generation" in data
         assert data["last_generation"] is None
@@ -128,10 +130,10 @@ class TestLastGenerationInRepoStatus:
 
         # Make request to get repo status
         response = await client.get("/api/repos/status")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should have the most recent completed generation (job-2)
         assert data["last_generation"] is not None
         assert "2026-01-10T14:45:00" in data["last_generation"]

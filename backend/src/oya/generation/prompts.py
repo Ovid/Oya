@@ -760,10 +760,7 @@ def _format_metrics(metrics: Any) -> str:
     return "\n".join(lines)
 
 
-def format_subdirectory_summaries(
-    summaries: list[Any],
-    parent_directory: str
-) -> str:
+def format_subdirectory_summaries(summaries: list[Any], parent_directory: str) -> str:
     """Format subdirectory summaries as a markdown table with links.
 
     Only includes direct child directories of the parent.
@@ -787,7 +784,7 @@ def format_subdirectory_summaries(
         if not path.startswith(prefix):
             continue
         # Remaining path after prefix should have no slashes (direct child)
-        remaining = path[len(prefix):]
+        remaining = path[len(prefix) :]
         if "/" not in remaining and remaining:
             direct_children.append(summary)
 
@@ -1002,7 +999,8 @@ def get_workflow_prompt(
             related_files=related_files_str,
             project_summary=synthesis_map.project_summary or "No project summary available.",
             layers=_format_synthesis_layers(synthesis_map),
-            layer_interactions=synthesis_map.layer_interactions or "No layer interaction info available.",
+            layer_interactions=synthesis_map.layer_interactions
+            or "No layer interaction info available.",
             key_components=_format_synthesis_key_components(synthesis_map),
             dependency_graph=_format_synthesis_dependency_graph(synthesis_map),
             code_context=code_context or "No code context provided.",

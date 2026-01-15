@@ -1,7 +1,6 @@
 # backend/tests/test_chunking.py
 """Content chunking tests."""
 
-
 from oya.generation.chunking import (
     chunk_file_content,
     chunk_by_symbols,
@@ -40,7 +39,7 @@ def test_chunk_file_content_includes_metadata():
 
 def test_chunk_by_symbols_creates_logical_chunks():
     """Symbol-based chunking respects code boundaries."""
-    content = '''def foo():
+    content = """def foo():
     pass
 
 def bar():
@@ -49,7 +48,7 @@ def bar():
 class Baz:
     def method(self):
         pass
-'''
+"""
     symbols = [
         ParsedSymbol(name="foo", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=2),
         ParsedSymbol(name="bar", symbol_type=SymbolType.FUNCTION, start_line=4, end_line=5),
@@ -68,9 +67,7 @@ class Baz:
 def test_chunk_includes_overlap():
     """Chunks include overlap for context."""
     content = "line\n" * 100
-    chunks = chunk_file_content(
-        content, "test.py", max_tokens=50, overlap_lines=5
-    )
+    chunks = chunk_file_content(content, "test.py", max_tokens=50, overlap_lines=5)
 
     if len(chunks) > 1:
         # Check that second chunk starts before first chunk ends

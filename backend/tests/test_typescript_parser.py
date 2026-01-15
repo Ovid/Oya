@@ -22,11 +22,11 @@ def test_parser_supported_extensions(parser):
 
 def test_parses_function_declaration(parser):
     """Extracts function declarations."""
-    code = '''
+    code = """
 function greet(name: string): string {
     return `Hello, ${name}`;
 }
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -37,11 +37,11 @@ function greet(name: string): string {
 
 def test_parses_arrow_function(parser):
     """Extracts arrow function assignments."""
-    code = '''
+    code = """
 const add = (a: number, b: number): number => {
     return a + b;
 };
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -51,7 +51,7 @@ const add = (a: number, b: number): number => {
 
 def test_parses_class(parser):
     """Extracts class with methods."""
-    code = '''
+    code = """
 class Calculator {
     add(a: number, b: number): number {
         return a + b;
@@ -61,7 +61,7 @@ class Calculator {
         return a - b;
     }
 }
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -74,13 +74,13 @@ class Calculator {
 
 def test_parses_interface(parser):
     """Extracts TypeScript interfaces."""
-    code = '''
+    code = """
 interface User {
     id: number;
     name: string;
     email?: string;
 }
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -90,10 +90,10 @@ interface User {
 
 def test_parses_type_alias(parser):
     """Extracts TypeScript type aliases."""
-    code = '''
+    code = """
 type Status = "pending" | "active" | "completed";
 type UserMap = Record<string, User>;
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -105,13 +105,13 @@ type UserMap = Record<string, User>;
 
 def test_parses_enum(parser):
     """Extracts TypeScript enums."""
-    code = '''
+    code = """
 enum Status {
     PENDING,
     ACTIVE,
     COMPLETED
 }
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -121,11 +121,11 @@ enum Status {
 
 def test_parses_imports(parser):
     """Extracts import statements."""
-    code = '''
+    code = """
 import React from 'react';
 import { useState, useEffect } from 'react';
 import type { User } from './types';
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -135,11 +135,11 @@ import type { User } from './types';
 
 def test_parses_exports(parser):
     """Extracts export statements."""
-    code = '''
+    code = """
 export function helper() {}
 export const VERSION = "1.0.0";
 export default class App {}
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -150,11 +150,11 @@ export default class App {}
 
 def test_handles_jsx(parser):
     """Handles JSX/TSX syntax."""
-    code = '''
+    code = """
 function Button({ label }: { label: string }) {
     return <button>{label}</button>;
 }
-'''
+"""
     result = parser.parse_string(code, "test.tsx")
 
     assert result.ok
@@ -163,10 +163,10 @@ function Button({ label }: { label: string }) {
 
 def test_handles_malformed_code(parser):
     """Returns result for invalid syntax (tree-sitter is lenient)."""
-    code = '''
+    code = """
 function broken( {
     // missing closing
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     # Tree-sitter is lenient, so it may still parse partially

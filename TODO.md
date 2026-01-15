@@ -1,5 +1,16 @@
 # TODO
 
+* When I first generate, it has a spinner for the entire time of the analysis
+  phase (I think).
+    * It needs to load the interface, *then* start analysis and have a time.
+    * Also, later phases need steps, too.
+    * Should show "current file" and "current directory" while processing.
+    * Should it also try to process files in dependency order like
+      directories?
+    * For each file we analyze, we should also look for common design flaws or
+      possible bugs and put them in another part of the response. In other
+      words, try to offload some of the hard work to the remote LLM.
+    * Mermaid diagrams should omit test files
 * Need to make chat more useful
     * Have chat persist, even when navigating.
     * Allow follow-up questions

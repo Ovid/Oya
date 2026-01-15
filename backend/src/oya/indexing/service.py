@@ -21,11 +21,11 @@ IndexingProgressCallback = Callable[[int, int, str], Coroutine[Any, Any, None]]
 
 class IndexingService:
     """Service for indexing wiki content into search stores.
-    
+
     Indexes wiki pages into:
     - ChromaDB for semantic/vector search
     - SQLite FTS5 for full-text keyword search
-    
+
     Also tracks embedding metadata (provider/model) to detect mismatches.
     """
 
@@ -203,43 +203,44 @@ class IndexingService:
         """Clear all indexed content from vector store and FTS."""
         # Clear vector store
         self._vectorstore.clear()
-        
+
         # Clear FTS table
         self._db.execute("DELETE FROM fts_content")
         self._db.commit()
-        
+
         # Remove embedding metadata
         self._remove_embedding_metadata()
 
     def get_embedding_metadata(self) -> dict[str, Any] | None:
         """Get the embedding metadata from the last indexing.
-        
+
         Returns:
             Dictionary with 'provider', 'model', and 'indexed_at' keys,
             or None if no metadata exists.
         """
         if not self._meta_path:
             return None
-        
+
         metadata_file = self._meta_path / EMBEDDING_METADATA_FILE
         if not metadata_file.exists():
             return None
-        
+
         try:
-            return json.loads(metadata_file.read_text(encoding="utf-8"))
+            data: dict[str, Any] = json.loads(metadata_file.read_text(encoding="utf-8"))
+            return data
         except (json.JSONDecodeError, OSError):
             return None
 
     def _save_embedding_metadata(self, provider: str, model: str) -> None:
         """Save embedding metadata to file.
-        
+
         Args:
             provider: LLM provider used for embeddings.
             model: Model used for embeddings.
         """
         if not self._meta_path:
             return
-        
+
         self._meta_path.mkdir(parents=True, exist_ok=True)
         metadata = {
             "provider": provider,
@@ -253,18 +254,18 @@ class IndexingService:
         """Remove embedding metadata file."""
         if not self._meta_path:
             return
-        
+
         metadata_file = self._meta_path / EMBEDDING_METADATA_FILE
         if metadata_file.exists():
             metadata_file.unlink()
 
     def _extract_title(self, content: str, fallback: str) -> str:
         """Extract title from markdown H1 header.
-        
+
         Args:
             content: Markdown content.
             fallback: Fallback title if no H1 found.
-            
+
         Returns:
             Extracted title or fallback.
         """

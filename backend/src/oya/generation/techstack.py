@@ -24,7 +24,8 @@ def load_techstack_config() -> dict[str, Any]:
     """
     config_path = Path(__file__).parent.parent / "constants" / "techstack.yaml"
     with open(config_path) as f:
-        return yaml.safe_load(f)
+        result: dict[str, Any] = yaml.safe_load(f)
+        return result
 
 
 def detect_tech_stack(

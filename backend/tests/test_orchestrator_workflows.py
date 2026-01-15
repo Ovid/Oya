@@ -196,4 +196,6 @@ class TestOrchestratorWorkflows:
         # Verify different groups were created
         path_names = [p.path.lower() for p in pages]
         assert any("users" in p for p in path_names), "Should have users workflow"
-        assert any("orders" in p or "cli" in p for p in path_names), "Should have orders or cli workflow"
+        assert any("orders" in p or "cli" in p for p in path_names), (
+            "Should have orders or cli workflow"
+        )

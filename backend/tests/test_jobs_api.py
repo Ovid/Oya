@@ -18,6 +18,7 @@ def workspace_with_db(tmp_path, monkeypatch):
     monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     from oya.config import load_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
     _reset_db_instance()
@@ -113,10 +114,10 @@ async def test_cancel_completed_job_returns_400(client, workspace_with_db):
 
 class TestPhaseOrderConsistency:
     """Tests to ensure backend phase order matches frontend expectations.
-    
+
     The bottom-up generation pipeline runs phases in this order:
     Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
-    
+
     Both backend and frontend must agree on this ordering for progress display to work correctly.
     """
 
@@ -134,29 +135,31 @@ class TestPhaseOrderConsistency:
             "workflows": 7,
             "indexing": 8,
         }
-        
+
         # Import and check the actual mapping
         from oya.api.routers import repos
         import inspect
-        
+
         # Get the source code of _run_generation to extract phase_numbers
         source = inspect.getsource(repos._run_generation)
-        
+
         # Verify each phase appears in the correct order
         for phase, expected_num in expected_phase_numbers.items():
-            assert f'"{phase}": {expected_num}' in source, \
+            assert f'"{phase}": {expected_num}' in source, (
                 f"Phase '{phase}' should have number {expected_num} in repos.py"
+            )
 
     def test_total_phases_is_eight(self):
         """Total phases should be 8 for the bottom-up pipeline (including indexing)."""
         from oya.api.routers import repos
         import inspect
-        
+
         source = inspect.getsource(repos.init_repo)
-        
+
         # Check that total_phases is 8
-        assert '"full", "pending", 8' in source or "'full', 'pending', 8" in source, \
+        assert '"full", "pending", 8' in source or "'full', 'pending', 8" in source, (
             "Total phases should be 8 in init_repo"
+        )
 
     def test_files_before_architecture(self):
         """Files phase number should be less than architecture phase number."""
@@ -170,9 +173,10 @@ class TestPhaseOrderConsistency:
             "workflows": 7,
             "indexing": 8,
         }
-        
-        assert expected_phase_numbers["files"] < expected_phase_numbers["architecture"], \
+
+        assert expected_phase_numbers["files"] < expected_phase_numbers["architecture"], (
             "Files phase should come before architecture in bottom-up approach"
+        )
 
     def test_synthesis_before_architecture_and_overview(self):
         """Synthesis phase should come before architecture and overview."""
@@ -185,22 +189,30 @@ class TestPhaseOrderConsistency:
             "overview": 6,
             "workflows": 7,
         }
-        
-        assert expected_phase_numbers["synthesis"] < expected_phase_numbers["architecture"], \
+
+        assert expected_phase_numbers["synthesis"] < expected_phase_numbers["architecture"], (
             "Synthesis should come before architecture"
-        assert expected_phase_numbers["synthesis"] < expected_phase_numbers["overview"], \
+        )
+        assert expected_phase_numbers["synthesis"] < expected_phase_numbers["overview"], (
             "Synthesis should come before overview"
+        )
 
     def test_phase_order_matches_orchestrator_enum(self):
         """Phase order should match GenerationPhase enum values."""
         from oya.generation.orchestrator import GenerationPhase
-        
+
         # All phases in the mapping should exist in the enum
-        expected_phases = ["analysis", "files", "directories", "synthesis", 
-                          "architecture", "overview", "workflows"]
-        
+        expected_phases = [
+            "analysis",
+            "files",
+            "directories",
+            "synthesis",
+            "architecture",
+            "overview",
+            "workflows",
+        ]
+
         enum_values = [phase.value for phase in GenerationPhase]
-        
+
         for phase in expected_phases:
-            assert phase in enum_values, \
-                f"Phase '{phase}' should exist in GenerationPhase enum"
+            assert phase in enum_values, f"Phase '{phase}' should exist in GenerationPhase enum"

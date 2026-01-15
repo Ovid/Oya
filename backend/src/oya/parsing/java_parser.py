@@ -10,14 +10,16 @@ from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, SymbolType
 
 
 # Spring MVC annotations that indicate route handlers
-SPRING_ROUTE_ANNOTATIONS = frozenset({
-    "GetMapping",
-    "PostMapping",
-    "PutMapping",
-    "DeleteMapping",
-    "PatchMapping",
-    "RequestMapping",
-})
+SPRING_ROUTE_ANNOTATIONS = frozenset(
+    {
+        "GetMapping",
+        "PostMapping",
+        "PutMapping",
+        "DeleteMapping",
+        "PatchMapping",
+        "RequestMapping",
+    }
+)
 
 
 class JavaParser(BaseParser):
@@ -362,4 +364,4 @@ class JavaParser(BaseParser):
         Returns:
             The text content of the node.
         """
-        return content[node.start_byte:node.end_byte]
+        return content[node.start_byte : node.end_byte]

@@ -61,11 +61,7 @@ class TestWorkflowGenerator:
         )
 
         synthesis_map = SynthesisMap(
-            layers={
-                "api": LayerInfo(
-                    name="api", purpose="HTTP endpoints", files=["api/users.py"]
-                )
-            },
+            layers={"api": LayerInfo(name="api", purpose="HTTP endpoints", files=["api/users.py"])},
             key_components=[
                 ComponentInfo(
                     name="UserService",
@@ -363,9 +359,24 @@ class TestWorkflowGrouper:
         grouper = WorkflowGrouper()
 
         entry_points = [
-            EntryPointInfo(name="export_csv", entry_type="cli_command", file="commands/export.py", description="csv"),
-            EntryPointInfo(name="export_json", entry_type="cli_command", file="commands/export.py", description="json"),
-            EntryPointInfo(name="import_data", entry_type="cli_command", file="commands/import.py", description="data"),
+            EntryPointInfo(
+                name="export_csv",
+                entry_type="cli_command",
+                file="commands/export.py",
+                description="csv",
+            ),
+            EntryPointInfo(
+                name="export_json",
+                entry_type="cli_command",
+                file="commands/export.py",
+                description="json",
+            ),
+            EntryPointInfo(
+                name="import_data",
+                entry_type="cli_command",
+                file="commands/import.py",
+                description="data",
+            ),
         ]
 
         groups = grouper.group(entry_points, file_imports={})
@@ -383,10 +394,21 @@ class TestWorkflowGrouper:
 
         # These are in different files but share naming pattern
         entry_points = [
-            EntryPointInfo(name="sync_users", entry_type="function", file="jobs/user_sync.py", description=""),
-            EntryPointInfo(name="sync_orders", entry_type="function", file="jobs/order_sync.py", description=""),
-            EntryPointInfo(name="sync_inventory", entry_type="function", file="jobs/inventory_sync.py", description=""),
-            EntryPointInfo(name="cleanup_temp", entry_type="function", file="jobs/cleanup.py", description=""),
+            EntryPointInfo(
+                name="sync_users", entry_type="function", file="jobs/user_sync.py", description=""
+            ),
+            EntryPointInfo(
+                name="sync_orders", entry_type="function", file="jobs/order_sync.py", description=""
+            ),
+            EntryPointInfo(
+                name="sync_inventory",
+                entry_type="function",
+                file="jobs/inventory_sync.py",
+                description="",
+            ),
+            EntryPointInfo(
+                name="cleanup_temp", entry_type="function", file="jobs/cleanup.py", description=""
+            ),
         ]
 
         groups = grouper.group(entry_points, file_imports={})
@@ -401,8 +423,12 @@ class TestWorkflowGrouper:
         grouper = WorkflowGrouper()
 
         entry_points = [
-            EntryPointInfo(name="init", entry_type="cli_command", file="cli/init.py", description="init"),
-            EntryPointInfo(name="build", entry_type="cli_command", file="cli/build.py", description="build"),
+            EntryPointInfo(
+                name="init", entry_type="cli_command", file="cli/init.py", description="init"
+            ),
+            EntryPointInfo(
+                name="build", entry_type="cli_command", file="cli/build.py", description="build"
+            ),
             EntryPointInfo(name="main", entry_type="main_function", file="main.py", description=""),
         ]
 
@@ -418,7 +444,9 @@ class TestWorkflowGrouper:
         grouper = WorkflowGrouper()
 
         entry_points = [
-            EntryPointInfo(name="get_users", entry_type="api_route", file="api/users.py", description="/users"),
+            EntryPointInfo(
+                name="get_users", entry_type="api_route", file="api/users.py", description="/users"
+            ),
         ]
 
         file_imports = {
@@ -449,13 +477,19 @@ class TestWorkflowGrouper:
         grouper = WorkflowGrouper()
 
         entry_points = [
-            EntryPointInfo(name="get_users", entry_type="api_route", file="api/users.py", description="/users"),
+            EntryPointInfo(
+                name="get_users", entry_type="api_route", file="api/users.py", description="/users"
+            ),
         ]
 
         synthesis_map = SynthesisMap(
             layers={
-                "api": LayerInfo(name="api", purpose="HTTP endpoints", files=["api/users.py", "api/orders.py"]),
-                "domain": LayerInfo(name="domain", purpose="Business logic", files=["services/user_service.py"]),
+                "api": LayerInfo(
+                    name="api", purpose="HTTP endpoints", files=["api/users.py", "api/orders.py"]
+                ),
+                "domain": LayerInfo(
+                    name="domain", purpose="Business logic", files=["services/user_service.py"]
+                ),
             }
         )
 

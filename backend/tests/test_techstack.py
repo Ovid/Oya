@@ -151,9 +151,7 @@ class TestDetectTechStack:
         """Test handling of summaries with no external deps."""
         from oya.generation.techstack import detect_tech_stack
 
-        summaries = [
-            FileSummary(file_path="app.py", purpose="App", layer="api", external_deps=[])
-        ]
+        summaries = [FileSummary(file_path="app.py", purpose="App", layer="api", external_deps=[])]
 
         result = detect_tech_stack(summaries)
 

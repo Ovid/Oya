@@ -19,6 +19,7 @@ def test_vectorstore_initializes(temp_index: Path):
     """Vector store initializes and creates collection."""
     store = VectorStore(temp_index)
     assert store.collection is not None
+    store.close()
 
 
 def test_add_and_query_documents(temp_index: Path):
@@ -41,6 +42,7 @@ def test_add_and_query_documents(temp_index: Path):
 
     assert len(results["ids"][0]) == 1
     assert results["ids"][0][0] == "doc1"
+    store.close()
 
 
 def test_query_with_filter(temp_index: Path):
@@ -67,6 +69,7 @@ def test_query_with_filter(temp_index: Path):
 
     assert len(results["ids"][0]) == 1
     assert results["ids"][0][0] == "note1"
+    store.close()
 
 
 def test_delete_documents(temp_index: Path):
@@ -83,6 +86,7 @@ def test_delete_documents(temp_index: Path):
 
     assert len(results["ids"][0]) == 1
     assert results["ids"][0][0] == "doc2"
+    store.close()
 
 
 def test_clear_all_documents(temp_index: Path):
@@ -98,3 +102,4 @@ def test_clear_all_documents(temp_index: Path):
     results = store.query("document", n_results=10)
 
     assert len(results["ids"][0]) == 0
+    store.close()

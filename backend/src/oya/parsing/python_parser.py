@@ -235,7 +235,7 @@ class PythonParser(BaseParser):
             Dotted name string (e.g., 'app.route').
         """
         parts = []
-        current = node
+        current: ast.expr = node
 
         while isinstance(current, ast.Attribute):
             parts.append(current.attr)

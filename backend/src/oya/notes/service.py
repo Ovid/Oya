@@ -59,10 +59,12 @@ class NotesService:
         ]
         if author:
             frontmatter_lines.append(f"author: {author}")
-        frontmatter_lines.extend([
-            f"created_at: {created_at.isoformat()}",
-            "---",
-        ])
+        frontmatter_lines.extend(
+            [
+                f"created_at: {created_at.isoformat()}",
+                "---",
+            ]
+        )
 
         full_content = "\n".join(frontmatter_lines) + "\n" + content
 
@@ -82,7 +84,7 @@ class NotesService:
             # Find end of frontmatter
             end_idx = content.find("---", 3)
             if end_idx != -1:
-                content = content[end_idx + 3:].strip()
+                content = content[end_idx + 3 :].strip()
 
         return content
 
@@ -125,6 +127,8 @@ class NotesService:
             ),
         )
         note_id = cursor.lastrowid
+        if note_id is None:
+            raise RuntimeError("Failed to get note ID after insert")
 
         return Note(
             id=note_id,
@@ -163,15 +167,17 @@ class NotesService:
 
         notes = []
         for row in cursor.fetchall():
-            notes.append(Note(
-                id=row["id"],
-                filepath=row["filepath"],
-                scope=NoteScope(row["scope"]),
-                target=row["target"],
-                content=row["content"],
-                author=row["author"],
-                created_at=datetime.fromisoformat(row["created_at"]),
-            ))
+            notes.append(
+                Note(
+                    id=row["id"],
+                    filepath=row["filepath"],
+                    scope=NoteScope(row["scope"]),
+                    target=row["target"],
+                    content=row["content"],
+                    author=row["author"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                )
+            )
 
         return notes
 

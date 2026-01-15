@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
-import { createNote } from '../api/client';
-import type { NoteScope, Note } from '../types';
+import { useState, useEffect } from 'react'
+import { createNote } from '../api/client'
+import type { NoteScope, Note } from '../types'
 
 interface NoteEditorProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onNoteCreated?: (note: Note) => void;
-  defaultScope?: NoteScope;
-  defaultTarget?: string;
+  isOpen: boolean
+  onClose: () => void
+  onNoteCreated?: (note: Note) => void
+  defaultScope?: NoteScope
+  defaultTarget?: string
 }
 
 export function NoteEditor({
@@ -17,69 +17,69 @@ export function NoteEditor({
   defaultScope = 'general',
   defaultTarget = '',
 }: NoteEditorProps) {
-  const [scope, setScope] = useState<NoteScope>(defaultScope);
-  const [target, setTarget] = useState(defaultTarget);
-  const [content, setContent] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<NoteScope>(defaultScope)
+  const [target, setTarget] = useState(defaultTarget)
+  const [content, setContent] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Sync state when editor opens with new defaults
   useEffect(() => {
     if (isOpen) {
-      setScope(defaultScope);
-      setTarget(defaultTarget);
-      setError(null);
+      setScope(defaultScope)
+      setTarget(defaultTarget)
+      setError(null)
     }
-  }, [isOpen, defaultScope, defaultTarget]);
+  }, [isOpen, defaultScope, defaultTarget])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!content.trim()) return;
+    e.preventDefault()
+    if (!content.trim()) return
 
-    setIsSubmitting(true);
-    setError(null);
+    setIsSubmitting(true)
+    setError(null)
 
     try {
       const note = await createNote({
         scope,
         target: scope === 'general' ? '' : target,
         content: content.trim(),
-      });
-      onNoteCreated?.(note);
-      onClose();
-      setContent('');
+      })
+      onNoteCreated?.(note)
+      onClose()
+      setContent('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save note');
+      setError(err instanceof Error ? err.message : 'Failed to save note')
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black bg-opacity-50"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
 
       {/* Slide-over panel */}
       <div className="absolute inset-y-0 right-0 max-w-lg w-full bg-white dark:bg-gray-800 shadow-xl">
         <form onSubmit={handleSubmit} className="h-full flex flex-col">
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Add Correction
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Correction</h2>
             <button
               type="button"
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -113,16 +113,19 @@ export function NoteEditor({
             {scope !== 'general' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Target {scope === 'file' ? 'File' : scope === 'directory' ? 'Directory' : 'Workflow'}
+                  Target{' '}
+                  {scope === 'file' ? 'File' : scope === 'directory' ? 'Directory' : 'Workflow'}
                 </label>
                 <input
                   type="text"
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
                   placeholder={
-                    scope === 'file' ? 'e.g., src/main.py' :
-                    scope === 'directory' ? 'e.g., src/utils' :
-                    'e.g., authentication'
+                    scope === 'file'
+                      ? 'e.g., src/main.py'
+                      : scope === 'directory'
+                        ? 'e.g., src/utils'
+                        : 'e.g., authentication'
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -171,5 +174,5 @@ export function NoteEditor({
         </form>
       </div>
     </div>
-  );
+  )
 }

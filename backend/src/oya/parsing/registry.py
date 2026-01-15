@@ -18,14 +18,14 @@ class ParserRegistry:
     parser used when no specific parser matches.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize registry with all available parsers."""
         self._parsers: list[BaseParser] = [
             PythonParser(),
             TypeScriptParser(),
             JavaParser(),
         ]
-        self._fallback = FallbackParser()
+        self._fallback: BaseParser = FallbackParser()
 
     def get_parser(self, file_path: Path) -> BaseParser:
         """Get the appropriate parser for a file.

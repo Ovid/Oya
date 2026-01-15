@@ -31,9 +31,7 @@ def test_migrations_create_tables(temp_db: Path):
     run_migrations(db)
 
     # Check tables exist
-    tables = db.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    ).fetchall()
+    tables = db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     table_names = {row[0] for row in tables}
 
     assert "generations" in table_names

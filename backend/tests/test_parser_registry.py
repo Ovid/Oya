@@ -48,10 +48,7 @@ def test_falls_back_for_unknown(registry):
 
 def test_parse_file_uses_correct_parser(registry):
     """parse_file selects appropriate parser."""
-    result = registry.parse_file(
-        Path("test.py"),
-        "def hello(): pass"
-    )
+    result = registry.parse_file(Path("test.py"), "def hello(): pass")
 
     assert result.ok
     assert result.file.language == "python"
@@ -59,10 +56,7 @@ def test_parse_file_uses_correct_parser(registry):
 
 def test_parse_file_with_fallback(registry):
     """parse_file uses fallback for unknown extensions."""
-    result = registry.parse_file(
-        Path("test.rs"),
-        "fn main() {}"
-    )
+    result = registry.parse_file(Path("test.rs"), "fn main() {}")
 
     assert result.ok
     assert result.file.language == "rust"

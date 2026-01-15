@@ -140,7 +140,7 @@ def generator_with_summary(mock_llm_client_with_summary, mock_repo):
 @pytest.mark.asyncio
 async def test_generate_returns_tuple_with_file_summary(generator_with_summary):
     """Test that generate() returns a tuple of (GeneratedPage, FileSummary).
-    
+
     Requirements: 1.1 - FileGenerator SHALL include a structured File_Summary block.
     """
     result = await generator_with_summary.generate(
@@ -150,17 +150,17 @@ async def test_generate_returns_tuple_with_file_summary(generator_with_summary):
         imports=["from flask import request"],
         architecture_summary="Authentication module.",
     )
-    
+
     # Result should be a tuple of (GeneratedPage, FileSummary)
     assert isinstance(result, tuple)
     assert len(result) == 2
-    
+
     page, summary = result
-    
+
     # First element should be GeneratedPage
     assert page.page_type == "file"
     assert page.target == "src/auth/login.py"
-    
+
     # Second element should be FileSummary
     assert isinstance(summary, FileSummary)
 
@@ -168,7 +168,7 @@ async def test_generate_returns_tuple_with_file_summary(generator_with_summary):
 @pytest.mark.asyncio
 async def test_generate_extracts_valid_file_summary(generator_with_summary):
     """Test that generate() extracts valid FileSummary from LLM output.
-    
+
     Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6 - FileSummary fields.
     """
     page, summary = await generator_with_summary.generate(
@@ -178,7 +178,7 @@ async def test_generate_extracts_valid_file_summary(generator_with_summary):
         imports=["from flask import request"],
         architecture_summary="Authentication module.",
     )
-    
+
     # FileSummary should have correct values from YAML block
     assert summary.file_path == "src/auth/login.py"
     assert summary.purpose == "Handles user authentication and login flow"
@@ -192,7 +192,7 @@ async def test_generate_extracts_valid_file_summary(generator_with_summary):
 @pytest.mark.asyncio
 async def test_generate_strips_yaml_from_page_content(generator_with_summary):
     """Test that YAML block is stripped from the page content.
-    
+
     Requirements: 8.5 - Parser SHALL strip the summary block from user-facing markdown.
     """
     page, summary = await generator_with_summary.generate(
@@ -202,11 +202,11 @@ async def test_generate_strips_yaml_from_page_content(generator_with_summary):
         imports=["from flask import request"],
         architecture_summary="Authentication module.",
     )
-    
+
     # Page content should NOT contain YAML block
     assert "file_summary:" not in page.content
     assert "---\nfile_summary:" not in page.content
-    
+
     # Page content should still have the markdown documentation
     assert "# login.py" in page.content
     assert "Handles user authentication" in page.content
@@ -215,15 +215,15 @@ async def test_generate_strips_yaml_from_page_content(generator_with_summary):
 @pytest.mark.asyncio
 async def test_generate_returns_fallback_summary_on_missing_yaml(mock_repo):
     """Test that generate() returns fallback FileSummary when YAML is missing.
-    
+
     Requirements: 1.7 - SHALL use fallback summary with purpose="Unknown", layer="utility".
     """
     # LLM client that returns content without YAML block
     mock_llm = AsyncMock()
     mock_llm.generate.return_value = "# file.py\n\nSome documentation without YAML."
-    
+
     generator = FileGenerator(llm_client=mock_llm, repo=mock_repo)
-    
+
     page, summary = await generator.generate(
         file_path="src/utils/helper.py",
         content="def helper(): pass",
@@ -231,7 +231,7 @@ async def test_generate_returns_fallback_summary_on_missing_yaml(mock_repo):
         imports=[],
         architecture_summary="",
     )
-    
+
     # Should return fallback summary
     assert summary.file_path == "src/utils/helper.py"
     assert summary.purpose == "Unknown"
