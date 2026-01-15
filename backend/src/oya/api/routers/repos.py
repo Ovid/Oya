@@ -475,7 +475,7 @@ async def _run_generation(
             parallel_limit=settings.parallel_file_limit,
         )
 
-        await orchestrator.run(progress_callback=progress_callback)
+        generation_result = await orchestrator.run(progress_callback=progress_callback)
 
         # Index wiki content for Q&A search (in staging)
         db.execute(
@@ -512,6 +512,9 @@ async def _run_generation(
             embedding_provider=settings.active_provider,
             embedding_model=settings.active_model,
             progress_callback=indexing_progress_callback,
+            synthesis_map=generation_result.synthesis_map,
+            analysis_symbols=generation_result.analysis_symbols,
+            file_imports=generation_result.file_imports,
         )
 
         # Update status to completed BEFORE promoting staging
