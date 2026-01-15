@@ -32,3 +32,7 @@ htmlcov/
 .oyawiki-building/
 .oya-logs/
 logs
+
+# UAT
+.examples
+
