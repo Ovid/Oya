@@ -101,7 +101,23 @@ class VectorStore:
         This should be called when the store is no longer needed to
         release file handles and other system resources.
         """
-        # ChromaDB PersistentClient doesn't have an explicit close,
-        # but we can clear references to help garbage collection
+        import gc
+
+        # ChromaDB PersistentClient doesn't have an explicit close method,
+        # but we can try to stop internal systems and clear references
+        if self._client is not None:
+            # Try to stop internal systems (ChromaDB uses a SegmentAPI internally)
+            try:
+                # Access internal identifier-to-system mapping and stop systems
+                if hasattr(self._client, "_identifier_to_system"):
+                    for system in list(self._client._identifier_to_system.values()):
+                        if hasattr(system, "stop"):
+                            system.stop()
+            except Exception:
+                pass  # Best effort cleanup
+
         self._collection = None  # type: ignore[assignment]
         self._client = None  # type: ignore[assignment]
+
+        # Force garbage collection to release file handles
+        gc.collect()

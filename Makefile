@@ -82,7 +82,7 @@ clean:
 # =============================================================================
 
 test-backend:
-	cd backend && source .venv/bin/activate && pytest tests/
+	cd backend && source .venv/bin/activate && ulimit -n 4096 && pytest tests/
 
 lint-backend:
 	cd backend && source .venv/bin/activate && ruff check src/ tests/
@@ -97,7 +97,7 @@ typecheck-backend:
 	cd backend && source .venv/bin/activate && mypy src/oya
 
 cover-backend:
-	cd backend && source .venv/bin/activate && pytest --cov=src/oya --cov-report=term-missing --cov-report=html tests/
+	cd backend && source .venv/bin/activate && ulimit -n 4096 && pytest --cov=src/oya --cov-report=term-missing --cov-report=html tests/
 	@echo "Coverage report: backend/htmlcov/index.html"
 
 install-backend:
