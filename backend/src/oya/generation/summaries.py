@@ -103,10 +103,19 @@ class FileIssue:
         elif "lines" in data and isinstance(data["lines"], list) and len(data["lines"]) >= 2:
             line_range = (data["lines"][0], data["lines"][1])
 
+        # Validate category and severity, using defaults if invalid
+        category = data.get("category", "maintainability")
+        if category not in ISSUE_CATEGORIES:
+            category = "maintainability"
+
+        severity = data.get("severity", "suggestion")
+        if severity not in ISSUE_SEVERITIES:
+            severity = "suggestion"
+
         return cls(
             file_path=data.get("file_path", ""),
-            category=data.get("category", "maintainability"),
-            severity=data.get("severity", "suggestion"),
+            category=category,
+            severity=severity,
             title=data.get("title", ""),
             description=data.get("description", ""),
             line_range=line_range,
@@ -522,6 +531,37 @@ class SummaryParser:
         """
         return value if isinstance(value, list) else []
 
+    def _parse_issues(self, issues_data: Any, file_path: str) -> list[FileIssue]:
+        """Parse issues from YAML data into FileIssue objects.
+
+        Args:
+            issues_data: Raw issues data from YAML (expected to be a list of dicts).
+            file_path: Path to the file, added to each issue.
+
+        Returns:
+            List of successfully parsed FileIssue objects.
+        """
+        if not isinstance(issues_data, list):
+            return []
+
+        issues = []
+        for item in issues_data:
+            if not isinstance(item, dict):
+                continue
+
+            # Create a copy with file_path added to avoid mutating input data
+            item_with_path = {**item, "file_path": file_path}
+
+            try:
+                issue = FileIssue.from_dict(item_with_path)
+                issues.append(issue)
+            except (ValueError, KeyError) as e:
+                logger.warning(
+                    f"Failed to parse issue for {file_path}: {e}. Item: {item}"
+                )
+
+        return issues
+
     def parse_file_summary(self, markdown: str, file_path: str) -> tuple[str, FileSummary]:
         """Parse File_Summary from markdown, return (clean_markdown, summary).
 
@@ -564,6 +604,9 @@ class SummaryParser:
             )
             layer = "utility"
 
+        # Parse issues from YAML
+        issues = self._parse_issues(summary_data.get("issues", []), file_path)
+
         summary = FileSummary(
             file_path=file_path,
             purpose=purpose,
@@ -571,6 +614,7 @@ class SummaryParser:
             key_abstractions=self._ensure_list(summary_data.get("key_abstractions", [])),
             internal_deps=self._ensure_list(summary_data.get("internal_deps", [])),
             external_deps=self._ensure_list(summary_data.get("external_deps", [])),
+            issues=issues,
         )
 
         return clean_markdown, summary

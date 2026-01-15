@@ -2100,6 +2100,122 @@ class TestFileSummaryWithIssues:
         assert summary.issues[0].category == "security"
 
 
+class TestSummaryParserIssues:
+    """Tests for SummaryParser issue extraction."""
+
+    def test_parse_file_summary_with_issues(self):
+        """SummaryParser extracts issues from YAML."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Handles user authentication"
+  layer: api
+  key_abstractions:
+    - "authenticate"
+  internal_deps: []
+  external_deps:
+    - "bcrypt"
+  issues:
+    - category: security
+      severity: problem
+      title: "Hardcoded secret key"
+      description: "JWT secret is hardcoded in source"
+      lines: [15, 15]
+    - category: reliability
+      severity: suggestion
+      title: "Missing rate limiting"
+      description: "Login endpoint has no rate limiting"
+---
+
+# Authentication Module
+
+This module handles user authentication.
+'''
+
+        parser = SummaryParser()
+        clean_md, summary = parser.parse_file_summary(markdown, "auth.py")
+
+        assert summary.purpose == "Handles user authentication"
+        assert len(summary.issues) == 2
+
+        assert summary.issues[0].category == "security"
+        assert summary.issues[0].severity == "problem"
+        assert summary.issues[0].title == "Hardcoded secret key"
+        assert summary.issues[0].line_range == (15, 15)
+
+        assert summary.issues[1].category == "reliability"
+        assert summary.issues[1].severity == "suggestion"
+
+    def test_parse_file_summary_without_issues(self):
+        """SummaryParser handles YAML without issues field."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Utility functions"
+  layer: utility
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+---
+
+# Utilities
+'''
+
+        parser = SummaryParser()
+        _, summary = parser.parse_file_summary(markdown, "utils.py")
+
+        assert summary.issues == []
+
+    def test_parse_file_summary_with_empty_issues(self):
+        """SummaryParser handles explicit empty issues list."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Clean code"
+  layer: domain
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+  issues: []
+---
+
+# Clean Module
+'''
+
+        parser = SummaryParser()
+        _, summary = parser.parse_file_summary(markdown, "clean.py")
+
+        assert summary.issues == []
+
+    def test_parse_file_summary_issues_with_invalid_category_uses_default(self):
+        """Invalid category falls back to maintainability."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Test"
+  layer: utility
+  issues:
+    - category: invalid_category
+      severity: suggestion
+      title: "Some issue"
+      description: "Details"
+---
+
+# Test
+'''
+
+        parser = SummaryParser()
+        _, summary = parser.parse_file_summary(markdown, "test.py")
+
+        # Should use default category from FileIssue.from_dict
+        assert len(summary.issues) == 1
+        assert summary.issues[0].category == "maintainability"
+
+
 class TestCodeMetrics:
     """Tests for CodeMetrics dataclass."""
 
