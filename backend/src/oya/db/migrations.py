@@ -77,11 +77,15 @@ CREATE TABLE IF NOT EXISTS citations (
 
 -- Full-text search index using FTS5
 -- Enables fast keyword search across wiki pages and notes
+-- Supports chunk-level indexing for RAG with section headers and chunk metadata
 CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
     content,  -- The searchable text content
     title,    -- Page or note title
-    path,     -- Path for linking back
-    type,     -- 'wiki' or 'note'
+    path UNINDEXED,     -- Path for linking back (not indexed, just stored)
+    type UNINDEXED,     -- 'wiki' or 'note' (not indexed, just stored)
+    section_header,     -- Section header for searching by section name
+    chunk_id UNINDEXED,    -- Unique identifier for RRF merging with vector search
+    chunk_index UNINDEXED, -- Position in document for context reconstruction
     content_rowid UNINDEXED  -- Reference to wiki_pages.id or notes.id
 );
 
