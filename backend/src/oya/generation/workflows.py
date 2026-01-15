@@ -123,6 +123,12 @@ class WorkflowGrouper:
                 )
             )
 
+        # Trace related files for all groups
+        for group in groups:
+            group.related_files = self._find_related_files(
+                group.entry_points, file_imports
+            )
+
         return groups
 
     def _group_by_route_prefix(
@@ -317,6 +323,43 @@ class WorkflowGrouper:
         slug = re.sub(r"[^a-z0-9-]", "", slug)
         slug = re.sub(r"-+", "-", slug)
         return slug.strip("-")
+
+    def _find_related_files(
+        self,
+        entry_points: list[EntryPointInfo],
+        file_imports: dict[str, list[str]],
+        max_depth: int = 2,
+    ) -> list[str]:
+        """Trace imports from entry point files to find related code.
+
+        Args:
+            entry_points: Entry points in this workflow group.
+            file_imports: Map of file -> list of imported files.
+            max_depth: How deep to trace (2 = handler -> service -> repo).
+
+        Returns:
+            Deduplicated list of related file paths.
+        """
+        seed_files = {ep.file for ep in entry_points if ep.file}
+        related = set(seed_files)
+        frontier = set(seed_files)
+
+        for _ in range(max_depth):
+            next_frontier: set[str] = set()
+            for file in frontier:
+                imports = file_imports.get(file, [])
+                # Filter to internal imports only (files that exist in our import map
+                # or look like relative paths)
+                internal = [
+                    f for f in imports
+                    if f in file_imports or "/" in f or f.endswith(".py")
+                ]
+                next_frontier.update(internal)
+            new_files = next_frontier - related
+            related.update(new_files)
+            frontier = new_files
+
+        return sorted(related)
 
 
 @dataclass

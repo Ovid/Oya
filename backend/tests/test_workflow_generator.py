@@ -376,3 +376,32 @@ class TestWorkflowGrouper:
         cli_group = next((g for g in groups if "cli" in g.slug.lower()), None)
         assert cli_group is not None
         assert len(cli_group.entry_points) == 2
+
+    def test_traces_related_files_via_imports(self):
+        """Traces related files through import graph."""
+        grouper = WorkflowGrouper()
+
+        entry_points = [
+            EntryPointInfo(name="get_users", entry_type="api_route", file="api/users.py", description="/users"),
+        ]
+
+        file_imports = {
+            "api/users.py": ["services/user_service.py", "external_lib"],
+            "services/user_service.py": ["repositories/user_repo.py", "models/user.py"],
+            "repositories/user_repo.py": ["db/connection.py"],
+        }
+
+        groups = grouper.group(entry_points, file_imports)
+
+        assert len(groups) == 1
+        related = groups[0].related_files
+
+        # Should include entry point file + depth-1 + depth-2 (but not depth-3)
+        assert "api/users.py" in related
+        assert "services/user_service.py" in related
+        assert "repositories/user_repo.py" in related
+        assert "models/user.py" in related
+        # Depth 3 should not be included
+        assert "db/connection.py" not in related
+        # External libs should not be included
+        assert "external_lib" not in related
