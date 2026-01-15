@@ -649,6 +649,77 @@ def _format_directory_summaries(directory_summaries: list[Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_entry_points(entry_points: list[Any]) -> str:
+    """Format entry points for inclusion in a prompt.
+
+    Args:
+        entry_points: List of EntryPointInfo objects.
+
+    Returns:
+        Formatted string representation of entry points.
+    """
+    if not entry_points:
+        return "No entry points discovered."
+
+    lines = []
+    for ep in entry_points:
+        desc = f" ({ep.description})" if ep.description else ""
+        lines.append(f"- **{ep.name}** ({ep.entry_type}) in `{ep.file}`{desc}")
+
+    return "\n".join(lines)
+
+
+def _format_tech_stack(tech_stack: dict[str, dict[str, list[str]]]) -> str:
+    """Format tech stack for inclusion in a prompt.
+
+    Args:
+        tech_stack: Nested dict of {language: {category: [libraries]}}.
+
+    Returns:
+        Formatted string representation of tech stack.
+    """
+    if not tech_stack:
+        return "No technology stack detected."
+
+    lines = []
+    for language, categories in sorted(tech_stack.items()):
+        lines.append(f"### {language.title()}")
+        for category, libraries in sorted(categories.items()):
+            category_display = category.replace("_", " ").title()
+            libs = ", ".join(libraries)
+            lines.append(f"- **{category_display}**: {libs}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def _format_metrics(metrics: Any) -> str:
+    """Format code metrics for inclusion in a prompt.
+
+    Args:
+        metrics: CodeMetrics object or None.
+
+    Returns:
+        Formatted string representation of metrics.
+    """
+    if metrics is None:
+        return "No metrics available."
+
+    lines = [
+        f"- **Total Files**: {metrics.total_files}",
+        f"- **Total Lines of Code**: {metrics.total_lines:,}",
+        "",
+        "**By Layer:**",
+    ]
+
+    for layer in sorted(metrics.files_by_layer.keys()):
+        files = metrics.files_by_layer.get(layer, 0)
+        loc = metrics.lines_by_layer.get(layer, 0)
+        lines.append(f"- {layer}: {files} files, {loc:,} lines")
+
+    return "\n".join(lines)
+
+
 def format_subdirectory_summaries(
     summaries: list[Any],
     parent_directory: str

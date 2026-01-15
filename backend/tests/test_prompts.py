@@ -281,3 +281,90 @@ class TestSynthesisTemplate:
 
         # Should have layer_interactions in the JSON example
         assert '"layer_interactions"' in template_str
+
+
+class TestFormatHelpers:
+    """Tests for prompt formatting helper functions."""
+
+    def test_format_entry_points(self):
+        """Test formatting entry points for prompt."""
+        from oya.generation.prompts import _format_entry_points
+        from oya.generation.summaries import EntryPointInfo
+
+        entry_points = [
+            EntryPointInfo(name="main", entry_type="main_function", file="main.py", description=""),
+            EntryPointInfo(name="get_users", entry_type="api_route", file="api/users.py", description="/users"),
+            EntryPointInfo(name="init", entry_type="cli_command", file="cli/main.py", description="init"),
+        ]
+
+        result = _format_entry_points(entry_points)
+
+        assert "main" in result
+        assert "main_function" in result
+        assert "main.py" in result
+        assert "/users" in result
+        assert "cli_command" in result
+
+    def test_format_entry_points_empty(self):
+        """Test formatting empty entry points list."""
+        from oya.generation.prompts import _format_entry_points
+
+        result = _format_entry_points([])
+
+        assert "No entry points" in result or result == ""
+
+    def test_format_tech_stack(self):
+        """Test formatting tech stack for prompt."""
+        from oya.generation.prompts import _format_tech_stack
+
+        tech_stack = {
+            "python": {
+                "web_framework": ["FastAPI"],
+                "database": ["SQLAlchemy"],
+            },
+            "javascript": {
+                "frontend": ["React"],
+            },
+        }
+
+        result = _format_tech_stack(tech_stack)
+
+        assert "Python" in result or "python" in result
+        assert "FastAPI" in result
+        assert "SQLAlchemy" in result
+        assert "React" in result
+
+    def test_format_tech_stack_empty(self):
+        """Test formatting empty tech stack."""
+        from oya.generation.prompts import _format_tech_stack
+
+        result = _format_tech_stack({})
+
+        assert "no technology" in result.lower() or result == ""
+
+    def test_format_metrics(self):
+        """Test formatting code metrics for prompt."""
+        from oya.generation.prompts import _format_metrics
+        from oya.generation.summaries import CodeMetrics
+
+        metrics = CodeMetrics(
+            total_files=50,
+            files_by_layer={"api": 10, "domain": 20, "test": 20},
+            lines_by_layer={"api": 1000, "domain": 3000, "test": 2000},
+            total_lines=6000,
+        )
+
+        result = _format_metrics(metrics)
+
+        assert "50" in result  # total files
+        assert "6000" in result or "6,000" in result  # total lines
+        assert "api" in result.lower()
+        assert "domain" in result.lower()
+
+    def test_format_metrics_none(self):
+        """Test formatting None metrics."""
+        from oya.generation.prompts import _format_metrics
+
+        result = _format_metrics(None)
+
+        assert "No metrics" in result or result == ""
