@@ -7,13 +7,11 @@ Feature: oya-config-improvements
 Validates: Requirements 2.1
 """
 
-import importlib
 import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
 from fastapi.testclient import TestClient
 
 

@@ -1,9 +1,7 @@
 """Tests for Mermaid diagram validation."""
 
-import pytest
 
 from oya.generation.mermaid_validator import (
-    ValidationResult,
     sanitize_label,
     sanitize_node_id,
     validate_mermaid,

@@ -1,14 +1,11 @@
 """Notes service tests."""
 
 import pytest
-from datetime import datetime, UTC
-from pathlib import Path
 from unittest.mock import MagicMock
 
 from oya.notes.service import NotesService
 from oya.notes.schemas import (
     NoteCreate,
-    Note,
     NoteScope,
 )
 
@@ -49,7 +46,7 @@ class TestNotesServiceCreate:
             content="This function should use async/await pattern.",
         )
 
-        note = notes_service.create(note_data)
+        notes_service.create(note_data)
 
         # Check file exists
         notes_path = tmp_workspace / ".oyawiki" / "notes"
@@ -70,7 +67,7 @@ class TestNotesServiceCreate:
             content="All utilities should be pure functions.",
         )
 
-        note = notes_service.create(note_data)
+        notes_service.create(note_data)
 
         notes_path = tmp_workspace / ".oyawiki" / "notes"
         files = list(notes_path.glob("*.md"))
@@ -89,7 +86,7 @@ class TestNotesServiceCreate:
             author="test@example.com",
         )
 
-        note = notes_service.create(note_data)
+        notes_service.create(note_data)
 
         notes_path = tmp_workspace / ".oyawiki" / "notes"
         files = list(notes_path.glob("*.md"))
@@ -110,7 +107,7 @@ class TestNotesServiceCreate:
             content="API needs rate limiting.",
         )
 
-        note = notes_service.create(note_data)
+        notes_service.create(note_data)
 
         mock_db.execute.assert_called()
         # Should insert into notes table
@@ -282,7 +279,7 @@ class TestNotesServiceDelete:
             "created_at": "2024-01-01T00:00:00",
         }
 
-        result = notes_service.delete(1)
+        notes_service.delete(1)
 
         # Check DELETE was called
         calls = [str(c) for c in mock_db.execute.call_args_list]

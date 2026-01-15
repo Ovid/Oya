@@ -2,7 +2,6 @@
 
 import subprocess
 import pytest
-from pathlib import Path
 from httpx import ASGITransport, AsyncClient
 
 from oya.main import app

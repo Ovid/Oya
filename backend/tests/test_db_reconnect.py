@@ -4,7 +4,6 @@ import pytest
 from pathlib import Path
 
 from oya.api.deps import get_db, _reset_db_instance, get_settings
-from oya.db.connection import Database
 
 
 class TestDatabaseReconnect:
@@ -28,7 +27,7 @@ class TestDatabaseReconnect:
         _reset_db_instance()
 
         # First call creates the database
-        db1 = get_db()
+        get_db()
         db_path = workspace / ".oyawiki" / "meta" / "oya.db"
         assert db_path.exists(), "Database file should be created"
 

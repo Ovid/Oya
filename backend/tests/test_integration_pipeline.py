@@ -1,10 +1,6 @@
 """Integration tests for directory pages redesign."""
 
-import pytest
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
-from oya.generation.orchestrator import GenerationOrchestrator
 from oya.generation.prompts import generate_breadcrumb, format_subdirectory_summaries, format_file_links
 from oya.generation.summaries import DirectorySummary, FileSummary
 from oya.repo.file_filter import extract_directories_from_files

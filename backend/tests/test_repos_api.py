@@ -63,7 +63,6 @@ async def test_post_repos_init_starts_generation(client, workspace, monkeypatch)
     from unittest.mock import AsyncMock
     from oya.api.routers import repos
     
-    original_run_generation = repos._run_generation
     mock_run_generation = AsyncMock()
     monkeypatch.setattr(repos, "_run_generation", mock_run_generation)
     
@@ -440,8 +439,8 @@ async def test_get_indexable_items_file_enumeration_error_returns_500(client, tm
 # Requirements: 2.4, 2.7, 7.7
 # ============================================================================
 
-from hypothesis import given, settings as hypothesis_settings, HealthCheck
-from hypothesis import strategies as st
+from hypothesis import given, settings as hypothesis_settings, HealthCheck  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
 
 
 # Strategy for generating valid file names

@@ -8,12 +8,10 @@ Tests for:
 - Property 4: Path canonicalization security
 """
 
-import os
 import tempfile
 from pathlib import Path
 
-import pytest
-from hypothesis import given, settings, strategies as st, assume
+from hypothesis import given, settings, strategies as st
 
 
 class TestInvalidPathRejection:
@@ -38,7 +36,7 @@ class TestInvalidPathRejection:
         For any path that does not exist, validate_workspace_path() should
         return is_valid=False with appropriate error message.
         """
-        from oya.api.deps import validate_workspace_path, get_workspace_base_path
+        from oya.api.deps import validate_workspace_path
         
         with tempfile.TemporaryDirectory() as tmpdir:
             base_path = Path(tmpdir)

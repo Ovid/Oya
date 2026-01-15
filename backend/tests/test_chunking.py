@@ -1,10 +1,8 @@
 # backend/tests/test_chunking.py
 """Content chunking tests."""
 
-import pytest
 
 from oya.generation.chunking import (
-    Chunk,
     chunk_file_content,
     chunk_by_symbols,
     estimate_tokens,

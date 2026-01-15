@@ -6,7 +6,6 @@ Feature: oya-config-improvements
 import tempfile
 from pathlib import Path
 
-import pytest
 from hypothesis import given, settings, strategies as st
 
 

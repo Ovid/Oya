@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from oya.config import Settings, load_settings
+from oya.config import load_settings
 
 
 @pytest.fixture

@@ -1,7 +1,5 @@
 """API dependency tests."""
 
-import pytest
-from pathlib import Path
 
 from oya.api.deps import get_db, get_settings, get_repo
 
@@ -25,7 +23,7 @@ def test_get_settings_returns_settings(tmp_path, monkeypatch):
 
 def test_get_db_returns_database(tmp_path, monkeypatch):
     """get_db returns Database instance with migrations applied."""
-    from oya.api.deps import get_db, _reset_db_instance
+    from oya.api.deps import _reset_db_instance
     from oya.db.connection import Database
 
     # Reset singleton for test isolation

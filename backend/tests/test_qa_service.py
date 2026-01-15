@@ -113,7 +113,7 @@ class TestQAServiceAnswerGeneration:
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="How does the main function work?")
 
-        response = await service.ask(request)
+        await service.ask(request)
 
         # LLM should be called with context
         call_args = mock_llm.generate.call_args
@@ -164,7 +164,7 @@ def test_qa_request_no_mode_or_context():
 
 def test_qa_response_has_confidence_and_search_quality():
     """QAResponse uses confidence instead of evidence_sufficient."""
-    from oya.qa.schemas import QAResponse, ConfidenceLevel, SearchQuality, Citation
+    from oya.qa.schemas import ConfidenceLevel, SearchQuality
     response = QAResponse(
         answer="Auth uses JWT tokens.",
         citations=[],
@@ -205,7 +205,6 @@ def test_search_quality_schema():
 
 def test_citation_has_url_field():
     """Citation includes url for frontend routing."""
-    from oya.qa.schemas import Citation
     citation = Citation(
         path="files/src_main-py.md",
         title="Main Module",

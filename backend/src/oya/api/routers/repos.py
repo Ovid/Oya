@@ -104,7 +104,6 @@ def _build_repo_status(
     if meta_path.exists():
         # Create a temporary indexing service just to read metadata
         try:
-            from oya.db.connection import Database
             # We don't need a real vectorstore/db, just the meta_path
             indexing_service = IndexingService(
                 vectorstore=None,  # type: ignore
@@ -414,7 +413,6 @@ async def _run_generation(
     from oya.generation.orchestrator import GenerationOrchestrator
     from oya.llm.client import LLMClient
     from oya.indexing.service import IndexingService
-    from oya.vectorstore.store import VectorStore
     from oya.generation.staging import prepare_staging_directory, promote_staging_to_production
 
     # Staging paths - build in .oyawiki-building
