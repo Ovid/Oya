@@ -340,3 +340,22 @@ class TestWorkflowGrouper:
         export_group = next((g for g in groups if "export" in g.slug.lower()), None)
         assert export_group is not None
         assert len(export_group.entry_points) == 2
+
+    def test_groups_by_name_prefix(self):
+        """Groups entry points by common function name prefix."""
+        grouper = WorkflowGrouper()
+
+        # These are in different files but share naming pattern
+        entry_points = [
+            EntryPointInfo(name="sync_users", entry_type="function", file="jobs/user_sync.py", description=""),
+            EntryPointInfo(name="sync_orders", entry_type="function", file="jobs/order_sync.py", description=""),
+            EntryPointInfo(name="sync_inventory", entry_type="function", file="jobs/inventory_sync.py", description=""),
+            EntryPointInfo(name="cleanup_temp", entry_type="function", file="jobs/cleanup.py", description=""),
+        ]
+
+        groups = grouper.group(entry_points, file_imports={})
+
+        # Should have sync group (3) and cleanup as individual
+        sync_group = next((g for g in groups if "sync" in g.slug.lower()), None)
+        assert sync_group is not None
+        assert len(sync_group.entry_points) == 3

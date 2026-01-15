@@ -99,6 +99,12 @@ class WorkflowGrouper:
         grouped_names = {ep.name for g in file_groups for ep in g.entry_points}
         ungrouped = [ep for ep in ungrouped if ep.name not in grouped_names]
 
+        # 3. Name-prefix grouping for remaining
+        name_groups = self._group_by_name_prefix(ungrouped)
+        groups.extend(name_groups)
+        grouped_names = {ep.name for g in name_groups for ep in g.entry_points}
+        ungrouped = [ep for ep in ungrouped if ep.name not in grouped_names]
+
         # Create individual groups for any remaining
         for ep in ungrouped:
             groups.append(
@@ -204,6 +210,46 @@ class WorkflowGrouper:
                         slug=self._slugify(name),
                         entry_points=eps,
                         related_files=[file_path],
+                        primary_layer="",
+                    )
+                )
+
+        return groups
+
+    def _group_by_name_prefix(
+        self, entry_points: list[EntryPointInfo]
+    ) -> list[WorkflowGroup]:
+        """Group entry points by common function name prefix."""
+        # Common prefixes that indicate related functionality
+        COMMON_PREFIXES = [
+            "sync_", "export_", "import_", "process_", "handle_",
+            "create_", "update_", "delete_", "get_", "list_",
+            "validate_", "send_", "fetch_", "load_", "save_",
+        ]
+
+        prefix_groups: dict[str, list[EntryPointInfo]] = {}
+
+        for ep in entry_points:
+            for prefix in COMMON_PREFIXES:
+                if ep.name.startswith(prefix):
+                    # Use prefix without underscore as group key
+                    key = prefix.rstrip("_")
+                    if key not in prefix_groups:
+                        prefix_groups[key] = []
+                    prefix_groups[key].append(ep)
+                    break
+
+        groups = []
+        for prefix, eps in prefix_groups.items():
+            # Only create group if multiple entry points share the prefix
+            if len(eps) >= 2:
+                name = f"{prefix.title()} Operations"
+                groups.append(
+                    WorkflowGroup(
+                        name=name,
+                        slug=self._slugify(name),
+                        entry_points=eps,
+                        related_files=list({ep.file for ep in eps if ep.file}),
                         primary_layer="",
                     )
                 )
