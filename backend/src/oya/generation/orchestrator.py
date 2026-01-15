@@ -28,10 +28,17 @@ from typing import Any, Callable, Coroutine, Iterator
 from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
+from oya.generation.mermaid import LayerDiagramGenerator
+from oya.generation.metrics import compute_code_metrics
 from oya.generation.overview import GeneratedPage, OverviewGenerator
-from oya.generation.summaries import DirectorySummary, FileSummary, SynthesisMap
+from oya.generation.summaries import DirectorySummary, EntryPointInfo, FileSummary, SynthesisMap
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
-from oya.generation.workflows import WorkflowDiscovery, WorkflowGenerator
+from oya.generation.techstack import detect_tech_stack
+from oya.generation.workflows import (
+    WorkflowDiscovery,
+    WorkflowGenerator,
+    extract_entry_point_description,
+)
 from oya.constants.generation import PROGRESS_REPORT_INTERVAL
 from oya.parsing.fallback_parser import FallbackParser
 from oya.parsing.models import ParsedSymbol
@@ -243,6 +250,9 @@ class GenerationOrchestrator:
 
         # Workflow discovery helper
         self.workflow_discovery = WorkflowDiscovery()
+
+        # Diagram generator for overview architecture diagram
+        self.layer_diagram_generator = LayerDiagramGenerator()
 
         # Meta path for synthesis storage
         self.meta_path = self.wiki_path.parent / "meta"
@@ -495,7 +505,12 @@ class GenerationOrchestrator:
                     message="Synthesizing codebase understanding...",
                 ),
             )
-            synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
+            synthesis_map = await self._run_synthesis(
+                file_summaries,
+                directory_summaries,
+                file_contents=analysis["file_contents"],
+                all_symbols=analysis["symbols"],
+            )
             await self._emit_progress(
                 progress_callback,
                 GenerationProgress(
@@ -518,7 +533,12 @@ class GenerationOrchestrator:
                         message="Synthesizing codebase understanding...",
                     ),
                 )
-                synthesis_map = await self._run_synthesis(file_summaries, directory_summaries)
+                synthesis_map = await self._run_synthesis(
+                    file_summaries,
+                    directory_summaries,
+                    file_contents=analysis["file_contents"],
+                    all_symbols=analysis["symbols"],
+                )
 
         # Phase 5: Architecture (uses SynthesisMap as primary context)
         # Cascade: regenerate architecture only if synthesis was regenerated (Requirement 7.3, 7.5)
@@ -741,11 +761,17 @@ class GenerationOrchestrator:
         # Try to extract package info from package.json or pyproject.toml
         package_info = self._extract_package_info(analysis["file_contents"])
 
+        # Generate architecture diagram from synthesis map
+        architecture_diagram = ""
+        if synthesis_map is not None:
+            architecture_diagram = self.layer_diagram_generator.generate(synthesis_map)
+
         return await self.overview_generator.generate(
             readme_content=readme_content,
             file_tree=analysis["file_tree"],
             package_info=package_info,
             synthesis_map=synthesis_map,
+            architecture_diagram=architecture_diagram,
         )
 
     def _extract_package_info(self, file_contents: dict[str, str]) -> dict:
@@ -900,12 +926,16 @@ class GenerationOrchestrator:
         self,
         file_summaries: list[FileSummary],
         directory_summaries: list[DirectorySummary],
+        file_contents: dict[str, str] | None = None,
+        all_symbols: list[ParsedSymbol] | None = None,
     ) -> SynthesisMap:
         """Run synthesis phase to combine summaries into a SynthesisMap.
 
         Args:
             file_summaries: List of FileSummary objects from files phase.
             directory_summaries: List of DirectorySummary objects from directories phase.
+            file_contents: Optional dict mapping file paths to contents (for metrics).
+            all_symbols: Optional list of all parsed symbols (for entry point discovery).
 
         Returns:
             SynthesisMap containing aggregated codebase understanding.
@@ -915,6 +945,26 @@ class GenerationOrchestrator:
             file_summaries=file_summaries,
             directory_summaries=directory_summaries,
         )
+
+        # Populate tech_stack from file summaries
+        synthesis_map.tech_stack = detect_tech_stack(file_summaries)
+
+        # Populate metrics if file_contents available
+        if file_contents:
+            synthesis_map.metrics = compute_code_metrics(file_summaries, file_contents)
+
+        # Discover and populate entry points if symbols available
+        if all_symbols:
+            entry_point_symbols = self.workflow_discovery.find_entry_points(all_symbols)
+            synthesis_map.entry_points = [
+                EntryPointInfo(
+                    name=ep.name,
+                    entry_type=ep.symbol_type.value,
+                    file=ep.metadata.get("file", ""),
+                    description=extract_entry_point_description(ep),
+                )
+                for ep in entry_point_symbols
+            ]
 
         # Save to synthesis.json
         save_synthesis_map(synthesis_map, str(self.meta_path))

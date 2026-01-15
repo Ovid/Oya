@@ -202,7 +202,9 @@ class TestPipelinePhaseOrder:
             call_order.append("directories")
             return [], []  # pages, directory_summaries
 
-        async def mock_synthesis(file_summaries, directory_summaries):
+        async def mock_synthesis(
+            file_summaries, directory_summaries, file_contents=None, all_symbols=None
+        ):
             call_order.append("synthesis")
             return SynthesisMap()
 
@@ -346,7 +348,9 @@ class TestFileSummariesPassedToSynthesis:
         async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
             return [], []
 
-        async def mock_synthesis(file_summaries, directory_summaries):
+        async def mock_synthesis(
+            file_summaries, directory_summaries, file_contents=None, all_symbols=None
+        ):
             captured_file_summaries.extend(file_summaries)
             return SynthesisMap()
 
@@ -460,7 +464,9 @@ class TestDirectorySummariesPassedToSynthesis:
         async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
             return [], [mock_dir_summary]
 
-        async def mock_synthesis(file_summaries, directory_summaries):
+        async def mock_synthesis(
+            file_summaries, directory_summaries, file_contents=None, all_symbols=None
+        ):
             captured_dir_summaries.extend(directory_summaries)
             return SynthesisMap()
 
@@ -528,7 +534,9 @@ class TestSynthesisMapPassedToArchAndOverview:
         async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
             return [], []
 
-        async def mock_synthesis(file_summaries, directory_summaries):
+        async def mock_synthesis(
+            file_summaries, directory_summaries, file_contents=None, all_symbols=None
+        ):
             return mock_synthesis_map
 
         async def mock_architecture(analysis, synthesis_map=None):
@@ -579,7 +587,9 @@ class TestSynthesisMapPassedToArchAndOverview:
         async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
             return [], []
 
-        async def mock_synthesis(file_summaries, directory_summaries):
+        async def mock_synthesis(
+            file_summaries, directory_summaries, file_contents=None, all_symbols=None
+        ):
             return mock_synthesis_map
 
         async def mock_architecture(analysis, synthesis_map=None):
