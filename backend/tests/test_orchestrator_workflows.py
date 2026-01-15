@@ -2,8 +2,7 @@
 """Tests for orchestrator workflow generation."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 from oya.generation.orchestrator import GenerationOrchestrator
 from oya.generation.summaries import SynthesisMap, LayerInfo, EntryPointInfo
