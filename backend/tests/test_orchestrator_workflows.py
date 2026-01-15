@@ -114,3 +114,86 @@ class TestOrchestratorWorkflows:
         )
 
         assert pages == []
+
+    @pytest.mark.asyncio
+    async def test_workflow_generation_end_to_end(self, mock_orchestrator):
+        """Full integration test for workflow generation."""
+        synthesis_map = SynthesisMap(
+            layers={
+                "api": LayerInfo(
+                    name="api", purpose="HTTP endpoints", files=["api/users.py", "api/orders.py"]
+                ),
+                "domain": LayerInfo(
+                    name="domain", purpose="Business logic", files=["services/user_service.py"]
+                ),
+            },
+            key_components=[],
+            entry_points=[
+                # Users API group
+                EntryPointInfo(
+                    name="get_users",
+                    entry_type="api_route",
+                    file="api/users.py",
+                    description="/api/users",
+                ),
+                EntryPointInfo(
+                    name="create_user",
+                    entry_type="api_route",
+                    file="api/users.py",
+                    description="/api/users",
+                ),
+                # Orders API group
+                EntryPointInfo(
+                    name="get_orders",
+                    entry_type="api_route",
+                    file="api/orders.py",
+                    description="/api/orders",
+                ),
+                # CLI commands
+                EntryPointInfo(
+                    name="init",
+                    entry_type="cli_command",
+                    file="cli/main.py",
+                    description="init",
+                ),
+                EntryPointInfo(
+                    name="build",
+                    entry_type="cli_command",
+                    file="cli/main.py",
+                    description="build",
+                ),
+            ],
+            project_summary="E-commerce platform",
+            layer_interactions="API calls domain services",
+        )
+
+        analysis = {
+            "symbols": [],
+            "file_contents": {
+                "api/users.py": "def get_users(): pass",
+                "api/orders.py": "def get_orders(): pass",
+                "cli/main.py": "def init(): pass",
+            },
+            "file_imports": {
+                "api/users.py": ["services/user_service.py"],
+            },
+        }
+
+        pages = await mock_orchestrator._run_workflows(
+            analysis=analysis,
+            progress_callback=None,
+            synthesis_map=synthesis_map,
+        )
+
+        # Should have multiple groups: users-api, orders-api, cli
+        assert len(pages) >= 2
+
+        # Check page paths are correctly slugified
+        paths = [p.path for p in pages]
+        assert all(p.startswith("workflows/") for p in paths)
+        assert all(p.endswith(".md") for p in paths)
+
+        # Verify different groups were created
+        path_names = [p.path.lower() for p in pages]
+        assert any("users" in p for p in path_names), "Should have users workflow"
+        assert any("orders" in p or "cli" in p for p in path_names), "Should have orders or cli workflow"
