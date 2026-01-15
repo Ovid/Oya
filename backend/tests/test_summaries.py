@@ -2013,6 +2013,93 @@ class TestFileIssue:
         assert issue.line_range == (5, 5)
 
 
+class TestFileSummaryWithIssues:
+    """Tests for FileSummary with issues field."""
+
+    def test_file_summary_with_empty_issues(self):
+        """FileSummary defaults to empty issues list."""
+        from oya.generation.summaries import FileSummary
+
+        summary = FileSummary(
+            file_path="test.py",
+            purpose="Test file",
+            layer="utility",
+        )
+
+        assert summary.issues == []
+
+    def test_file_summary_with_issues(self):
+        """FileSummary can hold FileIssue objects."""
+        from oya.generation.summaries import FileSummary, FileIssue
+
+        issue = FileIssue(
+            file_path="test.py",
+            category="security",
+            severity="problem",
+            title="Test issue",
+            description="Test description",
+        )
+
+        summary = FileSummary(
+            file_path="test.py",
+            purpose="Test file",
+            layer="utility",
+            issues=[issue],
+        )
+
+        assert len(summary.issues) == 1
+        assert summary.issues[0].title == "Test issue"
+
+    def test_file_summary_to_dict_includes_issues(self):
+        """FileSummary.to_dict() includes serialized issues."""
+        from oya.generation.summaries import FileSummary, FileIssue
+
+        issue = FileIssue(
+            file_path="test.py",
+            category="reliability",
+            severity="suggestion",
+            title="Missing error handling",
+            description="Add try/except",
+            line_range=(10, 12),
+        )
+
+        summary = FileSummary(
+            file_path="test.py",
+            purpose="Test file",
+            layer="utility",
+            issues=[issue],
+        )
+
+        d = summary.to_dict()
+        assert "issues" in d
+        assert len(d["issues"]) == 1
+        assert d["issues"][0]["title"] == "Missing error handling"
+        assert d["issues"][0]["line_start"] == 10
+
+    def test_file_summary_from_dict_with_issues(self):
+        """FileSummary.from_dict() deserializes issues."""
+        from oya.generation.summaries import FileSummary
+
+        data = {
+            "file_path": "test.py",
+            "purpose": "Test",
+            "layer": "utility",
+            "issues": [
+                {
+                    "file_path": "test.py",
+                    "category": "security",
+                    "severity": "problem",
+                    "title": "SQL injection",
+                    "description": "Use parameterized queries",
+                }
+            ],
+        }
+
+        summary = FileSummary.from_dict(data)
+        assert len(summary.issues) == 1
+        assert summary.issues[0].category == "security"
+
+
 class TestCodeMetrics:
     """Tests for CodeMetrics dataclass."""
 

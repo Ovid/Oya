@@ -118,7 +118,7 @@ class FileSummary:
     """Structured summary extracted from file documentation.
 
     Captures the essential information about a source file including its purpose,
-    architectural layer, key abstractions, and dependencies.
+    architectural layer, key abstractions, dependencies, and detected issues.
 
     Attributes:
         file_path: Path to the source file relative to repository root.
@@ -128,6 +128,7 @@ class FileSummary:
         key_abstractions: Primary classes, functions, or types defined in the file.
         internal_deps: Paths to other files in the repository that this file depends on.
         external_deps: External libraries or packages the file imports.
+        issues: List of FileIssue objects representing detected code issues.
     """
 
     file_path: str
@@ -136,6 +137,7 @@ class FileSummary:
     key_abstractions: list[str] = field(default_factory=list)
     internal_deps: list[str] = field(default_factory=list)
     external_deps: list[str] = field(default_factory=list)
+    issues: list[FileIssue] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate layer field after initialization."""
@@ -157,6 +159,7 @@ class FileSummary:
             "key_abstractions": self.key_abstractions,
             "internal_deps": self.internal_deps,
             "external_deps": self.external_deps,
+            "issues": [issue.to_dict() for issue in self.issues],
         }
 
     @classmethod
@@ -169,6 +172,9 @@ class FileSummary:
         Returns:
             A new FileSummary instance.
         """
+        issues_data = data.get("issues", [])
+        issues = [FileIssue.from_dict(issue_data) for issue_data in issues_data]
+
         return cls(
             file_path=data.get("file_path", ""),
             purpose=data.get("purpose", "Unknown"),
@@ -176,6 +182,7 @@ class FileSummary:
             key_abstractions=data.get("key_abstractions", []),
             internal_deps=data.get("internal_deps", []),
             external_deps=data.get("external_deps", []),
+            issues=issues,
         )
 
 
