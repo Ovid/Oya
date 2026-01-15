@@ -305,6 +305,9 @@ Format the output as clean Markdown suitable for a wiki page."""
 WORKFLOW_SYNTHESIS_TEMPLATE = PromptTemplate(
     """Generate a workflow documentation page for the "{workflow_name}" workflow in "{repo_name}".
 
+## Project Context
+{project_summary}
+
 ## Entry Points
 {entry_points}
 
@@ -313,6 +316,9 @@ WORKFLOW_SYNTHESIS_TEMPLATE = PromptTemplate(
 
 ## System Layers
 {layers}
+
+## Layer Interactions
+{layer_interactions}
 
 ## Key Components
 {key_components}
@@ -326,12 +332,12 @@ WORKFLOW_SYNTHESIS_TEMPLATE = PromptTemplate(
 ---
 
 Create workflow documentation that includes:
-1. **Workflow Overview**: What this workflow accomplishes and its role in the system
-2. **Trigger/Entry Point**: How the workflow is initiated
-3. **Step-by-Step Flow**: Walkthrough showing how data moves through layers
-4. **Key Components Involved**: Which key components participate and their roles
+1. **Overview**: What this workflow accomplishes and its role in the system (2-3 sentences)
+2. **Entry Points**: How the workflow is triggered (routes, CLI commands, etc.)
+3. **Execution Flow**: Step-by-step walkthrough showing how data moves through layers
+4. **Key Components Involved**: Which components participate and their roles
 5. **Error Handling**: How errors are handled at each layer
-6. **Related Workflows**: Connections to other workflows
+6. **Data Flow**: What data moves through the system and how it transforms
 
 Format the output as clean Markdown suitable for a wiki page."""
 )
@@ -994,7 +1000,9 @@ def get_workflow_prompt(
             workflow_name=workflow_name,
             entry_points=entry_points_str,
             related_files=related_files_str,
+            project_summary=synthesis_map.project_summary or "No project summary available.",
             layers=_format_synthesis_layers(synthesis_map),
+            layer_interactions=synthesis_map.layer_interactions or "No layer interaction info available.",
             key_components=_format_synthesis_key_components(synthesis_map),
             dependency_graph=_format_synthesis_dependency_graph(synthesis_map),
             code_context=code_context or "No code context provided.",

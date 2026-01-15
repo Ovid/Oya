@@ -366,6 +366,34 @@ class TestWorkflowGroup:
         assert group.primary_layer == "api"
 
 
+class TestWorkflowPrompt:
+    """Tests for workflow prompt generation."""
+
+    def test_workflow_prompt_includes_synthesis_context(self):
+        """Verifies prompt includes project summary and layer interactions."""
+        from oya.generation.prompts import get_workflow_prompt
+        from oya.generation.summaries import SynthesisMap, LayerInfo
+
+        synthesis_map = SynthesisMap(
+            layers={"api": LayerInfo(name="api", purpose="HTTP endpoints", files=[])},
+            project_summary="A user management system for enterprises",
+            layer_interactions="API layer calls domain services which access repositories",
+        )
+
+        prompt = get_workflow_prompt(
+            repo_name="myproject",
+            workflow_name="Users API",
+            entry_points=["get_users (api_route) in api/users.py"],
+            related_files=["api/users.py"],
+            code_context="def get_users(): pass",
+            synthesis_map=synthesis_map,
+        )
+
+        assert "user management system" in prompt.lower()
+        assert "layer" in prompt.lower()
+        assert "Users API" in prompt
+
+
 class TestWorkflowGrouper:
     """Tests for WorkflowGrouper."""
 
