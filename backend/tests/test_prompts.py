@@ -368,3 +368,39 @@ class TestFormatHelpers:
         result = _format_metrics(None)
 
         assert "No metrics" in result or result == ""
+
+
+class TestOverviewSynthesisTemplate:
+    """Tests for overview synthesis prompt template."""
+
+    def test_template_includes_new_fields(self):
+        """Test that template includes placeholders for new fields."""
+        from oya.generation.prompts import OVERVIEW_SYNTHESIS_TEMPLATE
+
+        template_str = OVERVIEW_SYNTHESIS_TEMPLATE.template
+
+        assert "{entry_points}" in template_str
+        assert "{tech_stack}" in template_str
+        assert "{metrics}" in template_str
+        assert "{layer_interactions}" in template_str
+        assert "{architecture_diagram}" in template_str
+
+    def test_template_deprioritizes_readme(self):
+        """Test that template indicates README may be outdated."""
+        from oya.generation.prompts import OVERVIEW_SYNTHESIS_TEMPLATE
+
+        template_str = OVERVIEW_SYNTHESIS_TEMPLATE.template.lower()
+
+        assert "outdated" in template_str or "supplementary" in template_str
+
+    def test_template_has_structured_output(self):
+        """Test that template specifies structured output format."""
+        from oya.generation.prompts import OVERVIEW_SYNTHESIS_TEMPLATE
+
+        template_str = OVERVIEW_SYNTHESIS_TEMPLATE.template
+
+        # Should have main sections
+        assert "## Overview" in template_str or "# {repo_name}" in template_str
+        assert "Technology Stack" in template_str
+        assert "Getting Started" in template_str
+        assert "Architecture" in template_str

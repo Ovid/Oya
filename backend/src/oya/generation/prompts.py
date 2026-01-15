@@ -138,13 +138,28 @@ OVERVIEW_SYNTHESIS_TEMPLATE = PromptTemplate(
 ## Project Summary (from code analysis)
 {project_summary}
 
+## Entry Points
+{entry_points}
+
+## Technology Stack
+{tech_stack}
+
+## Code Metrics
+{metrics}
+
 ## System Layers
 {layers}
+
+## Layer Interactions
+{layer_interactions}
 
 ## Key Components
 {key_components}
 
-## README Content (supplementary)
+## Architecture Diagram (pre-generated)
+{architecture_diagram}
+
+## README Content (supplementary - may be outdated)
 {readme_content}
 
 ## Project Structure
@@ -157,14 +172,33 @@ OVERVIEW_SYNTHESIS_TEMPLATE = PromptTemplate(
 
 ---
 
-Create a documentation overview that includes:
-1. **Project Summary**: Use the project summary from code analysis as the primary source. If README content is available, incorporate any additional context it provides.
-2. **Key Features**: Main capabilities and features based on the key components and layer structure
-3. **Getting Started**: How to install and run the project (use README if available, otherwise infer from package info)
-4. **Project Structure**: Overview of the directory organization based on the system layers
-5. **Technology Stack**: Languages, frameworks, and key dependencies
+Generate the overview using this EXACT structure:
 
-Format the output as clean Markdown suitable for a wiki page."""
+# {{repo_name}}
+
+## Overview
+[2-3 paragraph summary from code analysis. README may be outdated—only incorporate README content if it adds unique context not already covered by the code analysis.]
+
+## Technology Stack
+[Table or bullet list of detected technologies organized by language and category. Use the tech stack information provided above.]
+
+## Getting Started
+[Based on discovered entry points—describe how to run the project using the CLI commands, API startup methods, or main functions identified. Be specific about commands and files.]
+
+## Architecture
+[Brief description of the layer structure with metrics for scale context. Include the pre-generated architecture diagram below this description.]
+
+{{architecture_diagram}}
+
+## Key Components
+[Bullet list of the most important classes/functions and their roles, based on the key components provided above.]
+
+## Optional sections (include only if relevant and supported by the data provided):
+- **Configuration**: If notable config patterns exist in the codebase
+- **Testing**: If test structure is worth highlighting (based on metrics)
+- **API Reference**: If entry points reveal a clear API surface
+
+Format as clean Markdown. Do not invent information not provided in the context above."""
 )
 
 
@@ -834,6 +868,7 @@ def get_overview_prompt(
     file_tree: str,
     package_info: dict[str, Any],
     synthesis_map: Any = None,
+    architecture_diagram: str = "",
 ) -> str:
     """Generate a prompt for creating an overview page.
 
@@ -847,6 +882,7 @@ def get_overview_prompt(
         file_tree: String representation of the file tree.
         package_info: Dictionary of package metadata.
         synthesis_map: SynthesisMap object with layer and component info (preferred).
+        architecture_diagram: Pre-generated Mermaid diagram for architecture visualization.
 
     Returns:
         The rendered prompt string.
@@ -856,8 +892,13 @@ def get_overview_prompt(
         return OVERVIEW_SYNTHESIS_TEMPLATE.render(
             repo_name=repo_name,
             project_summary=synthesis_map.project_summary or "No project summary available.",
+            entry_points=_format_entry_points(synthesis_map.entry_points),
+            tech_stack=_format_tech_stack(synthesis_map.tech_stack),
+            metrics=_format_metrics(synthesis_map.metrics),
             layers=_format_synthesis_layers(synthesis_map),
+            layer_interactions=synthesis_map.layer_interactions or "No layer interaction data.",
             key_components=_format_synthesis_key_components(synthesis_map),
+            architecture_diagram=architecture_diagram or "No architecture diagram available.",
             readme_content=readme_content or "No README found.",
             file_tree=file_tree,
             package_info=_format_package_info(package_info),
