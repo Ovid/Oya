@@ -24,6 +24,8 @@ dev = [
     "httpx>=0.26.0",
     "ruff>=0.1.0",
     "hypothesis>=6.100.0",
+    "mypy>=1.8.0",
+    "pytest-cov>=4.1.0",
 ]
 
 [build-system]
@@ -46,3 +48,22 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src/oya"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
