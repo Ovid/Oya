@@ -94,3 +94,14 @@ class VectorStore:
         self._collection = self._client.get_or_create_collection(
             name=self.COLLECTION_NAME,
         )
+
+    def close(self) -> None:
+        """Close the vector store and release resources.
+
+        This should be called when the store is no longer needed to
+        release file handles and other system resources.
+        """
+        # ChromaDB PersistentClient doesn't have an explicit close,
+        # but we can clear references to help garbage collection
+        self._collection = None  # type: ignore[assignment]
+        self._client = None  # type: ignore[assignment]

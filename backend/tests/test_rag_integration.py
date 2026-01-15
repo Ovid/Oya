@@ -28,7 +28,8 @@ def temp_db(tmp_path):
         );
     """)
     db.commit()
-    return db
+    yield db
+    db.close()
 
 
 @pytest.fixture
@@ -36,7 +37,9 @@ def temp_vectorstore(tmp_path):
     """Create a temporary vector store."""
     index_path = tmp_path / "index"
     index_path.mkdir()
-    return VectorStore(index_path)
+    store = VectorStore(index_path)
+    yield store
+    store.close()
 
 
 class TestRAGIntegration:

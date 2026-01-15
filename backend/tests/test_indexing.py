@@ -35,14 +35,17 @@ class TestContentIndexing:
             );
         """)
         db.commit()
-        return db
+        yield db
+        db.close()
 
     @pytest.fixture
     def temp_vectorstore(self, tmp_path):
         """Create a temporary vector store."""
         index_path = tmp_path / "index"
         index_path.mkdir()
-        return VectorStore(index_path)
+        store = VectorStore(index_path)
+        yield store
+        store.close()
 
     @pytest.fixture
     def sample_wiki_content(self, tmp_path):
@@ -235,14 +238,17 @@ class TestEmbeddingMetadata:
             );
         """)
         db.commit()
-        return db
+        yield db
+        db.close()
 
     @pytest.fixture
     def temp_vectorstore(self, tmp_path):
         """Create a temporary vector store."""
         index_path = tmp_path / "index"
         index_path.mkdir()
-        return VectorStore(index_path)
+        store = VectorStore(index_path)
+        yield store
+        store.close()
 
     @pytest.fixture
     def sample_wiki_content(self, tmp_path):
@@ -352,14 +358,17 @@ class TestIndexingIntegration:
             );
         """)
         db.commit()
-        return db
+        yield db
+        db.close()
 
     @pytest.fixture
     def temp_vectorstore(self, tmp_path):
         """Create a temporary vector store."""
         index_path = tmp_path / "index"
         index_path.mkdir()
-        return VectorStore(index_path)
+        store = VectorStore(index_path)
+        yield store
+        store.close()
 
     @pytest.mark.asyncio
     async def test_run_indexing_after_generation(self, temp_vectorstore, temp_db, tmp_path):
@@ -447,14 +456,17 @@ class TestChunkBasedIndexing:
             );
         """)
         db.commit()
-        return db
+        yield db
+        db.close()
 
     @pytest.fixture
     def temp_vectorstore(self, tmp_path):
         """Create a temporary vector store."""
         index_path = tmp_path / "index"
         index_path.mkdir()
-        return VectorStore(index_path)
+        store = VectorStore(index_path)
+        yield store
+        store.close()
 
     @pytest.mark.asyncio
     async def test_indexes_chunks_not_whole_pages(self, temp_vectorstore, temp_db, tmp_path):
