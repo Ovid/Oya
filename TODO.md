@@ -1,5 +1,6 @@
 # TODO
 
+* The "Ask" button should be hidden while regenerating.
 * "Are there any architectural flaws in the frontend?" DeepWiki caught one. We
   missed it. Investigate it. Check the jsonl logs and feed it back.
 * Have AI use the vector database and code to independently validate logic and
