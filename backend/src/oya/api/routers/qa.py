@@ -2,11 +2,12 @@
 
 from fastapi import APIRouter, Depends
 
-from oya.api.deps import get_db, get_vectorstore, get_llm
+from oya.api.deps import get_db, get_issues_store, get_llm, get_vectorstore
 from oya.db.connection import Database
 from oya.llm.client import LLMClient
 from oya.qa.schemas import QARequest, QAResponse
 from oya.qa.service import QAService
+from oya.vectorstore.issues import IssuesStore
 from oya.vectorstore.store import VectorStore
 
 
@@ -17,9 +18,10 @@ def get_qa_service(
     vectorstore: VectorStore = Depends(get_vectorstore),
     db: Database = Depends(get_db),
     llm: LLMClient = Depends(get_llm),
+    issues_store: IssuesStore = Depends(get_issues_store),
 ) -> QAService:
     """Get Q&A service instance."""
-    return QAService(vectorstore, db, llm)
+    return QAService(vectorstore, db, llm, issues_store)
 
 
 @router.post("/ask", response_model=QAResponse)
