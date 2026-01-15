@@ -269,8 +269,8 @@ class CodeMetrics:
         """Deserialize from dictionary."""
         return cls(
             total_files=data.get("total_files", 0),
-            files_by_layer=data.get("files_by_layer", {}),
-            lines_by_layer=data.get("lines_by_layer", {}),
+            files_by_layer=dict(data.get("files_by_layer", {})),
+            lines_by_layer=dict(data.get("lines_by_layer", {})),
             total_lines=data.get("total_lines", 0),
         )
 
