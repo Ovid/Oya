@@ -1,62 +1,115 @@
-import { NavLink } from 'react-router-dom';
-import { useApp } from '../context/useApp';
-import { Disclosure } from '@headlessui/react';
+import { NavLink } from 'react-router-dom'
+import { useApp } from '../context/useApp'
+import { Disclosure } from '@headlessui/react'
 
 // Common file extensions - used to identify where the extension starts in a slug
 // This list should be comprehensive to handle various programming languages
 const FILE_EXTENSIONS = new Set([
   // Common languages
-  'py', 'js', 'ts', 'tsx', 'jsx', 'java', 'go', 'rs', 'rb', 'php', 'c', 'cpp', 'h', 'hpp', 'cs', 'swift', 'kt', 'scala',
+  'py',
+  'js',
+  'ts',
+  'tsx',
+  'jsx',
+  'java',
+  'go',
+  'rs',
+  'rb',
+  'php',
+  'c',
+  'cpp',
+  'h',
+  'hpp',
+  'cs',
+  'swift',
+  'kt',
+  'scala',
   // Perl
-  'pl', 'pm', 'pod', 't',
+  'pl',
+  'pm',
+  'pod',
+  't',
   // Web
-  'html', 'css', 'scss', 'less', 'sass', 'vue', 'svelte',
+  'html',
+  'css',
+  'scss',
+  'less',
+  'sass',
+  'vue',
+  'svelte',
   // Config/data
-  'md', 'json', 'yaml', 'yml', 'toml', 'xml', 'ini', 'cfg', 'conf',
+  'md',
+  'json',
+  'yaml',
+  'yml',
+  'toml',
+  'xml',
+  'ini',
+  'cfg',
+  'conf',
   // Shell
-  'sh', 'bash', 'zsh', 'fish',
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
   // Other
-  'sql', 'graphql', 'proto', 'ex', 'exs', 'erl', 'hrl', 'clj', 'cljs', 'lua', 'r', 'jl', 'nim', 'zig', 'v', 'dart', 'groovy'
-]);
+  'sql',
+  'graphql',
+  'proto',
+  'ex',
+  'exs',
+  'erl',
+  'hrl',
+  'clj',
+  'cljs',
+  'lua',
+  'r',
+  'jl',
+  'nim',
+  'zig',
+  'v',
+  'dart',
+  'groovy',
+])
 
 /**
  * Convert a file slug back to a full relative path.
  * Slugs are created by replacing / and . with -, so we need to reconstruct.
  * e.g., "lib-mymodule-foo-pm" -> "lib/MyModule/Foo.pm"
- * 
+ *
  * Note: We cannot perfectly reconstruct the original path because:
  * 1. The slug is lowercased, so we lose case information
  * 2. Both / and . become -, so we need to guess which - was originally a .
- * 
+ *
  * We use the known file extensions to identify where the extension starts.
  */
 function slugToPath(slug: string): string {
-  const parts = slug.split('-');
-  
-  if (parts.length === 0) return slug;
-  
+  const parts = slug.split('-')
+
+  if (parts.length === 0) return slug
+
   // Check if last part is a known extension
-  const lastPart = parts[parts.length - 1];
+  const lastPart = parts[parts.length - 1]
   if (FILE_EXTENSIONS.has(lastPart) && parts.length >= 2) {
     // Join all but last with /, then add .extension
-    const pathParts = parts.slice(0, -1);
-    return pathParts.join('/') + '.' + lastPart;
+    const pathParts = parts.slice(0, -1)
+    return pathParts.join('/') + '.' + lastPart
   }
 
   // Fallback: just replace dashes with slashes
-  return slug.replace(/-/g, '/');
+  return slug.replace(/-/g, '/')
 }
 
 export function Sidebar() {
-  const { state } = useApp();
-  const { wikiTree } = state;
+  const { state } = useApp()
+  const { wikiTree } = state
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `block px-3 py-2 rounded-md text-sm ${
       isActive
         ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200'
         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-    }`;
+    }`
 
   return (
     <nav className="p-4 space-y-1">
@@ -65,7 +118,12 @@ export function Sidebar() {
         <NavLink to="/" className={linkClass}>
           <div className="flex items-center">
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              />
             </svg>
             Overview
           </div>
@@ -77,7 +135,12 @@ export function Sidebar() {
         <NavLink to="/architecture" className={linkClass}>
           <div className="flex items-center">
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+              />
             </svg>
             Architecture
           </div>
@@ -90,18 +153,24 @@ export function Sidebar() {
           {({ open }) => (
             <>
               <Disclosure.Button className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                <svg className={`w-4 h-4 mr-2 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <svg
+                  className={`w-4 h-4 mr-2 transition-transform ${open ? 'rotate-90' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
                 Workflows ({wikiTree.workflows.length})
               </Disclosure.Button>
               <Disclosure.Panel className="pl-6">
                 {wikiTree.workflows.map((slug) => (
-                  <NavLink
-                    key={slug}
-                    to={`/workflows/${slug}`}
-                    className={linkClass}
-                  >
+                  <NavLink key={slug} to={`/workflows/${slug}`} className={linkClass}>
                     {slug.replace(/-/g, ' ')}
                   </NavLink>
                 ))}
@@ -117,18 +186,24 @@ export function Sidebar() {
           {({ open }) => (
             <>
               <Disclosure.Button className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                <svg className={`w-4 h-4 mr-2 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <svg
+                  className={`w-4 h-4 mr-2 transition-transform ${open ? 'rotate-90' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
                 Directories ({wikiTree.directories.length})
               </Disclosure.Button>
               <Disclosure.Panel className="pl-6">
                 {wikiTree.directories.map((slug) => (
-                  <NavLink
-                    key={slug}
-                    to={`/directories/${slug}`}
-                    className={linkClass}
-                  >
+                  <NavLink key={slug} to={`/directories/${slug}`} className={linkClass}>
                     {slug.replace(/-/g, '/')}
                   </NavLink>
                 ))}
@@ -144,25 +219,31 @@ export function Sidebar() {
           {({ open }) => (
             <>
               <Disclosure.Button className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                <svg className={`w-4 h-4 mr-2 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <svg
+                  className={`w-4 h-4 mr-2 transition-transform ${open ? 'rotate-90' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
                 Files ({wikiTree.files.length})
               </Disclosure.Button>
               <Disclosure.Panel className="pl-6 max-h-64 overflow-y-auto">
                 {wikiTree.files.map((slug) => {
-                  const fullPath = slugToPath(slug);
+                  const fullPath = slugToPath(slug)
                   return (
-                    <NavLink
-                      key={slug}
-                      to={`/files/${slug}`}
-                      className={linkClass}
-                    >
+                    <NavLink key={slug} to={`/files/${slug}`} className={linkClass}>
                       <span className="truncate block" title={fullPath}>
                         {fullPath}
                       </span>
                     </NavLink>
-                  );
+                  )
                 })}
               </Disclosure.Panel>
             </>
@@ -178,5 +259,5 @@ export function Sidebar() {
         </div>
       )}
     </nav>
-  );
+  )
 }

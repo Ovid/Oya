@@ -1,223 +1,218 @@
-import { useState, useEffect, useMemo } from 'react';
-import * as api from '../api/client';
-import type { IndexableItems } from '../types';
+import { useState, useEffect, useMemo } from 'react'
+import * as api from '../api/client'
+import type { IndexableItems } from '../types'
 
 interface IndexingPreviewModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: () => void;
+  isOpen: boolean
+  onClose: () => void
+  onSave: () => void
 }
 
 interface PendingExclusions {
-  directories: Set<string>;
-  files: Set<string>;
+  directories: Set<string>
+  files: Set<string>
 }
 
 /**
  * IndexingPreviewModal displays a preview of directories and files that will be indexed.
  * Users can selectively exclude items before generation.
  */
-export function IndexingPreviewModal({
-  isOpen,
-  onClose,
-}: IndexingPreviewModalProps) {
-  const [indexableItems, setIndexableItems] = useState<IndexableItems | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalProps) {
+  const [indexableItems, setIndexableItems] = useState<IndexableItems | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [pendingExclusions, setPendingExclusions] = useState<PendingExclusions>({
     directories: new Set(),
     files: new Set(),
-  });
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  })
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Fetch indexable items when modal opens
   useEffect(() => {
     if (!isOpen) {
       // Reset state when modal closes
-      setIndexableItems(null);
-      setError(null);
-      setSearchQuery('');
-      setPendingExclusions({ directories: new Set(), files: new Set() });
-      setShowConfirmation(false);
-      setIsSaving(false);
-      return;
+      setIndexableItems(null)
+      setError(null)
+      setSearchQuery('')
+      setPendingExclusions({ directories: new Set(), files: new Set() })
+      setShowConfirmation(false)
+      setIsSaving(false)
+      return
     }
 
     const fetchItems = async () => {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true)
+      setError(null)
       try {
-        const items = await api.getIndexableItems();
-        setIndexableItems(items);
+        const items = await api.getIndexableItems()
+        setIndexableItems(items)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load indexable items';
-        setError(message);
+        const message = err instanceof Error ? err.message : 'Failed to load indexable items'
+        setError(message)
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchItems();
-  }, [isOpen]);
+    fetchItems()
+  }, [isOpen])
 
   // Filter directories based on search query and excluded parent directories (case-insensitive)
   const filteredDirectories = useMemo(() => {
-    if (!indexableItems) return [];
-    
-    let dirs = indexableItems.directories;
-    
+    if (!indexableItems) return []
+
+    let dirs = indexableItems.directories
+
     // Filter out directories that are children of excluded directories
     dirs = dirs.filter((dir) => {
       for (const excludedDir of pendingExclusions.directories) {
         if (dir.startsWith(excludedDir + '/')) {
-          return false;
+          return false
         }
       }
-      return true;
-    });
-    
+      return true
+    })
+
     // Apply search filter
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      dirs = dirs.filter((dir) => dir.toLowerCase().includes(query));
+      const query = searchQuery.toLowerCase()
+      dirs = dirs.filter((dir) => dir.toLowerCase().includes(query))
     }
-    
-    return dirs;
-  }, [indexableItems, searchQuery, pendingExclusions.directories]);
+
+    return dirs
+  }, [indexableItems, searchQuery, pendingExclusions.directories])
 
   // Filter files based on search query and excluded directories
   const filteredFiles = useMemo(() => {
-    if (!indexableItems) return [];
-    
-    let files = indexableItems.files;
-    
+    if (!indexableItems) return []
+
+    let files = indexableItems.files
+
     // Filter out files within excluded directories
     files = files.filter((file) => {
       for (const excludedDir of pendingExclusions.directories) {
         if (file.startsWith(excludedDir + '/')) {
-          return false;
+          return false
         }
       }
-      return true;
-    });
-    
+      return true
+    })
+
     // Apply search filter
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      files = files.filter((file) => file.toLowerCase().includes(query));
+      const query = searchQuery.toLowerCase()
+      files = files.filter((file) => file.toLowerCase().includes(query))
     }
-    
-    return files;
-  }, [indexableItems, searchQuery, pendingExclusions.directories]);
+
+    return files
+  }, [indexableItems, searchQuery, pendingExclusions.directories])
 
   // Toggle directory exclusion
   const toggleDirectoryExclusion = (dir: string) => {
     setPendingExclusions((prev) => {
-      const newDirs = new Set(prev.directories);
-      let newFiles = prev.files;
-      
+      const newDirs = new Set(prev.directories)
+      let newFiles = prev.files
+
       if (newDirs.has(dir)) {
-        newDirs.delete(dir);
+        newDirs.delete(dir)
       } else {
-        newDirs.add(dir);
+        newDirs.add(dir)
         // Clear any pending file exclusions within this directory
-        newFiles = new Set(
-          Array.from(prev.files).filter((file) => !file.startsWith(dir + '/'))
-        );
+        newFiles = new Set(Array.from(prev.files).filter((file) => !file.startsWith(dir + '/')))
       }
-      return { directories: newDirs, files: newFiles };
-    });
-  };
+      return { directories: newDirs, files: newFiles }
+    })
+  }
 
   // Toggle file exclusion
   const toggleFileExclusion = (file: string) => {
     setPendingExclusions((prev) => {
-      const newFiles = new Set(prev.files);
+      const newFiles = new Set(prev.files)
       if (newFiles.has(file)) {
-        newFiles.delete(file);
+        newFiles.delete(file)
       } else {
-        newFiles.add(file);
+        newFiles.add(file)
       }
-      return { ...prev, files: newFiles };
-    });
-  };
+      return { ...prev, files: newFiles }
+    })
+  }
 
   // Compute effective counts after exclusions
   const effectiveCounts = useMemo(() => {
-    if (!indexableItems) return { directories: 0, files: 0 };
-    
+    if (!indexableItems) return { directories: 0, files: 0 }
+
     // Count directories not excluded (including child directories of excluded parents)
     const includedDirs = indexableItems.directories.filter((dir) => {
       // Check if this directory is excluded
-      if (pendingExclusions.directories.has(dir)) return false;
+      if (pendingExclusions.directories.has(dir)) return false
       // Check if any parent directory is excluded
       for (const excludedDir of pendingExclusions.directories) {
-        if (dir.startsWith(excludedDir + '/')) return false;
+        if (dir.startsWith(excludedDir + '/')) return false
       }
-      return true;
-    });
-    
+      return true
+    })
+
     // Count files not excluded (including files in excluded directories)
     const includedFiles = indexableItems.files.filter((file) => {
       // Check if this file is excluded
-      if (pendingExclusions.files.has(file)) return false;
+      if (pendingExclusions.files.has(file)) return false
       // Check if any parent directory is excluded
       for (const excludedDir of pendingExclusions.directories) {
-        if (file.startsWith(excludedDir + '/')) return false;
+        if (file.startsWith(excludedDir + '/')) return false
       }
-      return true;
-    });
-    
+      return true
+    })
+
     return {
       directories: includedDirs.length,
       files: includedFiles.length,
-    };
-  }, [indexableItems, pendingExclusions]);
+    }
+  }, [indexableItems, pendingExclusions])
 
   // Check if there are any pending exclusions
-  const hasExclusions = pendingExclusions.directories.size > 0 || pendingExclusions.files.size > 0;
+  const hasExclusions = pendingExclusions.directories.size > 0 || pendingExclusions.files.size > 0
 
   // Handle save button click
   const handleSaveClick = () => {
     if (hasExclusions) {
-      setShowConfirmation(true);
+      setShowConfirmation(true)
     }
-  };
+  }
 
   // Handle confirmation
   const handleConfirm = async () => {
-    setIsSaving(true);
+    setIsSaving(true)
     try {
       await api.updateOyaignore({
         directories: Array.from(pendingExclusions.directories),
         files: Array.from(pendingExclusions.files),
-      });
-      setShowConfirmation(false);
-      onClose();
+      })
+      setShowConfirmation(false)
+      onClose()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save exclusions';
-      setError(message);
+      const message = err instanceof Error ? err.message : 'Failed to save exclusions'
+      setError(message)
     } finally {
-      setIsSaving(false);
+      setIsSaving(false)
     }
-  };
+  }
 
   // Handle cancel confirmation
   const handleCancelConfirmation = () => {
-    setShowConfirmation(false);
-  };
+    setShowConfirmation(false)
+  }
 
   if (!isOpen) {
-    return null;
+    return null
   }
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      onClose()
     }
-  };
+  }
 
   return (
     <div
@@ -276,8 +271,13 @@ export function IndexingPreviewModal({
 
               {/* Counts summary */}
               <div className="flex space-x-4 text-sm text-gray-600 dark:text-gray-400">
-                <span>{effectiveCounts.directories} {effectiveCounts.directories === 1 ? 'directory' : 'directories'}</span>
-                <span>{effectiveCounts.files} {effectiveCounts.files === 1 ? 'file' : 'files'}</span>
+                <span>
+                  {effectiveCounts.directories}{' '}
+                  {effectiveCounts.directories === 1 ? 'directory' : 'directories'}
+                </span>
+                <span>
+                  {effectiveCounts.files} {effectiveCounts.files === 1 ? 'file' : 'files'}
+                </span>
               </div>
 
               {/* Directories section */}
@@ -320,9 +320,7 @@ export function IndexingPreviewModal({
 
               {/* Files section */}
               <div>
-                <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">
-                  Files
-                </h3>
+                <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">Files</h3>
                 <div className="space-y-1">
                   {filteredFiles.map((file) => (
                     <div
@@ -395,12 +393,14 @@ export function IndexingPreviewModal({
               <ul className="text-sm text-gray-700 dark:text-gray-300 mb-6 space-y-1">
                 {pendingExclusions.directories.size > 0 && (
                   <li>
-                    {pendingExclusions.directories.size} {pendingExclusions.directories.size === 1 ? 'directory' : 'directories'}
+                    {pendingExclusions.directories.size}{' '}
+                    {pendingExclusions.directories.size === 1 ? 'directory' : 'directories'}
                   </li>
                 )}
                 {pendingExclusions.files.size > 0 && (
                   <li>
-                    {pendingExclusions.files.size} {pendingExclusions.files.size === 1 ? 'file' : 'files'}
+                    {pendingExclusions.files.size}{' '}
+                    {pendingExclusions.files.size === 1 ? 'file' : 'files'}
                   </li>
                 )}
               </ul>
@@ -424,5 +424,5 @@ export function IndexingPreviewModal({
         )}
       </div>
     </div>
-  );
+  )
 }

@@ -95,9 +95,7 @@ class ArchitectureGenerator:
             word_count=word_count,
         )
 
-    def _inject_diagrams(
-        self, content: str, diagrams: dict[str, str]
-    ) -> str:
+    def _inject_diagrams(self, content: str, diagrams: dict[str, str]) -> str:
         """Inject validated Mermaid diagrams into the architecture content.
 
         Adds a "## Generated Diagrams" section at the end with each

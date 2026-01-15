@@ -1,32 +1,37 @@
-import { useState } from 'react';
-import { useApp } from '../context/useApp';
-import { DirectoryPicker } from './DirectoryPicker';
-import { IndexingPreviewModal } from './IndexingPreviewModal';
+import { useState } from 'react'
+import { useApp } from '../context/useApp'
+import { DirectoryPicker } from './DirectoryPicker'
+import { IndexingPreviewModal } from './IndexingPreviewModal'
 
 interface TopBarProps {
-  onToggleSidebar: () => void;
-  onToggleRightSidebar: () => void;
-  onToggleAskPanel: () => void;
-  askPanelOpen: boolean;
+  onToggleSidebar: () => void
+  onToggleRightSidebar: () => void
+  onToggleAskPanel: () => void
+  askPanelOpen: boolean
 }
 
-export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel, askPanelOpen }: TopBarProps) {
-  const { state, startGeneration, toggleDarkMode, switchWorkspace } = useApp();
-  const { repoStatus, currentJob, isLoading, darkMode, noteEditor } = state;
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+export function TopBar({
+  onToggleSidebar,
+  onToggleRightSidebar,
+  onToggleAskPanel,
+  askPanelOpen,
+}: TopBarProps) {
+  const { state, startGeneration, toggleDarkMode, switchWorkspace } = useApp()
+  const { repoStatus, currentJob, isLoading, darkMode, noteEditor } = state
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
 
-  const isGenerating = currentJob?.status === 'running';
-  const hasUnsavedChanges = noteEditor.isDirty;
+  const isGenerating = currentJob?.status === 'running'
+  const hasUnsavedChanges = noteEditor.isDirty
 
   const handleWorkspaceSwitch = async (path: string) => {
     if (hasUnsavedChanges) {
       const confirmed = window.confirm(
         'You have unsaved changes. Are you sure you want to switch workspaces?'
-      );
-      if (!confirmed) return;
+      )
+      if (!confirmed) return
     }
-    await switchWorkspace(path);
-  };
+    await switchWorkspace(path)
+  }
 
   const getStatusBadge = () => {
     if (isLoading) {
@@ -35,7 +40,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel
           <span className="animate-pulse mr-1">●</span>
           Loading...
         </span>
-      );
+      )
     }
 
     if (isGenerating) {
@@ -44,7 +49,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel
           <span className="animate-pulse mr-1">●</span>
           Generating...
         </span>
-      );
+      )
     }
 
     if (repoStatus?.initialized) {
@@ -52,15 +57,15 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
           Ready
         </span>
-      );
+      )
     }
 
     return (
       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
         Not initialized
       </span>
-    );
-  };
+    )
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50">
@@ -72,8 +77,18 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel
             className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
             title="Toggle sidebar"
           >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            <svg
+              className="w-5 h-5 text-gray-600 dark:text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
             </svg>
           </button>
 
@@ -158,12 +173,32 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel
             title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {darkMode ? (
-              <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                />
               </svg>
             ) : (
-              <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                />
               </svg>
             )}
           </button>
@@ -173,8 +208,18 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel
             className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
             title="Toggle right sidebar"
           >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h8m-8 6h16" />
+            <svg
+              className="w-5 h-5 text-gray-600 dark:text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h8m-8 6h16"
+              />
             </svg>
           </button>
         </div>
@@ -187,5 +232,5 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, onToggleAskPanel
         onSave={() => setIsPreviewModalOpen(false)}
       />
     </header>
-  );
+  )
 }

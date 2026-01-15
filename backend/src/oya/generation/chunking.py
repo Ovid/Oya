@@ -171,7 +171,9 @@ def chunk_by_symbols(
                     content="\n".join(current_content_lines),
                     file_path=file_path,
                     start_line=current_start_line or 1,
-                    end_line=current_start_line + len(current_content_lines) - 1 if current_start_line else 1,
+                    end_line=current_start_line + len(current_content_lines) - 1
+                    if current_start_line
+                    else 1,
                     symbols=current_symbols.copy(),
                     chunk_index=chunk_index,
                 )
@@ -204,7 +206,9 @@ def chunk_by_symbols(
             content="\n".join(current_content_lines),
             file_path=file_path,
             start_line=current_start_line or 1,
-            end_line=current_start_line + len(current_content_lines) - 1 if current_start_line else 1,
+            end_line=current_start_line + len(current_content_lines) - 1
+            if current_start_line
+            else 1,
             symbols=current_symbols.copy(),
             chunk_index=chunk_index,
         )

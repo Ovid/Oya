@@ -63,8 +63,7 @@ class GitRepo:
         Returns:
             List of relative file paths.
         """
-        return [item.path for item in self._repo.head.commit.tree.traverse()
-                if item.type == "blob"]
+        return [item.path for item in self._repo.head.commit.tree.traverse() if item.type == "blob"]
 
     def get_user_name(self) -> str:
         """Get configured git user name.

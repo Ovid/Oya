@@ -171,36 +171,61 @@ class LLMClient:
             result = response.choices[0].message.content
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             self._log_query(
-                system_prompt, prompt, temperature, max_tokens,
-                response=result, duration_ms=duration_ms, error=None
+                system_prompt,
+                prompt,
+                temperature,
+                max_tokens,
+                response=result,
+                duration_ms=duration_ms,
+                error=None,
             )
             return result
         except AuthenticationError as e:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             self._log_query(
-                system_prompt, prompt, temperature, max_tokens,
-                response=None, duration_ms=duration_ms, error=str(e)
+                system_prompt,
+                prompt,
+                temperature,
+                max_tokens,
+                response=None,
+                duration_ms=duration_ms,
+                error=str(e),
             )
             raise LLMAuthenticationError(f"Authentication failed: {e}") from e
         except RateLimitError as e:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             self._log_query(
-                system_prompt, prompt, temperature, max_tokens,
-                response=None, duration_ms=duration_ms, error=str(e)
+                system_prompt,
+                prompt,
+                temperature,
+                max_tokens,
+                response=None,
+                duration_ms=duration_ms,
+                error=str(e),
             )
             raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
         except APIConnectionError as e:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             self._log_query(
-                system_prompt, prompt, temperature, max_tokens,
-                response=None, duration_ms=duration_ms, error=str(e)
+                system_prompt,
+                prompt,
+                temperature,
+                max_tokens,
+                response=None,
+                duration_ms=duration_ms,
+                error=str(e),
             )
             raise LLMConnectionError(f"Connection failed: {e}") from e
         except APIError as e:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             self._log_query(
-                system_prompt, prompt, temperature, max_tokens,
-                response=None, duration_ms=duration_ms, error=str(e)
+                system_prompt,
+                prompt,
+                temperature,
+                max_tokens,
+                response=None,
+                duration_ms=duration_ms,
+                error=str(e),
             )
             raise LLMError(f"LLM API error: {e}") from e
 

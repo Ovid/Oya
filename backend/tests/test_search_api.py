@@ -18,12 +18,15 @@ def workspace_with_content(tmp_path, monkeypatch):
     # Create wiki with content
     wiki = workspace / ".oyawiki" / "wiki"
     wiki.mkdir(parents=True)
-    (wiki / "overview.md").write_text("# Authentication System\n\nThis handles user login and OAuth.")
+    (wiki / "overview.md").write_text(
+        "# Authentication System\n\nThis handles user login and OAuth."
+    )
     (wiki / "architecture.md").write_text("# Architecture\n\nThe system uses FastAPI.")
 
     monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     from oya.config import load_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
     _reset_db_instance()

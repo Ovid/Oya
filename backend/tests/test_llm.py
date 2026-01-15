@@ -18,11 +18,7 @@ def mock_completion():
     """Mock litellm completion response."""
     with patch("oya.llm.client.acompletion") as mock:
         mock.return_value = AsyncMock(
-            choices=[
-                AsyncMock(
-                    message=AsyncMock(content="Test response")
-                )
-            ]
+            choices=[AsyncMock(message=AsyncMock(content="Test response"))]
         )
         yield mock
 

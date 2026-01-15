@@ -100,9 +100,7 @@ Handles the complete user login flow.
         """Create sample synthesis map."""
         return SynthesisMap(
             layers={
-                "api": LayerInfo(
-                    name="api", purpose="HTTP endpoints", files=["src/api/routes.py"]
-                ),
+                "api": LayerInfo(name="api", purpose="HTTP endpoints", files=["src/api/routes.py"]),
                 "domain": LayerInfo(
                     name="domain", purpose="Business logic", files=["src/auth/service.py"]
                 ),
@@ -167,9 +165,7 @@ Handles the complete user login flow.
         assert any("overview" in id.lower() for id in indexed_ids)
 
     @pytest.mark.asyncio
-    async def test_full_pipeline_chunking_to_search(
-        self, sample_wiki, temp_db, temp_vectorstore
-    ):
+    async def test_full_pipeline_chunking_to_search(self, sample_wiki, temp_db, temp_vectorstore):
         """Test full pipeline from wiki content to searchable chunks."""
         # Index the wiki
         indexing_service = IndexingService(
@@ -194,9 +190,7 @@ Handles the complete user login flow.
         assert any(m.get("section_header") == "Internal Details" for m in metadatas)
 
     @pytest.mark.asyncio
-    async def test_fts_search_finds_chunked_content(
-        self, sample_wiki, temp_db, temp_vectorstore
-    ):
+    async def test_fts_search_finds_chunked_content(self, sample_wiki, temp_db, temp_vectorstore):
         """FTS search returns results from chunked content."""
         indexing_service = IndexingService(
             vectorstore=temp_vectorstore,
@@ -231,9 +225,7 @@ class TestGenerationResultFlow:
         result = GenerationResult(
             job_id="test-job",
             synthesis_map=SynthesisMap(layers={}),
-            analysis_symbols=[
-                {"name": "test_func", "type": "function", "file": "test.py"}
-            ],
+            analysis_symbols=[{"name": "test_func", "type": "function", "file": "test.py"}],
             file_imports={"test.py": ["os", "sys"]},
         )
 

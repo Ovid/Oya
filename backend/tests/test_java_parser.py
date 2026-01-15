@@ -19,13 +19,13 @@ def test_parser_supported_extensions(parser):
 
 def test_parses_class(parser):
     """Extracts class declaration."""
-    code = '''
+    code = """
 public class Calculator {
     public int add(int a, int b) {
         return a + b;
     }
 }
-'''
+"""
     result = parser.parse_string(code, "Calculator.java")
 
     assert result.ok
@@ -35,12 +35,12 @@ public class Calculator {
 
 def test_parses_methods(parser):
     """Extracts class methods."""
-    code = '''
+    code = """
 public class Service {
     public void doSomething() {}
     private String helper(int value) { return ""; }
 }
-'''
+"""
     result = parser.parse_string(code, "Service.java")
 
     assert result.ok
@@ -53,12 +53,12 @@ public class Service {
 
 def test_parses_interface(parser):
     """Extracts interface declarations."""
-    code = '''
+    code = """
 public interface Repository<T> {
     T findById(long id);
     void save(T entity);
 }
-'''
+"""
     result = parser.parse_string(code, "Repository.java")
 
     assert result.ok
@@ -68,13 +68,13 @@ public interface Repository<T> {
 
 def test_parses_enum(parser):
     """Extracts enum declarations."""
-    code = '''
+    code = """
 public enum Status {
     PENDING,
     ACTIVE,
     COMPLETED
 }
-'''
+"""
     result = parser.parse_string(code, "Status.java")
 
     assert result.ok
@@ -84,13 +84,13 @@ public enum Status {
 
 def test_parses_imports(parser):
     """Extracts import statements."""
-    code = '''
+    code = """
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
 public class MyService {}
-'''
+"""
     result = parser.parse_string(code, "MyService.java")
 
     assert result.ok
@@ -101,7 +101,7 @@ public class MyService {}
 
 def test_parses_annotations(parser):
     """Extracts class and method annotations."""
-    code = '''
+    code = """
 @Service
 @Transactional
 public class UserService {
@@ -110,7 +110,7 @@ public class UserService {
         return null;
     }
 }
-'''
+"""
     result = parser.parse_string(code, "UserService.java")
 
     assert result.ok
@@ -124,7 +124,7 @@ public class UserService {
 
 def test_identifies_spring_routes(parser):
     """Identifies Spring MVC route handlers."""
-    code = '''
+    code = """
 @RestController
 public class UserController {
     @GetMapping("/api/users")
@@ -133,7 +133,7 @@ public class UserController {
     @PostMapping("/api/users")
     public User create(@RequestBody User user) { return user; }
 }
-'''
+"""
     result = parser.parse_string(code, "UserController.java")
 
     assert result.ok

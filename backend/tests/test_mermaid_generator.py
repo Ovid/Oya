@@ -35,8 +35,12 @@ class TestLayerDiagramGenerator:
                 ),
             },
             key_components=[
-                ComponentInfo(name="Router", file="src/api/routes.py", role="HTTP routing", layer="api"),
-                ComponentInfo(name="Service", file="src/domain/service.py", role="Core logic", layer="domain"),
+                ComponentInfo(
+                    name="Router", file="src/api/routes.py", role="HTTP routing", layer="api"
+                ),
+                ComponentInfo(
+                    name="Service", file="src/domain/service.py", role="Core logic", layer="domain"
+                ),
             ],
             dependency_graph={"api": ["domain"]},
         )
@@ -129,7 +133,7 @@ class TestDependencyGraphGenerator:
 
     def test_limits_nodes_for_large_graphs(self):
         """Large graphs are limited to prevent overwhelming diagrams."""
-        large_imports = {f"file{i}.py": [f"file{i+1}.py"] for i in range(100)}
+        large_imports = {f"file{i}.py": [f"file{i + 1}.py"] for i in range(100)}
         generator = DependencyGraphGenerator(max_nodes=20)
         diagram = generator.generate(large_imports)
 
@@ -252,8 +256,12 @@ class TestDiagramGenerator:
                 ),
             },
             key_components=[
-                ComponentInfo(name="Router", file="src/api/routes.py", role="HTTP routing", layer="api"),
-                ComponentInfo(name="Service", file="src/domain/service.py", role="Core logic", layer="domain"),
+                ComponentInfo(
+                    name="Router", file="src/api/routes.py", role="HTTP routing", layer="api"
+                ),
+                ComponentInfo(
+                    name="Service", file="src/domain/service.py", role="Core logic", layer="domain"
+                ),
             ],
             dependency_graph={"api": ["domain"]},
         )

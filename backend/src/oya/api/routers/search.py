@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 
 class SearchResult(BaseModel):
     """Individual search result."""
+
     title: str
     path: str
     snippet: str
@@ -21,6 +22,7 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Search response with results."""
+
     query: str
     results: list[SearchResult]
     total: int
@@ -63,13 +65,15 @@ async def search(
         content = row["content"] or ""
         snippet = _create_snippet(content, q)
 
-        results.append(SearchResult(
-            title=row["title"] or "",
-            path=row["path"] or "",
-            snippet=snippet,
-            type=row["type"] or "wiki",
-            score=abs(row["score"]) if row["score"] else 0.0,
-        ))
+        results.append(
+            SearchResult(
+                title=row["title"] or "",
+                path=row["path"] or "",
+                snippet=snippet,
+                type=row["type"] or "wiki",
+                score=abs(row["score"]) if row["score"] else 0.0,
+            )
+        )
 
     return SearchResponse(
         query=q,

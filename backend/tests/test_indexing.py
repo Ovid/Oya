@@ -49,21 +49,21 @@ class TestContentIndexing:
         """Create sample wiki content files."""
         wiki_path = tmp_path / "wiki"
         wiki_path.mkdir()
-        
+
         # Create overview page
         overview = wiki_path / "overview.md"
         overview.write_text("# Project Overview\n\nThis is a sample project.")
-        
+
         # Create architecture page
         arch = wiki_path / "architecture.md"
         arch.write_text("# Architecture\n\nThe system uses FastAPI.")
-        
+
         # Create a file page
         files_dir = wiki_path / "files"
         files_dir.mkdir()
         file_page = files_dir / "src-main-py.md"
         file_page.write_text("# src/main.py\n\nMain entry point for the application.")
-        
+
         return wiki_path
 
     @pytest.mark.asyncio
@@ -72,107 +72,98 @@ class TestContentIndexing:
     ):
         """Wiki pages are indexed into ChromaDB vector store."""
         from oya.indexing.service import IndexingService
-        
+
         service = IndexingService(
             vectorstore=temp_vectorstore,
             db=temp_db,
             wiki_path=sample_wiki_content,
         )
-        
+
         # Index all wiki pages
         indexed_count = await service.index_wiki_pages()
-        
+
         # Should have indexed 3 pages
         assert indexed_count == 3
-        
+
         # Query should return results
         results = temp_vectorstore.query("FastAPI", n_results=5)
         assert len(results.get("ids", [[]])[0]) > 0
-        
+
         # Should find architecture page
         docs = results.get("documents", [[]])[0]
         assert any("FastAPI" in doc for doc in docs)
 
     @pytest.mark.asyncio
-    async def test_index_wiki_pages_to_fts(
-        self, temp_vectorstore, temp_db, sample_wiki_content
-    ):
+    async def test_index_wiki_pages_to_fts(self, temp_vectorstore, temp_db, sample_wiki_content):
         """Wiki pages are indexed into FTS5 for full-text search."""
         from oya.indexing.service import IndexingService
-        
+
         service = IndexingService(
             vectorstore=temp_vectorstore,
             db=temp_db,
             wiki_path=sample_wiki_content,
         )
-        
+
         # Index all wiki pages
         await service.index_wiki_pages()
-        
+
         # Query FTS should return results
         cursor = temp_db.execute(
             "SELECT content, title, path, type FROM fts_content WHERE fts_content MATCH ?",
             ("FastAPI",),
         )
         results = cursor.fetchall()
-        
+
         assert len(results) > 0
         # Should find architecture page
         assert any("architecture" in r["path"] for r in results)
 
     @pytest.mark.asyncio
-    async def test_index_includes_metadata(
-        self, temp_vectorstore, temp_db, sample_wiki_content
-    ):
+    async def test_index_includes_metadata(self, temp_vectorstore, temp_db, sample_wiki_content):
         """Indexed documents include path, title, and type metadata."""
         from oya.indexing.service import IndexingService
-        
+
         service = IndexingService(
             vectorstore=temp_vectorstore,
             db=temp_db,
             wiki_path=sample_wiki_content,
         )
-        
+
         await service.index_wiki_pages()
-        
+
         # Query vectorstore and check metadata
         results = temp_vectorstore.query("overview", n_results=5)
         metadatas = results.get("metadatas", [[]])[0]
-        
+
         assert len(metadatas) > 0
         # Should have path, title, type
-        overview_meta = next(
-            (m for m in metadatas if "overview" in m.get("path", "")),
-            None
-        )
+        overview_meta = next((m for m in metadatas if "overview" in m.get("path", "")), None)
         assert overview_meta is not None
         assert "path" in overview_meta
         assert "title" in overview_meta
         assert "type" in overview_meta
 
     @pytest.mark.asyncio
-    async def test_clear_and_reindex(
-        self, temp_vectorstore, temp_db, sample_wiki_content
-    ):
+    async def test_clear_and_reindex(self, temp_vectorstore, temp_db, sample_wiki_content):
         """Can clear existing index and reindex."""
         from oya.indexing.service import IndexingService
-        
+
         service = IndexingService(
             vectorstore=temp_vectorstore,
             db=temp_db,
             wiki_path=sample_wiki_content,
         )
-        
+
         # Index once
         await service.index_wiki_pages()
-        
+
         # Clear and reindex
         service.clear_index()
         indexed_count = await service.index_wiki_pages()
-        
+
         # Should still have 3 pages
         assert indexed_count == 3
-        
+
         # Query should still work
         results = temp_vectorstore.query("project", n_results=5)
         assert len(results.get("ids", [[]])[0]) > 0
@@ -183,52 +174,43 @@ class TestContentIndexing:
     ):
         """Title is extracted from markdown H1 header."""
         from oya.indexing.service import IndexingService
-        
+
         service = IndexingService(
             vectorstore=temp_vectorstore,
             db=temp_db,
             wiki_path=sample_wiki_content,
         )
-        
+
         await service.index_wiki_pages()
-        
+
         # Query and check title
         results = temp_vectorstore.query("overview", n_results=5)
         metadatas = results.get("metadatas", [[]])[0]
-        
-        overview_meta = next(
-            (m for m in metadatas if "overview" in m.get("path", "")),
-            None
-        )
+
+        overview_meta = next((m for m in metadatas if "overview" in m.get("path", "")), None)
         assert overview_meta is not None
         assert overview_meta.get("title") == "Project Overview"
 
     @pytest.mark.asyncio
-    async def test_index_determines_page_type(
-        self, temp_vectorstore, temp_db, sample_wiki_content
-    ):
+    async def test_index_determines_page_type(self, temp_vectorstore, temp_db, sample_wiki_content):
         """Page type is determined from path structure."""
         from oya.indexing.service import IndexingService
-        
+
         service = IndexingService(
             vectorstore=temp_vectorstore,
             db=temp_db,
             wiki_path=sample_wiki_content,
         )
-        
+
         await service.index_wiki_pages()
-        
+
         # Query and check types
         results = temp_vectorstore.query("main entry point", n_results=5)
         metadatas = results.get("metadatas", [[]])[0]
-        
-        file_meta = next(
-            (m for m in metadatas if "src-main-py" in m.get("path", "")),
-            None
-        )
+
+        file_meta = next((m for m in metadatas if "src-main-py" in m.get("path", "")), None)
         assert file_meta is not None
         assert file_meta.get("type") == "file"
-
 
 
 class TestEmbeddingMetadata:
@@ -380,19 +362,17 @@ class TestIndexingIntegration:
         return VectorStore(index_path)
 
     @pytest.mark.asyncio
-    async def test_run_indexing_after_generation(
-        self, temp_vectorstore, temp_db, tmp_path
-    ):
+    async def test_run_indexing_after_generation(self, temp_vectorstore, temp_db, tmp_path):
         """Indexing runs after wiki generation completes."""
         from oya.indexing.service import IndexingService
-        
+
         # Create wiki content as if generation just completed
         wiki_path = tmp_path / "wiki"
         wiki_path.mkdir()
-        
+
         overview = wiki_path / "overview.md"
         overview.write_text("# My Project\n\nThis is a test project.")
-        
+
         # Run indexing
         service = IndexingService(
             vectorstore=temp_vectorstore,
@@ -400,46 +380,44 @@ class TestIndexingIntegration:
             wiki_path=wiki_path,
         )
         indexed = await service.index_wiki_pages()
-        
+
         assert indexed == 1
-        
+
         # Verify Q&A can now find content
         results = temp_vectorstore.query("test project", n_results=5)
         assert len(results.get("ids", [[]])[0]) > 0
 
     @pytest.mark.asyncio
-    async def test_reindex_clears_old_content(
-        self, temp_vectorstore, temp_db, tmp_path
-    ):
+    async def test_reindex_clears_old_content(self, temp_vectorstore, temp_db, tmp_path):
         """Reindexing clears old content before adding new."""
         from oya.indexing.service import IndexingService
-        
+
         wiki_path = tmp_path / "wiki"
         wiki_path.mkdir()
-        
+
         # First generation
         overview = wiki_path / "overview.md"
         overview.write_text("# Old Content\n\nThis is old.")
-        
+
         service = IndexingService(
             vectorstore=temp_vectorstore,
             db=temp_db,
             wiki_path=wiki_path,
         )
         await service.index_wiki_pages()
-        
+
         # Simulate regeneration with new content
         overview.write_text("# New Content\n\nThis is new.")
-        
+
         # Clear and reindex
         service.clear_index()
         await service.index_wiki_pages()
-        
+
         # Should find new content
         results = temp_vectorstore.query("new content", n_results=5)
         docs = results.get("documents", [[]])[0]
         assert any("new" in doc.lower() for doc in docs)
-        
+
         # Should NOT find old content (it was cleared)
         results = temp_vectorstore.query("old content", n_results=5)
         docs = results.get("documents", [[]])[0]
@@ -479,9 +457,7 @@ class TestChunkBasedIndexing:
         return VectorStore(index_path)
 
     @pytest.mark.asyncio
-    async def test_indexes_chunks_not_whole_pages(
-        self, temp_vectorstore, temp_db, tmp_path
-    ):
+    async def test_indexes_chunks_not_whole_pages(self, temp_vectorstore, temp_db, tmp_path):
         """IndexingService creates chunks from wiki pages."""
         from oya.indexing.service import IndexingService
 
@@ -523,9 +499,7 @@ Exports authenticate() function.
         assert any("public" in id.lower() or "api" in id.lower() for id in ids)
 
     @pytest.mark.asyncio
-    async def test_chunks_include_metadata(
-        self, temp_vectorstore, temp_db, tmp_path
-    ):
+    async def test_chunks_include_metadata(self, temp_vectorstore, temp_db, tmp_path):
         """Indexed chunks include section headers and chunk IDs."""
         from oya.indexing.service import IndexingService
 

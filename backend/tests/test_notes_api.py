@@ -17,7 +17,9 @@ def workspace(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
+    )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=workspace, capture_output=True)
 
     (workspace / "README.md").write_text("# Test Repo")
@@ -33,6 +35,7 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     from oya.config import load_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
     _reset_db_instance()

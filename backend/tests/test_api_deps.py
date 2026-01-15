@@ -1,6 +1,5 @@
 """API dependency tests."""
 
-
 from oya.api.deps import get_db, get_settings, get_repo
 
 
@@ -13,6 +12,7 @@ def test_get_settings_returns_settings(tmp_path, monkeypatch):
 
     # Clear any cached settings
     from oya.config import load_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
 
@@ -37,6 +37,7 @@ def test_get_db_returns_database(tmp_path, monkeypatch):
     # Clear cached settings
     from oya.config import load_settings
     from oya.api.deps import get_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
 
@@ -63,6 +64,7 @@ def test_get_repo_returns_repository(tmp_path, monkeypatch):
 
     from oya.config import load_settings
     from oya.api.deps import get_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
 

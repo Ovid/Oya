@@ -102,7 +102,7 @@ def generator_with_yaml(mock_llm_client_with_yaml, mock_repo):
 
 class TestDirectoryGeneratorWithFileSummaries:
     """Tests for DirectoryGenerator with FileSummary context.
-    
+
     Requirements: 2.1, 2.6
     """
 
@@ -111,7 +111,7 @@ class TestDirectoryGeneratorWithFileSummaries:
         self, generator_with_yaml, mock_llm_client_with_yaml, sample_file_summaries
     ):
         """Test that generate() uses FileSummaries and returns valid DirectorySummary.
-        
+
         Requirements: 2.1, 2.6
         """
         result = await generator_with_yaml.generate(
@@ -128,21 +128,21 @@ class TestDirectoryGeneratorWithFileSummaries:
         # Should return a tuple of (GeneratedPage, DirectorySummary)
         assert isinstance(result, tuple)
         assert len(result) == 2
-        
+
         page, summary = result
-        
+
         # Page should have correct metadata
         assert page.page_type == "directory"
         assert page.target == "src/auth"
         assert page.content  # Should have content
-        
+
         # Summary should be a valid DirectorySummary
         assert isinstance(summary, DirectorySummary)
         assert summary.directory_path == "src/auth"
         assert summary.purpose  # Should have a purpose
         assert isinstance(summary.contains, list)
         assert summary.role_in_system  # Should have role_in_system
-        
+
         # LLM should have been called
         mock_llm_client_with_yaml.generate.assert_called_once()
 
@@ -178,17 +178,17 @@ class TestDirectoryGeneratorWithFileSummaries:
         self, mock_llm_client, mock_repo
     ):
         """Test that generate() returns fallback DirectorySummary when YAML parsing fails.
-        
+
         Requirements: 2.1, 2.5
         """
         # LLM returns content without valid YAML block
         mock_llm_client.generate.return_value = "# src/auth/\n\nAuthentication module."
-        
+
         generator = DirectoryGenerator(
             llm_client=mock_llm_client,
             repo=mock_repo,
         )
-        
+
         result = await generator.generate(
             directory_path="src/auth",
             file_list=["login.py"],
@@ -200,12 +200,12 @@ class TestDirectoryGeneratorWithFileSummaries:
         # Should still return a tuple
         assert isinstance(result, tuple)
         assert len(result) == 2
-        
+
         page, summary = result
-        
+
         # Page should still be generated
         assert page.content
-        
+
         # Summary should be fallback with default values
         assert isinstance(summary, DirectorySummary)
         assert summary.directory_path == "src/auth"
@@ -216,7 +216,7 @@ class TestDirectoryGeneratorWithFileSummaries:
         self, generator_with_yaml, sample_file_summaries
     ):
         """Test that generate() works when file_summaries is empty.
-        
+
         Requirements: 2.1
         """
         result = await generator_with_yaml.generate(
@@ -359,9 +359,7 @@ class TestDirectoryGeneratorWithChildSummaries:
         assert "my-awesome-project" in prompt
 
     @pytest.mark.asyncio
-    async def test_generate_handles_root_directory_slug(
-        self, generator_with_yaml
-    ):
+    async def test_generate_handles_root_directory_slug(self, generator_with_yaml):
         """Test that root directory (empty path) uses 'root' slug."""
         page, summary = await generator_with_yaml.generate(
             directory_path="",  # Root directory

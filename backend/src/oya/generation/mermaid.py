@@ -41,9 +41,7 @@ class LayerDiagramGenerator:
             lines.append(f'    subgraph {layer_id}["{layer_label}"]')
 
             # Add components belonging to this layer
-            layer_components = [
-                c for c in synthesis_map.key_components if c.layer == layer_name
-            ]
+            layer_components = [c for c in synthesis_map.key_components if c.layer == layer_name]
 
             if layer_components:
                 for comp in layer_components[:5]:  # Limit to 5 per layer

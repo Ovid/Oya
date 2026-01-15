@@ -1,21 +1,21 @@
-import { useState, type ReactNode } from 'react';
-import { Sidebar } from './Sidebar';
-import { TopBar } from './TopBar';
-import { RightSidebar } from './RightSidebar';
-import { AskPanel } from './AskPanel';
-import { NoteEditor } from './NoteEditor';
-import { InterruptedGenerationBanner } from './InterruptedGenerationBanner';
-import { useApp } from '../context/useApp';
+import { useState, type ReactNode } from 'react'
+import { Sidebar } from './Sidebar'
+import { TopBar } from './TopBar'
+import { RightSidebar } from './RightSidebar'
+import { AskPanel } from './AskPanel'
+import { NoteEditor } from './NoteEditor'
+import { InterruptedGenerationBanner } from './InterruptedGenerationBanner'
+import { useApp } from '../context/useApp'
 
 interface LayoutProps {
-  children: ReactNode;
+  children: ReactNode
 }
 
 export function Layout({ children }: LayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
-  const { state, closeNoteEditor, refreshTree, setAskPanelOpen } = useApp();
-  const { noteEditor, askPanelOpen } = state;
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
+  const { state, closeNoteEditor, refreshTree, setAskPanelOpen } = useApp()
+  const { noteEditor, askPanelOpen } = state
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -44,9 +44,7 @@ export function Layout({ children }: LayoutProps) {
               sidebarOpen ? 'ml-64' : ''
             } ${askPanelOpen ? 'mr-[350px]' : rightSidebarOpen ? 'mr-56' : ''}`}
           >
-            <div className="max-w-4xl mx-auto px-6 py-8">
-              {children}
-            </div>
+            <div className="max-w-4xl mx-auto px-6 py-8">{children}</div>
           </main>
 
           {/* Right Sidebar - TOC */}
@@ -59,10 +57,7 @@ export function Layout({ children }: LayoutProps) {
           {/* Ask Panel */}
           {askPanelOpen && (
             <aside className="w-[350px] fixed right-0 top-14 bottom-0 overflow-hidden border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-              <AskPanel
-                isOpen={askPanelOpen}
-                onClose={() => setAskPanelOpen(false)}
-              />
+              <AskPanel isOpen={askPanelOpen} onClose={() => setAskPanelOpen(false)} />
             </aside>
           )}
         </div>
@@ -77,5 +72,5 @@ export function Layout({ children }: LayoutProps) {
         defaultTarget={noteEditor.defaultTarget}
       />
     </div>
-  );
+  )
 }

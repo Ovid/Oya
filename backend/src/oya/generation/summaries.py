@@ -369,9 +369,7 @@ class SynthesisMap:
             for comp in data.get("key_components", [])
         ]
 
-        entry_points = [
-            EntryPointInfo.from_dict(ep) for ep in data.get("entry_points", [])
-        ]
+        entry_points = [EntryPointInfo.from_dict(ep) for ep in data.get("entry_points", [])]
 
         metrics_data = data.get("metrics")
         metrics = CodeMetrics.from_dict(metrics_data) if metrics_data else None
@@ -563,8 +561,7 @@ class SummaryParser:
         Used when YAML parsing fails or no YAML block is found.
         """
         logger.warning(
-            f"YAML parsing failed for {directory_path}, using fallback summary "
-            "(purpose='Unknown')"
+            f"YAML parsing failed for {directory_path}, using fallback summary (purpose='Unknown')"
         )
         return DirectorySummary(
             directory_path=directory_path,

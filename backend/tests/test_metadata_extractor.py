@@ -12,7 +12,9 @@ class TestMetadataExtractor:
         synthesis_map = SynthesisMap(
             layers={
                 "api": LayerInfo(name="api", purpose="HTTP endpoints", files=["src/api/routes.py"]),
-                "domain": LayerInfo(name="domain", purpose="Business logic", files=["src/auth/service.py"]),
+                "domain": LayerInfo(
+                    name="domain", purpose="Business logic", files=["src/auth/service.py"]
+                ),
             },
         )
 
@@ -70,9 +72,24 @@ class TestMetadataExtractor:
         """Gets entry points for source file."""
         synthesis_map = SynthesisMap(
             entry_points=[
-                EntryPointInfo(name="login", entry_type="api_route", file="src/auth/routes.py", description="/login"),
-                EntryPointInfo(name="logout", entry_type="api_route", file="src/auth/routes.py", description="/logout"),
-                EntryPointInfo(name="health", entry_type="api_route", file="src/health.py", description="/health"),
+                EntryPointInfo(
+                    name="login",
+                    entry_type="api_route",
+                    file="src/auth/routes.py",
+                    description="/login",
+                ),
+                EntryPointInfo(
+                    name="logout",
+                    entry_type="api_route",
+                    file="src/auth/routes.py",
+                    description="/logout",
+                ),
+                EntryPointInfo(
+                    name="health",
+                    entry_type="api_route",
+                    file="src/health.py",
+                    description="/health",
+                ),
             ],
         )
 

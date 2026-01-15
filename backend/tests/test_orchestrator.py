@@ -82,18 +82,37 @@ async def test_runs_full_generation(orchestrator):
     )
 
     with patch.object(orchestrator, "_run_analysis", new_callable=AsyncMock) as mock_analysis:
-        mock_analysis.return_value = {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
+        mock_analysis.return_value = {
+            "files": [],
+            "symbols": [],
+            "file_tree": "",
+            "file_contents": {},
+        }
         with patch.object(orchestrator, "_run_overview", new_callable=AsyncMock) as mock_overview:
             mock_overview.return_value = mock_overview_page
-            with patch.object(orchestrator, "_run_architecture", new_callable=AsyncMock) as mock_arch:
+            with patch.object(
+                orchestrator, "_run_architecture", new_callable=AsyncMock
+            ) as mock_arch:
                 mock_arch.return_value = mock_arch_page
-                with patch.object(orchestrator, "_run_workflows", new_callable=AsyncMock) as mock_workflows:
+                with patch.object(
+                    orchestrator, "_run_workflows", new_callable=AsyncMock
+                ) as mock_workflows:
                     mock_workflows.return_value = []
-                    with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock) as mock_dirs:
+                    with patch.object(
+                        orchestrator, "_run_directories", new_callable=AsyncMock
+                    ) as mock_dirs:
                         mock_dirs.return_value = ([], [])  # Updated: (pages, directory_summaries)
-                        with patch.object(orchestrator, "_run_files", new_callable=AsyncMock) as mock_files:
-                            mock_files.return_value = ([], {}, [])  # Updated: (pages, file_hashes, file_summaries)
-                            with patch.object(orchestrator, "_run_synthesis", new_callable=AsyncMock) as mock_synthesis:
+                        with patch.object(
+                            orchestrator, "_run_files", new_callable=AsyncMock
+                        ) as mock_files:
+                            mock_files.return_value = (
+                                [],
+                                {},
+                                [],
+                            )  # Updated: (pages, file_hashes, file_summaries)
+                            with patch.object(
+                                orchestrator, "_run_synthesis", new_callable=AsyncMock
+                            ) as mock_synthesis:
                                 mock_synthesis.return_value = SynthesisMap()
                                 await orchestrator.run(progress_callback=progress_callback)
 
@@ -117,18 +136,37 @@ async def test_emits_progress_events(orchestrator):
     )
 
     with patch.object(orchestrator, "_run_analysis", new_callable=AsyncMock) as mock_analysis:
-        mock_analysis.return_value = {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
+        mock_analysis.return_value = {
+            "files": [],
+            "symbols": [],
+            "file_tree": "",
+            "file_contents": {},
+        }
         with patch.object(orchestrator, "_run_overview", new_callable=AsyncMock) as mock_overview:
             mock_overview.return_value = mock_overview_page
-            with patch.object(orchestrator, "_run_architecture", new_callable=AsyncMock) as mock_arch:
+            with patch.object(
+                orchestrator, "_run_architecture", new_callable=AsyncMock
+            ) as mock_arch:
                 mock_arch.return_value = mock_arch_page
-                with patch.object(orchestrator, "_run_workflows", new_callable=AsyncMock) as mock_workflows:
+                with patch.object(
+                    orchestrator, "_run_workflows", new_callable=AsyncMock
+                ) as mock_workflows:
                     mock_workflows.return_value = []
-                    with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock) as mock_dirs:
+                    with patch.object(
+                        orchestrator, "_run_directories", new_callable=AsyncMock
+                    ) as mock_dirs:
                         mock_dirs.return_value = ([], [])  # Updated: (pages, directory_summaries)
-                        with patch.object(orchestrator, "_run_files", new_callable=AsyncMock) as mock_files:
-                            mock_files.return_value = ([], {}, [])  # Updated: (pages, file_hashes, file_summaries)
-                            with patch.object(orchestrator, "_run_synthesis", new_callable=AsyncMock) as mock_synthesis:
+                        with patch.object(
+                            orchestrator, "_run_files", new_callable=AsyncMock
+                        ) as mock_files:
+                            mock_files.return_value = (
+                                [],
+                                {},
+                                [],
+                            )  # Updated: (pages, file_hashes, file_summaries)
+                            with patch.object(
+                                orchestrator, "_run_synthesis", new_callable=AsyncMock
+                            ) as mock_synthesis:
                                 mock_synthesis.return_value = SynthesisMap()
                                 await orchestrator.run(progress_callback=progress_callback)
 
@@ -142,20 +180,34 @@ async def test_emits_progress_events(orchestrator):
 async def test_saves_pages_to_wiki_path(orchestrator, mock_llm_client):
     """Saves generated pages to wiki directory."""
     with patch.object(orchestrator, "_run_analysis", new_callable=AsyncMock) as mock_analysis:
-        mock_analysis.return_value = {"files": [], "symbols": [], "file_tree": "", "file_contents": {}}
+        mock_analysis.return_value = {
+            "files": [],
+            "symbols": [],
+            "file_tree": "",
+            "file_contents": {},
+        }
         with patch.object(orchestrator, "_save_page", new_callable=AsyncMock) as mock_save:
             with patch.object(orchestrator, "_run_workflows", new_callable=AsyncMock):
-                with patch.object(orchestrator, "_run_directories", new_callable=AsyncMock) as mock_dirs:
+                with patch.object(
+                    orchestrator, "_run_directories", new_callable=AsyncMock
+                ) as mock_dirs:
                     mock_dirs.return_value = ([], [])  # Updated: (pages, directory_summaries)
-                    with patch.object(orchestrator, "_run_files", new_callable=AsyncMock) as mock_files:
-                        mock_files.return_value = ([], {}, [])  # Updated: (pages, file_hashes, file_summaries)
-                        with patch.object(orchestrator, "_run_synthesis", new_callable=AsyncMock) as mock_synthesis:
+                    with patch.object(
+                        orchestrator, "_run_files", new_callable=AsyncMock
+                    ) as mock_files:
+                        mock_files.return_value = (
+                            [],
+                            {},
+                            [],
+                        )  # Updated: (pages, file_hashes, file_summaries)
+                        with patch.object(
+                            orchestrator, "_run_synthesis", new_callable=AsyncMock
+                        ) as mock_synthesis:
                             mock_synthesis.return_value = SynthesisMap()
                             await orchestrator.run()
 
             # Should have saved overview and architecture pages
             assert mock_save.call_count >= 2
-
 
 
 # ============================================================================
@@ -198,7 +250,9 @@ class TestPipelinePhaseOrder:
             call_order.append("files")
             return [], {}, []  # pages, file_hashes, file_summaries
 
-        async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
+        async def mock_directories(
+            analysis, file_hashes, progress_callback=None, file_summaries=None
+        ):
             call_order.append("directories")
             return [], []  # pages, directory_summaries
 
@@ -234,10 +288,18 @@ class TestPipelinePhaseOrder:
             with patch.object(orchestrator_with_mocks, "_run_files", mock_files):
                 with patch.object(orchestrator_with_mocks, "_run_directories", mock_directories):
                     with patch.object(orchestrator_with_mocks, "_run_synthesis", mock_synthesis):
-                        with patch.object(orchestrator_with_mocks, "_run_architecture", mock_architecture):
-                            with patch.object(orchestrator_with_mocks, "_run_overview", mock_overview):
-                                with patch.object(orchestrator_with_mocks, "_run_workflows", mock_workflows):
-                                    with patch.object(orchestrator_with_mocks, "_save_page", AsyncMock()):
+                        with patch.object(
+                            orchestrator_with_mocks, "_run_architecture", mock_architecture
+                        ):
+                            with patch.object(
+                                orchestrator_with_mocks, "_run_overview", mock_overview
+                            ):
+                                with patch.object(
+                                    orchestrator_with_mocks, "_run_workflows", mock_workflows
+                                ):
+                                    with patch.object(
+                                        orchestrator_with_mocks, "_save_page", AsyncMock()
+                                    ):
                                         await orchestrator_with_mocks.run()
 
         # Verify the correct order
@@ -345,7 +407,9 @@ class TestFileSummariesPassedToSynthesis:
         async def mock_files(analysis, progress_callback=None):
             return [], {}, [mock_file_summary]
 
-        async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
+        async def mock_directories(
+            analysis, file_hashes, progress_callback=None, file_summaries=None
+        ):
             return [], []
 
         async def mock_synthesis(
@@ -355,7 +419,9 @@ class TestFileSummariesPassedToSynthesis:
             return SynthesisMap()
 
         async def mock_architecture(analysis, synthesis_map=None):
-            return GeneratedPage(content="", page_type="architecture", path="architecture.md", word_count=0)
+            return GeneratedPage(
+                content="", page_type="architecture", path="architecture.md", word_count=0
+            )
 
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
@@ -367,10 +433,18 @@ class TestFileSummariesPassedToSynthesis:
             with patch.object(orchestrator_with_mocks, "_run_files", mock_files):
                 with patch.object(orchestrator_with_mocks, "_run_directories", mock_directories):
                     with patch.object(orchestrator_with_mocks, "_run_synthesis", mock_synthesis):
-                        with patch.object(orchestrator_with_mocks, "_run_architecture", mock_architecture):
-                            with patch.object(orchestrator_with_mocks, "_run_overview", mock_overview):
-                                with patch.object(orchestrator_with_mocks, "_run_workflows", mock_workflows):
-                                    with patch.object(orchestrator_with_mocks, "_save_page", AsyncMock()):
+                        with patch.object(
+                            orchestrator_with_mocks, "_run_architecture", mock_architecture
+                        ):
+                            with patch.object(
+                                orchestrator_with_mocks, "_run_overview", mock_overview
+                            ):
+                                with patch.object(
+                                    orchestrator_with_mocks, "_run_workflows", mock_workflows
+                                ):
+                                    with patch.object(
+                                        orchestrator_with_mocks, "_save_page", AsyncMock()
+                                    ):
                                         await orchestrator_with_mocks.run()
 
         assert len(captured_file_summaries) == 1
@@ -461,7 +535,9 @@ class TestDirectorySummariesPassedToSynthesis:
         async def mock_files(analysis, progress_callback=None):
             return [], {}, []
 
-        async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
+        async def mock_directories(
+            analysis, file_hashes, progress_callback=None, file_summaries=None
+        ):
             return [], [mock_dir_summary]
 
         async def mock_synthesis(
@@ -471,7 +547,9 @@ class TestDirectorySummariesPassedToSynthesis:
             return SynthesisMap()
 
         async def mock_architecture(analysis, synthesis_map=None):
-            return GeneratedPage(content="", page_type="architecture", path="architecture.md", word_count=0)
+            return GeneratedPage(
+                content="", page_type="architecture", path="architecture.md", word_count=0
+            )
 
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
@@ -483,10 +561,18 @@ class TestDirectorySummariesPassedToSynthesis:
             with patch.object(orchestrator_with_mocks, "_run_files", mock_files):
                 with patch.object(orchestrator_with_mocks, "_run_directories", mock_directories):
                     with patch.object(orchestrator_with_mocks, "_run_synthesis", mock_synthesis):
-                        with patch.object(orchestrator_with_mocks, "_run_architecture", mock_architecture):
-                            with patch.object(orchestrator_with_mocks, "_run_overview", mock_overview):
-                                with patch.object(orchestrator_with_mocks, "_run_workflows", mock_workflows):
-                                    with patch.object(orchestrator_with_mocks, "_save_page", AsyncMock()):
+                        with patch.object(
+                            orchestrator_with_mocks, "_run_architecture", mock_architecture
+                        ):
+                            with patch.object(
+                                orchestrator_with_mocks, "_run_overview", mock_overview
+                            ):
+                                with patch.object(
+                                    orchestrator_with_mocks, "_run_workflows", mock_workflows
+                                ):
+                                    with patch.object(
+                                        orchestrator_with_mocks, "_save_page", AsyncMock()
+                                    ):
                                         await orchestrator_with_mocks.run()
 
         assert len(captured_dir_summaries) == 1
@@ -519,8 +605,14 @@ class TestSynthesisMapPassedToArchAndOverview:
         captured_synthesis_map = []
 
         mock_synthesis_map = SynthesisMap(
-            layers={"api": LayerInfo(name="api", purpose="API layer", directories=[], files=["src/main.py"])},
-            key_components=[ComponentInfo(name="main", file="src/main.py", role="Entry point", layer="api")],
+            layers={
+                "api": LayerInfo(
+                    name="api", purpose="API layer", directories=[], files=["src/main.py"]
+                )
+            },
+            key_components=[
+                ComponentInfo(name="main", file="src/main.py", role="Entry point", layer="api")
+            ],
             dependency_graph={"api": ["domain"]},
             project_summary="Test project",
         )
@@ -531,7 +623,9 @@ class TestSynthesisMapPassedToArchAndOverview:
         async def mock_files(analysis, progress_callback=None):
             return [], {}, []
 
-        async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
+        async def mock_directories(
+            analysis, file_hashes, progress_callback=None, file_summaries=None
+        ):
             return [], []
 
         async def mock_synthesis(
@@ -541,7 +635,9 @@ class TestSynthesisMapPassedToArchAndOverview:
 
         async def mock_architecture(analysis, synthesis_map=None):
             captured_synthesis_map.append(synthesis_map)
-            return GeneratedPage(content="", page_type="architecture", path="architecture.md", word_count=0)
+            return GeneratedPage(
+                content="", page_type="architecture", path="architecture.md", word_count=0
+            )
 
         async def mock_overview(analysis, synthesis_map=None):
             return GeneratedPage(content="", page_type="overview", path="overview.md", word_count=0)
@@ -553,10 +649,18 @@ class TestSynthesisMapPassedToArchAndOverview:
             with patch.object(orchestrator_with_mocks, "_run_files", mock_files):
                 with patch.object(orchestrator_with_mocks, "_run_directories", mock_directories):
                     with patch.object(orchestrator_with_mocks, "_run_synthesis", mock_synthesis):
-                        with patch.object(orchestrator_with_mocks, "_run_architecture", mock_architecture):
-                            with patch.object(orchestrator_with_mocks, "_run_overview", mock_overview):
-                                with patch.object(orchestrator_with_mocks, "_run_workflows", mock_workflows):
-                                    with patch.object(orchestrator_with_mocks, "_save_page", AsyncMock()):
+                        with patch.object(
+                            orchestrator_with_mocks, "_run_architecture", mock_architecture
+                        ):
+                            with patch.object(
+                                orchestrator_with_mocks, "_run_overview", mock_overview
+                            ):
+                                with patch.object(
+                                    orchestrator_with_mocks, "_run_workflows", mock_workflows
+                                ):
+                                    with patch.object(
+                                        orchestrator_with_mocks, "_save_page", AsyncMock()
+                                    ):
                                         await orchestrator_with_mocks.run()
 
         assert len(captured_synthesis_map) == 1
@@ -572,7 +676,11 @@ class TestSynthesisMapPassedToArchAndOverview:
         captured_synthesis_map = []
 
         mock_synthesis_map = SynthesisMap(
-            layers={"api": LayerInfo(name="api", purpose="API layer", directories=[], files=["src/main.py"])},
+            layers={
+                "api": LayerInfo(
+                    name="api", purpose="API layer", directories=[], files=["src/main.py"]
+                )
+            },
             key_components=[],
             dependency_graph={},
             project_summary="Test project for overview",
@@ -584,7 +692,9 @@ class TestSynthesisMapPassedToArchAndOverview:
         async def mock_files(analysis, progress_callback=None):
             return [], {}, []
 
-        async def mock_directories(analysis, file_hashes, progress_callback=None, file_summaries=None):
+        async def mock_directories(
+            analysis, file_hashes, progress_callback=None, file_summaries=None
+        ):
             return [], []
 
         async def mock_synthesis(
@@ -593,7 +703,9 @@ class TestSynthesisMapPassedToArchAndOverview:
             return mock_synthesis_map
 
         async def mock_architecture(analysis, synthesis_map=None):
-            return GeneratedPage(content="", page_type="architecture", path="architecture.md", word_count=0)
+            return GeneratedPage(
+                content="", page_type="architecture", path="architecture.md", word_count=0
+            )
 
         async def mock_overview(analysis, synthesis_map=None):
             captured_synthesis_map.append(synthesis_map)
@@ -606,10 +718,18 @@ class TestSynthesisMapPassedToArchAndOverview:
             with patch.object(orchestrator_with_mocks, "_run_files", mock_files):
                 with patch.object(orchestrator_with_mocks, "_run_directories", mock_directories):
                     with patch.object(orchestrator_with_mocks, "_run_synthesis", mock_synthesis):
-                        with patch.object(orchestrator_with_mocks, "_run_architecture", mock_architecture):
-                            with patch.object(orchestrator_with_mocks, "_run_overview", mock_overview):
-                                with patch.object(orchestrator_with_mocks, "_run_workflows", mock_workflows):
-                                    with patch.object(orchestrator_with_mocks, "_save_page", AsyncMock()):
+                        with patch.object(
+                            orchestrator_with_mocks, "_run_architecture", mock_architecture
+                        ):
+                            with patch.object(
+                                orchestrator_with_mocks, "_run_overview", mock_overview
+                            ):
+                                with patch.object(
+                                    orchestrator_with_mocks, "_run_workflows", mock_workflows
+                                ):
+                                    with patch.object(
+                                        orchestrator_with_mocks, "_save_page", AsyncMock()
+                                    ):
                                         await orchestrator_with_mocks.run()
 
         assert len(captured_synthesis_map) == 1
@@ -722,7 +842,7 @@ class TestParseErrorRecovery:
         """Fallback parser extracts symbols from files that primary parser fails on."""
         # Create a file with syntax that Python parser will fail on but fallback can handle
         go_file = tmp_path / "main.go"
-        go_file.write_text("package main\n\nfunc main() {\n    fmt.Println(\"Hello\")\n}\n")
+        go_file.write_text('package main\n\nfunc main() {\n    fmt.Println("Hello")\n}\n')
 
         result = await mock_orchestrator._run_analysis()
 

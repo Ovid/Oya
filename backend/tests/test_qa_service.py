@@ -20,11 +20,13 @@ def mock_vectorstore():
     store.query.return_value = {
         "ids": [["doc1", "doc2", "doc3"]],
         "documents": [["content 1", "content 2", "content 3"]],
-        "metadatas": [[
-            {"type": "wiki", "path": "overview.md", "title": "Overview"},
-            {"type": "code", "path": "src/main.py", "title": "main.py"},
-            {"type": "note", "path": "notes/fix.md", "title": "Fix note"},
-        ]],
+        "metadatas": [
+            [
+                {"type": "wiki", "path": "overview.md", "title": "Overview"},
+                {"type": "code", "path": "src/main.py", "title": "main.py"},
+                {"type": "note", "path": "notes/fix.md", "title": "Fix note"},
+            ]
+        ],
         "distances": [[0.2, 0.4, 0.6]],
     }
     return store
@@ -82,21 +84,15 @@ class TestQAServiceHybridSearch:
         assert fts_ok is True
 
     @pytest.mark.asyncio
-    async def test_hybrid_search_prioritizes_notes(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
+    async def test_hybrid_search_prioritizes_notes(self, mock_vectorstore, mock_db, mock_llm):
         """Notes are prioritized over wiki/code in search results."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
 
         results, _, _ = await service.search("How does X work?")
 
         # Notes should appear first (lower index = higher priority)
-        note_indices = [
-            i for i, r in enumerate(results) if r.get("type") == "note"
-        ]
-        wiki_indices = [
-            i for i, r in enumerate(results) if r.get("type") == "wiki"
-        ]
+        note_indices = [i for i, r in enumerate(results) if r.get("type") == "note"]
+        wiki_indices = [i for i, r in enumerate(results) if r.get("type") == "wiki"]
 
         if note_indices and wiki_indices:
             assert min(note_indices) < max(wiki_indices)
@@ -106,9 +102,7 @@ class TestQAServiceAnswerGeneration:
     """Tests for LLM answer generation."""
 
     @pytest.mark.asyncio
-    async def test_generates_answer_with_context(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
+    async def test_generates_answer_with_context(self, mock_vectorstore, mock_db, mock_llm):
         """Answer is generated using search results as context."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="How does the main function work?")
@@ -123,9 +117,7 @@ class TestQAServiceAnswerGeneration:
         assert "content 1" in prompt or "fts result" in prompt
 
     @pytest.mark.asyncio
-    async def test_extracts_citations_from_answer(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
+    async def test_extracts_citations_from_answer(self, mock_vectorstore, mock_db, mock_llm):
         """Citations are extracted from LLM response."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="Where is the main entry point?")
@@ -136,9 +128,7 @@ class TestQAServiceAnswerGeneration:
         assert any(c.path == "src/main.py" for c in response.citations)
 
     @pytest.mark.asyncio
-    async def test_includes_mandatory_disclaimer(
-        self, mock_vectorstore, mock_db, mock_llm
-    ):
+    async def test_includes_mandatory_disclaimer(self, mock_vectorstore, mock_db, mock_llm):
         """Response always includes confidence-based disclaimer."""
         service = QAService(mock_vectorstore, mock_db, mock_llm)
         request = QARequest(question="How does X work?")
@@ -148,23 +138,27 @@ class TestQAServiceAnswerGeneration:
         assert response.disclaimer is not None
         assert len(response.disclaimer) > 0
         # Disclaimers now describe confidence level
-        assert any(word in response.disclaimer.lower() for word in
-                   ["evidence", "codebase", "verify", "speculative"])
+        assert any(
+            word in response.disclaimer.lower()
+            for word in ["evidence", "codebase", "verify", "speculative"]
+        )
 
 
 def test_qa_request_no_mode_or_context():
     """QARequest only has question field."""
     from oya.qa.schemas import QARequest
+
     request = QARequest(question="How does auth work?")
     assert request.question == "How does auth work?"
     # Verify mode and context don't exist
-    assert not hasattr(request, 'mode')
-    assert not hasattr(request, 'context')
+    assert not hasattr(request, "mode")
+    assert not hasattr(request, "context")
 
 
 def test_qa_response_has_confidence_and_search_quality():
     """QAResponse uses confidence instead of evidence_sufficient."""
     from oya.qa.schemas import ConfidenceLevel, SearchQuality
+
     response = QAResponse(
         answer="Auth uses JWT tokens.",
         citations=[],
@@ -179,7 +173,7 @@ def test_qa_response_has_confidence_and_search_quality():
     )
     assert response.confidence == ConfidenceLevel.HIGH
     assert response.search_quality.results_used == 3
-    assert not hasattr(response, 'evidence_sufficient')
+    assert not hasattr(response, "evidence_sufficient")
 
 
 def test_confidence_level_values():
@@ -275,6 +269,7 @@ class TestPathToUrl:
     def test_path_to_url_files(self):
         """File paths convert to /files/slug route."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         assert service._path_to_url("files/src_main-py.md") == "/files/src_main-py"
@@ -282,6 +277,7 @@ class TestPathToUrl:
     def test_path_to_url_directories(self):
         """Directory paths convert to /directories/slug route."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         assert service._path_to_url("directories/backend_src.md") == "/directories/backend_src"
@@ -289,6 +285,7 @@ class TestPathToUrl:
     def test_path_to_url_overview(self):
         """Overview converts to root route."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         assert service._path_to_url("overview.md") == "/"
@@ -296,6 +293,7 @@ class TestPathToUrl:
     def test_path_to_url_architecture(self):
         """Architecture converts to /architecture route."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         assert service._path_to_url("architecture.md") == "/architecture"
@@ -307,6 +305,7 @@ class TestStructuredCitationExtraction:
     def test_extract_structured_citations(self):
         """Extract citations from structured JSON output."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         response = """<answer>
@@ -334,6 +333,7 @@ The auth module handles JWT tokens.
     def test_extract_answer_from_structured(self):
         """Extract answer from structured output."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         response = """<answer>
@@ -351,6 +351,7 @@ The auth module handles JWT tokens.
     def test_fallback_to_legacy_citations(self):
         """Falls back to legacy format when no structured citations."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         response = """Here is the answer.
@@ -372,6 +373,7 @@ The auth module handles JWT tokens.
     def test_fallback_citations_from_results(self):
         """Uses fallback citations when no explicit citations found."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         response = "Just a plain answer with no citations."
@@ -392,6 +394,7 @@ class TestDeduplicateResults:
     def test_removes_duplicate_content(self):
         """Deduplication removes near-duplicate content."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         results = [
@@ -408,6 +411,7 @@ class TestDeduplicateResults:
     def test_preserves_order(self):
         """Deduplication preserves order of first occurrence."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         results = [
@@ -423,6 +427,7 @@ class TestDeduplicateResults:
     def test_empty_results(self):
         """Empty results return empty list."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         assert service._deduplicate_results([]) == []
@@ -434,6 +439,7 @@ class TestTruncateAtSentence:
     def test_short_text_unchanged(self):
         """Short text passes through unchanged."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         text = "This is a short sentence."
@@ -443,6 +449,7 @@ class TestTruncateAtSentence:
     def test_preserves_sentence_boundary(self):
         """Long text truncates at sentence boundary."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         text = "First sentence. Second sentence. Third sentence that is very long."
@@ -455,6 +462,7 @@ class TestTruncateAtSentence:
     def test_empty_text(self):
         """Empty text returns empty string."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         result = service._truncate_at_sentence("", max_tokens=100)
@@ -463,6 +471,7 @@ class TestTruncateAtSentence:
     def test_single_very_long_sentence(self):
         """Single long sentence gets character-truncated."""
         from oya.qa.service import QAService
+
         service = QAService.__new__(QAService)
 
         text = "This is one very long sentence with no periods " * 50

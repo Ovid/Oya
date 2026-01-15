@@ -102,15 +102,21 @@ class QAService:
                 if i < len(documents):
                     path = metadatas[i].get("path", "") if i < len(metadatas) else ""
                     if path:
-                        semantic_results.append({
-                            "id": doc_id,
-                            "content": documents[i],
-                            "path": path,
-                            "title": metadatas[i].get("title", "") if i < len(metadatas) else "",
-                            "type": metadatas[i].get("type", "wiki") if i < len(metadatas) else "wiki",
-                            "distance": distances[i] if i < len(distances) else 1.0,
-                            "source": "semantic",
-                        })
+                        semantic_results.append(
+                            {
+                                "id": doc_id,
+                                "content": documents[i],
+                                "path": path,
+                                "title": metadatas[i].get("title", "")
+                                if i < len(metadatas)
+                                else "",
+                                "type": metadatas[i].get("type", "wiki")
+                                if i < len(metadatas)
+                                else "wiki",
+                                "distance": distances[i] if i < len(distances) else 1.0,
+                                "source": "semantic",
+                            }
+                        )
         except Exception:
             # If semantic search fails, continue with FTS only
             pass
@@ -136,15 +142,19 @@ class QAService:
                 if path:
                     # Use path-based ID for FTS results to enable RRF matching
                     # with semantic results that may have different chunk IDs
-                    fts_results.append({
-                        "id": path,  # Use path as ID for cross-source matching
-                        "content": row["content"] or "",
-                        "path": path,
-                        "title": row["title"] or "",
-                        "type": row["type"] or "wiki",
-                        "distance": 1.0 - min(abs(row["score"]) / 10, 1.0) if row["score"] else 0.5,
-                        "source": "fts",
-                    })
+                    fts_results.append(
+                        {
+                            "id": path,  # Use path as ID for cross-source matching
+                            "content": row["content"] or "",
+                            "path": path,
+                            "title": row["title"] or "",
+                            "type": row["type"] or "wiki",
+                            "distance": 1.0 - min(abs(row["score"]) / 10, 1.0)
+                            if row["score"]
+                            else 0.5,
+                            "source": "fts",
+                        }
+                    )
         except Exception:
             # If FTS fails, use whatever semantic results we have
             pass
@@ -202,14 +212,15 @@ class QAService:
             return ConfidenceLevel.LOW
 
         # Count results with good relevance
-        strong_matches = sum(
-            1 for r in results if r.get("distance", 1.0) < STRONG_MATCH_THRESHOLD
-        )
+        strong_matches = sum(1 for r in results if r.get("distance", 1.0) < STRONG_MATCH_THRESHOLD)
 
         # Check best result quality
         best_distance = min(r.get("distance", 1.0) for r in results)
 
-        if strong_matches >= MIN_STRONG_MATCHES_FOR_HIGH and best_distance < HIGH_CONFIDENCE_THRESHOLD:
+        if (
+            strong_matches >= MIN_STRONG_MATCHES_FOR_HIGH
+            and best_distance < HIGH_CONFIDENCE_THRESHOLD
+        ):
             return ConfidenceLevel.HIGH
         elif strong_matches >= 1 and best_distance < MEDIUM_CONFIDENCE_THRESHOLD:
             return ConfidenceLevel.MEDIUM
@@ -230,10 +241,10 @@ class QAService:
             return text
 
         # Split into sentences (simple heuristic)
-        sentences = text.replace('\n', ' ').split('. ')
+        sentences = text.replace("\n", " ").split(". ")
         result: list[str] = []
         for sentence in sentences:
-            candidate = '. '.join(result + [sentence])
+            candidate = ". ".join(result + [sentence])
             if estimate_tokens(candidate) > max_tokens:
                 break
             result.append(sentence)
@@ -242,9 +253,9 @@ class QAService:
             # If no complete sentence fits, truncate by characters
             chars_per_token = 4  # Approximate
             max_chars = max_tokens * chars_per_token
-            return text[:max_chars].rsplit(' ', 1)[0] + '...'
+            return text[:max_chars].rsplit(" ", 1)[0] + "..."
 
-        return '. '.join(result) + '.'
+        return ". ".join(result) + "."
 
     def _build_context_prompt(
         self,
@@ -314,7 +325,7 @@ Answer the question based only on the context provided. Include citations to spe
         citations: list[Citation] = []
 
         # Parse JSON citations block
-        match = re.search(r'<citations>\s*(\[.*?\])\s*</citations>', response, re.DOTALL)
+        match = re.search(r"<citations>\s*(\[.*?\])\s*</citations>", response, re.DOTALL)
         if not match:
             # Fall back to legacy [CITATIONS] format for compatibility
             return self._extract_legacy_citations(response, results)
@@ -338,12 +349,14 @@ Answer the question based only on the context provided. Include citations to spe
                         title = r.get("title") or path
                         break
 
-                citations.append(Citation(
-                    path=path,
-                    title=title,
-                    lines=None,
-                    url=self._path_to_url(path),
-                ))
+                citations.append(
+                    Citation(
+                        path=path,
+                        title=title,
+                        lines=None,
+                        url=self._path_to_url(path),
+                    )
+                )
 
         return citations if citations else self._fallback_citations(results[:3])
 
@@ -392,12 +405,14 @@ Answer the question based only on the context provided. Include citations to spe
                             title = r.get("title") or path
                             break
 
-                    citations.append(Citation(
-                        path=path,
-                        title=title,
-                        lines=lines,
-                        url=self._path_to_url(path),
-                    ))
+                    citations.append(
+                        Citation(
+                            path=path,
+                            title=title,
+                            lines=lines,
+                            url=self._path_to_url(path),
+                        )
+                    )
 
         return citations if citations else self._fallback_citations(results[:3])
 
@@ -417,12 +432,14 @@ Answer the question based only on the context provided. Include citations to spe
             path = r.get("path", "")
             if path and path not in seen_paths:
                 seen_paths.add(path)
-                citations.append(Citation(
-                    path=path,
-                    title=r.get("title") or path,
-                    lines=None,
-                    url=self._path_to_url(path),
-                ))
+                citations.append(
+                    Citation(
+                        path=path,
+                        title=r.get("title") or path,
+                        lines=None,
+                        url=self._path_to_url(path),
+                    )
+                )
 
         return citations
 
@@ -435,7 +452,7 @@ Answer the question based only on the context provided. Include citations to spe
         Returns:
             Extracted answer text.
         """
-        match = re.search(r'<answer>\s*(.*?)\s*</answer>', response, re.DOTALL)
+        match = re.search(r"<answer>\s*(.*?)\s*</answer>", response, re.DOTALL)
         if match:
             return match.group(1).strip()
 

@@ -493,4 +493,4 @@ class TypeScriptParser(BaseParser):
         Returns:
             The text content of the node.
         """
-        return content[node.start_byte:node.end_byte]
+        return content[node.start_byte : node.end_byte]

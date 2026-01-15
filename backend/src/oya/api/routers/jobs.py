@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 class JobStatus(BaseModel):
     """Job status response."""
+
     job_id: str
     type: str
     status: str
@@ -28,6 +29,7 @@ class JobStatus(BaseModel):
 
 class JobCancelled(BaseModel):
     """Job cancellation response."""
+
     job_id: str
     status: str
     cancelled_at: datetime
@@ -52,16 +54,18 @@ async def list_jobs(
 
     jobs = []
     for row in cursor.fetchall():
-        jobs.append(JobStatus(
-            job_id=row["id"],
-            type=row["type"],
-            status=row["status"],
-            started_at=_parse_datetime(row["started_at"]),
-            completed_at=_parse_datetime(row["completed_at"]),
-            current_phase=row["current_phase"],
-            total_phases=row["total_phases"],
-            error_message=row["error_message"],
-        ))
+        jobs.append(
+            JobStatus(
+                job_id=row["id"],
+                type=row["type"],
+                status=row["status"],
+                started_at=_parse_datetime(row["started_at"]),
+                completed_at=_parse_datetime(row["completed_at"]),
+                current_phase=row["current_phase"],
+                total_phases=row["total_phases"],
+                error_message=row["error_message"],
+            )
+        )
 
     return jobs
 
@@ -114,8 +118,7 @@ async def cancel_job(
 
     if row["status"] not in ("pending", "running"):
         raise HTTPException(
-            status_code=400,
-            detail=f"Cannot cancel job with status: {row['status']}"
+            status_code=400, detail=f"Cannot cancel job with status: {row['status']}"
         )
 
     # Update job status to cancelled

@@ -11,5 +11,5 @@
 // =============================================================================
 // These preferences are restored when the app loads and persisted when changed.
 
-export const STORAGE_KEY_DARK_MODE = 'oya-dark-mode';
-export const STORAGE_KEY_ASK_PANEL_OPEN = 'oya-ask-panel-open';
+export const STORAGE_KEY_DARK_MODE = 'oya-dark-mode'
+export const STORAGE_KEY_ASK_PANEL_OPEN = 'oya-ask-panel-open'

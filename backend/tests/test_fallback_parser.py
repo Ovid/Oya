@@ -24,7 +24,7 @@ def test_parser_accepts_any_extension(parser):
 
 def test_extracts_function_like_patterns(parser):
     """Extracts function-like patterns from code."""
-    code = '''
+    code = """
 sub greet {
     my $name = shift;
     print "Hello, $name\n";
@@ -33,7 +33,7 @@ sub greet {
 sub helper {
     return 42;
 }
-'''
+"""
     result = parser.parse_string(code, "test.pl")
 
     assert result.ok
@@ -43,7 +43,7 @@ sub helper {
 
 def test_extracts_class_like_patterns(parser):
     """Extracts class-like patterns from code."""
-    code = '''
+    code = """
 class User
   def initialize(name)
     @name = name
@@ -53,7 +53,7 @@ class User
     puts "Hello, #{@name}"
   end
 end
-'''
+"""
     result = parser.parse_string(code, "test.rb")
 
     assert result.ok
@@ -81,7 +81,7 @@ def test_always_succeeds(parser):
 
 def test_extracts_go_functions(parser):
     """Extracts Go function patterns."""
-    code = '''
+    code = """
 func main() {
     fmt.Println("Hello")
 }
@@ -89,7 +89,7 @@ func main() {
 func helper(x int) int {
     return x * 2
 }
-'''
+"""
     result = parser.parse_string(code, "test.go")
 
     assert result.ok

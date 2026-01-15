@@ -162,9 +162,7 @@ def compute_directory_signature_with_children(
 
     # Include child directory purposes
     sorted_children = sorted(child_summaries, key=lambda x: x.directory_path)
-    child_part = "|".join(
-        f"{c.directory_path}:{c.purpose}" for c in sorted_children
-    )
+    child_part = "|".join(f"{c.directory_path}:{c.purpose}" for c in sorted_children)
 
     combined = f"{file_part}||{child_part}"
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()
@@ -352,7 +350,7 @@ class GenerationOrchestrator:
         for child_path, summary in all_summaries.items():
             if not child_path.startswith(prefix):
                 continue
-            remaining = child_path[len(prefix):]
+            remaining = child_path[len(prefix) :]
             if "/" not in remaining and remaining:
                 result.append(summary)
 
@@ -403,9 +401,7 @@ class GenerationOrchestrator:
         """
         # Build signature from files in this directory
         file_hash_pairs = [
-            (f.split("/")[-1], file_hashes.get(f, ""))
-            for f in dir_files
-            if f in file_hashes
+            (f.split("/")[-1], file_hashes.get(f, "")) for f in dir_files if f in file_hashes
         ]
         signature_hash = compute_directory_signature(file_hash_pairs)
 
@@ -487,9 +483,7 @@ class GenerationOrchestrator:
         analysis = await self._run_analysis(progress_callback)
 
         # Phase 2: Files (run before directories to compute content hashes and collect summaries)
-        file_pages, file_hashes, file_summaries = await self._run_files(
-            analysis, progress_callback
-        )
+        file_pages, file_hashes, file_summaries = await self._run_files(analysis, progress_callback)
         for page in file_pages:
             await self._save_page(page)
 
@@ -540,6 +534,7 @@ class GenerationOrchestrator:
         else:
             # Load existing synthesis map
             from oya.generation.synthesis import load_synthesis_map
+
             synthesis_map, _ = load_synthesis_map(str(self.meta_path))
             if synthesis_map is None:
                 # Fallback: regenerate if loading fails
@@ -706,11 +701,13 @@ class GenerationOrchestrator:
                         all_symbols.append(symbol)
                 else:
                     # Parse failed - try fallback for partial recovery
-                    parse_errors.append({
-                        "file": file_path,
-                        "error": result.error or "Unknown parse error",
-                        "recovered": True,
-                    })
+                    parse_errors.append(
+                        {
+                            "file": file_path,
+                            "error": result.error or "Unknown parse error",
+                            "recovered": True,
+                        }
+                    )
                     fallback_result = self._fallback_parser.parse(Path(file_path), content)
                     if fallback_result.ok and fallback_result.file:
                         file_imports[file_path] = fallback_result.file.imports
@@ -720,11 +717,13 @@ class GenerationOrchestrator:
 
             except Exception as e:
                 # File read error - track but continue
-                parse_errors.append({
-                    "file": file_path,
-                    "error": str(e),
-                    "recovered": False,
-                })
+                parse_errors.append(
+                    {
+                        "file": file_path,
+                        "error": str(e),
+                        "recovered": False,
+                    }
+                )
 
             # Emit progress (configurable interval)
             if (idx + 1) % PROGRESS_REPORT_INTERVAL == 0 or idx == total_files - 1:
@@ -834,6 +833,7 @@ class GenerationOrchestrator:
         if "pyproject.toml" in file_contents:
             try:
                 import tomllib
+
                 data = tomllib.loads(file_contents["pyproject.toml"])
                 project = data.get("project", {})
                 package_info["name"] = project.get("name", "")
@@ -876,7 +876,8 @@ class GenerationOrchestrator:
 
         # Legacy mode: use key symbols (convert ParsedSymbol to dict)
         key_symbols = [
-            self._symbol_to_dict(s) for s in analysis["symbols"]
+            self._symbol_to_dict(s)
+            for s in analysis["symbols"]
             if s.symbol_type.value in ("class", "function", "method")
         ][:50]  # Limit to top 50
 
@@ -1087,9 +1088,7 @@ class GenerationOrchestrator:
 
             # Compute signature including child purposes
             file_hash_pairs = [
-                (f.split("/")[-1], file_hashes.get(f, ""))
-                for f in dir_files
-                if f in file_hashes
+                (f.split("/")[-1], file_hashes.get(f, "")) for f in dir_files if f in file_hashes
             ]
             signature_hash = compute_directory_signature_with_children(
                 file_hash_pairs, child_summaries
@@ -1124,28 +1123,29 @@ class GenerationOrchestrator:
                 direct_files = [f for f in analysis["files"] if "/" not in f]
             else:
                 direct_files = [
-                    f for f in analysis["files"]
-                    if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1:]
+                    f
+                    for f in analysis["files"]
+                    if f.startswith(dir_path + "/") and "/" not in f[len(dir_path) + 1 :]
                 ]
 
             # Filter symbols by file path and convert to dicts for generator
             if dir_path == "":
                 # Root: symbols from root-level files
                 dir_symbols = [
-                    self._symbol_to_dict(s) for s in analysis["symbols"]
+                    self._symbol_to_dict(s)
+                    for s in analysis["symbols"]
                     if "/" not in s.metadata.get("file", "")
                 ]
             else:
                 dir_symbols = [
-                    self._symbol_to_dict(s) for s in analysis["symbols"]
+                    self._symbol_to_dict(s)
+                    for s in analysis["symbols"]
                     if s.metadata.get("file", "").startswith(dir_path + "/")
                 ]
 
             # Get file summaries for files in this directory
             dir_file_summaries = [
-                file_summary_lookup[f]
-                for f in direct_files
-                if f in file_summary_lookup
+                file_summary_lookup[f] for f in direct_files if f in file_summary_lookup
             ]
 
             # Generate directory page with child summaries
@@ -1203,33 +1203,82 @@ class GenerationOrchestrator:
         # This ensures we support any programming language without maintaining an allowlist
         non_code_extensions = {
             # Documentation
-            ".md", ".rst", ".txt", ".adoc", ".asciidoc",
+            ".md",
+            ".rst",
+            ".txt",
+            ".adoc",
+            ".asciidoc",
             # Data/config formats
-            ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
-            ".xml", ".csv", ".tsv",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".toml",
+            ".ini",
+            ".cfg",
+            ".conf",
+            ".xml",
+            ".csv",
+            ".tsv",
             # Lock files
             ".lock",
             # Images (shouldn't be here, but just in case binary detection missed them)
-            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".svg",
+            ".ico",
+            ".webp",
             # Other non-code
-            ".log", ".pid", ".env", ".env.example",
+            ".log",
+            ".pid",
+            ".env",
+            ".env.example",
         }
         non_code_names = {
             # Common non-code files (case-insensitive matching below)
-            "readme", "readme.md", "readme.rst", "readme.txt",
-            "license", "license.md", "license.txt", "copying",
-            "changelog", "changelog.md", "changes", "changes.md", "history.md",
-            "contributing", "contributing.md",
-            "authors", "authors.md", "contributors",
-            "makefile", "dockerfile", "vagrantfile",
-            "gemfile", "gemfile.lock",
-            "package.json", "package-lock.json",
-            "composer.json", "composer.lock",
-            "cargo.toml", "cargo.lock",
-            "pyproject.toml", "poetry.lock", "pipfile", "pipfile.lock",
-            "requirements.txt", "setup.py", "setup.cfg",
-            ".gitignore", ".gitattributes", ".dockerignore",
-            ".editorconfig", ".prettierrc", ".eslintrc",
+            "readme",
+            "readme.md",
+            "readme.rst",
+            "readme.txt",
+            "license",
+            "license.md",
+            "license.txt",
+            "copying",
+            "changelog",
+            "changelog.md",
+            "changes",
+            "changes.md",
+            "history.md",
+            "contributing",
+            "contributing.md",
+            "authors",
+            "authors.md",
+            "contributors",
+            "makefile",
+            "dockerfile",
+            "vagrantfile",
+            "gemfile",
+            "gemfile.lock",
+            "package.json",
+            "package-lock.json",
+            "composer.json",
+            "composer.lock",
+            "cargo.toml",
+            "cargo.lock",
+            "pyproject.toml",
+            "poetry.lock",
+            "pipfile",
+            "pipfile.lock",
+            "requirements.txt",
+            "setup.py",
+            "setup.cfg",
+            ".gitignore",
+            ".gitattributes",
+            ".dockerignore",
+            ".editorconfig",
+            ".prettierrc",
+            ".eslintrc",
         }
 
         # Filter to source files and check which need regeneration
@@ -1282,7 +1331,8 @@ class GenerationOrchestrator:
             content = analysis["file_contents"].get(file_path, "")
             # Filter symbols by file path and convert to dicts for generator
             file_symbols = [
-                self._symbol_to_dict(s) for s in all_parsed_symbols
+                self._symbol_to_dict(s)
+                for s in all_parsed_symbols
                 if s.metadata.get("file") == file_path
             ]
             # Use imports collected during parsing (Task 4)
@@ -1290,8 +1340,7 @@ class GenerationOrchestrator:
 
             # Filter parsed symbols for this specific file (for class diagrams)
             file_parsed_symbols = [
-                s for s in all_parsed_symbols
-                if s.metadata.get("file") == file_path
+                s for s in all_parsed_symbols if s.metadata.get("file") == file_path
             ]
 
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)

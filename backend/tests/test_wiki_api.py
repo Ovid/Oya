@@ -43,6 +43,7 @@ def workspace_with_wiki(tmp_path, monkeypatch):
     monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     from oya.config import load_settings
+
     load_settings.cache_clear()
     get_settings.cache_clear()
     _reset_db_instance()
@@ -143,7 +144,9 @@ class TestSourcePathExtraction:
         data = response.json()
         assert data["source_path"] == "lib/utils.py"
 
-    async def test_file_page_extracts_source_path_from_double_quotes(self, client, workspace_with_wiki):
+    async def test_file_page_extracts_source_path_from_double_quotes(
+        self, client, workspace_with_wiki
+    ):
         """File page extracts source_path from double-quoted title."""
         wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
         (wiki_path / "src-app-ts.md").write_text('# "src/app.ts"\n\nMain app.')
@@ -154,7 +157,9 @@ class TestSourcePathExtraction:
         data = response.json()
         assert data["source_path"] == "src/app.ts"
 
-    async def test_file_page_extracts_source_path_from_single_quotes(self, client, workspace_with_wiki):
+    async def test_file_page_extracts_source_path_from_single_quotes(
+        self, client, workspace_with_wiki
+    ):
         """File page extracts source_path from single-quoted title."""
         wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
         (wiki_path / "config-json.md").write_text("# 'config.json'\n\nConfiguration.")
@@ -176,7 +181,9 @@ class TestSourcePathExtraction:
         data = response.json()
         assert data["source_path"] == "src/components"
 
-    async def test_file_page_without_quoted_title_returns_null_source_path(self, client, workspace_with_wiki):
+    async def test_file_page_without_quoted_title_returns_null_source_path(
+        self, client, workspace_with_wiki
+    ):
         """File page without quoted title returns null source_path."""
         # The existing src-main-py.md has "# src/main.py" without backticks
         response = await client.get("/api/wiki/files/src-main-py")

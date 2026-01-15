@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 
 class WikiPage(BaseModel):
     """Wiki page response."""
+
     content: str
     page_type: str
     path: str
@@ -21,6 +22,7 @@ class WikiPage(BaseModel):
 
 class WikiTree(BaseModel):
     """Wiki tree structure."""
+
     overview: bool
     architecture: bool
     workflows: list[str]
@@ -106,7 +108,9 @@ async def get_wiki_tree(
     )
 
 
-def _get_page(wiki_path: Path, relative_path: str, page_type: str, slug: str | None = None) -> WikiPage:
+def _get_page(
+    wiki_path: Path, relative_path: str, page_type: str, slug: str | None = None
+) -> WikiPage:
     """Get a wiki page by path."""
     full_path = wiki_path / relative_path
 
@@ -124,6 +128,7 @@ def _get_page(wiki_path: Path, relative_path: str, page_type: str, slug: str | N
             if line.startswith("# "):
                 # Extract path from backticks or quotes
                 import re
+
                 match = re.search(r'[`"\']([^`"\']+)[`"\']', line)
                 if match:
                     source_path = match.group(1)

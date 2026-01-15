@@ -20,24 +20,26 @@ class ValidationResult:
 
 
 # Valid Mermaid diagram types
-VALID_DIAGRAM_TYPES = frozenset([
-    "flowchart",
-    "graph",
-    "sequencediagram",
-    "classdiagram",
-    "statediagram",
-    "statediagram-v2",
-    "erdiagram",
-    "journey",
-    "gantt",
-    "pie",
-    "quadrantchart",
-    "requirementdiagram",
-    "gitgraph",
-    "mindmap",
-    "timeline",
-    "zenuml",
-])
+VALID_DIAGRAM_TYPES = frozenset(
+    [
+        "flowchart",
+        "graph",
+        "sequencediagram",
+        "classdiagram",
+        "statediagram",
+        "statediagram-v2",
+        "erdiagram",
+        "journey",
+        "gantt",
+        "pie",
+        "quadrantchart",
+        "requirementdiagram",
+        "gitgraph",
+        "mindmap",
+        "timeline",
+        "zenuml",
+    ]
+)
 
 
 def validate_mermaid(content: str) -> ValidationResult:

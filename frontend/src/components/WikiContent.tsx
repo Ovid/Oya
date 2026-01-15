@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import mermaid from 'mermaid';
-import type { WikiPage } from '../types';
+import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import mermaid from 'mermaid'
+import type { WikiPage } from '../types'
 
 // Initialize mermaid with a readable theme
 mermaid.initialize({
@@ -10,12 +10,12 @@ mermaid.initialize({
   theme: 'base',
   themeVariables: {
     // Use high contrast colors
-    primaryColor: '#818cf8',      // indigo-400
-    primaryTextColor: '#1f2937',  // gray-800
+    primaryColor: '#818cf8', // indigo-400
+    primaryTextColor: '#1f2937', // gray-800
     primaryBorderColor: '#6366f1', // indigo-500
-    lineColor: '#6b7280',         // gray-500
-    secondaryColor: '#e0e7ff',    // indigo-100
-    tertiaryColor: '#f3f4f6',     // gray-100
+    lineColor: '#6b7280', // gray-500
+    secondaryColor: '#e0e7ff', // indigo-100
+    tertiaryColor: '#f3f4f6', // gray-100
     background: '#ffffff',
     mainBkg: '#ffffff',
     secondBkg: '#f9fafb',
@@ -26,34 +26,34 @@ mermaid.initialize({
     htmlLabels: true,
     curve: 'basis',
   },
-});
+})
 
 interface MermaidDiagramProps {
-  chart: string;
+  chart: string
 }
 
 function MermaidDiagram({ chart }: MermaidDiagramProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [svg, setSvg] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [svg, setSvg] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const renderChart = async () => {
-      if (!containerRef.current) return;
+      if (!containerRef.current) return
 
       try {
-        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-        const { svg } = await mermaid.render(id, chart);
-        setSvg(svg);
-        setError(null);
+        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`
+        const { svg } = await mermaid.render(id, chart)
+        setSvg(svg)
+        setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to render diagram');
-        setSvg('');
+        setError(err instanceof Error ? err.message : 'Failed to render diagram')
+        setSvg('')
       }
-    };
+    }
 
-    renderChart();
-  }, [chart]);
+    renderChart()
+  }, [chart])
 
   if (error) {
     return (
@@ -61,7 +61,7 @@ function MermaidDiagram({ chart }: MermaidDiagramProps) {
         <p className="text-sm text-red-600 dark:text-red-400">Failed to render diagram: {error}</p>
         <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 overflow-auto">{chart}</pre>
       </div>
-    );
+    )
   }
 
   return (
@@ -70,11 +70,11 @@ function MermaidDiagram({ chart }: MermaidDiagramProps) {
       className="my-4 p-4 bg-white dark:bg-gray-100 rounded-lg overflow-x-auto border border-gray-200"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
-  );
+  )
 }
 
 interface WikiContentProps {
-  page: WikiPage;
+  page: WikiPage
 }
 
 export function WikiContent({ page }: WikiContentProps) {
@@ -85,26 +85,32 @@ export function WikiContent({ page }: WikiContentProps) {
         components={{
           // Custom heading with id for TOC links
           h1: ({ children }) => {
-            const id = String(children).toLowerCase().replace(/[^\w]+/g, '-');
-            return <h1 id={id}>{children}</h1>;
+            const id = String(children)
+              .toLowerCase()
+              .replace(/[^\w]+/g, '-')
+            return <h1 id={id}>{children}</h1>
           },
           h2: ({ children }) => {
-            const id = String(children).toLowerCase().replace(/[^\w]+/g, '-');
-            return <h2 id={id}>{children}</h2>;
+            const id = String(children)
+              .toLowerCase()
+              .replace(/[^\w]+/g, '-')
+            return <h2 id={id}>{children}</h2>
           },
           h3: ({ children }) => {
-            const id = String(children).toLowerCase().replace(/[^\w]+/g, '-');
-            return <h3 id={id}>{children}</h3>;
+            const id = String(children)
+              .toLowerCase()
+              .replace(/[^\w]+/g, '-')
+            return <h3 id={id}>{children}</h3>
           },
           // Code blocks with syntax highlighting and Mermaid support
           code: ({ className, children, ...props }) => {
-            const match = /language-(\w+)/.exec(className || '');
-            const language = match ? match[1] : null;
-            const isInline = !match;
+            const match = /language-(\w+)/.exec(className || '')
+            const language = match ? match[1] : null
+            const isInline = !match
 
             // Handle Mermaid diagrams
             if (language === 'mermaid') {
-              return <MermaidDiagram chart={String(children).trim()} />;
+              return <MermaidDiagram chart={String(children).trim()} />
             }
 
             if (isInline) {
@@ -115,7 +121,7 @@ export function WikiContent({ page }: WikiContentProps) {
                 >
                   {children}
                 </code>
-              );
+              )
             }
 
             return (
@@ -134,11 +140,11 @@ export function WikiContent({ page }: WikiContentProps) {
                   </code>
                 </pre>
               </div>
-            );
+            )
           },
           // Links open in new tab for external
           a: ({ href, children }) => {
-            const isExternal = href?.startsWith('http');
+            const isExternal = href?.startsWith('http')
             return (
               <a
                 href={href}
@@ -148,7 +154,7 @@ export function WikiContent({ page }: WikiContentProps) {
               >
                 {children}
               </a>
-            );
+            )
           },
           // Tables with better styling
           table: ({ children }) => (
@@ -163,5 +169,5 @@ export function WikiContent({ page }: WikiContentProps) {
         {page.content}
       </ReactMarkdown>
     </article>
-  );
+  )
 }

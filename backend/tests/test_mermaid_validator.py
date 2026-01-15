@@ -1,6 +1,5 @@
 """Tests for Mermaid diagram validation."""
 
-
 from oya.generation.mermaid_validator import (
     sanitize_label,
     sanitize_node_id,

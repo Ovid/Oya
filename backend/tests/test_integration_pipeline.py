@@ -1,7 +1,10 @@
 """Integration tests for directory pages redesign."""
 
-
-from oya.generation.prompts import generate_breadcrumb, format_subdirectory_summaries, format_file_links
+from oya.generation.prompts import (
+    generate_breadcrumb,
+    format_subdirectory_summaries,
+    format_file_links,
+)
 from oya.generation.summaries import DirectorySummary, FileSummary
 from oya.repo.file_filter import extract_directories_from_files
 
@@ -64,18 +67,22 @@ class TestDirectoryPagesRedesign:
         from oya.generation.orchestrator import compute_directory_signature_with_children
 
         file_hashes = [("main.py", "abc123")]
-        child1 = [DirectorySummary(
-            directory_path="src/api",
-            purpose="Original purpose",
-            contains=[],
-            role_in_system="",
-        )]
-        child2 = [DirectorySummary(
-            directory_path="src/api",
-            purpose="Changed purpose",
-            contains=[],
-            role_in_system="",
-        )]
+        child1 = [
+            DirectorySummary(
+                directory_path="src/api",
+                purpose="Original purpose",
+                contains=[],
+                role_in_system="",
+            )
+        ]
+        child2 = [
+            DirectorySummary(
+                directory_path="src/api",
+                purpose="Changed purpose",
+                contains=[],
+                role_in_system="",
+            )
+        ]
 
         sig1 = compute_directory_signature_with_children(file_hashes, child1)
         sig2 = compute_directory_signature_with_children(file_hashes, child2)
