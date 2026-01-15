@@ -166,3 +166,75 @@ class TestWorkflowGenerator:
 
         assert result.page_type == "workflow"
         assert result.path == "workflows/test-workflow.md"
+
+
+class TestExtractEntryPointDescription:
+    """Tests for entry point description extraction."""
+
+    def test_extracts_route_path_from_decorator(self):
+        """Test extraction of route path from route decorator."""
+        from oya.generation.workflows import extract_entry_point_description
+
+        symbol = ParsedSymbol(
+            name="get_users",
+            symbol_type=SymbolType.ROUTE,
+            start_line=10,
+            end_line=20,
+            decorators=["@router.get('/users')"],
+            metadata={"file": "api/users.py"},
+        )
+
+        result = extract_entry_point_description(symbol)
+
+        assert result == "/users"
+
+    def test_extracts_cli_command_from_decorator(self):
+        """Test extraction of CLI command name from decorator."""
+        from oya.generation.workflows import extract_entry_point_description
+
+        symbol = ParsedSymbol(
+            name="init_cmd",
+            symbol_type=SymbolType.CLI_COMMAND,
+            start_line=10,
+            end_line=20,
+            decorators=["@click.command('init')"],
+            metadata={"file": "cli/commands.py"},
+        )
+
+        result = extract_entry_point_description(symbol)
+
+        assert result == "init"
+
+    def test_returns_empty_for_main_function(self):
+        """Test that main functions return empty description."""
+        from oya.generation.workflows import extract_entry_point_description
+
+        symbol = ParsedSymbol(
+            name="main",
+            symbol_type=SymbolType.FUNCTION,
+            start_line=10,
+            end_line=20,
+            decorators=[],
+            metadata={"file": "main.py"},
+        )
+
+        result = extract_entry_point_description(symbol)
+
+        assert result == ""
+
+    def test_handles_complex_route_decorator(self):
+        """Test extraction from complex route decorators."""
+        from oya.generation.workflows import extract_entry_point_description
+
+        symbol = ParsedSymbol(
+            name="create_user",
+            symbol_type=SymbolType.ROUTE,
+            start_line=10,
+            end_line=20,
+            decorators=["@app.post('/api/v1/users', status_code=201)"],
+            metadata={"file": "api/users.py"},
+        )
+
+        result = extract_entry_point_description(symbol)
+
+        assert result == "/api/v1/users"

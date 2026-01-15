@@ -10,6 +10,34 @@ from oya.generation.summaries import SynthesisMap
 from oya.parsing.models import ParsedSymbol, SymbolType
 
 
+def extract_entry_point_description(symbol: ParsedSymbol) -> str:
+    """Extract description from an entry point symbol.
+
+    For routes: extracts the path (e.g., "/users" from "@app.get('/users')").
+    For CLI commands: extracts the command name.
+    For main functions: returns empty string.
+
+    Args:
+        symbol: ParsedSymbol representing an entry point.
+
+    Returns:
+        Description string (route path, CLI command, or empty).
+    """
+    # Check decorators for route paths or CLI commands
+    for decorator in symbol.decorators:
+        # Route pattern: @app.get('/path') or @router.post("/path")
+        route_match = re.search(r"\.(get|post|put|delete|patch)\(['\"]([^'\"]+)['\"]", decorator)
+        if route_match:
+            return route_match.group(2)
+
+        # CLI command pattern: @click.command('name') or @typer.command("name")
+        cli_match = re.search(r"\.command\(['\"]([^'\"]+)['\"]", decorator)
+        if cli_match:
+            return cli_match.group(1)
+
+    return ""
+
+
 @dataclass
 class DiscoveredWorkflow:
     """Represents a discovered workflow.
