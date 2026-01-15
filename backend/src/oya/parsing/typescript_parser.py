@@ -13,7 +13,7 @@ from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, SymbolType
 class TypeScriptParser(BaseParser):
     """Parser for TypeScript and JavaScript files using tree-sitter."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize parsers for different file types."""
         # Create language instances
         self._ts_language = Language(ts_typescript.language_typescript())
@@ -21,9 +21,9 @@ class TypeScriptParser(BaseParser):
         self._js_language = Language(ts_js.language())
 
         # Create parsers for each language
-        self._ts_parser = Parser(self._ts_language)
-        self._tsx_parser = Parser(self._tsx_language)
-        self._js_parser = Parser(self._js_language)
+        self._ts_parser: Parser = Parser(self._ts_language)
+        self._tsx_parser: Parser = Parser(self._tsx_language)
+        self._js_parser: Parser = Parser(self._js_language)
 
     @property
     def supported_extensions(self) -> list[str]:

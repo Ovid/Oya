@@ -55,7 +55,7 @@ class GitRepo:
         """
         commit = self._repo.commit(commit_hash)
         blob = commit.tree / file_path
-        return blob.data_stream.read().decode("utf-8")
+        return str(blob.data_stream.read().decode("utf-8"))
 
     def list_files(self) -> list[str]:
         """List all tracked files in repository.
@@ -63,7 +63,11 @@ class GitRepo:
         Returns:
             List of relative file paths.
         """
-        return [item.path for item in self._repo.head.commit.tree.traverse() if item.type == "blob"]
+        return [
+            str(item.path)
+            for item in self._repo.head.commit.tree.traverse()
+            if not isinstance(item, tuple) and hasattr(item, "type") and item.type == "blob"
+        ]
 
     def get_user_name(self) -> str:
         """Get configured git user name.
@@ -72,7 +76,7 @@ class GitRepo:
             User name or 'Unknown' if not configured.
         """
         try:
-            return self._repo.config_reader().get_value("user", "name")
+            return str(self._repo.config_reader().get_value("user", "name"))
         except Exception:
             return "Unknown"
 
@@ -83,6 +87,6 @@ class GitRepo:
             User email or empty string if not configured.
         """
         try:
-            return self._repo.config_reader().get_value("user", "email")
+            return str(self._repo.config_reader().get_value("user", "email"))
         except Exception:
             return ""

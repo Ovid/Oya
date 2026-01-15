@@ -127,6 +127,8 @@ class NotesService:
             ),
         )
         note_id = cursor.lastrowid
+        if note_id is None:
+            raise RuntimeError("Failed to get note ID after insert")
 
         return Note(
             id=note_id,

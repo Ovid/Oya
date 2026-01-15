@@ -53,7 +53,7 @@ class VectorStore:
         self._collection.add(
             ids=ids,
             documents=documents,
-            metadatas=metadatas,
+            metadatas=metadatas,  # type: ignore[arg-type]
         )
 
     def query(
@@ -72,11 +72,12 @@ class VectorStore:
         Returns:
             Query results including ids, documents, metadatas, and distances.
         """
-        return self._collection.query(
+        result = self._collection.query(
             query_texts=[query_text],
             n_results=n_results,
             where=where,
         )
+        return dict(result)
 
     def delete(self, ids: list[str]) -> None:
         """Delete documents by their IDs.

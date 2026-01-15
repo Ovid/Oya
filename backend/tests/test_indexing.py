@@ -485,7 +485,7 @@ Exports authenticate() function.
             wiki_path=wiki_path,
         )
 
-        count = await service.index_wiki_pages()
+        await service.index_wiki_pages()
 
         # Should have indexed multiple chunks, not just one page
         # Query the vector store to get the indexed documents

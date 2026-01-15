@@ -168,7 +168,7 @@ class LLMClient:
         start_time = time.perf_counter()
         try:
             response = await acompletion(**kwargs)
-            result = response.choices[0].message.content
+            result: str = str(response.choices[0].message.content or "")
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             self._log_query(
                 system_prompt,

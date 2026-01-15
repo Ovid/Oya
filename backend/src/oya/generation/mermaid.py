@@ -147,8 +147,8 @@ class DependencyGraphGenerator:
         """
         if file_path not in all_imports:
             # Check if anything imports this file
-            importers = [f for f, imports in all_imports.items() if file_path in imports]
-            if not importers:
+            has_importers = any(file_path in imports for imports in all_imports.values())
+            if not has_importers:
                 return ""
 
         # Collect related files: imports and importers

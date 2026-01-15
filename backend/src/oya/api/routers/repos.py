@@ -2,6 +2,7 @@
 
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query
 
@@ -47,14 +48,14 @@ def _is_docker_mode() -> bool:
     return os.getenv("WORKSPACE_DISPLAY_PATH") is not None
 
 
-def _get_last_generation(db: Database | None) -> str | None:
+def _get_last_generation(db: Database | None) -> datetime | None:
     """Get the completed_at timestamp of the most recent completed generation.
 
     Args:
         db: Database connection, or None if not available.
 
     Returns:
-        ISO format datetime string of last completed generation, or None.
+        Datetime of last completed generation, or None.
     """
     if db is None:
         return None
@@ -67,7 +68,9 @@ def _get_last_generation(db: Database | None) -> str | None:
             LIMIT 1
             """
         ).fetchone()
-        return result[0] if result else None
+        if result and result[0]:
+            return datetime.fromisoformat(result[0])
+        return None
     except Exception:
         return None
 
@@ -134,7 +137,7 @@ def _build_repo_status(
         return RepoStatus(
             path=path_to_display,
             head_commit=head_commit,
-            head_message=commit.message.strip() if commit else None,
+            head_message=str(commit.message).strip() if commit else None,
             branch=repo.get_current_branch(),
             initialized=True,
             is_docker=is_docker,
@@ -551,10 +554,10 @@ async def switch_workspace(
     # Validate the requested path
     is_valid, error_msg, resolved_path = validate_workspace_path(request.path, base_path)
 
-    if not is_valid:
-        if "outside allowed" in error_msg:
+    if not is_valid or resolved_path is None:
+        if error_msg and "outside allowed" in error_msg:
             raise HTTPException(status_code=403, detail=error_msg)
-        raise HTTPException(status_code=400, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg or "Invalid path")
 
     # Clear settings cache and update WORKSPACE_PATH environment variable
     os.environ["WORKSPACE_PATH"] = str(resolved_path)

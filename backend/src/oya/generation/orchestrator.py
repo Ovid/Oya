@@ -506,6 +506,7 @@ class GenerationOrchestrator:
             files_regenerated, directories_regenerated
         )
 
+        synthesis_map: SynthesisMap | None = None
         if should_regenerate_synthesis:
             await self._emit_progress(
                 progress_callback,
@@ -551,6 +552,9 @@ class GenerationOrchestrator:
                     file_contents=analysis["file_contents"],
                     all_symbols=analysis["symbols"],
                 )
+
+        # At this point synthesis_map is guaranteed to be set
+        assert synthesis_map is not None
 
         # Phase 5: Architecture (uses SynthesisMap as primary context)
         # Cascade: regenerate architecture only if synthesis was regenerated (Requirement 7.3, 7.5)
@@ -908,7 +912,7 @@ class GenerationOrchestrator:
         Returns:
             List of generated workflow pages.
         """
-        pages = []
+        pages: list[GeneratedPage] = []
 
         # Use entry points from synthesis_map (already discovered during synthesis)
         if not synthesis_map or not synthesis_map.entry_points:

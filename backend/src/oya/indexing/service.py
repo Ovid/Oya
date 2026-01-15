@@ -226,7 +226,8 @@ class IndexingService:
             return None
 
         try:
-            return json.loads(metadata_file.read_text(encoding="utf-8"))
+            data: dict[str, Any] = json.loads(metadata_file.read_text(encoding="utf-8"))
+            return data
         except (json.JSONDecodeError, OSError):
             return None
 
