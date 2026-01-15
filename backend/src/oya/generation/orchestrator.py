@@ -35,9 +35,10 @@ from oya.generation.summaries import DirectorySummary, EntryPointInfo, FileSumma
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.techstack import detect_tech_stack
 from oya.generation.workflows import (
-    WorkflowDiscovery,
     WorkflowGenerator,
+    WorkflowGrouper,
     extract_entry_point_description,
+    find_entry_points,
 )
 from oya.constants.generation import PROGRESS_REPORT_INTERVAL
 from oya.parsing.fallback_parser import FallbackParser
@@ -247,9 +248,6 @@ class GenerationOrchestrator:
         self.directory_generator = DirectoryGenerator(llm_client, repo)
         self.file_generator = FileGenerator(llm_client, repo)
         self.synthesis_generator = SynthesisGenerator(llm_client)
-
-        # Workflow discovery helper
-        self.workflow_discovery = WorkflowDiscovery()
 
         # Diagram generator for overview architecture diagram
         self.layer_diagram_generator = LayerDiagramGenerator()
@@ -862,25 +860,32 @@ class GenerationOrchestrator:
     ) -> list[GeneratedPage]:
         """Run workflow generation phase.
 
+        Uses entry points from SynthesisMap (computed during synthesis phase)
+        and groups them by domain using pattern heuristics.
+
         Args:
             analysis: Analysis results.
             progress_callback: Optional async callback for progress updates.
-            synthesis_map: Optional SynthesisMap for architectural context.
+            synthesis_map: SynthesisMap containing entry points and context.
 
         Returns:
             List of generated workflow pages.
         """
         pages = []
 
-        # Discover entry points (workflows.py now accepts ParsedSymbol objects directly)
-        entry_points = self.workflow_discovery.find_entry_points(analysis["symbols"])
+        # Use entry points from synthesis_map (already discovered during synthesis)
+        if not synthesis_map or not synthesis_map.entry_points:
+            return pages
 
-        # Group into workflows
-        workflows = self.workflow_discovery.group_into_workflows(entry_points)
+        # Group entry points by domain
+        grouper = WorkflowGrouper()
+        workflow_groups = grouper.group(
+            entry_points=synthesis_map.entry_points,
+            file_imports=analysis.get("file_imports", {}),
+            synthesis_map=synthesis_map,
+        )
 
-        # Limit to 10 workflows
-        workflows_to_generate = workflows[:10]
-        total_workflows = len(workflows_to_generate)
+        total_workflows = len(workflow_groups)
 
         # Emit initial progress
         await self._emit_progress(
@@ -893,19 +898,13 @@ class GenerationOrchestrator:
             ),
         )
 
-        # Generate page for each workflow
-        for idx, workflow in enumerate(workflows_to_generate):
-            # Gather code context for the workflow
-            code_context = ""
-            for related_file in workflow.related_files:
-                if related_file in analysis["file_contents"]:
-                    content = analysis["file_contents"][related_file]
-                    code_context += f"\n### {related_file}\n```\n{content[:2000]}\n```\n"
-
+        # Generate page for each workflow group
+        for idx, workflow_group in enumerate(workflow_groups):
             page = await self.workflow_generator.generate(
-                workflow=workflow,
-                code_context=code_context,
+                workflow_group=workflow_group,
                 synthesis_map=synthesis_map,
+                symbols=analysis.get("symbols", []),
+                file_imports=analysis.get("file_imports", {}),
             )
             pages.append(page)
 
@@ -955,7 +954,7 @@ class GenerationOrchestrator:
 
         # Discover and populate entry points if symbols available
         if all_symbols:
-            entry_point_symbols = self.workflow_discovery.find_entry_points(all_symbols)
+            entry_point_symbols = find_entry_points(all_symbols)
             synthesis_map.entry_points = [
                 EntryPointInfo(
                     name=ep.name,
