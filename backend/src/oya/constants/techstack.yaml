@@ -1,0 +1,2172 @@
+# Technology stack library mappings
+# Used by tech stack detection to categorize dependencies found in codebases
+#
+# Categories:
+#   - web_framework: Web application frameworks
+#   - database: Database ORMs, drivers, and tools
+#   - testing: Test frameworks and utilities
+#   - cli: Command-line interface libraries
+#   - object_system: Object systems and meta-programming (Perl Moose, etc.)
+#   - http_client: HTTP client libraries
+#   - async: Asynchronous programming and runtime
+#   - validation: Data validation libraries
+#   - serialization: Serialization/deserialization libraries
+#   - logging: Logging frameworks
+#   - auth: Authentication and authorization
+#   - caching: Caching solutions
+#   - messaging: Message queues and pub/sub
+#   - templating: Template engines
+#   - frontend: Frontend frameworks and libraries
+
+libraries:
+  # ============================================================================
+  # Python
+  # ============================================================================
+
+  # Web Frameworks
+  fastapi:
+    language: python
+    category: web_framework
+    display: FastAPI
+  flask:
+    language: python
+    category: web_framework
+    display: Flask
+  django:
+    language: python
+    category: web_framework
+    display: Django
+  starlette:
+    language: python
+    category: web_framework
+    display: Starlette
+  tornado:
+    language: python
+    category: web_framework
+    display: Tornado
+  sanic:
+    language: python
+    category: web_framework
+    display: Sanic
+  aiohttp:
+    language: python
+    category: web_framework
+    display: aiohttp
+  bottle:
+    language: python
+    category: web_framework
+    display: Bottle
+  pyramid:
+    language: python
+    category: web_framework
+    display: Pyramid
+  falcon:
+    language: python
+    category: web_framework
+    display: Falcon
+  litestar:
+    language: python
+    category: web_framework
+    display: Litestar
+  quart:
+    language: python
+    category: web_framework
+    display: Quart
+
+  # Database
+  sqlalchemy:
+    language: python
+    category: database
+    display: SQLAlchemy
+  sqlmodel:
+    language: python
+    category: database
+    display: SQLModel
+  peewee:
+    language: python
+    category: database
+    display: Peewee
+  tortoise-orm:
+    language: python
+    category: database
+    display: Tortoise ORM
+  databases:
+    language: python
+    category: database
+    display: Databases
+  psycopg2:
+    language: python
+    category: database
+    display: psycopg2
+  psycopg:
+    language: python
+    category: database
+    display: psycopg3
+  asyncpg:
+    language: python
+    category: database
+    display: asyncpg
+  pymongo:
+    language: python
+    category: database
+    display: PyMongo
+  motor:
+    language: python
+    category: database
+    display: Motor
+  redis:
+    language: python
+    category: database
+    display: redis-py
+  aioredis:
+    language: python
+    category: database
+    display: aioredis
+  elasticsearch:
+    language: python
+    category: database
+    display: Elasticsearch
+  alembic:
+    language: python
+    category: database
+    display: Alembic
+  mongoengine:
+    language: python
+    category: database
+    display: MongoEngine
+
+  # Testing
+  pytest:
+    language: python
+    category: testing
+    display: pytest
+  unittest:
+    language: python
+    category: testing
+    display: unittest
+  hypothesis:
+    language: python
+    category: testing
+    display: Hypothesis
+  pytest-asyncio:
+    language: python
+    category: testing
+    display: pytest-asyncio
+  pytest-cov:
+    language: python
+    category: testing
+    display: pytest-cov
+  coverage:
+    language: python
+    category: testing
+    display: Coverage.py
+  tox:
+    language: python
+    category: testing
+    display: tox
+  nox:
+    language: python
+    category: testing
+    display: Nox
+  factory-boy:
+    language: python
+    category: testing
+    display: Factory Boy
+  faker:
+    language: python
+    category: testing
+    display: Faker
+  responses:
+    language: python
+    category: testing
+    display: Responses
+  httpx:
+    language: python
+    category: http_client
+    display: HTTPX
+
+  # CLI
+  click:
+    language: python
+    category: cli
+    display: Click
+  typer:
+    language: python
+    category: cli
+    display: Typer
+  argparse:
+    language: python
+    category: cli
+    display: argparse
+  rich:
+    language: python
+    category: cli
+    display: Rich
+  fire:
+    language: python
+    category: cli
+    display: Python Fire
+
+  # Validation
+  pydantic:
+    language: python
+    category: validation
+    display: Pydantic
+  marshmallow:
+    language: python
+    category: validation
+    display: Marshmallow
+  cerberus:
+    language: python
+    category: validation
+    display: Cerberus
+  attrs:
+    language: python
+    category: validation
+    display: attrs
+
+  # HTTP Client
+  requests:
+    language: python
+    category: http_client
+    display: Requests
+  urllib3:
+    language: python
+    category: http_client
+    display: urllib3
+
+  # Async
+  asyncio:
+    language: python
+    category: async
+    display: asyncio
+  celery:
+    language: python
+    category: messaging
+    display: Celery
+  dramatiq:
+    language: python
+    category: messaging
+    display: Dramatiq
+  rq:
+    language: python
+    category: messaging
+    display: RQ
+
+  # Serialization
+  orjson:
+    language: python
+    category: serialization
+    display: orjson
+  ujson:
+    language: python
+    category: serialization
+    display: ujson
+  msgpack:
+    language: python
+    category: serialization
+    display: msgpack
+
+  # Logging
+  loguru:
+    language: python
+    category: logging
+    display: Loguru
+  structlog:
+    language: python
+    category: logging
+    display: structlog
+
+  # Auth
+  passlib:
+    language: python
+    category: auth
+    display: Passlib
+  python-jose:
+    language: python
+    category: auth
+    display: python-jose
+  pyjwt:
+    language: python
+    category: auth
+    display: PyJWT
+  authlib:
+    language: python
+    category: auth
+    display: Authlib
+
+  # Templating
+  jinja2:
+    language: python
+    category: templating
+    display: Jinja2
+  mako:
+    language: python
+    category: templating
+    display: Mako
+
+  # ============================================================================
+  # JavaScript / TypeScript
+  # ============================================================================
+
+  # Web Frameworks (Backend)
+  express:
+    language: javascript
+    category: web_framework
+    display: Express.js
+  fastify:
+    language: javascript
+    category: web_framework
+    display: Fastify
+  koa:
+    language: javascript
+    category: web_framework
+    display: Koa
+  hapi:
+    language: javascript
+    category: web_framework
+    display: Hapi
+  nestjs:
+    language: javascript
+    category: web_framework
+    display: NestJS
+  "@nestjs/core":
+    language: javascript
+    category: web_framework
+    display: NestJS
+  hono:
+    language: javascript
+    category: web_framework
+    display: Hono
+  elysia:
+    language: javascript
+    category: web_framework
+    display: Elysia
+
+  # Frontend Frameworks
+  react:
+    language: javascript
+    category: frontend
+    display: React
+  vue:
+    language: javascript
+    category: frontend
+    display: Vue.js
+  angular:
+    language: javascript
+    category: frontend
+    display: Angular
+  "@angular/core":
+    language: javascript
+    category: frontend
+    display: Angular
+  svelte:
+    language: javascript
+    category: frontend
+    display: Svelte
+  solid-js:
+    language: javascript
+    category: frontend
+    display: SolidJS
+  preact:
+    language: javascript
+    category: frontend
+    display: Preact
+  next:
+    language: javascript
+    category: frontend
+    display: Next.js
+  nuxt:
+    language: javascript
+    category: frontend
+    display: Nuxt
+  remix:
+    language: javascript
+    category: frontend
+    display: Remix
+  "@remix-run/react":
+    language: javascript
+    category: frontend
+    display: Remix
+  gatsby:
+    language: javascript
+    category: frontend
+    display: Gatsby
+  astro:
+    language: javascript
+    category: frontend
+    display: Astro
+
+  # Database
+  prisma:
+    language: javascript
+    category: database
+    display: Prisma
+  "@prisma/client":
+    language: javascript
+    category: database
+    display: Prisma
+  sequelize:
+    language: javascript
+    category: database
+    display: Sequelize
+  typeorm:
+    language: javascript
+    category: database
+    display: TypeORM
+  drizzle-orm:
+    language: javascript
+    category: database
+    display: Drizzle ORM
+  knex:
+    language: javascript
+    category: database
+    display: Knex.js
+  mongoose:
+    language: javascript
+    category: database
+    display: Mongoose
+  mongodb:
+    language: javascript
+    category: database
+    display: MongoDB Driver
+  pg:
+    language: javascript
+    category: database
+    display: node-postgres
+  mysql2:
+    language: javascript
+    category: database
+    display: mysql2
+  ioredis:
+    language: javascript
+    category: database
+    display: ioredis
+  better-sqlite3:
+    language: javascript
+    category: database
+    display: better-sqlite3
+
+  # Testing
+  jest:
+    language: javascript
+    category: testing
+    display: Jest
+  vitest:
+    language: javascript
+    category: testing
+    display: Vitest
+  mocha:
+    language: javascript
+    category: testing
+    display: Mocha
+  chai:
+    language: javascript
+    category: testing
+    display: Chai
+  "@testing-library/react":
+    language: javascript
+    category: testing
+    display: React Testing Library
+  cypress:
+    language: javascript
+    category: testing
+    display: Cypress
+  playwright:
+    language: javascript
+    category: testing
+    display: Playwright
+  "@playwright/test":
+    language: javascript
+    category: testing
+    display: Playwright
+  puppeteer:
+    language: javascript
+    category: testing
+    display: Puppeteer
+  supertest:
+    language: javascript
+    category: testing
+    display: SuperTest
+  ava:
+    language: javascript
+    category: testing
+    display: AVA
+  tap:
+    language: javascript
+    category: testing
+    display: node-tap
+
+  # HTTP Client
+  axios:
+    language: javascript
+    category: http_client
+    display: Axios
+  node-fetch:
+    language: javascript
+    category: http_client
+    display: node-fetch
+  got:
+    language: javascript
+    category: http_client
+    display: Got
+  ky:
+    language: javascript
+    category: http_client
+    display: Ky
+
+  # Validation
+  zod:
+    language: javascript
+    category: validation
+    display: Zod
+  yup:
+    language: javascript
+    category: validation
+    display: Yup
+  joi:
+    language: javascript
+    category: validation
+    display: Joi
+  ajv:
+    language: javascript
+    category: validation
+    display: Ajv
+  valibot:
+    language: javascript
+    category: validation
+    display: Valibot
+
+  # CLI
+  commander:
+    language: javascript
+    category: cli
+    display: Commander.js
+  yargs:
+    language: javascript
+    category: cli
+    display: Yargs
+  inquirer:
+    language: javascript
+    category: cli
+    display: Inquirer.js
+  chalk:
+    language: javascript
+    category: cli
+    display: Chalk
+  ora:
+    language: javascript
+    category: cli
+    display: Ora
+
+  # Auth
+  passport:
+    language: javascript
+    category: auth
+    display: Passport.js
+  jsonwebtoken:
+    language: javascript
+    category: auth
+    display: jsonwebtoken
+  bcrypt:
+    language: javascript
+    category: auth
+    display: bcrypt
+  next-auth:
+    language: javascript
+    category: auth
+    display: NextAuth.js
+
+  # Logging
+  winston:
+    language: javascript
+    category: logging
+    display: Winston
+  pino:
+    language: javascript
+    category: logging
+    display: Pino
+  bunyan:
+    language: javascript
+    category: logging
+    display: Bunyan
+
+  # Messaging
+  bull:
+    language: javascript
+    category: messaging
+    display: Bull
+  bullmq:
+    language: javascript
+    category: messaging
+    display: BullMQ
+  amqplib:
+    language: javascript
+    category: messaging
+    display: amqplib
+
+  # Templating
+  ejs:
+    language: javascript
+    category: templating
+    display: EJS
+  handlebars:
+    language: javascript
+    category: templating
+    display: Handlebars
+  pug:
+    language: javascript
+    category: templating
+    display: Pug
+  nunjucks:
+    language: javascript
+    category: templating
+    display: Nunjucks
+
+  # ============================================================================
+  # Perl
+  # ============================================================================
+
+  # Web Frameworks
+  mojolicious:
+    language: perl
+    category: web_framework
+    display: Mojolicious
+  "Mojolicious::Lite":
+    language: perl
+    category: web_framework
+    display: Mojolicious::Lite
+  dancer:
+    language: perl
+    category: web_framework
+    display: Dancer
+  dancer2:
+    language: perl
+    category: web_framework
+    display: Dancer2
+  catalyst:
+    language: perl
+    category: web_framework
+    display: Catalyst
+  "Catalyst::Runtime":
+    language: perl
+    category: web_framework
+    display: Catalyst
+  cgi:
+    language: perl
+    category: web_framework
+    display: CGI
+  "CGI::Application":
+    language: perl
+    category: web_framework
+    display: CGI::Application
+  plack:
+    language: perl
+    category: web_framework
+    display: Plack
+  "Plack::Request":
+    language: perl
+    category: web_framework
+    display: Plack
+  kelp:
+    language: perl
+    category: web_framework
+    display: Kelp
+
+  # Database
+  dbi:
+    language: perl
+    category: database
+    display: DBI
+  "DBIx::Class":
+    language: perl
+    category: database
+    display: DBIx::Class
+  dbix-class:
+    language: perl
+    category: database
+    display: DBIx::Class
+  "DBD::Pg":
+    language: perl
+    category: database
+    display: DBD::Pg
+  "DBD::mysql":
+    language: perl
+    category: database
+    display: DBD::mysql
+  "DBD::SQLite":
+    language: perl
+    category: database
+    display: DBD::SQLite
+  "DBD::Oracle":
+    language: perl
+    category: database
+    display: DBD::Oracle
+  "Rose::DB::Object":
+    language: perl
+    category: database
+    display: Rose::DB::Object
+  "Fey::ORM":
+    language: perl
+    category: database
+    display: Fey::ORM
+  "Mango":
+    language: perl
+    category: database
+    display: Mango
+  "Redis":
+    language: perl
+    category: database
+    display: Redis
+
+  # Object Systems
+  moose:
+    language: perl
+    category: object_system
+    display: Moose
+  moo:
+    language: perl
+    category: object_system
+    display: Moo
+  "Mouse":
+    language: perl
+    category: object_system
+    display: Mouse
+  "Class::Tiny":
+    language: perl
+    category: object_system
+    display: Class::Tiny
+  "Class::Accessor":
+    language: perl
+    category: object_system
+    display: Class::Accessor
+  "Object::Pad":
+    language: perl
+    category: object_system
+    display: Object::Pad
+  "Role::Tiny":
+    language: perl
+    category: object_system
+    display: Role::Tiny
+  "MooseX::Types":
+    language: perl
+    category: object_system
+    display: MooseX::Types
+  "Type::Tiny":
+    language: perl
+    category: validation
+    display: Type::Tiny
+
+  # Testing
+  "Test::More":
+    language: perl
+    category: testing
+    display: Test::More
+  test-more:
+    language: perl
+    category: testing
+    display: Test::More
+  "Test2::Suite":
+    language: perl
+    category: testing
+    display: Test2::Suite
+  test2:
+    language: perl
+    category: testing
+    display: Test2
+  "Test::Class":
+    language: perl
+    category: testing
+    display: Test::Class
+  "Test::Deep":
+    language: perl
+    category: testing
+    display: Test::Deep
+  "Test::Exception":
+    language: perl
+    category: testing
+    display: Test::Exception
+  "Test::Mojo":
+    language: perl
+    category: testing
+    display: Test::Mojo
+  "Test::MockObject":
+    language: perl
+    category: testing
+    display: Test::MockObject
+  "Test::MockModule":
+    language: perl
+    category: testing
+    display: Test::MockModule
+  "Test::WWW::Mechanize":
+    language: perl
+    category: testing
+    display: Test::WWW::Mechanize
+  "Test::Harness":
+    language: perl
+    category: testing
+    display: Test::Harness
+  "Devel::Cover":
+    language: perl
+    category: testing
+    display: Devel::Cover
+
+  # HTTP Client
+  "LWP::UserAgent":
+    language: perl
+    category: http_client
+    display: LWP::UserAgent
+  lwp:
+    language: perl
+    category: http_client
+    display: LWP
+  "HTTP::Tiny":
+    language: perl
+    category: http_client
+    display: HTTP::Tiny
+  "Mojo::UserAgent":
+    language: perl
+    category: http_client
+    display: Mojo::UserAgent
+  "WWW::Mechanize":
+    language: perl
+    category: http_client
+    display: WWW::Mechanize
+  "Furl":
+    language: perl
+    category: http_client
+    display: Furl
+
+  # Async
+  "AnyEvent":
+    language: perl
+    category: async
+    display: AnyEvent
+  "IO::Async":
+    language: perl
+    category: async
+    display: IO::Async
+  "Mojo::IOLoop":
+    language: perl
+    category: async
+    display: Mojo::IOLoop
+  "POE":
+    language: perl
+    category: async
+    display: POE
+  "Future":
+    language: perl
+    category: async
+    display: Future
+
+  # Serialization
+  "JSON":
+    language: perl
+    category: serialization
+    display: JSON
+  "JSON::XS":
+    language: perl
+    category: serialization
+    display: JSON::XS
+  "Cpanel::JSON::XS":
+    language: perl
+    category: serialization
+    display: Cpanel::JSON::XS
+  "YAML":
+    language: perl
+    category: serialization
+    display: YAML
+  "YAML::XS":
+    language: perl
+    category: serialization
+    display: YAML::XS
+  "XML::LibXML":
+    language: perl
+    category: serialization
+    display: XML::LibXML
+  "Sereal":
+    language: perl
+    category: serialization
+    display: Sereal
+
+  # Templating
+  "Template":
+    language: perl
+    category: templating
+    display: Template Toolkit
+  "Template::Toolkit":
+    language: perl
+    category: templating
+    display: Template Toolkit
+  "Text::Xslate":
+    language: perl
+    category: templating
+    display: Text::Xslate
+  "HTML::Template":
+    language: perl
+    category: templating
+    display: HTML::Template
+  "Mojo::Template":
+    language: perl
+    category: templating
+    display: Mojo::Template
+
+  # Logging
+  "Log::Log4perl":
+    language: perl
+    category: logging
+    display: Log::Log4perl
+  "Log::Any":
+    language: perl
+    category: logging
+    display: Log::Any
+  "Log::Dispatch":
+    language: perl
+    category: logging
+    display: Log::Dispatch
+
+  # Validation
+  "Data::Validator":
+    language: perl
+    category: validation
+    display: Data::Validator
+  "Params::Validate":
+    language: perl
+    category: validation
+    display: Params::Validate
+  "Params::ValidationCompiler":
+    language: perl
+    category: validation
+    display: Params::ValidationCompiler
+
+  # CLI
+  "Getopt::Long":
+    language: perl
+    category: cli
+    display: Getopt::Long
+  "App::Cmd":
+    language: perl
+    category: cli
+    display: App::Cmd
+  "MooseX::App":
+    language: perl
+    category: cli
+    display: MooseX::App
+  "Term::ReadLine":
+    language: perl
+    category: cli
+    display: Term::ReadLine
+
+  # ============================================================================
+  # Go
+  # ============================================================================
+
+  # Web Frameworks
+  gin:
+    language: go
+    category: web_framework
+    display: Gin
+  "github.com/gin-gonic/gin":
+    language: go
+    category: web_framework
+    display: Gin
+  echo:
+    language: go
+    category: web_framework
+    display: Echo
+  "github.com/labstack/echo":
+    language: go
+    category: web_framework
+    display: Echo
+  fiber:
+    language: go
+    category: web_framework
+    display: Fiber
+  "github.com/gofiber/fiber":
+    language: go
+    category: web_framework
+    display: Fiber
+  chi:
+    language: go
+    category: web_framework
+    display: Chi
+  "github.com/go-chi/chi":
+    language: go
+    category: web_framework
+    display: Chi
+  gorilla:
+    language: go
+    category: web_framework
+    display: Gorilla Mux
+  "github.com/gorilla/mux":
+    language: go
+    category: web_framework
+    display: Gorilla Mux
+  "net/http":
+    language: go
+    category: web_framework
+    display: net/http
+
+  # Database
+  gorm:
+    language: go
+    category: database
+    display: GORM
+  "gorm.io/gorm":
+    language: go
+    category: database
+    display: GORM
+  sqlx:
+    language: go
+    category: database
+    display: sqlx
+  "github.com/jmoiron/sqlx":
+    language: go
+    category: database
+    display: sqlx
+  ent:
+    language: go
+    category: database
+    display: Ent
+  "entgo.io/ent":
+    language: go
+    category: database
+    display: Ent
+  "database/sql":
+    language: go
+    category: database
+    display: database/sql
+  "go-pg":
+    language: go
+    category: database
+    display: go-pg
+  "github.com/go-pg/pg":
+    language: go
+    category: database
+    display: go-pg
+  "go-redis":
+    language: go
+    category: database
+    display: go-redis
+  "github.com/redis/go-redis":
+    language: go
+    category: database
+    display: go-redis
+  "mongo-go-driver":
+    language: go
+    category: database
+    display: MongoDB Go Driver
+  "go.mongodb.org/mongo-driver":
+    language: go
+    category: database
+    display: MongoDB Go Driver
+
+  # Testing
+  testify:
+    language: go
+    category: testing
+    display: Testify
+  "github.com/stretchr/testify":
+    language: go
+    category: testing
+    display: Testify
+  ginkgo:
+    language: go
+    category: testing
+    display: Ginkgo
+  "github.com/onsi/ginkgo":
+    language: go
+    category: testing
+    display: Ginkgo
+  gomega:
+    language: go
+    category: testing
+    display: Gomega
+  "github.com/onsi/gomega":
+    language: go
+    category: testing
+    display: Gomega
+  "testing":
+    language: go
+    category: testing
+    display: testing
+  goconvey:
+    language: go
+    category: testing
+    display: GoConvey
+  "github.com/smartystreets/goconvey":
+    language: go
+    category: testing
+    display: GoConvey
+  gomock:
+    language: go
+    category: testing
+    display: GoMock
+  "github.com/golang/mock":
+    language: go
+    category: testing
+    display: GoMock
+
+  # CLI
+  cobra:
+    language: go
+    category: cli
+    display: Cobra
+  "github.com/spf13/cobra":
+    language: go
+    category: cli
+    display: Cobra
+  viper:
+    language: go
+    category: cli
+    display: Viper
+  "github.com/spf13/viper":
+    language: go
+    category: cli
+    display: Viper
+  urfave-cli:
+    language: go
+    category: cli
+    display: urfave/cli
+  "github.com/urfave/cli":
+    language: go
+    category: cli
+    display: urfave/cli
+  pflag:
+    language: go
+    category: cli
+    display: pflag
+  "github.com/spf13/pflag":
+    language: go
+    category: cli
+    display: pflag
+
+  # Logging
+  zap:
+    language: go
+    category: logging
+    display: Zap
+  "go.uber.org/zap":
+    language: go
+    category: logging
+    display: Zap
+  logrus:
+    language: go
+    category: logging
+    display: Logrus
+  "github.com/sirupsen/logrus":
+    language: go
+    category: logging
+    display: Logrus
+  zerolog:
+    language: go
+    category: logging
+    display: zerolog
+  "github.com/rs/zerolog":
+    language: go
+    category: logging
+    display: zerolog
+
+  # Validation
+  validator:
+    language: go
+    category: validation
+    display: go-playground/validator
+  "github.com/go-playground/validator":
+    language: go
+    category: validation
+    display: go-playground/validator
+
+  # Auth
+  jwt-go:
+    language: go
+    category: auth
+    display: jwt-go
+  "github.com/golang-jwt/jwt":
+    language: go
+    category: auth
+    display: golang-jwt
+
+  # HTTP Client
+  resty:
+    language: go
+    category: http_client
+    display: Resty
+  "github.com/go-resty/resty":
+    language: go
+    category: http_client
+    display: Resty
+
+  # ============================================================================
+  # Rust
+  # ============================================================================
+
+  # Web Frameworks
+  actix-web:
+    language: rust
+    category: web_framework
+    display: Actix Web
+  axum:
+    language: rust
+    category: web_framework
+    display: Axum
+  rocket:
+    language: rust
+    category: web_framework
+    display: Rocket
+  warp:
+    language: rust
+    category: web_framework
+    display: Warp
+  hyper:
+    language: rust
+    category: web_framework
+    display: Hyper
+  poem:
+    language: rust
+    category: web_framework
+    display: Poem
+  tide:
+    language: rust
+    category: web_framework
+    display: Tide
+
+  # Database
+  diesel:
+    language: rust
+    category: database
+    display: Diesel
+  sqlx:
+    language: rust
+    category: database
+    display: SQLx
+  sea-orm:
+    language: rust
+    category: database
+    display: SeaORM
+  rusqlite:
+    language: rust
+    category: database
+    display: Rusqlite
+  tokio-postgres:
+    language: rust
+    category: database
+    display: tokio-postgres
+  mongodb:
+    language: rust
+    category: database
+    display: MongoDB Rust Driver
+  redis:
+    language: rust
+    category: database
+    display: redis-rs
+
+  # Async
+  tokio:
+    language: rust
+    category: async
+    display: Tokio
+  async-std:
+    language: rust
+    category: async
+    display: async-std
+  futures:
+    language: rust
+    category: async
+    display: futures
+
+  # Serialization
+  serde:
+    language: rust
+    category: serialization
+    display: Serde
+  serde_json:
+    language: rust
+    category: serialization
+    display: serde_json
+  serde_yaml:
+    language: rust
+    category: serialization
+    display: serde_yaml
+  toml:
+    language: rust
+    category: serialization
+    display: toml
+
+  # CLI
+  clap:
+    language: rust
+    category: cli
+    display: Clap
+  structopt:
+    language: rust
+    category: cli
+    display: StructOpt
+  argh:
+    language: rust
+    category: cli
+    display: argh
+
+  # Logging
+  tracing:
+    language: rust
+    category: logging
+    display: tracing
+  log:
+    language: rust
+    category: logging
+    display: log
+  env_logger:
+    language: rust
+    category: logging
+    display: env_logger
+
+  # Testing
+  criterion:
+    language: rust
+    category: testing
+    display: Criterion
+  proptest:
+    language: rust
+    category: testing
+    display: proptest
+  mockall:
+    language: rust
+    category: testing
+    display: mockall
+
+  # Validation
+  validator:
+    language: rust
+    category: validation
+    display: validator
+
+  # HTTP Client
+  reqwest:
+    language: rust
+    category: http_client
+    display: reqwest
+  ureq:
+    language: rust
+    category: http_client
+    display: ureq
+
+  # ============================================================================
+  # Java
+  # ============================================================================
+
+  # Web Frameworks
+  spring:
+    language: java
+    category: web_framework
+    display: Spring
+  spring-boot:
+    language: java
+    category: web_framework
+    display: Spring Boot
+  spring-webflux:
+    language: java
+    category: web_framework
+    display: Spring WebFlux
+  jakarta-ee:
+    language: java
+    category: web_framework
+    display: Jakarta EE
+  micronaut:
+    language: java
+    category: web_framework
+    display: Micronaut
+  quarkus:
+    language: java
+    category: web_framework
+    display: Quarkus
+  vertx:
+    language: java
+    category: web_framework
+    display: Vert.x
+  javalin:
+    language: java
+    category: web_framework
+    display: Javalin
+  dropwizard:
+    language: java
+    category: web_framework
+    display: Dropwizard
+
+  # Database
+  hibernate:
+    language: java
+    category: database
+    display: Hibernate
+  jpa:
+    language: java
+    category: database
+    display: JPA
+  spring-data:
+    language: java
+    category: database
+    display: Spring Data
+  mybatis:
+    language: java
+    category: database
+    display: MyBatis
+  jooq:
+    language: java
+    category: database
+    display: jOOQ
+  jdbc:
+    language: java
+    category: database
+    display: JDBC
+  flyway:
+    language: java
+    category: database
+    display: Flyway
+  liquibase:
+    language: java
+    category: database
+    display: Liquibase
+
+  # Testing
+  junit:
+    language: java
+    category: testing
+    display: JUnit
+  junit5:
+    language: java
+    category: testing
+    display: JUnit 5
+  testng:
+    language: java
+    category: testing
+    display: TestNG
+  mockito:
+    language: java
+    category: testing
+    display: Mockito
+  assertj:
+    language: java
+    category: testing
+    display: AssertJ
+  rest-assured:
+    language: java
+    category: testing
+    display: REST Assured
+  wiremock:
+    language: java
+    category: testing
+    display: WireMock
+  archunit:
+    language: java
+    category: testing
+    display: ArchUnit
+
+  # Logging
+  slf4j:
+    language: java
+    category: logging
+    display: SLF4J
+  logback:
+    language: java
+    category: logging
+    display: Logback
+  log4j:
+    language: java
+    category: logging
+    display: Log4j
+
+  # Serialization
+  jackson:
+    language: java
+    category: serialization
+    display: Jackson
+  gson:
+    language: java
+    category: serialization
+    display: Gson
+  protobuf:
+    language: java
+    category: serialization
+    display: Protocol Buffers
+
+  # HTTP Client
+  okhttp:
+    language: java
+    category: http_client
+    display: OkHttp
+  apache-httpclient:
+    language: java
+    category: http_client
+    display: Apache HttpClient
+  retrofit:
+    language: java
+    category: http_client
+    display: Retrofit
+
+  # Validation
+  jakarta-validation:
+    language: java
+    category: validation
+    display: Jakarta Validation
+  hibernate-validator:
+    language: java
+    category: validation
+    display: Hibernate Validator
+
+  # Messaging
+  kafka:
+    language: java
+    category: messaging
+    display: Apache Kafka
+  rabbitmq:
+    language: java
+    category: messaging
+    display: RabbitMQ
+  activemq:
+    language: java
+    category: messaging
+    display: ActiveMQ
+
+  # ============================================================================
+  # Ruby
+  # ============================================================================
+
+  # Web Frameworks
+  rails:
+    language: ruby
+    category: web_framework
+    display: Ruby on Rails
+  sinatra:
+    language: ruby
+    category: web_framework
+    display: Sinatra
+  hanami:
+    language: ruby
+    category: web_framework
+    display: Hanami
+  grape:
+    language: ruby
+    category: web_framework
+    display: Grape
+  roda:
+    language: ruby
+    category: web_framework
+    display: Roda
+  padrino:
+    language: ruby
+    category: web_framework
+    display: Padrino
+
+  # Database
+  activerecord:
+    language: ruby
+    category: database
+    display: ActiveRecord
+  sequel:
+    language: ruby
+    category: database
+    display: Sequel
+  rom:
+    language: ruby
+    category: database
+    display: ROM
+  mongoid:
+    language: ruby
+    category: database
+    display: Mongoid
+  redis-rb:
+    language: ruby
+    category: database
+    display: redis-rb
+
+  # Testing
+  rspec:
+    language: ruby
+    category: testing
+    display: RSpec
+  minitest:
+    language: ruby
+    category: testing
+    display: Minitest
+  capybara:
+    language: ruby
+    category: testing
+    display: Capybara
+  factory_bot:
+    language: ruby
+    category: testing
+    display: FactoryBot
+  faker:
+    language: ruby
+    category: testing
+    display: Faker
+  vcr:
+    language: ruby
+    category: testing
+    display: VCR
+  webmock:
+    language: ruby
+    category: testing
+    display: WebMock
+  shoulda:
+    language: ruby
+    category: testing
+    display: Shoulda
+
+  # HTTP Client
+  faraday:
+    language: ruby
+    category: http_client
+    display: Faraday
+  httparty:
+    language: ruby
+    category: http_client
+    display: HTTParty
+  rest-client:
+    language: ruby
+    category: http_client
+    display: REST Client
+  typhoeus:
+    language: ruby
+    category: http_client
+    display: Typhoeus
+
+  # Auth
+  devise:
+    language: ruby
+    category: auth
+    display: Devise
+  omniauth:
+    language: ruby
+    category: auth
+    display: OmniAuth
+  doorkeeper:
+    language: ruby
+    category: auth
+    display: Doorkeeper
+  pundit:
+    language: ruby
+    category: auth
+    display: Pundit
+  cancancan:
+    language: ruby
+    category: auth
+    display: CanCanCan
+
+  # CLI
+  thor:
+    language: ruby
+    category: cli
+    display: Thor
+  optparse:
+    language: ruby
+    category: cli
+    display: optparse
+  tty:
+    language: ruby
+    category: cli
+    display: TTY
+
+  # Messaging
+  sidekiq:
+    language: ruby
+    category: messaging
+    display: Sidekiq
+  resque:
+    language: ruby
+    category: messaging
+    display: Resque
+  delayed_job:
+    language: ruby
+    category: messaging
+    display: Delayed Job
+  sneakers:
+    language: ruby
+    category: messaging
+    display: Sneakers
+
+  # Serialization
+  oj:
+    language: ruby
+    category: serialization
+    display: Oj
+  multi_json:
+    language: ruby
+    category: serialization
+    display: MultiJSON
+
+  # Templating
+  erb:
+    language: ruby
+    category: templating
+    display: ERB
+  haml:
+    language: ruby
+    category: templating
+    display: Haml
+  slim:
+    language: ruby
+    category: templating
+    display: Slim
+
+  # Validation
+  dry-validation:
+    language: ruby
+    category: validation
+    display: dry-validation
+  dry-schema:
+    language: ruby
+    category: validation
+    display: dry-schema
+
+  # ============================================================================
+  # PHP
+  # ============================================================================
+
+  # Web Frameworks
+  laravel:
+    language: php
+    category: web_framework
+    display: Laravel
+  symfony:
+    language: php
+    category: web_framework
+    display: Symfony
+  slim:
+    language: php
+    category: web_framework
+    display: Slim
+  lumen:
+    language: php
+    category: web_framework
+    display: Lumen
+  codeigniter:
+    language: php
+    category: web_framework
+    display: CodeIgniter
+  cakephp:
+    language: php
+    category: web_framework
+    display: CakePHP
+  yii:
+    language: php
+    category: web_framework
+    display: Yii
+
+  # Database
+  doctrine:
+    language: php
+    category: database
+    display: Doctrine
+  eloquent:
+    language: php
+    category: database
+    display: Eloquent
+  propel:
+    language: php
+    category: database
+    display: Propel
+  pdo:
+    language: php
+    category: database
+    display: PDO
+
+  # Testing
+  phpunit:
+    language: php
+    category: testing
+    display: PHPUnit
+  pest:
+    language: php
+    category: testing
+    display: Pest
+  codeception:
+    language: php
+    category: testing
+    display: Codeception
+  mockery:
+    language: php
+    category: testing
+    display: Mockery
+  phpspec:
+    language: php
+    category: testing
+    display: PHPSpec
+
+  # HTTP Client
+  guzzle:
+    language: php
+    category: http_client
+    display: Guzzle
+
+  # Logging
+  monolog:
+    language: php
+    category: logging
+    display: Monolog
+
+  # Templating
+  blade:
+    language: php
+    category: templating
+    display: Blade
+  twig:
+    language: php
+    category: templating
+    display: Twig
+
+  # Auth
+  laravel-sanctum:
+    language: php
+    category: auth
+    display: Laravel Sanctum
+  laravel-passport:
+    language: php
+    category: auth
+    display: Laravel Passport
+
+  # Messaging
+  laravel-queue:
+    language: php
+    category: messaging
+    display: Laravel Queue
+
+  # ============================================================================
+  # C# / .NET
+  # ============================================================================
+
+  # Web Frameworks
+  aspnetcore:
+    language: csharp
+    category: web_framework
+    display: ASP.NET Core
+  "Microsoft.AspNetCore":
+    language: csharp
+    category: web_framework
+    display: ASP.NET Core
+  blazor:
+    language: csharp
+    category: frontend
+    display: Blazor
+
+  # Database
+  efcore:
+    language: csharp
+    category: database
+    display: Entity Framework Core
+  "Microsoft.EntityFrameworkCore":
+    language: csharp
+    category: database
+    display: Entity Framework Core
+  dapper:
+    language: csharp
+    category: database
+    display: Dapper
+  npgsql:
+    language: csharp
+    category: database
+    display: Npgsql
+
+  # Testing
+  xunit:
+    language: csharp
+    category: testing
+    display: xUnit
+  nunit:
+    language: csharp
+    category: testing
+    display: NUnit
+  mstest:
+    language: csharp
+    category: testing
+    display: MSTest
+  moq:
+    language: csharp
+    category: testing
+    display: Moq
+  fluentassertions:
+    language: csharp
+    category: testing
+    display: FluentAssertions
+
+  # Logging
+  serilog:
+    language: csharp
+    category: logging
+    display: Serilog
+  nlog:
+    language: csharp
+    category: logging
+    display: NLog
+
+  # Serialization
+  "Newtonsoft.Json":
+    language: csharp
+    category: serialization
+    display: Newtonsoft.Json
+  "System.Text.Json":
+    language: csharp
+    category: serialization
+    display: System.Text.Json
+
+  # HTTP Client
+  "System.Net.Http":
+    language: csharp
+    category: http_client
+    display: HttpClient
+  refit:
+    language: csharp
+    category: http_client
+    display: Refit
+
+  # Messaging
+  masstransit:
+    language: csharp
+    category: messaging
+    display: MassTransit
+  mediatr:
+    language: csharp
+    category: messaging
+    display: MediatR
+
+  # Validation
+  fluentvalidation:
+    language: csharp
+    category: validation
+    display: FluentValidation
+
+  # Auth
+  "Microsoft.AspNetCore.Identity":
+    language: csharp
+    category: auth
+    display: ASP.NET Identity
+  identityserver:
+    language: csharp
+    category: auth
+    display: IdentityServer
+
+  # ============================================================================
+  # Elixir
+  # ============================================================================
+
+  # Web Frameworks
+  phoenix:
+    language: elixir
+    category: web_framework
+    display: Phoenix
+  plug:
+    language: elixir
+    category: web_framework
+    display: Plug
+
+  # Database
+  ecto:
+    language: elixir
+    category: database
+    display: Ecto
+
+  # Testing
+  exunit:
+    language: elixir
+    category: testing
+    display: ExUnit
+  mox:
+    language: elixir
+    category: testing
+    display: Mox
+
+  # HTTP Client
+  httpoison:
+    language: elixir
+    category: http_client
+    display: HTTPoison
+  tesla:
+    language: elixir
+    category: http_client
+    display: Tesla
+  finch:
+    language: elixir
+    category: http_client
+    display: Finch
+
+  # Serialization
+  jason:
+    language: elixir
+    category: serialization
+    display: Jason
+  poison:
+    language: elixir
+    category: serialization
+    display: Poison
+
+  # Auth
+  guardian:
+    language: elixir
+    category: auth
+    display: Guardian
+  pow:
+    language: elixir
+    category: auth
+    display: Pow
+
+  # Messaging
+  oban:
+    language: elixir
+    category: messaging
+    display: Oban
+  broadway:
+    language: elixir
+    category: messaging
+    display: Broadway
+
+  # ============================================================================
+  # Scala
+  # ============================================================================
+
+  # Web Frameworks
+  akka-http:
+    language: scala
+    category: web_framework
+    display: Akka HTTP
+  play:
+    language: scala
+    category: web_framework
+    display: Play Framework
+  http4s:
+    language: scala
+    category: web_framework
+    display: http4s
+  zio-http:
+    language: scala
+    category: web_framework
+    display: ZIO HTTP
+
+  # Database
+  slick:
+    language: scala
+    category: database
+    display: Slick
+  doobie:
+    language: scala
+    category: database
+    display: Doobie
+  quill:
+    language: scala
+    category: database
+    display: Quill
+
+  # Testing
+  scalatest:
+    language: scala
+    category: testing
+    display: ScalaTest
+  specs2:
+    language: scala
+    category: testing
+    display: Specs2
+  munit:
+    language: scala
+    category: testing
+    display: MUnit
+
+  # Serialization
+  circe:
+    language: scala
+    category: serialization
+    display: Circe
+  spray-json:
+    language: scala
+    category: serialization
+    display: spray-json
+
+  # Async
+  cats-effect:
+    language: scala
+    category: async
+    display: Cats Effect
+  zio:
+    language: scala
+    category: async
+    display: ZIO
+
+  # ============================================================================
+  # Kotlin
+  # ============================================================================
+
+  # Web Frameworks
+  ktor:
+    language: kotlin
+    category: web_framework
+    display: Ktor
+  spring-kotlin:
+    language: kotlin
+    category: web_framework
+    display: Spring (Kotlin)
+
+  # Database
+  exposed:
+    language: kotlin
+    category: database
+    display: Exposed
+
+  # Testing
+  kotest:
+    language: kotlin
+    category: testing
+    display: Kotest
+  mockk:
+    language: kotlin
+    category: testing
+    display: MockK
+
+  # Serialization
+  kotlinx-serialization:
+    language: kotlin
+    category: serialization
+    display: kotlinx.serialization
+
+  # Async
+  kotlinx-coroutines:
+    language: kotlin
+    category: async
+    display: kotlinx.coroutines
+
+  # ============================================================================
+  # Swift
+  # ============================================================================
+
+  # Web Frameworks
+  vapor:
+    language: swift
+    category: web_framework
+    display: Vapor
+  kitura:
+    language: swift
+    category: web_framework
+    display: Kitura
+
+  # Database
+  fluent:
+    language: swift
+    category: database
+    display: Fluent
+
+  # Testing
+  xctest:
+    language: swift
+    category: testing
+    display: XCTest
+  quick:
+    language: swift
+    category: testing
+    display: Quick
+  nimble:
+    language: swift
+    category: testing
+    display: Nimble
+
+  # HTTP Client
+  alamofire:
+    language: swift
+    category: http_client
+    display: Alamofire
