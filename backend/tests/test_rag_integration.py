@@ -1,14 +1,42 @@
 """End-to-end tests for RAG indexing improvements."""
 
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock
 
 from oya.db.connection import Database
 from oya.indexing.service import IndexingService
 from oya.indexing.chunking import ChunkingService
 from oya.generation.summaries import SynthesisMap, LayerInfo, EntryPointInfo
 from oya.vectorstore.store import VectorStore
+
+
+@pytest.fixture
+def temp_db(tmp_path):
+    """Create a temporary database with FTS table."""
+    db_path = tmp_path / "test.db"
+    db = Database(db_path)
+    # Create FTS table matching production schema
+    db.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
+            content,
+            title,
+            path UNINDEXED,
+            type UNINDEXED,
+            section_header,
+            chunk_id UNINDEXED,
+            chunk_index UNINDEXED,
+            content_rowid UNINDEXED
+        );
+    """)
+    db.commit()
+    return db
+
+
+@pytest.fixture
+def temp_vectorstore(tmp_path):
+    """Create a temporary vector store."""
+    index_path = tmp_path / "index"
+    index_path.mkdir()
+    return VectorStore(index_path)
 
 
 class TestRAGIntegration:
@@ -88,34 +116,6 @@ Handles the complete user login flow.
                 ),
             ],
         )
-
-    @pytest.fixture
-    def temp_db(self, tmp_path):
-        """Create a temporary database with FTS table."""
-        db_path = tmp_path / "test.db"
-        db = Database(db_path)
-        # Create FTS table matching production schema
-        db.executescript("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
-                content,
-                title,
-                path UNINDEXED,
-                type UNINDEXED,
-                section_header,
-                chunk_id UNINDEXED,
-                chunk_index UNINDEXED,
-                content_rowid UNINDEXED
-            );
-        """)
-        db.commit()
-        return db
-
-    @pytest.fixture
-    def temp_vectorstore(self, tmp_path):
-        """Create a temporary vector store."""
-        index_path = tmp_path / "index"
-        index_path.mkdir()
-        return VectorStore(index_path)
 
     @pytest.mark.asyncio
     async def test_chunking_creates_section_chunks(self, sample_wiki):
@@ -224,8 +224,7 @@ Handles the complete user login flow.
 class TestGenerationResultFlow:
     """Tests for GenerationResult data flow from orchestrator to indexing."""
 
-    @pytest.mark.asyncio
-    async def test_generation_result_contains_analysis_data(self):
+    def test_generation_result_contains_analysis_data(self):
         """GenerationResult contains synthesis_map and analysis data."""
         from oya.generation.orchestrator import GenerationResult
 
@@ -243,8 +242,7 @@ class TestGenerationResultFlow:
         assert len(result.analysis_symbols) == 1
         assert "test.py" in result.file_imports
 
-    @pytest.mark.asyncio
-    async def test_synthesis_map_provides_layer_info(self):
+    def test_synthesis_map_provides_layer_info(self):
         """SynthesisMap provides layer information for metadata enrichment."""
         synthesis_map = SynthesisMap(
             layers={
@@ -284,33 +282,6 @@ class TestGenerationResultFlow:
 
 class TestMetadataEnrichment:
     """Tests for metadata enrichment during indexing."""
-
-    @pytest.fixture
-    def temp_db(self, tmp_path):
-        """Create a temporary database with FTS table."""
-        db_path = tmp_path / "test.db"
-        db = Database(db_path)
-        db.executescript("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
-                content,
-                title,
-                path UNINDEXED,
-                type UNINDEXED,
-                section_header,
-                chunk_id UNINDEXED,
-                chunk_index UNINDEXED,
-                content_rowid UNINDEXED
-            );
-        """)
-        db.commit()
-        return db
-
-    @pytest.fixture
-    def temp_vectorstore(self, tmp_path):
-        """Create a temporary vector store."""
-        index_path = tmp_path / "index"
-        index_path.mkdir()
-        return VectorStore(index_path)
 
     @pytest.mark.asyncio
     async def test_indexing_enriches_metadata_from_synthesis_map(
