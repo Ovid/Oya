@@ -78,6 +78,25 @@ class GenerationProgress:
     timestamp: datetime = field(default_factory=datetime.now)
 
 
+@dataclass
+class GenerationResult:
+    """Result from running the generation pipeline.
+
+    Contains all data needed for downstream phases like indexing.
+
+    Attributes:
+        job_id: Unique identifier for this generation run.
+        synthesis_map: The synthesis map with layers, entry points, etc.
+        analysis_symbols: List of parsed symbol dicts from code analysis.
+        file_imports: Mapping of file paths to their imports.
+    """
+
+    job_id: str
+    synthesis_map: SynthesisMap | None = None
+    analysis_symbols: list[dict[str, Any]] | None = None
+    file_imports: dict[str, list[str]] | None = None
+
+
 # Type alias for progress callback
 ProgressCallback = Callable[[GenerationProgress], Coroutine[Any, Any, None]]
 
@@ -437,7 +456,7 @@ class GenerationOrchestrator:
     async def run(
         self,
         progress_callback: ProgressCallback | None = None,
-    ) -> str:
+    ) -> GenerationResult:
         """Run the complete generation pipeline.
 
         Pipeline order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
@@ -456,7 +475,7 @@ class GenerationOrchestrator:
             progress_callback: Optional async callback for progress updates.
 
         Returns:
-            Job ID for the generation run.
+            GenerationResult containing job_id, synthesis_map, and analysis data.
         """
         job_id = str(uuid.uuid4())
 
@@ -595,7 +614,24 @@ class GenerationOrchestrator:
             for page in workflow_pages:
                 await self._save_page(page)
 
-        return job_id
+        # Convert ParsedSymbol objects to dicts for indexing
+        analysis_symbols = [
+            {
+                "name": s.name,
+                "type": s.symbol_type.value,
+                "file": s.metadata.get("file", ""),
+                "line": s.start_line,
+                "decorators": s.decorators,
+            }
+            for s in analysis.get("symbols", [])
+        ]
+
+        return GenerationResult(
+            job_id=job_id,
+            synthesis_map=synthesis_map,
+            analysis_symbols=analysis_symbols,
+            file_imports=analysis.get("file_imports"),
+        )
 
     async def _emit_progress(
         self,

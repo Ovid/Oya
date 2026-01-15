@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from oya.db.connection import Database
+from oya.generation.summaries import SynthesisMap
+from oya.indexing.chunking import Chunk, ChunkingService, ChunkMetadata
+from oya.indexing.metadata import MetadataExtractor
 from oya.vectorstore.store import VectorStore
 
 
@@ -34,7 +37,7 @@ class IndexingService:
         meta_path: Path | None = None,
     ) -> None:
         """Initialize indexing service.
-        
+
         Args:
             vectorstore: ChromaDB vector store for semantic search.
             db: SQLite database with FTS5 table.
@@ -45,90 +48,155 @@ class IndexingService:
         self._db = db
         self._wiki_path = Path(wiki_path)
         self._meta_path = Path(meta_path) if meta_path else None
+        self._chunking_service = ChunkingService()
 
     async def index_wiki_pages(
         self,
         embedding_provider: str | None = None,
         embedding_model: str | None = None,
         progress_callback: IndexingProgressCallback | None = None,
+        synthesis_map: SynthesisMap | None = None,
+        analysis_symbols: list[dict[str, Any]] | None = None,
+        file_imports: dict[str, list[str]] | None = None,
     ) -> int:
         """Index all wiki pages into vector store and FTS.
-        
+
         Args:
             embedding_provider: LLM provider used for embeddings (e.g., 'openai').
             embedding_model: Model used for embeddings (e.g., 'text-embedding-3-small').
             progress_callback: Optional async callback for progress updates (step, total, message).
-        
+            synthesis_map: Optional SynthesisMap for enriching chunk metadata with layers.
+            analysis_symbols: Optional list of symbol dicts from code analysis.
+            file_imports: Optional mapping of file paths to their imports.
+
         Returns:
             Number of pages indexed.
         """
         if not self._wiki_path.exists():
             return 0
-        
+
         # First, collect all markdown files to get total count
         md_files = list(self._wiki_path.rglob("*.md"))
         total_files = len(md_files)
-        
+
         if total_files == 0:
             return 0
-        
+
+        # Initialize metadata extractor if analysis data provided
+        metadata_extractor: MetadataExtractor | None = None
+        if synthesis_map or analysis_symbols or file_imports:
+            metadata_extractor = MetadataExtractor(
+                synthesis_map=synthesis_map,
+                symbols=analysis_symbols,
+                file_imports=file_imports,
+            )
+
         # Emit initial progress
         if progress_callback:
             await progress_callback(0, total_files, f"Indexing pages (0/{total_files})...")
-        
+
         indexed_count = 0
-        ids: list[str] = []
-        documents: list[str] = []
-        metadatas: list[dict[str, Any]] = []
-        
+        all_chunks: list[Chunk] = []
+
         # Process each markdown file
         for idx, md_file in enumerate(md_files):
             content = md_file.read_text(encoding="utf-8")
             rel_path = str(md_file.relative_to(self._wiki_path))
-            
+
             # Extract title from first H1 header
             title = self._extract_title(content, rel_path)
-            
+
             # Determine page type from path
             page_type = self._determine_type(rel_path)
-            
-            # Prepare for vector store
-            doc_id = f"wiki_{rel_path.replace('/', '_').replace('.md', '')}"
-            ids.append(doc_id)
-            documents.append(content)
-            metadatas.append({
-                "path": rel_path,
-                "title": title,
-                "type": page_type,
-            })
-            
-            # Insert into FTS
-            self._db.execute(
-                "INSERT INTO fts_content (content, title, path, type) VALUES (?, ?, ?, ?)",
-                (content, title, rel_path, page_type),
+
+            # Extract source file path from title (for file pages)
+            source_file = self._extract_source_file(title, page_type)
+
+            # Get base metadata from analysis data if available
+            base_metadata: ChunkMetadata | None = None
+            if metadata_extractor and source_file:
+                base_metadata = ChunkMetadata(
+                    path=rel_path,
+                    title=title,
+                    type=page_type,
+                    section_header="",
+                    chunk_index=0,
+                    token_count=0,
+                    layer=metadata_extractor.get_layer_for_file(source_file),
+                    symbols=metadata_extractor.get_symbols_for_file(source_file),
+                    imports=metadata_extractor.get_imports_for_file(source_file),
+                    entry_points=metadata_extractor.get_entry_points_for_file(source_file),
+                )
+
+            # Chunk the document
+            chunks = self._chunking_service.chunk_document(
+                content=content,
+                document_path=rel_path,
+                document_title=title,
+                page_type=page_type,
+                base_metadata=base_metadata,
             )
-            
+
+            # If metadata extractor is available, filter symbols to those in each chunk
+            if metadata_extractor and source_file:
+                for chunk in chunks:
+                    chunk.metadata.symbols = metadata_extractor.get_symbols_in_content(
+                        source_file, chunk.content
+                    )
+
+            all_chunks.extend(chunks)
             indexed_count += 1
-            
+
             # Emit progress every 10 files or on last file
             if progress_callback and ((idx + 1) % 10 == 0 or idx == total_files - 1):
-                await progress_callback(idx + 1, total_files, f"Indexed {idx + 1}/{total_files} pages...")
-        
+                await progress_callback(
+                    idx + 1, total_files, f"Indexed {idx + 1}/{total_files} pages..."
+                )
+
+        # Insert chunks into FTS
+        for chunk in all_chunks:
+            self._db.execute(
+                "INSERT INTO fts_content (content, title, path, type, section_header, chunk_id, chunk_index) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    chunk.content,
+                    chunk.metadata.title,
+                    chunk.metadata.path,
+                    chunk.metadata.type,
+                    chunk.metadata.section_header,
+                    chunk.id,
+                    chunk.metadata.chunk_index,
+                ),
+            )
+
         # Commit FTS inserts
         self._db.commit()
-        
+
         # Add to vector store in batch
-        if ids:
+        if all_chunks:
             self._vectorstore.add_documents(
-                ids=ids,
-                documents=documents,
-                metadatas=metadatas,
+                ids=[chunk.id for chunk in all_chunks],
+                documents=[chunk.content for chunk in all_chunks],
+                metadatas=[
+                    {
+                        "path": chunk.metadata.path,
+                        "title": chunk.metadata.title,
+                        "type": chunk.metadata.type,
+                        "section_header": chunk.metadata.section_header,
+                        "chunk_index": chunk.metadata.chunk_index,
+                        "layer": chunk.metadata.layer,
+                        "symbols": json.dumps(chunk.metadata.symbols),
+                        "imports": json.dumps(chunk.metadata.imports),
+                        "entry_points": json.dumps(chunk.metadata.entry_points),
+                    }
+                    for chunk in all_chunks
+                ],
             )
-        
+
         # Save embedding metadata if provider/model specified
         if embedding_provider and embedding_model and self._meta_path:
             self._save_embedding_metadata(embedding_provider, embedding_model)
-        
+
         return indexed_count
 
     def clear_index(self) -> None:
@@ -207,10 +275,10 @@ class IndexingService:
 
     def _determine_type(self, rel_path: str) -> str:
         """Determine page type from relative path.
-        
+
         Args:
             rel_path: Path relative to wiki directory.
-            
+
         Returns:
             Page type: 'overview', 'architecture', 'workflow', 'directory', 'file', or 'wiki'.
         """
@@ -225,3 +293,21 @@ class IndexingService:
         elif rel_path.startswith("files/"):
             return "file"
         return "wiki"
+
+    def _extract_source_file(self, title: str, page_type: str) -> str:
+        """Extract source file path from wiki page title.
+
+        For file pages, the title is typically the source file path (e.g., "src/auth.py").
+        For other page types, returns empty string.
+
+        Args:
+            title: Wiki page title.
+            page_type: Type of wiki page.
+
+        Returns:
+            Source file path or empty string.
+        """
+        if page_type == "file":
+            # Title is typically the source file path for file pages
+            return title
+        return ""

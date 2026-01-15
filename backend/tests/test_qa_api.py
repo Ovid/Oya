@@ -2,12 +2,13 @@
 
 import subprocess
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from httpx import ASGITransport, AsyncClient
 
 from oya.main import app
 from oya.api.deps import get_settings, _reset_db_instance
 from oya.api.routers.qa import get_qa_service
+from oya.qa.service import QAService
 
 
 @pytest.fixture
@@ -136,3 +137,51 @@ class TestQAEndpoint:
             assert "limited" in data["disclaimer"].lower() or "speculative" in data["disclaimer"].lower()
         finally:
             app.dependency_overrides.clear()
+
+
+class TestQAServiceSearch:
+    """Tests for QAService.search method."""
+
+    @pytest.mark.asyncio
+    async def test_search_uses_rrf_ranking(self):
+        """Search results are ranked using RRF, not simple deduplication.
+
+        With RRF, a result in BOTH lists should rank higher than one in only
+        one list, even if the single-list result has a better individual score.
+        """
+        # Setup mocks
+        mock_vectorstore = MagicMock()
+        # Semantic: a.md at rank 0, c.md at rank 1 (b.md not in semantic)
+        mock_vectorstore.query.return_value = {
+            "ids": [["chunk_a", "chunk_c"]],
+            "documents": [["Content A", "Content C"]],
+            "metadatas": [[
+                {"path": "a.md", "title": "A", "type": "file"},
+                {"path": "c.md", "title": "C", "type": "file"},
+            ]],
+            "distances": [[0.1, 0.2]],
+        }
+
+        mock_db = MagicMock()
+        # FTS: b.md at rank 0, a.md at rank 1 (c.md not in FTS)
+        mock_db.execute.return_value.fetchall.return_value = [
+            {"content": "Content B", "title": "B", "path": "b.md", "type": "file", "score": -10},
+            {"content": "Content A", "title": "A", "path": "a.md", "type": "file", "score": -5},
+        ]
+
+        mock_llm = AsyncMock()
+
+        service = QAService(vectorstore=mock_vectorstore, db=mock_db, llm=mock_llm)
+        results, _, _ = await service.search("test query")
+
+        # With RRF:
+        # a.md: in both lists (semantic rank 0, FTS rank 1) = high RRF score
+        # b.md: only in FTS (rank 0) = medium RRF score
+        # c.md: only in semantic (rank 1) = medium RRF score
+        #
+        # a.md should be ranked highest because it appears in BOTH lists.
+        # This is the key property of RRF that distinguishes it from simple dedup.
+        # Note: IDs are normalized to paths for cross-source matching
+        assert results[0]["path"] == "a.md", (
+            f"Expected a.md (in both lists) to rank first, but got {results[0]['path']}"
+        )

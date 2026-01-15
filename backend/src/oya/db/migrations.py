@@ -3,7 +3,7 @@
 from oya.db.connection import Database
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -77,11 +77,15 @@ CREATE TABLE IF NOT EXISTS citations (
 
 -- Full-text search index using FTS5
 -- Enables fast keyword search across wiki pages and notes
+-- Supports chunk-level indexing for RAG with section headers and chunk metadata
 CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
     content,  -- The searchable text content
     title,    -- Page or note title
-    path,     -- Path for linking back
-    type,     -- 'wiki' or 'note'
+    path UNINDEXED,     -- Path for linking back (not indexed, just stored)
+    type UNINDEXED,     -- 'wiki' or 'note' (not indexed, just stored)
+    section_header,     -- Section header for searching by section name
+    chunk_id UNINDEXED,    -- Unique identifier for RRF merging with vector search
+    chunk_index UNINDEXED, -- Position in document for context reconstruction
     content_rowid UNINDEXED  -- Reference to wiki_pages.id or notes.id
 );
 
@@ -113,6 +117,16 @@ def run_migrations(db: Database) -> None:
         current_version = 0
 
     if current_version < SCHEMA_VERSION:
+        # Version 4 migration: Recreate FTS table with chunk columns
+        # FTS5 CREATE VIRTUAL TABLE IF NOT EXISTS won't update existing table schema,
+        # so we need to drop first, then recreate via SCHEMA_SQL below
+        if current_version >= 1 and current_version < 4:
+            try:
+                db.execute("DROP TABLE IF EXISTS fts_content")
+                db.commit()
+            except Exception:
+                pass
+
         # Apply schema using executescript which handles multiple statements
         # Note: executescript auto-commits, so we handle the version insert separately
         db.executescript(SCHEMA_SQL)

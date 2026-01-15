@@ -15,6 +15,7 @@ from oya.constants.search import DEDUP_HASH_LENGTH, TYPE_PRIORITY
 from oya.db.connection import Database
 from oya.generation.chunking import estimate_tokens
 from oya.llm.client import LLMClient
+from oya.qa.ranking import RRFRanker
 from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, SearchQuality
 from oya.vectorstore.store import VectorStore
 
@@ -61,6 +62,7 @@ class QAService:
         self._vectorstore = vectorstore
         self._db = db
         self._llm = llm
+        self._ranker = RRFRanker(k=60)
 
     async def search(
         self,
@@ -69,6 +71,9 @@ class QAService:
     ) -> tuple[list[dict[str, Any]], bool, bool]:
         """Perform hybrid search combining semantic and full-text search.
 
+        Uses RRF (Reciprocal Rank Fusion) to merge results from both sources,
+        boosting documents that appear in both lists.
+
         Args:
             query: Search query.
             limit: Maximum results to return.
@@ -76,29 +81,28 @@ class QAService:
         Returns:
             Tuple of (search results, semantic_ok, fts_ok).
         """
-        results: list[dict[str, Any]] = []
-        seen_paths: set[str] = set()
+        semantic_results: list[dict[str, Any]] = []
+        fts_results: list[dict[str, Any]] = []
         semantic_ok = False
         fts_ok = False
 
         # Semantic search via ChromaDB
         try:
-            semantic_results = self._vectorstore.query(
+            raw_semantic = self._vectorstore.query(
                 query_text=query,
                 n_results=limit,
             )
             semantic_ok = True
 
-            for i, doc_id in enumerate(semantic_results.get("ids", [[]])[0]):
-                documents = semantic_results.get("documents", [[]])[0]
-                metadatas = semantic_results.get("metadatas", [[]])[0]
-                distances = semantic_results.get("distances", [[]])[0]
+            for i, doc_id in enumerate(raw_semantic.get("ids", [[]])[0]):
+                documents = raw_semantic.get("documents", [[]])[0]
+                metadatas = raw_semantic.get("metadatas", [[]])[0]
+                distances = raw_semantic.get("distances", [[]])[0]
 
                 if i < len(documents):
                     path = metadatas[i].get("path", "") if i < len(metadatas) else ""
-                    if path and path not in seen_paths:
-                        seen_paths.add(path)
-                        results.append({
+                    if path:
+                        semantic_results.append({
                             "id": doc_id,
                             "content": documents[i],
                             "path": path,
@@ -129,10 +133,11 @@ class QAService:
 
             for row in cursor.fetchall():
                 path = row["path"] or ""
-                if path and path not in seen_paths:
-                    seen_paths.add(path)
-                    results.append({
-                        "id": f"fts_{path}",
+                if path:
+                    # Use path-based ID for FTS results to enable RRF matching
+                    # with semantic results that may have different chunk IDs
+                    fts_results.append({
+                        "id": path,  # Use path as ID for cross-source matching
                         "content": row["content"] or "",
                         "path": path,
                         "title": row["title"] or "",
@@ -144,11 +149,18 @@ class QAService:
             # If FTS fails, use whatever semantic results we have
             pass
 
-        # Sort by type (notes first) then by distance
-        results.sort(key=lambda r: (TYPE_PRIORITY.get(r["type"], 3), r["distance"]))
+        # Normalize semantic result IDs to paths for RRF matching
+        for result in semantic_results:
+            result["id"] = result["path"]
+
+        # Merge results using RRF ranking
+        merged = self._ranker.merge(semantic_results, fts_results)
+
+        # Sort by type priority first (notes > file > directory > overview), then by RRF score
+        merged.sort(key=lambda r: (TYPE_PRIORITY.get(r["type"], 3), -r.get("rrf_score", 0)))
 
         # Deduplicate similar content
-        results = self._deduplicate_results(results)
+        results = self._deduplicate_results(merged)
 
         return results[:limit], semantic_ok, fts_ok
 
