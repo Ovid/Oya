@@ -9,6 +9,82 @@ from oya.generation.prompts import SYSTEM_PROMPT, get_workflow_prompt
 from oya.generation.summaries import EntryPointInfo, SynthesisMap
 from oya.parsing.models import ParsedSymbol, SymbolType
 
+# Entry point detection constants
+ENTRY_POINT_DECORATORS: set[str] = {
+    # Click/Typer CLI
+    "click.command",
+    "click.group",
+    "typer.command",
+    # FastAPI/Flask/Starlette routes
+    "app.route",
+    "app.get",
+    "app.post",
+    "app.put",
+    "app.delete",
+    "app.patch",
+    "router.route",
+    "router.get",
+    "router.post",
+    "router.put",
+    "router.delete",
+    "router.patch",
+    # Flask
+    "flask.route",
+    # Django
+    "api_view",
+    "action",
+}
+
+ENTRY_POINT_NAMES: set[str] = {
+    "main",
+    "__main__",
+    "run",
+    "start",
+    "serve",
+    "execute",
+}
+
+
+def _is_entry_point(symbol: ParsedSymbol) -> bool:
+    """Check if a symbol is an entry point.
+
+    Args:
+        symbol: ParsedSymbol object.
+
+    Returns:
+        True if the symbol is an entry point.
+    """
+    # Check symbol type
+    if symbol.symbol_type in (SymbolType.ROUTE, SymbolType.CLI_COMMAND):
+        return True
+
+    # Check decorators
+    for decorator in symbol.decorators:
+        if decorator in ENTRY_POINT_DECORATORS:
+            return True
+        # Also check partial matches (e.g., "app.get" in "@app.get('/users')")
+        for entry_decorator in ENTRY_POINT_DECORATORS:
+            if entry_decorator in decorator:
+                return True
+
+    # Check function name
+    if symbol.name in ENTRY_POINT_NAMES:
+        return True
+
+    return False
+
+
+def find_entry_points(symbols: list[ParsedSymbol]) -> list[ParsedSymbol]:
+    """Find entry points from a list of symbols.
+
+    Args:
+        symbols: List of ParsedSymbol objects from parsing.
+
+    Returns:
+        List of symbols that are entry points.
+    """
+    return [s for s in symbols if _is_entry_point(s)]
+
 
 def extract_entry_point_description(symbol: ParsedSymbol) -> str:
     """Extract description from an entry point symbol.
@@ -391,177 +467,6 @@ class WorkflowGrouper:
 
         # Return layer with most entry points
         return max(layer_counts, key=lambda k: layer_counts[k])
-
-
-@dataclass
-class DiscoveredWorkflow:
-    """Represents a discovered workflow.
-
-    Attributes:
-        name: Human-readable name of the workflow.
-        slug: URL-friendly identifier.
-        entry_points: List of ParsedSymbol entry points.
-        related_files: List of file paths related to the workflow.
-    """
-
-    name: str
-    slug: str
-    entry_points: list[ParsedSymbol] = field(default_factory=list)
-    related_files: list[str] = field(default_factory=list)
-
-
-class WorkflowDiscovery:
-    """Discovers workflow entry points from parsed symbols.
-
-    Entry points are functions or methods that serve as starting points
-    for workflows - CLI commands, API routes, main functions, etc.
-    """
-
-    # Decorators that indicate entry points
-    ENTRY_POINT_DECORATORS: set[str] = {
-        # Click/Typer CLI
-        "click.command",
-        "click.group",
-        "typer.command",
-        # FastAPI/Flask/Starlette routes
-        "app.route",
-        "app.get",
-        "app.post",
-        "app.put",
-        "app.delete",
-        "app.patch",
-        "router.route",
-        "router.get",
-        "router.post",
-        "router.put",
-        "router.delete",
-        "router.patch",
-        # Flask
-        "flask.route",
-        # Django
-        "api_view",
-        "action",
-    }
-
-    # Function names that indicate entry points
-    ENTRY_POINT_NAMES: set[str] = {
-        "main",
-        "__main__",
-        "run",
-        "start",
-        "serve",
-        "execute",
-    }
-
-    def find_entry_points(self, symbols: list[ParsedSymbol]) -> list[ParsedSymbol]:
-        """Find entry points from a list of symbols.
-
-        Args:
-            symbols: List of ParsedSymbol objects from parsing.
-
-        Returns:
-            List of symbols that are entry points.
-        """
-        entry_points = []
-
-        for symbol in symbols:
-            if self._is_entry_point(symbol):
-                entry_points.append(symbol)
-
-        return entry_points
-
-    def _is_entry_point(self, symbol: ParsedSymbol) -> bool:
-        """Check if a symbol is an entry point.
-
-        Args:
-            symbol: ParsedSymbol object.
-
-        Returns:
-            True if the symbol is an entry point.
-        """
-        # Check symbol type
-        if symbol.symbol_type in (SymbolType.ROUTE, SymbolType.CLI_COMMAND):
-            return True
-
-        # Check decorators
-        for decorator in symbol.decorators:
-            if decorator in self.ENTRY_POINT_DECORATORS:
-                return True
-            # Also check partial matches (e.g., "app.get" in "@app.get('/users')")
-            for entry_decorator in self.ENTRY_POINT_DECORATORS:
-                if entry_decorator in decorator:
-                    return True
-
-        # Check function name
-        if symbol.name in self.ENTRY_POINT_NAMES:
-            return True
-
-        return False
-
-    def group_into_workflows(
-        self,
-        entry_points: list[ParsedSymbol],
-        file_imports: dict[str, list[str]] | None = None,
-    ) -> list[DiscoveredWorkflow]:
-        """Group entry points into logical workflows.
-
-        Args:
-            entry_points: List of entry point ParsedSymbol objects.
-            file_imports: Optional mapping of file paths to their imports.
-
-        Returns:
-            List of discovered workflows.
-        """
-        workflows = []
-
-        for entry_point in entry_points:
-            workflow = DiscoveredWorkflow(
-                name=self._humanize_name(entry_point.name),
-                slug=self._slugify(entry_point.name),
-                entry_points=[entry_point],
-                related_files=[entry_point.metadata.get("file", "")],
-            )
-            workflows.append(workflow)
-
-        return workflows
-
-    def _slugify(self, name: str) -> str:
-        """Convert a name to a URL-friendly slug.
-
-        Args:
-            name: The name to slugify.
-
-        Returns:
-            URL-friendly slug.
-        """
-        # Replace underscores and spaces with hyphens
-        slug = name.replace("_", "-").replace(" ", "-")
-        # Convert to lowercase
-        slug = slug.lower()
-        # Remove non-alphanumeric characters except hyphens
-        slug = re.sub(r"[^a-z0-9-]", "", slug)
-        # Remove consecutive hyphens
-        slug = re.sub(r"-+", "-", slug)
-        # Strip leading/trailing hyphens
-        slug = slug.strip("-")
-        return slug
-
-    def _humanize_name(self, name: str) -> str:
-        """Convert a symbol name to a human-readable name.
-
-        Args:
-            name: The symbol name.
-
-        Returns:
-            Human-readable name.
-        """
-        # Replace underscores with spaces
-        human = name.replace("_", " ")
-        # Split on camelCase
-        human = re.sub(r"([a-z])([A-Z])", r"\1 \2", human)
-        # Capitalize each word
-        human = human.title()
-        return human
 
 
 class WorkflowGenerator:

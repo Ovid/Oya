@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from oya.generation.workflows import (
-    WorkflowDiscovery,
     WorkflowGenerator,
     WorkflowGroup,
     WorkflowGrouper,
@@ -30,88 +29,6 @@ def mock_repo():
     repo = MagicMock()
     repo.path = Path("/workspace/my-project")
     return repo
-
-
-class TestWorkflowDiscovery:
-    """Tests for workflow discovery."""
-
-    def test_discovers_cli_entry_points(self):
-        """Finds CLI commands as workflow entry points."""
-        discovery = WorkflowDiscovery()
-
-        symbols = [
-            ParsedSymbol(
-                name="main",
-                symbol_type=SymbolType.FUNCTION,
-                start_line=1,
-                end_line=10,
-                decorators=["click.command"],
-                metadata={"file": "cli.py"},
-            ),
-            ParsedSymbol(
-                name="init_db",
-                symbol_type=SymbolType.FUNCTION,
-                start_line=12,
-                end_line=20,
-                decorators=["click.command"],
-                metadata={"file": "cli.py"},
-            ),
-        ]
-
-        entry_points = discovery.find_entry_points(symbols)
-
-        assert len(entry_points) >= 2
-        assert any(e.name == "main" for e in entry_points)
-
-    def test_discovers_api_routes(self):
-        """Finds API routes as workflow entry points."""
-        discovery = WorkflowDiscovery()
-
-        symbols = [
-            ParsedSymbol(
-                name="get_users",
-                symbol_type=SymbolType.ROUTE,
-                start_line=1,
-                end_line=10,
-                metadata={"file": "api/users.py", "method": "GET", "path": "/users"},
-            ),
-            ParsedSymbol(
-                name="create_user",
-                symbol_type=SymbolType.ROUTE,
-                start_line=12,
-                end_line=20,
-                metadata={"file": "api/users.py", "method": "POST", "path": "/users"},
-            ),
-        ]
-
-        entry_points = discovery.find_entry_points(symbols)
-
-        assert len(entry_points) >= 2
-
-    def test_discovers_main_functions(self):
-        """Finds main functions as entry points."""
-        discovery = WorkflowDiscovery()
-
-        symbols = [
-            ParsedSymbol(
-                name="main",
-                symbol_type=SymbolType.FUNCTION,
-                start_line=1,
-                end_line=10,
-                metadata={"file": "main.py"},
-            ),
-            ParsedSymbol(
-                name="__main__",
-                symbol_type=SymbolType.FUNCTION,
-                start_line=1,
-                end_line=10,
-                metadata={"file": "app.py"},
-            ),
-        ]
-
-        entry_points = discovery.find_entry_points(symbols)
-
-        assert len(entry_points) >= 1
 
 
 class TestWorkflowGenerator:

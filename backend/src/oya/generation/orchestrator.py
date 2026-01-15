@@ -35,10 +35,10 @@ from oya.generation.summaries import DirectorySummary, EntryPointInfo, FileSumma
 from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
 from oya.generation.techstack import detect_tech_stack
 from oya.generation.workflows import (
-    WorkflowDiscovery,
     WorkflowGenerator,
     WorkflowGrouper,
     extract_entry_point_description,
+    find_entry_points,
 )
 from oya.constants.generation import PROGRESS_REPORT_INTERVAL
 from oya.parsing.fallback_parser import FallbackParser
@@ -248,9 +248,6 @@ class GenerationOrchestrator:
         self.directory_generator = DirectoryGenerator(llm_client, repo)
         self.file_generator = FileGenerator(llm_client, repo)
         self.synthesis_generator = SynthesisGenerator(llm_client)
-
-        # Workflow discovery helper
-        self.workflow_discovery = WorkflowDiscovery()
 
         # Diagram generator for overview architecture diagram
         self.layer_diagram_generator = LayerDiagramGenerator()
@@ -957,7 +954,7 @@ class GenerationOrchestrator:
 
         # Discover and populate entry points if symbols available
         if all_symbols:
-            entry_point_symbols = self.workflow_discovery.find_entry_points(all_symbols)
+            entry_point_symbols = find_entry_points(all_symbols)
             synthesis_map.entry_points = [
                 EntryPointInfo(
                     name=ep.name,

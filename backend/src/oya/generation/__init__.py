@@ -29,9 +29,8 @@ from oya.generation.prompts import (
     get_workflow_prompt,
 )
 from oya.generation.workflows import (
-    DiscoveredWorkflow,
-    WorkflowDiscovery,
     WorkflowGenerator,
+    find_entry_points,
 )
 from oya.generation.orchestrator import (
     GenerationOrchestrator,
@@ -68,9 +67,8 @@ __all__ = [
     "get_overview_prompt",
     "get_workflow_prompt",
     # Workflow Discovery and Generation
-    "DiscoveredWorkflow",
-    "WorkflowDiscovery",
     "WorkflowGenerator",
+    "find_entry_points",
     # Orchestrator
     "GenerationOrchestrator",
     "GenerationPhase",
