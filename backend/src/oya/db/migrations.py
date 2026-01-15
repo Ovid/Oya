@@ -3,7 +3,7 @@
 from oya.db.connection import Database
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -117,6 +117,16 @@ def run_migrations(db: Database) -> None:
         current_version = 0
 
     if current_version < SCHEMA_VERSION:
+        # Version 4 migration: Recreate FTS table with chunk columns
+        # FTS5 CREATE VIRTUAL TABLE IF NOT EXISTS won't update existing table schema,
+        # so we need to drop first, then recreate via SCHEMA_SQL below
+        if current_version >= 1 and current_version < 4:
+            try:
+                db.execute("DROP TABLE IF EXISTS fts_content")
+                db.commit()
+            except Exception:
+                pass
+
         # Apply schema using executescript which handles multiple statements
         # Note: executescript auto-commits, so we handle the version insert separately
         db.executescript(SCHEMA_SQL)
