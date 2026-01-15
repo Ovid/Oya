@@ -32,9 +32,7 @@ frontend/coverage/
 
 # Oya files
 .env
-.oyawiki
-.oyawiki-building/
-.oya-logs/
+.oya*
 logs
 
 # UAT
