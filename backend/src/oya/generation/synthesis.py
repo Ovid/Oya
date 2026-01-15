@@ -139,6 +139,7 @@ class SynthesisGenerator:
                 synthesis_map.key_components = llm_result.get("key_components", [])
                 synthesis_map.dependency_graph = llm_result.get("dependency_graph", {})
                 synthesis_map.project_summary = llm_result.get("project_summary", "")
+                synthesis_map.layer_interactions = llm_result.get("layer_interactions", "")
         except Exception as e:
             logger.error(
                 "LLM call failed during synthesis, falling back to basic layer grouping. "
@@ -187,6 +188,7 @@ class SynthesisGenerator:
                 "key_components": key_components,
                 "dependency_graph": data.get("dependency_graph", {}),
                 "project_summary": data.get("project_summary", ""),
+                "layer_interactions": data.get("layer_interactions", ""),
             }
         except (json.JSONDecodeError, KeyError, TypeError):
             return None
@@ -352,11 +354,18 @@ class SynthesisGenerator:
             if len(result.project_summary) > len(project_summary):
                 project_summary = result.project_summary
 
+        # Combine layer_interactions (take the longest/most detailed one)
+        layer_interactions = ""
+        for result in batch_results:
+            if len(result.layer_interactions) > len(layer_interactions):
+                layer_interactions = result.layer_interactions
+
         return SynthesisMap(
             layers=merged_layers,
             key_components=merged_components,
             dependency_graph=merged_deps,
             project_summary=project_summary,
+            layer_interactions=layer_interactions,
         )
 
     def group_files_by_layer(
