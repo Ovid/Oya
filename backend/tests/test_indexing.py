@@ -9,7 +9,7 @@ from oya.vectorstore.store import VectorStore
 
 class TestContentIndexing:
     """Tests for indexing wiki content into search stores.
-    
+
     The indexing service should:
     1. Index wiki pages into ChromaDB for semantic search
     2. Index wiki pages into FTS5 for full-text search
@@ -21,13 +21,16 @@ class TestContentIndexing:
         """Create a temporary database with FTS table."""
         db_path = tmp_path / "test.db"
         db = Database(db_path)
-        # Create FTS table
+        # Create FTS table matching production schema
         db.executescript("""
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
                 content,
                 title,
-                path,
-                type,
+                path UNINDEXED,
+                type UNINDEXED,
+                section_header,
+                chunk_id UNINDEXED,
+                chunk_index UNINDEXED,
                 content_rowid UNINDEXED
             );
         """)
@@ -236,12 +239,16 @@ class TestEmbeddingMetadata:
         """Create a temporary database with FTS table."""
         db_path = tmp_path / "test.db"
         db = Database(db_path)
+        # Create FTS table matching production schema
         db.executescript("""
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
                 content,
                 title,
-                path,
-                type,
+                path UNINDEXED,
+                type UNINDEXED,
+                section_header,
+                chunk_id UNINDEXED,
+                chunk_index UNINDEXED,
                 content_rowid UNINDEXED
             );
         """)
@@ -349,13 +356,16 @@ class TestIndexingIntegration:
         """Create a temporary database with FTS table."""
         db_path = tmp_path / "test.db"
         db = Database(db_path)
-        # Create FTS table
+        # Create FTS table matching production schema
         db.executescript("""
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
                 content,
                 title,
-                path,
-                type,
+                path UNINDEXED,
+                type UNINDEXED,
+                section_header,
+                chunk_id UNINDEXED,
+                chunk_index UNINDEXED,
                 content_rowid UNINDEXED
             );
         """)
@@ -435,3 +445,165 @@ class TestIndexingIntegration:
         docs = results.get("documents", [[]])[0]
         # The old content should not be in the results
         assert not any("old" in doc.lower() and "new" not in doc.lower() for doc in docs)
+
+
+class TestChunkBasedIndexing:
+    """Tests for chunk-based indexing using ChunkingService."""
+
+    @pytest.fixture
+    def temp_db(self, tmp_path):
+        """Create a temporary database with FTS table."""
+        db_path = tmp_path / "test.db"
+        db = Database(db_path)
+        # Create FTS table matching production schema
+        db.executescript("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
+                content,
+                title,
+                path UNINDEXED,
+                type UNINDEXED,
+                section_header,
+                chunk_id UNINDEXED,
+                chunk_index UNINDEXED,
+                content_rowid UNINDEXED
+            );
+        """)
+        db.commit()
+        return db
+
+    @pytest.fixture
+    def temp_vectorstore(self, tmp_path):
+        """Create a temporary vector store."""
+        index_path = tmp_path / "index"
+        index_path.mkdir()
+        return VectorStore(index_path)
+
+    @pytest.mark.asyncio
+    async def test_indexes_chunks_not_whole_pages(
+        self, temp_vectorstore, temp_db, tmp_path
+    ):
+        """IndexingService creates chunks from wiki pages."""
+        from oya.indexing.service import IndexingService
+
+        # Setup wiki with a page that has multiple sections
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+        files_dir = wiki_path / "files"
+        files_dir.mkdir()
+
+        page_content = """# src/auth.py
+
+## Overview
+
+Handles user authentication.
+
+## Public API
+
+Exports authenticate() function.
+"""
+        (files_dir / "src-auth.md").write_text(page_content)
+
+        service = IndexingService(
+            vectorstore=temp_vectorstore,
+            db=temp_db,
+            wiki_path=wiki_path,
+        )
+
+        count = await service.index_wiki_pages()
+
+        # Should have indexed multiple chunks, not just one page
+        # Query the vector store to get the indexed documents
+        results = temp_vectorstore.query("authenticate", n_results=10)
+        ids = results.get("ids", [[]])[0]
+
+        # Should have at least 2 chunks (Overview and Public API sections)
+        assert len(ids) >= 2
+        # IDs should contain section names
+        assert any("overview" in id.lower() for id in ids)
+        assert any("public" in id.lower() or "api" in id.lower() for id in ids)
+
+    @pytest.mark.asyncio
+    async def test_chunks_include_metadata(
+        self, temp_vectorstore, temp_db, tmp_path
+    ):
+        """Indexed chunks include section headers and chunk IDs."""
+        from oya.indexing.service import IndexingService
+
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+        files_dir = wiki_path / "files"
+        files_dir.mkdir()
+
+        page_content = """# src/main.py
+
+## Overview
+
+Main entry point.
+
+## Dependencies
+
+Uses FastAPI and uvicorn.
+"""
+        (files_dir / "src-main.md").write_text(page_content)
+
+        service = IndexingService(
+            vectorstore=temp_vectorstore,
+            db=temp_db,
+            wiki_path=wiki_path,
+        )
+
+        await service.index_wiki_pages()
+
+        # Query vectorstore and check metadata
+        results = temp_vectorstore.query("main entry", n_results=10)
+        metadatas = results.get("metadatas", [[]])[0]
+
+        # Should have section_header in metadata
+        assert len(metadatas) > 0
+        assert any(m.get("section_header") == "Overview" for m in metadatas)
+
+    @pytest.mark.asyncio
+    async def test_fts_indexes_chunks_with_section_headers(
+        self, temp_vectorstore, temp_db, tmp_path
+    ):
+        """FTS index includes section headers and chunk metadata."""
+        from oya.indexing.service import IndexingService
+
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+        files_dir = wiki_path / "files"
+        files_dir.mkdir()
+
+        page_content = """# src/db.py
+
+## Overview
+
+Database connection handling.
+
+## Connection Pool
+
+Manages connection pooling.
+"""
+        (files_dir / "src-db.md").write_text(page_content)
+
+        service = IndexingService(
+            vectorstore=temp_vectorstore,
+            db=temp_db,
+            wiki_path=wiki_path,
+        )
+
+        await service.index_wiki_pages()
+
+        # Query FTS and check for section headers
+        cursor = temp_db.execute(
+            "SELECT content, title, path, type, section_header, chunk_id, chunk_index "
+            "FROM fts_content WHERE fts_content MATCH ?",
+            ("connection",),
+        )
+        results = cursor.fetchall()
+
+        assert len(results) > 0
+        # Should have section_header populated
+        assert any(r["section_header"] for r in results)
+        # Should have chunk_id populated
+        assert any(r["chunk_id"] for r in results)
