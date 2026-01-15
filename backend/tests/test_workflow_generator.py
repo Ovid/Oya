@@ -405,3 +405,25 @@ class TestWorkflowGrouper:
         assert "db/connection.py" not in related
         # External libs should not be included
         assert "external_lib" not in related
+
+    def test_determines_primary_layer(self):
+        """Determines primary layer from entry point files."""
+        from oya.generation.summaries import SynthesisMap, LayerInfo
+
+        grouper = WorkflowGrouper()
+
+        entry_points = [
+            EntryPointInfo(name="get_users", entry_type="api_route", file="api/users.py", description="/users"),
+        ]
+
+        synthesis_map = SynthesisMap(
+            layers={
+                "api": LayerInfo(name="api", purpose="HTTP endpoints", files=["api/users.py", "api/orders.py"]),
+                "domain": LayerInfo(name="domain", purpose="Business logic", files=["services/user_service.py"]),
+            }
+        )
+
+        groups = grouper.group(entry_points, file_imports={}, synthesis_map=synthesis_map)
+
+        assert len(groups) == 1
+        assert groups[0].primary_layer == "api"

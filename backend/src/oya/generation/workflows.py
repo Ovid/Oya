@@ -71,12 +71,14 @@ class WorkflowGrouper:
         self,
         entry_points: list[EntryPointInfo],
         file_imports: dict[str, list[str]],
+        synthesis_map: SynthesisMap | None = None,
     ) -> list[WorkflowGroup]:
         """Group entry points by domain and trace related files.
 
         Args:
             entry_points: List of EntryPointInfo from SynthesisMap.
             file_imports: Map of file paths to their imports.
+            synthesis_map: Optional SynthesisMap for determining primary layers.
 
         Returns:
             List of WorkflowGroup objects.
@@ -123,11 +125,15 @@ class WorkflowGrouper:
                 )
             )
 
-        # Trace related files for all groups
+        # Trace related files and determine primary layer for all groups
         for group in groups:
             group.related_files = self._find_related_files(
                 group.entry_points, file_imports
             )
+            if synthesis_map:
+                group.primary_layer = self._determine_primary_layer(
+                    group.entry_points, synthesis_map
+                )
 
         return groups
 
@@ -360,6 +366,31 @@ class WorkflowGrouper:
             frontier = new_files
 
         return sorted(related)
+
+    def _determine_primary_layer(
+        self,
+        entry_points: list[EntryPointInfo],
+        synthesis_map: SynthesisMap,
+    ) -> str:
+        """Determine the primary architectural layer for entry points.
+
+        Returns the layer that contains the most entry point files.
+        """
+        layer_counts: dict[str, int] = {}
+
+        for ep in entry_points:
+            if not ep.file:
+                continue
+            for layer_name, layer_info in synthesis_map.layers.items():
+                if ep.file in layer_info.files:
+                    layer_counts[layer_name] = layer_counts.get(layer_name, 0) + 1
+                    break
+
+        if not layer_counts:
+            return ""
+
+        # Return layer with most entry points
+        return max(layer_counts, key=lambda k: layer_counts[k])
 
 
 @dataclass
