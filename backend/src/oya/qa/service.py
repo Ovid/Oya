@@ -1,8 +1,11 @@
 """Q&A service with hybrid search and confidence-based answers."""
 
-import re
-from typing import Any
+from __future__ import annotations
 
+import re
+from typing import TYPE_CHECKING, Any
+
+from oya.constants.issues import ISSUE_QUERY_KEYWORDS
 from oya.constants.qa import (
     HIGH_CONFIDENCE_THRESHOLD,
     MAX_CONTEXT_TOKENS,
@@ -18,6 +21,9 @@ from oya.llm.client import LLMClient
 from oya.qa.ranking import RRFRanker
 from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, SearchQuality
 from oya.vectorstore.store import VectorStore
+
+if TYPE_CHECKING:
+    from oya.vectorstore.issues import IssuesStore
 
 QA_SYSTEM_PROMPT = """You are a helpful assistant that answers questions about a codebase.
 You have access to documentation, code, and notes from the repository.
@@ -51,6 +57,7 @@ class QAService:
         vectorstore: VectorStore,
         db: Database,
         llm: LLMClient,
+        issues_store: IssuesStore | None = None,
     ) -> None:
         """Initialize Q&A service.
 
@@ -58,10 +65,12 @@ class QAService:
             vectorstore: ChromaDB vector store for semantic search.
             db: SQLite database for full-text search.
             llm: LLM client for answer generation.
+            issues_store: Optional IssuesStore for issue-aware Q&A.
         """
         self._vectorstore = vectorstore
         self._db = db
         self._llm = llm
+        self._issues_store = issues_store
         self._ranker = RRFRanker(k=60)
 
     async def search(
@@ -480,8 +489,128 @@ Answer the question based only on the context provided. Include citations to spe
         else:
             return f"/{route}"
 
+    def _is_issue_query(self, question: str) -> bool:
+        """Check if question is asking about code issues.
+
+        Args:
+            question: User's question.
+
+        Returns:
+            True if question contains issue-related keywords.
+        """
+        question_lower = question.lower()
+        return any(keyword in question_lower for keyword in ISSUE_QUERY_KEYWORDS)
+
     async def ask(self, request: QARequest) -> QAResponse:
         """Answer a question about the codebase.
+
+        Args:
+            request: Q&A request with question.
+
+        Returns:
+            Q&A response with answer, citations, confidence, and search quality.
+        """
+        # Check if this is an issue-related query
+        if self._is_issue_query(request.question) and self._issues_store:
+            return await self._ask_with_issues(request)
+
+        return await self._ask_normal(request)
+
+    async def _ask_with_issues(self, request: QARequest) -> QAResponse:
+        """Answer an issue-related question using pre-computed issues.
+
+        Args:
+            request: Q&A request with question.
+
+        Returns:
+            Q&A response based on pre-computed issues.
+        """
+        # Query issues collection
+        issues = self._issues_store.query_issues(query=request.question, limit=20)
+
+        if not issues:
+            # Fall back to normal search by calling the regular flow
+            return await self._ask_normal(request)
+
+        # Build context from issues
+        context_parts = []
+        for issue in issues:
+            file_path = issue.get("file_path", "unknown")
+            category = issue.get("category", "")
+            severity = issue.get("severity", "")
+            title = issue.get("title", "")
+            content = issue.get("content", "")
+            part = f"[{severity.upper()}] {category} issue in {file_path}\n{title}\n{content}"
+            context_parts.append(part)
+
+        context_str = "\n\n---\n\n".join(context_parts)
+
+        prompt = f"""Based on the following code issues identified during analysis, answer the question.
+
+IDENTIFIED ISSUES:
+{context_str}
+
+QUESTION: {request.question}
+
+Analyze these issues and identify any systemic patterns. Are there architectural or process problems causing multiple similar issues?
+Format your response with:
+1. A summary of the issues found
+2. Any patterns across issues
+3. Recommendations for addressing them"""
+
+        try:
+            raw_answer = await self._llm.generate(
+                prompt=prompt,
+                system_prompt=QA_SYSTEM_PROMPT,
+                temperature=0.2,
+            )
+        except Exception as e:
+            return QAResponse(
+                answer=f"Error: {e}",
+                citations=[],
+                confidence=ConfidenceLevel.LOW,
+                disclaimer="Error generating answer.",
+                search_quality=SearchQuality(
+                    semantic_searched=False,
+                    fts_searched=False,
+                    results_found=len(issues),
+                    results_used=len(issues),
+                ),
+            )
+
+        answer = self._extract_answer(raw_answer)
+
+        # Create citations from issues
+        citations = []
+        seen_paths: set[str] = set()
+        for issue in issues[:5]:
+            path = issue.get("file_path", "")
+            if path and path not in seen_paths:
+                seen_paths.add(path)
+                citations.append(
+                    Citation(
+                        path=path,
+                        title=issue.get("title", path),
+                        lines=None,
+                        url=self._path_to_url(f"files/{path.replace('/', '-').replace('.', '-')}.md"),
+                    )
+                )
+
+        return QAResponse(
+            answer=answer,
+            citations=citations,
+            confidence=ConfidenceLevel.HIGH if len(issues) >= 3 else ConfidenceLevel.MEDIUM,
+            disclaimer="Based on issues detected during wiki generation.",
+            search_quality=SearchQuality(
+                semantic_searched=True,
+                fts_searched=False,
+                results_found=len(issues),
+                results_used=min(len(issues), 20),
+            ),
+        )
+
+    async def _ask_normal(self, request: QARequest) -> QAResponse:
+        """Answer a question using normal hybrid search.
 
         Args:
             request: Q&A request with question.

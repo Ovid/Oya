@@ -479,3 +479,198 @@ class TestTruncateAtSentence:
         # Should be truncated and end with "..."
         assert len(result) < len(text)
         assert result.endswith("...")
+
+
+class TestQAServiceIssues:
+    """Tests for issue-aware Q&A."""
+
+    def test_is_issue_query_detects_keywords(self):
+        """_is_issue_query detects issue-related questions."""
+        from unittest.mock import Mock
+        from oya.qa.service import QAService
+
+        mock_vectorstore = Mock()
+        mock_db = Mock()
+        mock_llm = Mock()
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+
+        assert service._is_issue_query("Are there any security issues?")
+        assert service._is_issue_query("What bugs exist in the code?")
+        assert service._is_issue_query("Show me code quality problems")
+        assert service._is_issue_query("What's wrong with the authentication?")
+
+        assert not service._is_issue_query("How does the API work?")
+        assert not service._is_issue_query("Explain the database schema")
+
+    def test_is_issue_query_case_insensitive(self):
+        """_is_issue_query is case-insensitive."""
+        from unittest.mock import Mock
+        from oya.qa.service import QAService
+
+        mock_vectorstore = Mock()
+        mock_db = Mock()
+        mock_llm = Mock()
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+
+        assert service._is_issue_query("Are there any SECURITY ISSUES?")
+        assert service._is_issue_query("What BUGS exist?")
+        assert service._is_issue_query("TECHNICAL DEBT in the codebase")
+
+    @pytest.mark.asyncio
+    async def test_ask_with_issues_queries_issues_store(self):
+        """Issue queries use IssuesStore when available."""
+        from unittest.mock import Mock, AsyncMock
+        from oya.qa.service import QAService
+
+        mock_vectorstore = Mock()
+        mock_db = Mock()
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = """<answer>
+Found 2 security issues.
+</answer>
+<citations>
+[{"path": "files/auth-py.md", "relevant_text": "security issue"}]
+</citations>"""
+
+        mock_issues_store = Mock()
+        mock_issues_store.query_issues.return_value = [
+            {
+                "id": "auth.py::hardcoded-secret::0",
+                "file_path": "auth.py",
+                "category": "security",
+                "severity": "problem",
+                "title": "Hardcoded secret",
+                "content": "Hardcoded secret\n\nAPI key is hardcoded in source.",
+            },
+            {
+                "id": "db.py::sql-injection::0",
+                "file_path": "db.py",
+                "category": "security",
+                "severity": "problem",
+                "title": "SQL injection risk",
+                "content": "SQL injection risk\n\nUser input is not sanitized.",
+            },
+        ]
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm, mock_issues_store)
+
+        from oya.qa.schemas import QARequest
+        request = QARequest(question="What security issues exist?")
+        response = await service.ask(request)
+
+        # Should have queried the issues store
+        mock_issues_store.query_issues.assert_called_once()
+
+        # Should have generated an answer
+        assert response.answer is not None
+        assert len(response.answer) > 0
+
+    @pytest.mark.asyncio
+    async def test_ask_with_issues_falls_back_when_no_issues(self):
+        """Falls back to normal search when no issues found."""
+        from unittest.mock import Mock, AsyncMock
+        from oya.qa.service import QAService
+
+        mock_vectorstore = Mock()
+        mock_vectorstore.query.return_value = {
+            "ids": [["doc1"]],
+            "documents": [["content 1"]],
+            "metadatas": [[{"type": "wiki", "path": "overview.md", "title": "Overview"}]],
+            "distances": [[0.2]],
+        }
+
+        mock_db = Mock()
+        cursor = Mock()
+        cursor.fetchall.return_value = []
+        mock_db.execute.return_value = cursor
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = """<answer>
+No issues found, here is normal answer.
+</answer>
+<citations>
+[{"path": "overview.md", "relevant_text": "overview"}]
+</citations>"""
+
+        mock_issues_store = Mock()
+        mock_issues_store.query_issues.return_value = []  # No issues
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm, mock_issues_store)
+
+        from oya.qa.schemas import QARequest
+        request = QARequest(question="What bugs exist?")
+        response = await service.ask(request)
+
+        # Should have tried issues store first
+        mock_issues_store.query_issues.assert_called_once()
+
+        # Should have fallen back to normal search
+        mock_vectorstore.query.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_ask_without_issues_store_uses_normal_flow(self):
+        """Issue queries use normal flow when no IssuesStore provided."""
+        from unittest.mock import Mock, AsyncMock
+        from oya.qa.service import QAService
+
+        mock_vectorstore = Mock()
+        mock_vectorstore.query.return_value = {
+            "ids": [["doc1"]],
+            "documents": [["content 1"]],
+            "metadatas": [[{"type": "wiki", "path": "overview.md", "title": "Overview"}]],
+            "distances": [[0.2]],
+        }
+
+        mock_db = Mock()
+        cursor = Mock()
+        cursor.fetchall.return_value = []
+        mock_db.execute.return_value = cursor
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = """<answer>
+Normal answer.
+</answer>
+<citations>
+[{"path": "overview.md", "relevant_text": "overview"}]
+</citations>"""
+
+        # No issues_store provided
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+
+        from oya.qa.schemas import QARequest
+        request = QARequest(question="What bugs exist?")
+        response = await service.ask(request)
+
+        # Should use normal search flow
+        mock_vectorstore.query.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_ask_with_issues_handles_llm_error(self):
+        """Error during LLM generation returns error response."""
+        from unittest.mock import AsyncMock, Mock
+        from oya.qa.service import QAService
+        from oya.qa.schemas import QARequest, ConfidenceLevel
+
+        mock_vectorstore = Mock()
+        mock_db = Mock()
+        mock_llm = AsyncMock()
+        mock_llm.generate.side_effect = Exception("LLM unavailable")
+
+        mock_issues_store = Mock()
+        mock_issues_store.query_issues.return_value = [
+            {
+                "file_path": "test.py",
+                "category": "security",
+                "severity": "problem",
+                "title": "Test issue",
+                "content": "Test content",
+            }
+        ]
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm, mock_issues_store)
+        response = await service.ask(QARequest(question="What security issues exist?"))
+
+        assert "Error:" in response.answer
+        assert response.confidence == ConfidenceLevel.LOW
