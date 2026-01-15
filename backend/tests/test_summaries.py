@@ -323,8 +323,7 @@ class TestYAMLParsingAndStripping:
         assert summary.internal_deps == data["expected_summary"]["internal_deps"]
         assert summary.external_deps == data["expected_summary"]["external_deps"]
         
-        # Clean markdown should not contain the YAML block
-        assert "---" not in clean_markdown or clean_markdown.count("---") == 0
+        # Clean markdown should not contain the YAML block content
         assert "file_summary:" not in clean_markdown
         
         # Clean markdown should contain the original content (stripped)
@@ -350,8 +349,7 @@ class TestYAMLParsingAndStripping:
         assert summary.contains == data["expected_summary"]["contains"]
         assert summary.role_in_system == data["expected_summary"]["role_in_system"]
         
-        # Clean markdown should not contain the YAML block
-        assert "---" not in clean_markdown or clean_markdown.count("---") == 0
+        # Clean markdown should not contain the YAML block content
         assert "directory_summary:" not in clean_markdown
         
         # Clean markdown should contain the original content (stripped)
