@@ -9,6 +9,7 @@ from oya.db.connection import Database
 from oya.db.migrations import run_migrations
 from oya.llm.client import LLMClient
 from oya.repo.git_repo import GitRepo
+from oya.vectorstore.issues import IssuesStore
 from oya.vectorstore.store import VectorStore
 
 
@@ -146,3 +147,24 @@ def _reset_llm_instance() -> None:
     """Reset LLM client instance (for testing only)."""
     global _llm_instance
     _llm_instance = None
+
+
+_issues_store: IssuesStore | None = None
+
+
+def get_issues_store() -> IssuesStore:
+    """Get or create the issues vector store instance."""
+    global _issues_store
+    if _issues_store is None:
+        settings = get_settings()
+        persist_path = settings.workspace_path / ".oyawiki" / "vectorstore"
+        _issues_store = IssuesStore(persist_path)
+    return _issues_store
+
+
+def _reset_issues_store_instance() -> None:
+    """Reset issues store instance (for testing only)."""
+    global _issues_store
+    if _issues_store is not None:
+        _issues_store.close()
+    _issues_store = None

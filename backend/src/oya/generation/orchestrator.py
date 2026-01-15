@@ -23,7 +23,7 @@ from datetime import datetime
 from enum import Enum
 from itertools import islice
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Iterator
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 
 from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
@@ -45,6 +45,9 @@ from oya.parsing.fallback_parser import FallbackParser
 from oya.parsing.models import ParsedSymbol
 from oya.parsing.registry import ParserRegistry
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
+
+if TYPE_CHECKING:
+    from oya.vectorstore.issues import IssuesStore
 
 
 class GenerationPhase(Enum):
@@ -239,6 +242,7 @@ class GenerationOrchestrator:
         wiki_path: Path,
         parser_registry: ParserRegistry | None = None,
         parallel_limit: int = 10,
+        issues_store: "IssuesStore | None" = None,
     ):
         """Initialize the orchestrator.
 
@@ -249,6 +253,7 @@ class GenerationOrchestrator:
             wiki_path: Path where wiki files will be saved.
             parser_registry: Optional parser registry for code analysis.
             parallel_limit: Max concurrent LLM calls for file/directory generation.
+            issues_store: Optional IssuesStore for indexing detected code issues.
         """
         self.llm_client = llm_client
         self.repo = repo
@@ -257,6 +262,7 @@ class GenerationOrchestrator:
         self.parser_registry = parser_registry or ParserRegistry()
         self._fallback_parser = FallbackParser()
         self.parallel_limit = parallel_limit
+        self._issues_store = issues_store
 
         # Initialize generators
         self.overview_generator = OverviewGenerator(llm_client, repo)
@@ -1373,6 +1379,10 @@ class GenerationOrchestrator:
                 page, summary = await coro
                 pages.append(page)
                 file_summaries.append(summary)
+
+                # Index issues to IssuesStore
+                if summary.issues and self._issues_store:
+                    self._issues_store.add_issues(summary.file_path, summary.issues)
 
                 completed += 1
                 generated_so_far = completed - skipped_count
