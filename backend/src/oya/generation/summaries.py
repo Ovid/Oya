@@ -288,12 +288,20 @@ class SynthesisMap:
         key_components: List of important components identified across the codebase.
         dependency_graph: Mapping of component/layer names to their dependencies.
         project_summary: LLM-generated overall summary of the project.
+        entry_points: List of discovered CLI commands, API routes, main functions.
+        tech_stack: Nested dict of detected libraries by language and category.
+        metrics: CodeMetrics object with file counts and LOC.
+        layer_interactions: LLM-generated description of how layers communicate.
     """
 
     layers: dict[str, LayerInfo] = field(default_factory=dict)
     key_components: list[ComponentInfo] = field(default_factory=list)
     dependency_graph: dict[str, list[str]] = field(default_factory=dict)
     project_summary: str = ""
+    entry_points: list[EntryPointInfo] = field(default_factory=list)
+    tech_stack: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    metrics: CodeMetrics | None = None
+    layer_interactions: str = ""
 
     def to_json(self) -> str:
         """Serialize the SynthesisMap to a JSON string.
@@ -322,6 +330,10 @@ class SynthesisMap:
             ],
             "dependency_graph": self.dependency_graph,
             "project_summary": self.project_summary,
+            "entry_points": [ep.to_dict() for ep in self.entry_points],
+            "tech_stack": self.tech_stack,
+            "metrics": self.metrics.to_dict() if self.metrics else None,
+            "layer_interactions": self.layer_interactions,
         }
         return json.dumps(data, indent=2)
 
@@ -357,11 +369,22 @@ class SynthesisMap:
             for comp in data.get("key_components", [])
         ]
 
+        entry_points = [
+            EntryPointInfo.from_dict(ep) for ep in data.get("entry_points", [])
+        ]
+
+        metrics_data = data.get("metrics")
+        metrics = CodeMetrics.from_dict(metrics_data) if metrics_data else None
+
         return cls(
             layers=layers,
             key_components=key_components,
             dependency_graph=data.get("dependency_graph", {}),
             project_summary=data.get("project_summary", ""),
+            entry_points=entry_points,
+            tech_stack=data.get("tech_stack", {}),
+            metrics=metrics,
+            layer_interactions=data.get("layer_interactions", ""),
         )
 
 

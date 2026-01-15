@@ -1725,6 +1725,94 @@ file_summary:
     assert "Valid layers: api, config, domain, infrastructure, test, utility" in caplog.text
 
 
+class TestSynthesisMapExtended:
+    """Tests for extended SynthesisMap fields."""
+
+    def test_synthesis_map_has_new_fields(self):
+        """Test SynthesisMap includes entry_points, tech_stack, metrics, layer_interactions."""
+        from oya.generation.summaries import (
+            SynthesisMap,
+            EntryPointInfo,
+            CodeMetrics,
+        )
+
+        entry_points = [
+            EntryPointInfo(name="main", entry_type="main_function", file="main.py", description="")
+        ]
+        tech_stack = {"python": {"web_framework": ["FastAPI"]}}
+        metrics = CodeMetrics(
+            total_files=10,
+            files_by_layer={"api": 5, "domain": 5},
+            lines_by_layer={"api": 500, "domain": 500},
+            total_lines=1000,
+        )
+
+        sm = SynthesisMap(
+            entry_points=entry_points,
+            tech_stack=tech_stack,
+            metrics=metrics,
+            layer_interactions="API layer calls domain services directly.",
+        )
+
+        assert len(sm.entry_points) == 1
+        assert sm.entry_points[0].name == "main"
+        assert sm.tech_stack["python"]["web_framework"] == ["FastAPI"]
+        assert sm.metrics.total_files == 10
+        assert sm.layer_interactions == "API layer calls domain services directly."
+
+    def test_synthesis_map_json_roundtrip_with_new_fields(self):
+        """Test SynthesisMap serialization includes new fields."""
+        from oya.generation.summaries import (
+            SynthesisMap,
+            EntryPointInfo,
+            CodeMetrics,
+            LayerInfo,
+        )
+
+        original = SynthesisMap(
+            layers={"api": LayerInfo(name="api", purpose="HTTP handlers", directories=[], files=[])},
+            key_components=[],
+            dependency_graph={},
+            project_summary="Test project",
+            entry_points=[
+                EntryPointInfo(name="serve", entry_type="main_function", file="app.py", description="")
+            ],
+            tech_stack={"python": {"testing": ["pytest"]}},
+            metrics=CodeMetrics(
+                total_files=5,
+                files_by_layer={"api": 5},
+                lines_by_layer={"api": 250},
+                total_lines=250,
+            ),
+            layer_interactions="Simple single-layer architecture.",
+        )
+
+        json_str = original.to_json()
+        restored = SynthesisMap.from_json(json_str)
+
+        assert len(restored.entry_points) == 1
+        assert restored.entry_points[0].name == "serve"
+        assert restored.tech_stack["python"]["testing"] == ["pytest"]
+        assert restored.metrics.total_files == 5
+        assert restored.layer_interactions == "Simple single-layer architecture."
+
+    def test_synthesis_map_json_roundtrip_empty_new_fields(self):
+        """Test SynthesisMap serialization handles empty/None new fields."""
+        from oya.generation.summaries import SynthesisMap
+
+        original = SynthesisMap(
+            project_summary="Test project with no new fields",
+        )
+
+        json_str = original.to_json()
+        restored = SynthesisMap.from_json(json_str)
+
+        assert restored.entry_points == []
+        assert restored.tech_stack == {}
+        assert restored.metrics is None
+        assert restored.layer_interactions == ""
+
+
 class TestCodeMetrics:
     """Tests for CodeMetrics dataclass."""
 
