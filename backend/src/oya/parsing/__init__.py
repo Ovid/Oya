@@ -5,6 +5,8 @@ from oya.parsing.models import (
     SymbolType,
     ParsedFile,
     ParseResult,
+    Reference,
+    ReferenceType,
 )
 from oya.parsing.base import BaseParser
 from oya.parsing.python_parser import PythonParser
@@ -18,6 +20,8 @@ __all__ = [
     "SymbolType",
     "ParsedFile",
     "ParseResult",
+    "Reference",
+    "ReferenceType",
     "BaseParser",
     "PythonParser",
     "TypeScriptParser",

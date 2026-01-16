@@ -137,3 +137,18 @@ def test_parsed_file_has_references():
 
     assert len(parsed.references) == 1
     assert parsed.references[0].target == "helper"
+
+
+def test_reference_exports():
+    """Reference and ReferenceType are exported from parsing module."""
+    from oya.parsing import Reference, ReferenceType
+
+    assert ReferenceType.CALLS.value == "calls"
+    ref = Reference(
+        source="a",
+        target="b",
+        reference_type=ReferenceType.CALLS,
+        confidence=0.5,
+        line=1,
+    )
+    assert ref.source == "a"
