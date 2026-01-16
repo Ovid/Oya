@@ -105,18 +105,8 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     [dispatch]
   )
 
-  // Show loading spinner while page is loading OR while AppContext is still initializing
-  // This prevents showing "not found" before we've checked for running jobs
-  if (loading || state.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    )
-  }
-
   // Show generation progress if starting or a job is running (either local or global)
-  // Check this BEFORE notFound to handle the case where generation started but wiki doesn't exist yet
+  // Check this FIRST - before loading spinner - so we show progress immediately when Generate is clicked
   const activeJobId =
     generatingJobId || (state.currentJob?.status === 'running' ? state.currentJob.job_id : null)
   if (isStartingGeneration || activeJobId) {
@@ -126,6 +116,16 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
         onComplete={handleGenerationComplete}
         onError={handleGenerationError}
       />
+    )
+  }
+
+  // Show loading spinner while page is loading OR while AppContext is still initializing
+  // This prevents showing "not found" before we've checked for running jobs
+  if (loading || state.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
     )
   }
 
