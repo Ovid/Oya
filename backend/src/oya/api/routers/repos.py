@@ -35,6 +35,7 @@ from oya.generation.orchestrator import GenerationProgress
 from oya.workspace import initialize_workspace
 from oya.indexing.service import IndexingService
 from oya.vectorstore.store import VectorStore
+from oya.vectorstore.issues import IssuesStore
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
@@ -455,12 +456,14 @@ async def _run_generation(
             endpoint=settings.llm_endpoint,
             log_path=settings.llm_log_path,
         )
+        issues_store = IssuesStore(staging_meta_path / "vectorstore")
         orchestrator = GenerationOrchestrator(
             llm_client=llm,
             repo=repo,
             db=db,
             wiki_path=staging_wiki_path,
             parallel_limit=settings.parallel_file_limit,
+            issues_store=issues_store,
         )
 
         generation_result = await orchestrator.run(progress_callback=progress_callback)

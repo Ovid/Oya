@@ -446,6 +446,12 @@ file_summary:
     - "path/to/other/file.py"
   external_deps:
     - "library_name"
+  issues:
+    - category: <security|reliability|maintainability>
+      severity: <problem|suggestion>
+      title: "Short description of the issue"
+      description: "Why this matters and what to look for"
+      lines: [start_line, end_line]
 ---
 ```
 
@@ -456,6 +462,22 @@ Layer classification guide:
 - utility: Helper functions, shared utilities, common tools
 - config: Configuration, settings, environment handling
 - test: Test files, test utilities, fixtures
+
+## Code Analysis
+
+While documenting, also identify potential issues in the code:
+
+**Categories:**
+- security: Injection vulnerabilities, hardcoded secrets, missing auth, unsafe deserialization
+- reliability: Unhandled errors, race conditions, resource leaks, null pointer risks
+- maintainability: God classes, circular deps, code duplication, missing abstractions
+
+**Severities:**
+- problem: Likely bug or security hole that needs attention
+- suggestion: Improvement opportunity, not urgent
+
+Only flag issues you're reasonably confident about. Skip stylistic nitpicks.
+If no issues are found, use an empty list: `issues: []`
 
 Your documentation MUST include these sections in order:
 1. **Purpose** - What this file does and why it exists

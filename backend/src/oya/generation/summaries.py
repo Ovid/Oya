@@ -13,6 +13,8 @@ import yaml
 
 import logging
 
+from oya.constants.issues import ISSUE_CATEGORIES, ISSUE_SEVERITIES
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,11 +44,90 @@ def path_to_slug(path: str, include_extension: bool = True) -> str:
 
 
 @dataclass
+class FileIssue:
+    """A potential issue identified in a source file.
+
+    Represents bugs, security concerns, or design flaws detected during
+    file analysis. Issues are stored both in FileSummary (for display)
+    and in a dedicated ChromaDB collection (for Q&A queries).
+
+    Attributes:
+        file_path: Path to the source file containing the issue.
+        category: Type of issue (security, reliability, maintainability).
+        severity: Urgency level (problem, suggestion).
+        title: Brief description of the issue.
+        description: Detailed explanation of why this matters.
+        line_range: Optional (start, end) line numbers where issue occurs.
+    """
+
+    file_path: str
+    category: str
+    severity: str
+    title: str
+    description: str
+    line_range: tuple[int, int] | None = None
+
+    def __post_init__(self):
+        """Validate category and severity fields."""
+        if self.category not in ISSUE_CATEGORIES:
+            raise ValueError(
+                f"Invalid category '{self.category}'. "
+                f"Must be one of: {', '.join(sorted(ISSUE_CATEGORIES))}"
+            )
+        if self.severity not in ISSUE_SEVERITIES:
+            raise ValueError(
+                f"Invalid severity '{self.severity}'. "
+                f"Must be one of: {', '.join(sorted(ISSUE_SEVERITIES))}"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dictionary for storage."""
+        result = {
+            "file_path": self.file_path,
+            "category": self.category,
+            "severity": self.severity,
+            "title": self.title,
+            "description": self.description,
+        }
+        if self.line_range:
+            result["line_start"] = self.line_range[0]
+            result["line_end"] = self.line_range[1]
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FileIssue":
+        """Deserialize from dictionary."""
+        line_range = None
+        if "line_start" in data and "line_end" in data:
+            line_range = (data["line_start"], data["line_end"])
+        elif "lines" in data and isinstance(data["lines"], list) and len(data["lines"]) >= 2:
+            line_range = (data["lines"][0], data["lines"][1])
+
+        # Validate category and severity, using defaults if invalid
+        category = data.get("category", "maintainability")
+        if category not in ISSUE_CATEGORIES:
+            category = "maintainability"
+
+        severity = data.get("severity", "suggestion")
+        if severity not in ISSUE_SEVERITIES:
+            severity = "suggestion"
+
+        return cls(
+            file_path=data.get("file_path", ""),
+            category=category,
+            severity=severity,
+            title=data.get("title", ""),
+            description=data.get("description", ""),
+            line_range=line_range,
+        )
+
+
+@dataclass
 class FileSummary:
     """Structured summary extracted from file documentation.
 
     Captures the essential information about a source file including its purpose,
-    architectural layer, key abstractions, and dependencies.
+    architectural layer, key abstractions, dependencies, and detected issues.
 
     Attributes:
         file_path: Path to the source file relative to repository root.
@@ -56,6 +137,7 @@ class FileSummary:
         key_abstractions: Primary classes, functions, or types defined in the file.
         internal_deps: Paths to other files in the repository that this file depends on.
         external_deps: External libraries or packages the file imports.
+        issues: List of FileIssue objects representing detected code issues.
     """
 
     file_path: str
@@ -64,6 +146,7 @@ class FileSummary:
     key_abstractions: list[str] = field(default_factory=list)
     internal_deps: list[str] = field(default_factory=list)
     external_deps: list[str] = field(default_factory=list)
+    issues: list[FileIssue] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate layer field after initialization."""
@@ -85,6 +168,7 @@ class FileSummary:
             "key_abstractions": self.key_abstractions,
             "internal_deps": self.internal_deps,
             "external_deps": self.external_deps,
+            "issues": [issue.to_dict() for issue in self.issues],
         }
 
     @classmethod
@@ -97,6 +181,9 @@ class FileSummary:
         Returns:
             A new FileSummary instance.
         """
+        issues_data = data.get("issues", [])
+        issues = [FileIssue.from_dict(issue_data) for issue_data in issues_data]
+
         return cls(
             file_path=data.get("file_path", ""),
             purpose=data.get("purpose", "Unknown"),
@@ -104,6 +191,7 @@ class FileSummary:
             key_abstractions=data.get("key_abstractions", []),
             internal_deps=data.get("internal_deps", []),
             external_deps=data.get("external_deps", []),
+            issues=issues,
         )
 
 
@@ -443,6 +531,37 @@ class SummaryParser:
         """
         return value if isinstance(value, list) else []
 
+    def _parse_issues(self, issues_data: Any, file_path: str) -> list[FileIssue]:
+        """Parse issues from YAML data into FileIssue objects.
+
+        Args:
+            issues_data: Raw issues data from YAML (expected to be a list of dicts).
+            file_path: Path to the file, added to each issue.
+
+        Returns:
+            List of successfully parsed FileIssue objects.
+        """
+        if not isinstance(issues_data, list):
+            return []
+
+        issues = []
+        for item in issues_data:
+            if not isinstance(item, dict):
+                continue
+
+            # Create a copy with file_path added to avoid mutating input data
+            item_with_path = {**item, "file_path": file_path}
+
+            try:
+                issue = FileIssue.from_dict(item_with_path)
+                issues.append(issue)
+            except (ValueError, KeyError) as e:
+                logger.warning(
+                    f"Failed to parse issue for {file_path}: {e}. Item: {item}"
+                )
+
+        return issues
+
     def parse_file_summary(self, markdown: str, file_path: str) -> tuple[str, FileSummary]:
         """Parse File_Summary from markdown, return (clean_markdown, summary).
 
@@ -485,6 +604,9 @@ class SummaryParser:
             )
             layer = "utility"
 
+        # Parse issues from YAML
+        issues = self._parse_issues(summary_data.get("issues", []), file_path)
+
         summary = FileSummary(
             file_path=file_path,
             purpose=purpose,
@@ -492,6 +614,7 @@ class SummaryParser:
             key_abstractions=self._ensure_list(summary_data.get("key_abstractions", [])),
             internal_deps=self._ensure_list(summary_data.get("internal_deps", [])),
             external_deps=self._ensure_list(summary_data.get("external_deps", [])),
+            issues=issues,
         )
 
         return clean_markdown, summary

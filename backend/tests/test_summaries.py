@@ -1937,6 +1937,285 @@ class TestSynthesisMapExtended:
         assert restored.layer_interactions == ""
 
 
+class TestFileIssue:
+    """Tests for FileIssue dataclass."""
+
+    def test_file_issue_creation(self):
+        """FileIssue can be created with all fields."""
+        from oya.generation.summaries import FileIssue
+
+        issue = FileIssue(
+            file_path="src/api/routes.py",
+            category="security",
+            severity="problem",
+            title="SQL injection risk",
+            description="Query built with string concatenation",
+            line_range=(45, 47),
+        )
+
+        assert issue.file_path == "src/api/routes.py"
+        assert issue.category == "security"
+        assert issue.severity == "problem"
+        assert issue.title == "SQL injection risk"
+        assert issue.line_range == (45, 47)
+
+    def test_file_issue_optional_line_range(self):
+        """FileIssue line_range is optional."""
+        from oya.generation.summaries import FileIssue
+
+        issue = FileIssue(
+            file_path="src/utils.py",
+            category="maintainability",
+            severity="suggestion",
+            title="Consider extracting method",
+            description="Function is too long",
+            line_range=None,
+        )
+
+        assert issue.line_range is None
+
+    def test_file_issue_to_dict(self):
+        """FileIssue serializes to dict correctly."""
+        from oya.generation.summaries import FileIssue
+
+        issue = FileIssue(
+            file_path="test.py",
+            category="reliability",
+            severity="problem",
+            title="Unhandled exception",
+            description="Missing try/except",
+            line_range=(10, 15),
+        )
+
+        d = issue.to_dict()
+        assert d["file_path"] == "test.py"
+        assert d["category"] == "reliability"
+        assert d["severity"] == "problem"
+        assert d["line_start"] == 10
+        assert d["line_end"] == 15
+
+    def test_file_issue_from_dict(self):
+        """FileIssue deserializes from dict correctly."""
+        from oya.generation.summaries import FileIssue
+
+        data = {
+            "file_path": "test.py",
+            "category": "security",
+            "severity": "suggestion",
+            "title": "Hardcoded secret",
+            "description": "API key in source",
+            "line_start": 5,
+            "line_end": 5,
+        }
+
+        issue = FileIssue.from_dict(data)
+        assert issue.file_path == "test.py"
+        assert issue.line_range == (5, 5)
+
+
+class TestFileSummaryWithIssues:
+    """Tests for FileSummary with issues field."""
+
+    def test_file_summary_with_empty_issues(self):
+        """FileSummary defaults to empty issues list."""
+        from oya.generation.summaries import FileSummary
+
+        summary = FileSummary(
+            file_path="test.py",
+            purpose="Test file",
+            layer="utility",
+        )
+
+        assert summary.issues == []
+
+    def test_file_summary_with_issues(self):
+        """FileSummary can hold FileIssue objects."""
+        from oya.generation.summaries import FileSummary, FileIssue
+
+        issue = FileIssue(
+            file_path="test.py",
+            category="security",
+            severity="problem",
+            title="Test issue",
+            description="Test description",
+        )
+
+        summary = FileSummary(
+            file_path="test.py",
+            purpose="Test file",
+            layer="utility",
+            issues=[issue],
+        )
+
+        assert len(summary.issues) == 1
+        assert summary.issues[0].title == "Test issue"
+
+    def test_file_summary_to_dict_includes_issues(self):
+        """FileSummary.to_dict() includes serialized issues."""
+        from oya.generation.summaries import FileSummary, FileIssue
+
+        issue = FileIssue(
+            file_path="test.py",
+            category="reliability",
+            severity="suggestion",
+            title="Missing error handling",
+            description="Add try/except",
+            line_range=(10, 12),
+        )
+
+        summary = FileSummary(
+            file_path="test.py",
+            purpose="Test file",
+            layer="utility",
+            issues=[issue],
+        )
+
+        d = summary.to_dict()
+        assert "issues" in d
+        assert len(d["issues"]) == 1
+        assert d["issues"][0]["title"] == "Missing error handling"
+        assert d["issues"][0]["line_start"] == 10
+
+    def test_file_summary_from_dict_with_issues(self):
+        """FileSummary.from_dict() deserializes issues."""
+        from oya.generation.summaries import FileSummary
+
+        data = {
+            "file_path": "test.py",
+            "purpose": "Test",
+            "layer": "utility",
+            "issues": [
+                {
+                    "file_path": "test.py",
+                    "category": "security",
+                    "severity": "problem",
+                    "title": "SQL injection",
+                    "description": "Use parameterized queries",
+                }
+            ],
+        }
+
+        summary = FileSummary.from_dict(data)
+        assert len(summary.issues) == 1
+        assert summary.issues[0].category == "security"
+
+
+class TestSummaryParserIssues:
+    """Tests for SummaryParser issue extraction."""
+
+    def test_parse_file_summary_with_issues(self):
+        """SummaryParser extracts issues from YAML."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Handles user authentication"
+  layer: api
+  key_abstractions:
+    - "authenticate"
+  internal_deps: []
+  external_deps:
+    - "bcrypt"
+  issues:
+    - category: security
+      severity: problem
+      title: "Hardcoded secret key"
+      description: "JWT secret is hardcoded in source"
+      lines: [15, 15]
+    - category: reliability
+      severity: suggestion
+      title: "Missing rate limiting"
+      description: "Login endpoint has no rate limiting"
+---
+
+# Authentication Module
+
+This module handles user authentication.
+'''
+
+        parser = SummaryParser()
+        clean_md, summary = parser.parse_file_summary(markdown, "auth.py")
+
+        assert summary.purpose == "Handles user authentication"
+        assert len(summary.issues) == 2
+
+        assert summary.issues[0].category == "security"
+        assert summary.issues[0].severity == "problem"
+        assert summary.issues[0].title == "Hardcoded secret key"
+        assert summary.issues[0].line_range == (15, 15)
+
+        assert summary.issues[1].category == "reliability"
+        assert summary.issues[1].severity == "suggestion"
+
+    def test_parse_file_summary_without_issues(self):
+        """SummaryParser handles YAML without issues field."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Utility functions"
+  layer: utility
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+---
+
+# Utilities
+'''
+
+        parser = SummaryParser()
+        _, summary = parser.parse_file_summary(markdown, "utils.py")
+
+        assert summary.issues == []
+
+    def test_parse_file_summary_with_empty_issues(self):
+        """SummaryParser handles explicit empty issues list."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Clean code"
+  layer: domain
+  key_abstractions: []
+  internal_deps: []
+  external_deps: []
+  issues: []
+---
+
+# Clean Module
+'''
+
+        parser = SummaryParser()
+        _, summary = parser.parse_file_summary(markdown, "clean.py")
+
+        assert summary.issues == []
+
+    def test_parse_file_summary_issues_with_invalid_category_uses_default(self):
+        """Invalid category falls back to maintainability."""
+        from oya.generation.summaries import SummaryParser
+
+        markdown = '''---
+file_summary:
+  purpose: "Test"
+  layer: utility
+  issues:
+    - category: invalid_category
+      severity: suggestion
+      title: "Some issue"
+      description: "Details"
+---
+
+# Test
+'''
+
+        parser = SummaryParser()
+        _, summary = parser.parse_file_summary(markdown, "test.py")
+
+        # Should use default category from FileIssue.from_dict
+        assert len(summary.issues) == 1
+        assert summary.issues[0].category == "maintainability"
+
+
 class TestCodeMetrics:
     """Tests for CodeMetrics dataclass."""
 

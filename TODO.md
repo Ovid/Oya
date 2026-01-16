@@ -1,5 +1,9 @@
 # TODO
 
+* Test suite hitting openai (possibly). Validate and then have ways to skip
+  those tests unless requested.
+    * Remove provider from .end and see if tests pass
+    * Look at LLM as a Judge for some tests.
 * When I first generate, it has a spinner for the entire time of the analysis
   phase (I think).
     * It needs to load the interface, *then* start analysis and have a time.
@@ -7,9 +11,6 @@
     * Should show "current file" and "current directory" while processing.
     * Should it also try to process files in dependency order like
       directories?
-    * For each file we analyze, we should also look for common design flaws or
-      possible bugs and put them in another part of the response. In other
-      words, try to offload some of the hard work to the remote LLM.
     * Mermaid diagrams should omit test files
 * Need to make chat more useful
     * Have chat persist, even when navigating.
@@ -83,3 +84,6 @@ The following ideas were identified during Phase 6 overview improvements but def
     - Offer explanation of codebase, if needed, to help guide AI
 * Constants into config file (not .env)
 * Mermaid diagrams should pass through a parser until they render correctly
+* For each file we analyze, we should also look for common design flaws or
+  possible bugs and put them in another part of the response. In other
+  words, try to offload some of the hard work to the remote LLM.
