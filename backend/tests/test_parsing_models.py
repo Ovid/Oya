@@ -85,3 +85,32 @@ def test_parse_result_failure():
     assert not result.ok
     assert result.file is None
     assert "Syntax error" in result.error
+
+
+def test_reference_model_creation():
+    """Reference model stores source, target, type, and confidence."""
+    from oya.parsing.models import Reference, ReferenceType
+
+    ref = Reference(
+        source="auth/handler.py::login",
+        target="auth/session.py::create_session",
+        reference_type=ReferenceType.CALLS,
+        confidence=0.85,
+        line=42,
+    )
+
+    assert ref.source == "auth/handler.py::login"
+    assert ref.target == "auth/session.py::create_session"
+    assert ref.reference_type == ReferenceType.CALLS
+    assert ref.confidence == 0.85
+    assert ref.line == 42
+
+
+def test_reference_type_enum():
+    """ReferenceType has expected values."""
+    from oya.parsing.models import ReferenceType
+
+    assert ReferenceType.CALLS.value == "calls"
+    assert ReferenceType.INSTANTIATES.value == "instantiates"
+    assert ReferenceType.INHERITS.value == "inherits"
+    assert ReferenceType.IMPORTS.value == "imports"
