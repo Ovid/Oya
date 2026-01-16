@@ -55,6 +55,7 @@ class ParsedFile:
     symbols: list[ParsedSymbol]
     imports: list[str] = field(default_factory=list)
     exports: list[str] = field(default_factory=list)
+    references: list["Reference"] = field(default_factory=list)
     raw_content: str | None = None
     line_count: int = 0
     metadata: dict = field(default_factory=dict)

@@ -114,3 +114,26 @@ def test_reference_type_enum():
     assert ReferenceType.INSTANTIATES.value == "instantiates"
     assert ReferenceType.INHERITS.value == "inherits"
     assert ReferenceType.IMPORTS.value == "imports"
+
+
+def test_parsed_file_has_references():
+    """ParsedFile includes references field."""
+    from oya.parsing.models import ParsedFile, Reference, ReferenceType
+
+    ref = Reference(
+        source="test.py::main",
+        target="helper",
+        reference_type=ReferenceType.CALLS,
+        confidence=0.9,
+        line=10,
+    )
+
+    parsed = ParsedFile(
+        path="test.py",
+        language="python",
+        symbols=[],
+        references=[ref],
+    )
+
+    assert len(parsed.references) == 1
+    assert parsed.references[0].target == "helper"
