@@ -51,6 +51,8 @@ class PythonParser(BaseParser):
                 references.extend(self._extract_calls(node, scope))
             elif isinstance(node, ast.ClassDef):
                 symbols.extend(self._parse_class(node))
+                # Extract inheritance
+                references.extend(self._extract_inheritance(node, str(file_path)))
                 # Extract calls from methods
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -387,6 +389,40 @@ class PythonParser(BaseParser):
         if all_parts:
             return f"class {node.name}({', '.join(all_parts)})"
         return f"class {node.name}"
+
+    def _extract_inheritance(self, node: ast.ClassDef, file_path: str) -> list[Reference]:
+        """Extract inheritance relationships from a class definition.
+
+        Args:
+            node: The ClassDef AST node.
+            file_path: Path to the file being parsed.
+
+        Returns:
+            List of Reference objects for inheritance.
+        """
+        references = []
+        class_scope = f"{file_path}::{node.name}"
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                references.append(Reference(
+                    source=class_scope,
+                    target=base.id,
+                    reference_type=ReferenceType.INHERITS,
+                    confidence=0.95,  # High confidence for direct name
+                    line=node.lineno,
+                ))
+            elif isinstance(base, ast.Attribute):
+                target = self._get_attribute_name(base)
+                references.append(Reference(
+                    source=class_scope,
+                    target=target,
+                    reference_type=ReferenceType.INHERITS,
+                    confidence=0.9,  # Slightly lower for dotted names
+                    line=node.lineno,
+                ))
+
+        return references
 
     def _extract_calls(self, node: ast.AST, current_scope: str) -> list[Reference]:
         """Extract function/method calls from an AST node.

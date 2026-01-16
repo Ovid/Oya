@@ -202,3 +202,35 @@ def main():
 
     assert "User" in targets
     assert "Config" in targets
+
+
+def test_extracts_inheritance(parser):
+    """Extracts class inheritance relationships."""
+    code = '''
+class Animal:
+    pass
+
+class Dog(Animal):
+    pass
+
+class Labrador(Dog, Serializable):
+    pass
+'''
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    inherits = [r for r in refs if r.reference_type.value == "inherits"]
+
+    # Dog inherits from Animal
+    dog_inherits = [r for r in inherits if "Dog" in r.source]
+    assert len(dog_inherits) == 1
+    assert dog_inherits[0].target == "Animal"
+
+    # Labrador inherits from Dog and Serializable
+    lab_inherits = [r for r in inherits if "Labrador" in r.source]
+    assert len(lab_inherits) == 2
+    targets = [r.target for r in lab_inherits]
+    assert "Dog" in targets
+    assert "Serializable" in targets
