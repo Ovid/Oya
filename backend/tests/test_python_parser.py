@@ -182,3 +182,23 @@ def main():
     for ref in refs:
         assert ref.confidence > 0
         assert ref.line > 0
+
+
+def test_extracts_instantiations(parser):
+    """Extracts class instantiations."""
+    code = '''
+def main():
+    user = User("alice")
+    config = Config()
+'''
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    # Should find instantiations of User and Config
+    instantiations = [r for r in refs if r.reference_type.value == "instantiates"]
+    targets = [r.target for r in instantiations]
+
+    assert "User" in targets
+    assert "Config" in targets

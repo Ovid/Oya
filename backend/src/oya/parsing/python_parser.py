@@ -402,35 +402,41 @@ class PythonParser(BaseParser):
 
         for child in ast.walk(node):
             if isinstance(child, ast.Call):
-                target, confidence = self._resolve_call_target(child)
+                target, confidence, ref_type = self._resolve_call_target(child)
                 if target:
                     references.append(Reference(
                         source=current_scope,
                         target=target,
-                        reference_type=ReferenceType.CALLS,
+                        reference_type=ref_type,
                         confidence=confidence,
                         line=child.lineno,
                     ))
 
         return references
 
-    def _resolve_call_target(self, node: ast.Call) -> tuple[str | None, float]:
+    def _resolve_call_target(self, node: ast.Call) -> tuple[str | None, float, ReferenceType]:
         """Resolve the target of a call expression.
 
         Args:
             node: The Call AST node.
 
         Returns:
-            Tuple of (target_name, confidence).
+            Tuple of (target_name, confidence, reference_type).
         """
         func = node.func
 
         if isinstance(func, ast.Name):
-            # Simple call: func()
-            return func.id, 0.9
+            name = func.id
+            # Convention: CapitalCase names are likely classes (instantiation)
+            if name and name[0].isupper():
+                return name, 0.85, ReferenceType.INSTANTIATES
+            return name, 0.9, ReferenceType.CALLS
         elif isinstance(func, ast.Attribute):
-            # Method call: obj.method()
             attr_name = self._get_attribute_name(func)
-            return attr_name, 0.7
+            # Check if final component is CapitalCase
+            parts = attr_name.split(".")
+            if parts and parts[-1][0].isupper():
+                return attr_name, 0.75, ReferenceType.INSTANTIATES
+            return attr_name, 0.7, ReferenceType.CALLS
 
-        return None, 0.0
+        return None, 0.0, ReferenceType.CALLS
