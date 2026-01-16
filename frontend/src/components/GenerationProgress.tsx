@@ -5,7 +5,7 @@ import { ELAPSED_TIME_UPDATE_MS } from '../config'
 import { formatElapsedTime, PHASES, PHASE_ORDER } from './generationConstants'
 
 interface GenerationProgressProps {
-  jobId: string
+  jobId: string | null
   onComplete: () => void
   onError: (error: string) => void
   onCancelled?: () => void
@@ -41,6 +41,9 @@ export function GenerationProgress({
   }, [startTime])
 
   useEffect(() => {
+    // Don't start SSE stream until we have a jobId
+    if (!jobId) return
+
     const cleanup = streamJobProgress(
       jobId,
       (event: ProgressEvent) => {
@@ -421,15 +424,17 @@ export function GenerationProgress({
         </ul>
       </div>
 
-      {/* Stop Generation button */}
-      <div className="mt-6 text-center">
-        <button
-          onClick={handleCancelClick}
-          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-        >
-          Stop Generation
-        </button>
-      </div>
+      {/* Stop Generation button - only show when we have a jobId */}
+      {jobId && (
+        <div className="mt-6 text-center">
+          <button
+            onClick={handleCancelClick}
+            className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+          >
+            Stop Generation
+          </button>
+        </div>
+      )}
     </div>
   )
 }
