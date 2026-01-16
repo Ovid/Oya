@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 from oya.parsing.base import BaseParser
-from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, SymbolType
+from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, Reference, ReferenceType, SymbolType
 
 
 # HTTP methods commonly used in web frameworks for route definitions
@@ -41,13 +41,21 @@ class PythonParser(BaseParser):
 
         symbols: list[ParsedSymbol] = []
         imports: list[str] = []
+        references: list[Reference] = []
 
         # Process top-level nodes
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 symbols.append(self._parse_function(node, parent=None))
+                scope = f"{file_path}::{node.name}"
+                references.extend(self._extract_calls(node, scope))
             elif isinstance(node, ast.ClassDef):
                 symbols.extend(self._parse_class(node))
+                # Extract calls from methods
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        scope = f"{file_path}::{node.name}.{item.name}"
+                        references.extend(self._extract_calls(item, scope))
             elif isinstance(node, ast.Import):
                 imports.extend(self._parse_import(node))
             elif isinstance(node, ast.ImportFrom):
@@ -60,6 +68,7 @@ class PythonParser(BaseParser):
             language="python",
             symbols=symbols,
             imports=imports,
+            references=references,
             raw_content=content,
             line_count=content.count("\n") + 1,
         )
@@ -378,3 +387,50 @@ class PythonParser(BaseParser):
         if all_parts:
             return f"class {node.name}({', '.join(all_parts)})"
         return f"class {node.name}"
+
+    def _extract_calls(self, node: ast.AST, current_scope: str) -> list[Reference]:
+        """Extract function/method calls from an AST node.
+
+        Args:
+            node: The AST node to analyze.
+            current_scope: The current function/method name for source.
+
+        Returns:
+            List of Reference objects for calls found.
+        """
+        references = []
+
+        for child in ast.walk(node):
+            if isinstance(child, ast.Call):
+                target, confidence = self._resolve_call_target(child)
+                if target:
+                    references.append(Reference(
+                        source=current_scope,
+                        target=target,
+                        reference_type=ReferenceType.CALLS,
+                        confidence=confidence,
+                        line=child.lineno,
+                    ))
+
+        return references
+
+    def _resolve_call_target(self, node: ast.Call) -> tuple[str | None, float]:
+        """Resolve the target of a call expression.
+
+        Args:
+            node: The Call AST node.
+
+        Returns:
+            Tuple of (target_name, confidence).
+        """
+        func = node.func
+
+        if isinstance(func, ast.Name):
+            # Simple call: func()
+            return func.id, 0.9
+        elif isinstance(func, ast.Attribute):
+            # Method call: obj.method()
+            attr_name = self._get_attribute_name(func)
+            return attr_name, 0.7
+
+        return None, 0.0

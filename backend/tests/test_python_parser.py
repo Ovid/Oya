@@ -159,3 +159,26 @@ config = {
     names = [v.name for v in variables]
     assert "VERSION" in names
     assert "DEBUG" in names
+
+
+def test_extracts_function_calls(parser):
+    """Extracts function calls with confidence."""
+    code = '''
+def main():
+    result = helper()
+    process(result)
+'''
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    # Should find calls to helper() and process()
+    call_names = [r.target for r in refs if r.reference_type.value == "calls"]
+    assert "helper" in call_names
+    assert "process" in call_names
+
+    # All calls should have confidence > 0
+    for ref in refs:
+        assert ref.confidence > 0
+        assert ref.line > 0
