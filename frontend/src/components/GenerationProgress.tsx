@@ -29,6 +29,7 @@ export function GenerationProgress({
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false)
   const [isCancelling, setIsCancelling] = useState<boolean>(false)
   const [phaseElapsedTimes, setPhaseElapsedTimes] = useState<Record<string, number>>({})
+  const [phaseStartElapsedTimes, setPhaseStartElapsedTimes] = useState<Record<string, number>>({})
   const phaseStartTimesRef = useRef<Record<string, number>>({})
 
   // Update elapsed time every second
@@ -53,6 +54,14 @@ export function GenerationProgress({
               // Record start time for new phase
               if (!(phaseName in phaseStartTimesRef.current)) {
                 phaseStartTimesRef.current[phaseName] = Date.now()
+                // Also store elapsed seconds at phase start (for render use)
+                const elapsedAtStart = Math.floor(
+                  (Date.now() - startTime.getTime()) / 1000
+                )
+                setPhaseStartElapsedTimes((prev) => ({
+                  ...prev,
+                  [phaseName]: elapsedAtStart,
+                }))
               }
 
               // When phase changes, record elapsed time for the previous phase
@@ -117,7 +126,7 @@ export function GenerationProgress({
     )
 
     return cleanup
-  }, [jobId, onComplete, onError, onCancelled])
+  }, [jobId, onComplete, onError, onCancelled, startTime])
 
   const handleCancelClick = () => {
     setShowCancelModal(true)
@@ -318,83 +327,99 @@ export function GenerationProgress({
         )}
       </div>
 
-      {/* Phase log - shows all phases with their status based on current phase number */}
-      {currentPhaseNum > 0 && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress Log</h4>
-          </div>
-          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-            {PHASE_ORDER.map((phase, index) => {
-              const phaseNum = index + 1 // Phases are 1-indexed
-              const info = PHASES[phase] || { name: phase }
-
-              // Determine status: completed if phase number < current, in_progress if equal, pending if greater
-              let status: 'completed' | 'in_progress' | 'pending'
-              if (isComplete || phaseNum < currentPhaseNum) {
-                status = 'completed'
-              } else if (phaseNum === currentPhaseNum) {
-                status = 'in_progress'
-              } else {
-                status = 'pending'
-              }
-
-              // Only show phases that have started or completed
-              if (status === 'pending') return null
-
-              return (
-                <li key={phase} className="px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center">
-                    {status === 'completed' ? (
-                      <svg
-                        className="w-4 h-4 text-green-500 mr-2"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="w-4 h-4 text-indigo-500 mr-2 animate-spin"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        />
-                      </svg>
-                    )}
-                    <span
-                      className={`text-sm ${status === 'completed' ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white font-medium'}`}
-                    >
-                      {info.name}
-                    </span>
-                  </div>
-                  {status === 'completed' && phaseElapsedTimes[phase] !== undefined && (
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {formatElapsedTime(phaseElapsedTimes[phase])}
-                    </span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+      {/* Phase log - shows all phases with their status */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress Log</h4>
         </div>
-      )}
+        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+          {PHASE_ORDER.map((phase, index) => {
+            const phaseNum = index + 1 // Phases are 1-indexed
+            const info = PHASES[phase] || { name: phase }
+
+            // Determine status: completed if phase number < current, in_progress if equal, pending if greater
+            let status: 'completed' | 'in_progress' | 'pending'
+            if (isComplete || phaseNum < currentPhaseNum) {
+              status = 'completed'
+            } else if (phaseNum === currentPhaseNum && currentPhaseNum > 0) {
+              status = 'in_progress'
+            } else {
+              status = 'pending'
+            }
+
+            // Calculate live elapsed time for in-progress phase
+            // Uses elapsed state (updated every second) and phase start elapsed (from state)
+            const phaseStartElapsed = phaseStartElapsedTimes[phase]
+            const liveElapsed =
+              status === 'in_progress' && phaseStartElapsed !== undefined
+                ? elapsed - phaseStartElapsed
+                : null
+
+            return (
+              <li key={phase} className="px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center">
+                  {status === 'completed' && (
+                    <svg
+                      className="w-4 h-4 text-green-500 mr-2"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                  {status === 'in_progress' && (
+                    <svg
+                      className="w-4 h-4 text-indigo-500 mr-2 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                  )}
+                  {status === 'pending' && <span className="w-4 mr-2" />}
+                  <span
+                    className={`text-sm ${
+                      status === 'completed'
+                        ? 'text-gray-600 dark:text-gray-400'
+                        : status === 'in_progress'
+                          ? 'text-gray-900 dark:text-white font-medium'
+                          : 'text-gray-400 dark:text-gray-500'
+                    }`}
+                  >
+                    {info.name}
+                  </span>
+                </div>
+                {status === 'completed' && phaseElapsedTimes[phase] !== undefined && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    {formatElapsedTime(phaseElapsedTimes[phase])}
+                  </span>
+                )}
+                {status === 'in_progress' && liveElapsed !== null && (
+                  <span className="text-xs text-indigo-500 dark:text-indigo-400">
+                    {formatElapsedTime(liveElapsed)}
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </div>
 
       {/* Stop Generation button */}
       <div className="mt-6 text-center">
