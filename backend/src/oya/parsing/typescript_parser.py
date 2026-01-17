@@ -571,6 +571,18 @@ class TypeScriptParser(BaseParser):
                         confidence=confidence,
                         line=node.start_point[0] + 1,
                     ))
+        elif node.type == "new_expression":
+            # new ClassName(...)
+            constructor_node = node.child_by_field_name("constructor")
+            if constructor_node:
+                target = self._get_node_text(constructor_node, content)
+                references.append(Reference(
+                    source=current_scope,
+                    target=target,
+                    reference_type=ReferenceType.INSTANTIATES,
+                    confidence=0.95,
+                    line=node.start_point[0] + 1,
+                ))
 
         # Recurse into children
         for child in node.children:
