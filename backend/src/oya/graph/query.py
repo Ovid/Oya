@@ -130,6 +130,50 @@ def get_neighborhood(
     return Subgraph(nodes=nodes, edges=edges)
 
 
+def trace_flow(
+    graph: nx.DiGraph,
+    start: str,
+    end: str,
+    min_confidence: float = 0.0,
+    max_paths: int = 10,
+) -> list[list[str]]:
+    """Find paths between two nodes.
+
+    Args:
+        graph: The code graph.
+        start: Source node ID.
+        end: Target node ID.
+        min_confidence: Minimum edge confidence to traverse.
+        max_paths: Maximum number of paths to return.
+
+    Returns:
+        List of paths, where each path is a list of node IDs.
+    """
+    if not graph.has_node(start) or not graph.has_node(end):
+        return []
+
+    # Create filtered subgraph based on confidence
+    if min_confidence > 0:
+        filtered = nx.DiGraph()
+        for node, data in graph.nodes(data=True):
+            filtered.add_node(node, **data)
+        for source, target, data in graph.edges(data=True):
+            if data.get("confidence", 0) >= min_confidence:
+                filtered.add_edge(source, target, **data)
+        graph = filtered
+
+    try:
+        # Find all simple paths (no repeated nodes)
+        paths = list(nx.all_simple_paths(graph, start, end, cutoff=10))
+        # Sort by length (shorter paths first)
+        paths.sort(key=len)
+        return paths[:max_paths]
+    except nx.NetworkXNoPath:
+        return []
+    except nx.NodeNotFound:
+        return []
+
+
 def _node_from_data(node_id: str, data: dict) -> Node:
     """Convert graph node data to Node model."""
     node_type_str = data.get("type", "function")

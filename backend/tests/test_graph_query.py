@@ -108,3 +108,46 @@ def test_get_neighborhood_includes_edges(sample_graph):
     # Should have edge from verify_token to get_user
     edge_pairs = [(e.source, e.target) for e in subgraph.edges]
     assert ("auth.py::verify_token", "db.py::get_user") in edge_pairs
+
+
+def test_trace_flow_direct_path(sample_graph):
+    """trace_flow finds direct path between nodes."""
+    from oya.graph.query import trace_flow
+
+    paths = trace_flow(sample_graph, "handler.py::process_request", "db.py::get_user")
+
+    assert len(paths) >= 1
+    # Should find direct path
+    direct_path = [p for p in paths if len(p) == 2]
+    assert len(direct_path) >= 1
+
+
+def test_trace_flow_indirect_path(sample_graph):
+    """trace_flow finds indirect paths through intermediaries."""
+    from oya.graph.query import trace_flow
+
+    paths = trace_flow(sample_graph, "handler.py::process_request", "db.py::get_user")
+
+    # Should find both direct and indirect (via verify_token) paths
+    assert len(paths) >= 2
+
+    # Find the indirect path
+    indirect = [p for p in paths if len(p) == 3]
+    assert len(indirect) >= 1
+    assert "auth.py::verify_token" in indirect[0]
+
+
+def test_trace_flow_no_path():
+    """trace_flow returns empty list when no path exists."""
+    from oya.graph.query import trace_flow
+
+    G = nx.DiGraph()
+    G.add_node("a.py::func_a", name="func_a", type="function", file_path="a.py",
+               line_start=1, line_end=10, docstring=None, signature=None, parent=None)
+    G.add_node("b.py::func_b", name="func_b", type="function", file_path="b.py",
+               line_start=1, line_end=10, docstring=None, signature=None, parent=None)
+    # No edge between them
+
+    paths = trace_flow(G, "a.py::func_a", "b.py::func_b")
+
+    assert len(paths) == 0
