@@ -759,3 +759,49 @@ Normal answer.
 
         assert "Error:" in response.answer
         assert response.confidence == ConfidenceLevel.LOW
+
+
+class TestQAServiceCGRAG:
+    """Tests for CGRAG integration in QAService."""
+
+    @pytest.mark.asyncio
+    async def test_qa_returns_cgrag_metadata(self, mock_vectorstore, mock_db, mock_llm):
+        """QAResponse includes CGRAG metadata."""
+        # Mock LLM to return CGRAG-formatted response
+        mock_llm.generate.return_value = """ANSWER:
+The system works by doing things.
+
+MISSING (or "NONE" if nothing needed):
+NONE"""
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+        request = QARequest(question="How does it work?")
+
+        response = await service.ask(request)
+
+        assert response.cgrag is not None
+        assert response.cgrag.passes_used >= 1
+
+    @pytest.mark.asyncio
+    async def test_qa_uses_session_id(self, mock_vectorstore, mock_db, mock_llm):
+        """Session ID is preserved across requests."""
+        mock_llm.generate.return_value = """ANSWER:
+Answer here.
+
+MISSING (or "NONE" if nothing needed):
+NONE"""
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+
+        # First request - no session
+        request1 = QARequest(question="First question")
+        response1 = await service.ask(request1)
+        session_id = response1.cgrag.session_id
+
+        assert session_id is not None
+
+        # Second request - with session
+        request2 = QARequest(question="Follow-up", session_id=session_id)
+        response2 = await service.ask(request2)
+
+        assert response2.cgrag.session_id == session_id
