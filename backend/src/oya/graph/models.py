@@ -27,3 +27,24 @@ class Node:
     docstring: str | None = None
     signature: str | None = None
     metadata: dict = field(default_factory=dict)
+
+
+class EdgeType(Enum):
+    """Types of edges (relationships) in the code graph."""
+
+    CALLS = "calls"
+    INSTANTIATES = "instantiates"
+    INHERITS = "inherits"
+    IMPORTS = "imports"
+
+
+@dataclass
+class Edge:
+    """An edge in the code graph representing a relationship."""
+
+    source: str  # Source node ID
+    target: str  # Target node ID
+    edge_type: EdgeType
+    confidence: float  # 0.0 to 1.0
+    line: int  # Line number where relationship occurs
+    metadata: dict = field(default_factory=dict)
