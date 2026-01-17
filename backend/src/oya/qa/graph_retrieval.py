@@ -83,8 +83,8 @@ def prioritize_nodes(
         """Score based on graph connectivity."""
         if not graph.has_node(node.id):
             return 0
-        in_degree = graph.in_degree(node.id)
-        out_degree = graph.out_degree(node.id)
+        in_degree: int = graph.in_degree(node.id)
+        out_degree: int = graph.out_degree(node.id)
         return in_degree + out_degree
 
     return sorted(nodes, key=node_score, reverse=True)
