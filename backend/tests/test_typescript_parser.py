@@ -172,3 +172,21 @@ function broken( {
     # Tree-sitter is lenient, so it may still parse partially
     # Just ensure no crash
     assert isinstance(result.ok, bool)
+
+
+def test_extracts_function_calls(parser):
+    """Extracts function calls with confidence."""
+    code = '''
+function main() {
+    const result = helper();
+    process(result);
+}
+'''
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    refs = result.file.references
+
+    call_names = [r.target for r in refs if r.reference_type.value == "calls"]
+    assert "helper" in call_names
+    assert "process" in call_names
