@@ -1,0 +1,173 @@
+{
+  "timestamp": "2026-01-16T09:20:25.826564+00:00",
+  "provider": "openai",
+  "model": "gpt-5.2",
+  "request": {
+    "system_prompt": "You are a helpful assistant that answers questions about a codebase.
+You have access to documentation, code, and notes from the repository.
+
+When answering:
+1. Be concise and accurate
+2. Base your answer only on the provided context
+3. After your answer, output a JSON block with citations
+
+Format your response as:
+<answer>
+Your answer here...
+</answer>
+
+<citations>
+[
+  {"path": "files/example-py.md", "relevant_text": "brief quote showing relevance"},
+  {"path": "directories/src.md", "relevant_text": "another brief quote"}
+]
+</citations>
+
+Only cite sources that directly support your answer. Include 1-5 citations.
+",
+    "prompt": "Based on the following context from the codebase, answer the question.
+
+CONTEXT:
+[DIRECTORY] directories/frontend-src-api.md
+[Document: Directories/Frontend Src Api | Section: Key Components]
+
+- `API_BASE` (constant): Base URL used by the client for backend API calls.
+- `ApiError` (class): Represents API failures surfaced by the client (constructed via `constructor`).
+- `fetchJson` (function): Core helper for making HTTP requests and parsing JSON responses with consistent error handling.
+- Repo/workspace endpoints:
+  - `getRepoStatus`, `initRepo`, `switchWorkspace`
+  - `listDirectories`, `getIndexableItems`, `updateOyaignore`
+- Wiki/generation endpoints:
+  - `getGenerationStatus`, `getWikiTree`
+  - `getOverview`, `getArchitecture`, `getWorkflow`, `getDirectory`, `getFile`
+- Jobs endpoints:
+  - `listJobs`, `getJob`, `cancelJob`
+  - `streamJobProgress` (SSE): Streams job progress updates from the backend.
+- Search/Q&A endpoints:
+  - `search`, `askQuestion`
+- Notes endpoints:
+  - `createNote`, `listNotes`, `getNote`, `deleteNote`
+- Tests:
+  - `originalFetch`, `mockResponse`, `result` (constants in tests supporting `switchWorkspace` validation)
+
+---
+
+[OVERVIEW] overview.md
+[Document: workspace | Section: Overview]
+
+Oya is a full-stack application that generates a Markdown wiki for a local codebase using LLMs, then indexes that wiki for hybrid retrieval (SQLite FTS5 + ChromaDB) to support search and evidence-gated Q&A with citations. The backend is a FastAPI service that manages workspaces under a `.oyawiki` directory, runs an incremental multi-phase generation pipeline, and exposes endpoints for repos/workspaces, wiki content, jobs (including SSE progress streaming), search, Q&A, and correction notes.
+
+The frontend is a Vite/React/TypeScript UI that browses generated wiki pages, streams generation progress, asks questions, and creates correction notes. Notes are treated as ground truth during regeneration (the system is designed to integrate human corrections into future outputs).
+
+The repository includes extensive tests and a set of design/implementation plans under `docs/plans/`, indicating active iteration and a phased approach to generation, indexing, and Q&A behavior.
+
+---
+
+[FILE] files/backend-src-oya-api-routers-repos-py.md
+[Document: `backend/src/oya/api/routers/repos.py` | Section: Known Limitations / Notes for Maintainers]
+
+- **DB lifecycle in background tasks:** Consider instantiating a fresh `Database` connection inside `_run_generation()` to avoid lifecycle/threading hazards.
+- **Global workspace switching:** `switch_workspace()` mutates process-wide environment and cached singletons. If this server handles multiple users/tenants concurrently, this design is inherently unsafe without strict serialization and authorization.
+- **Directory listing mismatch:** `list_directories()` currently returns files as well; either filter to directories or update the docstring and any UI expectations.
+- **Silent exception handling:** Several places swallow exceptions without logging; adding structured logs would improve debuggability, especially around embedding metadata and last-generation lookup.
+
+---
+
+[DIRECTORY] directories/frontend.md
+[Document: Directories/Frontend | Section: Introduction]
+
+```yaml
+```
+
+[workspace](./root.md) / frontend
+
+This directory contains the frontend application built with Vite, React, and TypeScript. It defines the build and tooling configuration (Vite/Vitest, ESLint, Tailwind/PostCSS, TypeScript), the HTML entrypoint used by Vite, and the source code (in `src/`) for UI components, pages, context/state, and a centralized API client for interacting with backend endpoints (repo/workspace operations, wiki content, generation status, search, Q&A, and notes).
+
+---
+
+[WORKFLOW] workflows/route-workflows.md
+[Document: Route Workflows (workspace) | Section: Infrastructure layer]
+
+- **Database errors**
+  - SQLite connection/query errors surface to callers; the system uses a shared DB wrapper (`backend/src/oya/db/connection.py`) to execute operations.
+- **Vector store errors**
+  - ChromaDB persistence/query issues surface to callers.
+- **LLM provider errors**
+  - `LLMClient` normalizes provider failures into consistent error types (per project description), which then bubble to the domain/API unless handled.
+
+---
+
+[FILE] files/backend-src-oya-vectorstore-issues-py.md
+[Document: backend/src/oya/vectorstore/issues.py | Section: Known Limitations / Improvement Notes]
+
+- **Silent failures**: Several broad `except Exception: pass` / `return []` branches can obscure real errors. Adding structured logging (even at debug level) would improve operability.
+- **Non-transactional replace**: `add_issues()` deletes before adding; consider an approach that minimizes data loss on partial failures.
+- **ChromaDB internals in `close()`**: Consider upgrading to an official shutdown/close API or isolating Chroma-specific shutdown logic behind a small adapter to ease future upgrades.
+- **Path normalization**: If multiple path formats are used by callers, filtering and ID generation may not behave consistently. Consider normalizing `file_path` at the boundary (e.g., POSIX style, repo-relative).
+
+---
+
+[ARCHITECTURE] architecture.md
+[Document: Workspace Architecture | Section: 1) System Overview]
+
+At a high level, the system is composed of:
+
+- **Backend (FastAPI)**: Manages workspaces, runs background generation jobs, stores artifacts (wiki pages, synthesis maps, issues), indexes content into search backends, and serves REST APIs (including SSE progress streaming).
+- **Generation pipeline**: A multi-phase, bottom-up documentation workflow that starts from code analysis and file-level pages and rolls up into directory pages and repository-level pages (overview/architecture/workflows).
+- **Indexing + Retrieval**: Generated wiki Markdown is chunked and indexed into:
+  - **ChromaDB** for semantic vector retrieval
+  - **SQLite FTS** for keyword retrieval
+- **Q&A (RAG)**: A QA service performs hybrid retrieval (vector + FTS), ranks/fuses results, builds token-bounded context, and generates answers with citations and confidence scoring.
+- **Frontend (Vite/React/TypeScript)**: Provides UI for workspace switching, wiki browsing, generation progress, search, Q&A, and correction notes.
+
+**Core architectural idea:** the backend treats wiki generation as a job-driven pipeline producing durable artifacts; those artifacts are then indexed for retrieval and used as the evidence base for Q&A.
+
+---
+
+QUESTION: Tell me if there are any architectural flaws in my front-end code. Be thorough.
+
+Answer the question based only on the context provided. Include citations to specific files.",
+    "temperature": 0.2,
+    "max_tokens": 4096
+  },
+  "response": "<answer>
+The provided context doesn’t include enough frontend source code to audit “your front-end code” for architectural flaws in a code-review sense (component structure, state management, routing, data flow, error boundaries, etc.). What it does reveal are a few architecture-level risks at the frontend↔backend boundary that will affect the frontend’s correctness and UX:
+
+1) Backend workspace switching is process-global (frontend impact: unsafe assumptions about isolation)
+- The backend’s `switch_workspace()` “mutates process-wide environment and cached singletons” and is “inherently unsafe” for concurrent multi-user/tenant scenarios unless strictly serialized and authorized. If the frontend UI assumes per-user isolation (e.g., multiple browser sessions/users), it can observe cross-talk (workspace suddenly changing, wrong wiki pages, wrong job streams). This is an architectural mismatch that the frontend can’t fully fix, but the frontend should at least treat workspace as a global server state and avoid implying strong isolation guarantees in the UI.  
+
+2) Directory listing endpoint mismatch (frontend impact: UI/data model inconsistency)
+- The backend note says `list_directories()` “currently returns files as well.” If the frontend’s architecture assumes this endpoint returns only directories (e.g., for a tree UI), you’ll get incorrect rendering, filtering hacks in the UI, or brittle assumptions. This is a contract flaw that can force frontend workarounds and complicate the frontend architecture.
+
+3) Error handling may be inconsistent end-to-end (frontend impact: unreliable error surfaces)
+- The frontend has a centralized API client with `fetchJson` and an `ApiError` type for “consistent error handling.” However, backend components are noted to sometimes swallow exceptions “without logging,” and vector store code has “silent failures” returning empty results. Architecturally, this can cause the frontend to receive “successful” responses that are actually degraded (e.g., empty search/issues) and makes it hard for the frontend to distinguish “no results” from “backend failed silently.” The frontend may need explicit UX patterns for “possibly incomplete results” if the backend can fail silently.
+
+4) SSE job progress streaming requires careful lifecycle management (frontend impact: resource leaks / stale streams)
+- The API surface includes `streamJobProgress (SSE)` for streaming job progress. Without seeing your React code, a common architectural pitfall is not tying SSE connection lifecycle to component lifecycle/workspace/job selection (leading to multiple open streams, stale updates after workspace switch, or updates applied to the wrong job). The context confirms SSE is part of the design, but doesn’t show whether the frontend manages it correctly.
+
+In short: from the context, the most concrete “architectural flaws” are actually contract and concurrency hazards in the backend that the frontend must account for (workspace switching global state; directory listing mismatch; silent failures), plus the inherent complexity of SSE streaming that requires disciplined lifecycle handling in the frontend. A thorough frontend-architecture review isn’t possible from the provided excerpts because no actual frontend implementation details are included beyond the existence of a centralized API client.
+</answer>
+
+<citations>
+[
+  {
+    "path": "files/backend-src-oya-api-routers-repos-py.md",
+    "relevant_text": "Global workspace switching: `switch_workspace()` mutates process-wide environment and cached singletons. If this server handles multiple users/tenants concurrently, this design is inherently unsafe without strict serialization and authorization."
+  },
+  {
+    "path": "files/backend-src-oya-api-routers-repos-py.md",
+    "relevant_text": "Directory listing mismatch: `list_directories()` currently returns files as well; either filter to directories or update the docstring and any UI expectations."
+  },
+  {
+    "path": "directories/frontend-src-api.md",
+    "relevant_text": "`fetchJson` (function): Core helper for making HTTP requests and parsing JSON responses with consistent error handling... `streamJobProgress` (SSE): Streams job progress updates from the backend."
+  },
+  {
+    "path": "files/backend-src-oya-vectorstore-issues-py.md",
+    "relevant_text": "Silent failures: Several broad `except Exception: pass` / `return []` branches can obscure real errors."
+  }
+]
+</citations>",
+  "duration_ms": 16037,
+  "error": null
+}
