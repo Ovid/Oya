@@ -254,6 +254,10 @@ def test_graph_module_exports():
         "trace_flow",
         "get_entry_points",
         "get_leaf_nodes",
+        # Analysis
+        "filter_test_nodes",
+        "get_component_graph",
+        "select_top_entry_points",
     ]
 
     for name in expected_exports:
