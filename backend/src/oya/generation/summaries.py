@@ -82,7 +82,7 @@ class FileIssue:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary for storage."""
-        result = {
+        result: dict[str, Any] = {
             "file_path": self.file_path,
             "category": self.category,
             "severity": self.severity,
