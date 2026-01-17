@@ -1,5 +1,7 @@
 # TODO
 
+* Review code to see if it's making language/framework/tool, etc. assumptions
+  which violate the "generic analysis" rule.
 * Test suite hitting openai (possibly). Validate and then have ways to skip
   those tests unless requested.
     * Remove provider from .end and see if tests pass
