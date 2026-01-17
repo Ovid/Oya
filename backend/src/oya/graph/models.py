@@ -48,3 +48,41 @@ class Edge:
     confidence: float  # 0.0 to 1.0
     line: int  # Line number where relationship occurs
     metadata: dict = field(default_factory=dict)
+
+
+@dataclass
+class Subgraph:
+    """A subset of the code graph (nodes and edges)."""
+
+    nodes: list[Node]
+    edges: list[Edge]
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary for JSON output."""
+        return {
+            "nodes": [
+                {
+                    "id": n.id,
+                    "type": n.node_type.value,
+                    "name": n.name,
+                    "file_path": n.file_path,
+                    "line_start": n.line_start,
+                    "line_end": n.line_end,
+                    "docstring": n.docstring,
+                    "signature": n.signature,
+                    "metadata": n.metadata,
+                }
+                for n in self.nodes
+            ],
+            "edges": [
+                {
+                    "source": e.source,
+                    "target": e.target,
+                    "type": e.edge_type.value,
+                    "confidence": e.confidence,
+                    "line": e.line,
+                    "metadata": e.metadata,
+                }
+                for e in self.edges
+            ],
+        }
