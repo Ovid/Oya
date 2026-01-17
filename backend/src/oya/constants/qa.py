@@ -41,3 +41,14 @@ MIN_STRONG_MATCHES_FOR_HIGH = 3
 GRAPH_EXPANSION_HOPS = 2
 GRAPH_EXPANSION_CONFIDENCE_THRESHOLD = 0.5
 GRAPH_MERMAID_TOKEN_BUDGET = 500
+
+# =============================================================================
+# CGRAG - Iterative Retrieval (Phase 5)
+# =============================================================================
+# CGRAG (Contextually-Guided RAG) allows the LLM to request missing context
+# across multiple retrieval passes, producing more complete answers.
+
+CGRAG_MAX_PASSES = 3
+CGRAG_SESSION_TTL_MINUTES = 30
+CGRAG_SESSION_MAX_NODES = 50
+CGRAG_TARGETED_TOP_K = 3
