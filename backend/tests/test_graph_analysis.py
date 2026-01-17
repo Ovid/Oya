@@ -114,3 +114,47 @@ def test_get_component_graph_respects_confidence_threshold():
     assert component_graph.has_node("api")
     assert component_graph.has_node("db")
     assert not component_graph.has_edge("api", "db")
+
+
+def test_select_top_entry_points_by_fanout():
+    """select_top_entry_points returns entry points sorted by fan-out."""
+    from oya.graph.analysis import select_top_entry_points
+
+    G = nx.DiGraph()
+    # Entry point with high fan-out (calls 3 things)
+    G.add_node("api/main.py::handle_request", file_path="api/main.py")
+    G.add_node("db/query.py::query", file_path="db/query.py")
+    G.add_node("cache/redis.py::get", file_path="cache/redis.py")
+    G.add_node("log/logger.py::log", file_path="log/logger.py")
+    G.add_edge("api/main.py::handle_request", "db/query.py::query", type="calls", confidence=0.9, line=10)
+    G.add_edge("api/main.py::handle_request", "cache/redis.py::get", type="calls", confidence=0.9, line=15)
+    G.add_edge("api/main.py::handle_request", "log/logger.py::log", type="calls", confidence=0.9, line=20)
+
+    # Entry point with low fan-out (calls 1 thing)
+    G.add_node("cli/cmd.py::run", file_path="cli/cmd.py")
+    G.add_edge("cli/cmd.py::run", "log/logger.py::log", type="calls", confidence=0.9, line=5)
+
+    top = select_top_entry_points(G, n=2)
+
+    # Should return both entry points, sorted by fan-out (highest first)
+    assert len(top) == 2
+    assert top[0] == "api/main.py::handle_request"  # 3 outgoing
+    assert top[1] == "cli/cmd.py::run"  # 1 outgoing
+
+
+def test_select_top_entry_points_excludes_test_files():
+    """select_top_entry_points excludes test file entry points."""
+    from oya.graph.analysis import select_top_entry_points
+
+    G = nx.DiGraph()
+    G.add_node("api/main.py::handle", file_path="api/main.py")
+    G.add_node("tests/test_main.py::test_handle", file_path="tests/test_main.py")
+    G.add_node("db/query.py::query", file_path="db/query.py")
+    G.add_edge("api/main.py::handle", "db/query.py::query", type="calls", confidence=0.9, line=10)
+    G.add_edge("tests/test_main.py::test_handle", "api/main.py::handle", type="calls", confidence=0.9, line=5)
+
+    top = select_top_entry_points(G, n=5)
+
+    # Should only return production entry point
+    assert len(top) == 1
+    assert top[0] == "api/main.py::handle"

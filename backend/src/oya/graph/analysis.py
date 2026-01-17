@@ -116,3 +116,50 @@ def get_component_graph(
         )
 
     return component_graph
+
+
+def select_top_entry_points(
+    graph: nx.DiGraph,
+    n: int = 5,
+) -> list[str]:
+    """Select top N entry points by fan-out (number of outgoing calls).
+
+    Entry points are nodes with no incoming "calls" edges but have outgoing calls.
+    Test files are excluded.
+
+    Args:
+        graph: The code graph.
+        n: Maximum number of entry points to return.
+
+    Returns:
+        List of node IDs sorted by fan-out (highest first).
+    """
+    entry_points = []
+
+    for node_id, attrs in graph.nodes(data=True):
+        file_path = attrs.get("file_path", node_id)
+
+        # Skip test files
+        if is_test_file(file_path):
+            continue
+
+        # Check if entry point (no incoming calls from non-test files)
+        in_calls = [
+            1
+            for src, _, d in graph.in_edges(node_id, data=True)
+            if d.get("type") == "calls"
+            and not is_test_file(graph.nodes[src].get("file_path", src))
+        ]
+        out_calls = [
+            1
+            for _, _, d in graph.out_edges(node_id, data=True)
+            if d.get("type") == "calls"
+        ]
+
+        if len(out_calls) > 0 and len(in_calls) == 0:
+            entry_points.append((node_id, len(out_calls)))
+
+    # Sort by fan-out descending
+    entry_points.sort(key=lambda x: x[1], reverse=True)
+
+    return [ep[0] for ep in entry_points[:n]]
