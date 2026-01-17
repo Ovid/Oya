@@ -31,11 +31,41 @@ class Citation(BaseModel):
     url: str = Field(..., description="Frontend route (e.g., '/files/src_main-py')")
 
 
+class CGRAGMetadata(BaseModel):
+    """Metadata about the iterative retrieval process."""
+
+    passes_used: int = Field(..., description="Number of retrieval passes (1-3)")
+    gaps_identified: list[str] = Field(
+        default_factory=list,
+        description="All gaps the LLM requested across passes",
+    )
+    gaps_resolved: list[str] = Field(
+        default_factory=list,
+        description="Gaps that were successfully retrieved",
+    )
+    gaps_unresolved: list[str] = Field(
+        default_factory=list,
+        description="Gaps that could not be found",
+    )
+    session_id: str | None = Field(
+        None,
+        description="Session ID for follow-up questions",
+    )
+    context_from_cache: bool = Field(
+        False,
+        description="Whether session cache contributed context",
+    )
+
+
 class QARequest(BaseModel):
     """Request for Q&A endpoint."""
 
     question: str = Field(..., min_length=1, description="The question to answer")
     use_graph: bool = Field(default=True, description="Whether to use graph expansion")
+    session_id: str | None = Field(
+        None,
+        description="Session ID for CGRAG context continuity",
+    )
 
 
 class QAResponse(BaseModel):
@@ -57,4 +87,8 @@ class QAResponse(BaseModel):
     search_quality: SearchQuality = Field(
         ...,
         description="Metrics about search execution",
+    )
+    cgrag: CGRAGMetadata | None = Field(
+        None,
+        description="CGRAG iteration metadata (if iterative retrieval was used)",
     )
