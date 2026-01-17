@@ -190,3 +190,23 @@ function main() {
     call_names = [r.target for r in refs if r.reference_type.value == "calls"]
     assert "helper" in call_names
     assert "process" in call_names
+
+
+def test_extracts_new_expressions(parser):
+    """Extracts class instantiations via new keyword."""
+    code = '''
+function main() {
+    const user = new User("alice");
+    const config = new Config();
+}
+'''
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    refs = result.file.references
+
+    instantiations = [r for r in refs if r.reference_type.value == "instantiates"]
+    targets = [r.target for r in instantiations]
+
+    assert "User" in targets
+    assert "Config" in targets
