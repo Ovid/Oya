@@ -58,9 +58,7 @@ export function GenerationProgress({
               if (!(phaseName in phaseStartTimesRef.current)) {
                 phaseStartTimesRef.current[phaseName] = Date.now()
                 // Also store elapsed seconds at phase start (for render use)
-                const elapsedAtStart = Math.floor(
-                  (Date.now() - startTime.getTime()) / 1000
-                )
+                const elapsedAtStart = Math.floor((Date.now() - startTime.getTime()) / 1000)
                 setPhaseStartElapsedTimes((prev) => ({
                   ...prev,
                   [phaseName]: elapsedAtStart,

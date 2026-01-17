@@ -176,12 +176,12 @@ function broken( {
 
 def test_extracts_function_calls(parser):
     """Extracts function calls with confidence."""
-    code = '''
+    code = """
 function main() {
     const result = helper();
     process(result);
 }
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -194,12 +194,12 @@ function main() {
 
 def test_extracts_new_expressions(parser):
     """Extracts class instantiations via new keyword."""
-    code = '''
+    code = """
 function main() {
     const user = new User("alice");
     const config = new Config();
 }
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok
@@ -214,13 +214,13 @@ function main() {
 
 def test_extracts_inheritance(parser):
     """Extracts class inheritance (extends)."""
-    code = '''
+    code = """
 class Animal {}
 
 class Dog extends Animal {}
 
 class Labrador extends Dog implements Serializable {}
-'''
+"""
     result = parser.parse_string(code, "test.ts")
 
     assert result.ok

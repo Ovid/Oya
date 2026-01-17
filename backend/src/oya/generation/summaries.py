@@ -556,9 +556,7 @@ class SummaryParser:
                 issue = FileIssue.from_dict(item_with_path)
                 issues.append(issue)
             except (ValueError, KeyError) as e:
-                logger.warning(
-                    f"Failed to parse issue for {file_path}: {e}. Item: {item}"
-                )
+                logger.warning(f"Failed to parse issue for {file_path}: {e}. Item: {item}")
 
         return issues
 

@@ -37,22 +37,24 @@ SEVERITY_DESCRIPTIONS = {
 # =============================================================================
 # Keywords that trigger issue-aware Q&A responses
 
-ISSUE_QUERY_KEYWORDS = frozenset([
-    "bug",
-    "bugs",
-    "issue",
-    "issues",
-    "problem",
-    "problems",
-    "security",
-    "vulnerability",
-    "vulnerabilities",
-    "code quality",
-    "technical debt",
-    "tech debt",
-    "what's wrong",
-    "whats wrong",
-    "concerns",
-    "risks",
-    "flaws",
-])
+ISSUE_QUERY_KEYWORDS = frozenset(
+    [
+        "bug",
+        "bugs",
+        "issue",
+        "issues",
+        "problem",
+        "problems",
+        "security",
+        "vulnerability",
+        "vulnerabilities",
+        "code quality",
+        "technical debt",
+        "tech debt",
+        "what's wrong",
+        "whats wrong",
+        "concerns",
+        "risks",
+        "flaws",
+    ]
+)

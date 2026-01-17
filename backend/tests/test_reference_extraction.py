@@ -1,7 +1,6 @@
 """Integration tests for reference extraction."""
 
 import pytest
-from pathlib import Path
 
 from oya.parsing import PythonParser, TypeScriptParser, ReferenceType
 
@@ -69,7 +68,7 @@ class TestTypeScriptReferenceExtraction:
 
     def test_extracts_references_from_real_code(self, parser):
         """Parse a realistic TypeScript file and verify reference extraction."""
-        code = '''
+        code = """
 import { User } from './models';
 import { Database } from './database';
 
@@ -90,7 +89,7 @@ export class UserService {
         return this.db.query(User).filterBy({ email }).first();
     }
 }
-'''
+"""
         result = parser.parse_string(code, "user_service.ts")
 
         assert result.ok

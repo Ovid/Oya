@@ -94,9 +94,7 @@ class IssuesStore:
 
         try:
             if query:
-                results = self._collection.query(
-                    query_texts=[query], n_results=limit, where=where
-                )
+                results = self._collection.query(query_texts=[query], n_results=limit, where=where)
                 ids = results.get("ids", [[]])[0]
                 documents = results.get("documents", [[]])[0]
                 metadatas = results.get("metadatas", [[]])[0]

@@ -2107,7 +2107,7 @@ class TestSummaryParserIssues:
         """SummaryParser extracts issues from YAML."""
         from oya.generation.summaries import SummaryParser
 
-        markdown = '''---
+        markdown = """---
 file_summary:
   purpose: "Handles user authentication"
   layer: api
@@ -2131,7 +2131,7 @@ file_summary:
 # Authentication Module
 
 This module handles user authentication.
-'''
+"""
 
         parser = SummaryParser()
         clean_md, summary = parser.parse_file_summary(markdown, "auth.py")
@@ -2151,7 +2151,7 @@ This module handles user authentication.
         """SummaryParser handles YAML without issues field."""
         from oya.generation.summaries import SummaryParser
 
-        markdown = '''---
+        markdown = """---
 file_summary:
   purpose: "Utility functions"
   layer: utility
@@ -2161,7 +2161,7 @@ file_summary:
 ---
 
 # Utilities
-'''
+"""
 
         parser = SummaryParser()
         _, summary = parser.parse_file_summary(markdown, "utils.py")
@@ -2172,7 +2172,7 @@ file_summary:
         """SummaryParser handles explicit empty issues list."""
         from oya.generation.summaries import SummaryParser
 
-        markdown = '''---
+        markdown = """---
 file_summary:
   purpose: "Clean code"
   layer: domain
@@ -2183,7 +2183,7 @@ file_summary:
 ---
 
 # Clean Module
-'''
+"""
 
         parser = SummaryParser()
         _, summary = parser.parse_file_summary(markdown, "clean.py")
@@ -2194,7 +2194,7 @@ file_summary:
         """Invalid category falls back to maintainability."""
         from oya.generation.summaries import SummaryParser
 
-        markdown = '''---
+        markdown = """---
 file_summary:
   purpose: "Test"
   layer: utility
@@ -2206,7 +2206,7 @@ file_summary:
 ---
 
 # Test
-'''
+"""
 
         parser = SummaryParser()
         _, summary = parser.parse_file_summary(markdown, "test.py")

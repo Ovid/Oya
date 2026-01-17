@@ -592,7 +592,9 @@ Format your response with:
                         path=path,
                         title=issue.get("title", path),
                         lines=None,
-                        url=self._path_to_url(f"files/{path.replace('/', '-').replace('.', '-')}.md"),
+                        url=self._path_to_url(
+                            f"files/{path.replace('/', '-').replace('.', '-')}.md"
+                        ),
                     )
                 )
 
