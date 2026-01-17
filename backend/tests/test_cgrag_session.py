@@ -60,9 +60,7 @@ class TestCGRAGSession:
         assert not session.is_expired()
 
         # Manually expire by setting old timestamp
-        session.last_accessed = datetime.now() - timedelta(
-            minutes=CGRAG_SESSION_TTL_MINUTES + 1
-        )
+        session.last_accessed = datetime.now() - timedelta(minutes=CGRAG_SESSION_TTL_MINUTES + 1)
         assert session.is_expired()
 
     def test_session_touch_updates_timestamp(self):
@@ -74,6 +72,7 @@ class TestCGRAGSession:
 
         # Small delay to ensure timestamp changes
         import time
+
         time.sleep(0.01)
 
         session.touch()
@@ -140,9 +139,7 @@ class TestSessionStore:
         session1 = store.get_or_create(None)
 
         # Manually expire the session
-        session1.last_accessed = datetime.now() - timedelta(
-            minutes=CGRAG_SESSION_TTL_MINUTES + 1
-        )
+        session1.last_accessed = datetime.now() - timedelta(minutes=CGRAG_SESSION_TTL_MINUTES + 1)
 
         session2 = store.get_or_create(session1.id)
 
@@ -158,9 +155,7 @@ class TestSessionStore:
         session2 = store.get_or_create(None)
 
         # Expire session1
-        session1.last_accessed = datetime.now() - timedelta(
-            minutes=CGRAG_SESSION_TTL_MINUTES + 1
-        )
+        session1.last_accessed = datetime.now() - timedelta(minutes=CGRAG_SESSION_TTL_MINUTES + 1)
 
         store.cleanup_expired()
 
