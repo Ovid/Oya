@@ -157,3 +157,69 @@ class TestExpandWithGraph:
 
         assert len(subgraph.nodes) == 0
         assert len(subgraph.edges) == 0
+
+
+class TestPrioritizeNodes:
+    """Tests for prioritize_nodes function."""
+
+    def test_prioritize_by_centrality(self):
+        """Nodes with more connections rank higher."""
+        from oya.qa.graph_retrieval import prioritize_nodes
+        from oya.graph.models import Node, NodeType
+
+        # verify_token has more connections than db_query
+        nodes = [
+            Node(
+                id="db/query.py::db_query",
+                node_type=NodeType.FUNCTION,
+                name="db_query",
+                file_path="db/query.py",
+                line_start=1,
+                line_end=15,
+            ),
+            Node(
+                id="auth/verify.py::verify_token",
+                node_type=NodeType.FUNCTION,
+                name="verify_token",
+                file_path="auth/verify.py",
+                line_start=5,
+                line_end=25,
+            ),
+        ]
+
+        graph = _make_test_graph()
+        prioritized = prioritize_nodes(nodes, graph)
+
+        # verify_token should rank first (more connections)
+        assert prioritized[0].name == "verify_token"
+
+    def test_prioritize_preserves_all_nodes(self):
+        """All input nodes appear in output."""
+        from oya.qa.graph_retrieval import prioritize_nodes
+        from oya.graph.models import Node, NodeType
+
+        nodes = [
+            Node(
+                id="a",
+                node_type=NodeType.FUNCTION,
+                name="a",
+                file_path="a.py",
+                line_start=1,
+                line_end=10,
+            ),
+            Node(
+                id="b",
+                node_type=NodeType.FUNCTION,
+                name="b",
+                file_path="b.py",
+                line_start=1,
+                line_end=10,
+            ),
+        ]
+
+        graph = nx.DiGraph()  # Empty graph
+        prioritized = prioritize_nodes(nodes, graph)
+
+        assert len(prioritized) == 2
+        names = {n.name for n in prioritized}
+        assert names == {"a", "b"}
