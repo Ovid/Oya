@@ -27,7 +27,7 @@ def get_qa_service(
 ) -> QAService:
     """Get Q&A service instance."""
     # Load graph if available
-    workspace = Path(settings.WORKSPACE_PATH)
+    workspace = Path(settings.workspace_path)
     graph_dir = workspace / ".oyawiki" / "graph"
     graph = None
     if graph_dir.exists():
