@@ -35,6 +35,7 @@ class QARequest(BaseModel):
     """Request for Q&A endpoint."""
 
     question: str = Field(..., min_length=1, description="The question to answer")
+    use_graph: bool = Field(default=True, description="Whether to use graph expansion")
 
 
 class QAResponse(BaseModel):
