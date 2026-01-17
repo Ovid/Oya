@@ -34,3 +34,32 @@ def test_node_type_enum():
     assert NodeType.METHOD.value == "method"
     assert NodeType.FILE.value == "file"
     assert NodeType.MODULE.value == "module"
+
+
+def test_edge_model_creation():
+    """Edge model stores relationship with confidence."""
+    from oya.graph.models import Edge, EdgeType
+
+    edge = Edge(
+        source="qa.py::ask_question",
+        target="vectorstore/search.py::semantic_search",
+        edge_type=EdgeType.CALLS,
+        confidence=0.9,
+        line=52,
+    )
+
+    assert edge.source == "qa.py::ask_question"
+    assert edge.target == "vectorstore/search.py::semantic_search"
+    assert edge.edge_type == EdgeType.CALLS
+    assert edge.confidence == 0.9
+    assert edge.line == 52
+
+
+def test_edge_type_enum():
+    """EdgeType has expected values matching ReferenceType."""
+    from oya.graph.models import EdgeType
+
+    assert EdgeType.CALLS.value == "calls"
+    assert EdgeType.INSTANTIATES.value == "instantiates"
+    assert EdgeType.INHERITS.value == "inherits"
+    assert EdgeType.IMPORTS.value == "imports"
