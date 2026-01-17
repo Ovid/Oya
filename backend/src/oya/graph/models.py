@@ -114,3 +114,47 @@ class Subgraph:
                 )
 
         return "\n".join(lines)
+
+    def to_mermaid(self) -> str:
+        """Generate deterministic Mermaid flowchart from subgraph."""
+        lines = ["flowchart TD"]
+
+        # Create stable node IDs (sanitize for Mermaid)
+        def sanitize_id(node_id: str) -> str:
+            return (
+                node_id.replace("/", "_")
+                .replace("::", "_")
+                .replace(".", "_")
+                .replace("-", "_")
+            )
+
+        # Sort for determinism
+        sorted_nodes = sorted(self.nodes, key=lambda n: n.id)
+        sorted_edges = sorted(self.edges, key=lambda e: (e.source, e.target))
+
+        # Add node definitions with shapes based on type
+        for node in sorted_nodes:
+            safe_id = sanitize_id(node.id)
+            if node.node_type == NodeType.CLASS:
+                lines.append(f"    {safe_id}[{node.name}]")
+            elif node.node_type == NodeType.FUNCTION:
+                lines.append(f"    {safe_id}({node.name})")
+            elif node.node_type == NodeType.METHOD:
+                lines.append(f"    {safe_id}({node.name})")
+            else:
+                lines.append(f"    {safe_id}[{node.name}]")
+
+        # Add edges with appropriate arrow styles
+        edge_styles = {
+            EdgeType.CALLS: "-->",
+            EdgeType.INSTANTIATES: "-.->",
+            EdgeType.INHERITS: "-->|inherits|",
+            EdgeType.IMPORTS: "-.->|imports|",
+        }
+        for edge in sorted_edges:
+            source_id = sanitize_id(edge.source)
+            target_id = sanitize_id(edge.target)
+            arrow = edge_styles.get(edge.edge_type, "-->")
+            lines.append(f"    {source_id} {arrow} {target_id}")
+
+        return "\n".join(lines)

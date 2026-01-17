@@ -167,3 +167,53 @@ def test_subgraph_to_context():
     assert "auth/handler.py" in context
     # Should describe relationships
     assert "calls" in context.lower()
+
+
+def test_subgraph_to_mermaid():
+    """Subgraph generates deterministic Mermaid diagram."""
+    from oya.graph.models import Node, Edge, Subgraph, NodeType, EdgeType
+
+    node1 = Node(
+        id="auth/handler.py::login",
+        node_type=NodeType.FUNCTION,
+        name="login",
+        file_path="auth/handler.py",
+        line_start=10,
+        line_end=25,
+    )
+    node2 = Node(
+        id="auth/session.py::create_session",
+        node_type=NodeType.FUNCTION,
+        name="create_session",
+        file_path="auth/session.py",
+        line_start=5,
+        line_end=15,
+    )
+    node3 = Node(
+        id="models/user.py::User",
+        node_type=NodeType.CLASS,
+        name="User",
+        file_path="models/user.py",
+        line_start=1,
+        line_end=50,
+    )
+    edges = [
+        Edge(source="auth/handler.py::login", target="auth/session.py::create_session",
+             edge_type=EdgeType.CALLS, confidence=0.9, line=20),
+        Edge(source="auth/handler.py::login", target="models/user.py::User",
+             edge_type=EdgeType.INSTANTIATES, confidence=0.85, line=15),
+    ]
+
+    subgraph = Subgraph(nodes=[node1, node2, node3], edges=edges)
+    mermaid = subgraph.to_mermaid()
+
+    # Should be valid Mermaid flowchart
+    assert mermaid.startswith("flowchart")
+    # Should contain node definitions
+    assert "login" in mermaid
+    assert "create_session" in mermaid
+    assert "User" in mermaid
+    # Should contain edges
+    assert "-->" in mermaid  # calls edge
+    # Should be deterministic (same input = same output)
+    assert subgraph.to_mermaid() == mermaid
