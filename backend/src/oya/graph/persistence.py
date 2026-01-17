@@ -25,17 +25,19 @@ def save_graph(graph: nx.DiGraph, output_dir: Path) -> None:
     # Serialize nodes
     nodes = []
     for node_id, attrs in graph.nodes(data=True):
-        nodes.append({
-            "id": node_id,
-            "name": attrs.get("name"),
-            "type": attrs.get("type"),
-            "file_path": attrs.get("file_path"),
-            "line_start": attrs.get("line_start"),
-            "line_end": attrs.get("line_end"),
-            "docstring": attrs.get("docstring"),
-            "signature": attrs.get("signature"),
-            "parent": attrs.get("parent"),
-        })
+        nodes.append(
+            {
+                "id": node_id,
+                "name": attrs.get("name"),
+                "type": attrs.get("type"),
+                "file_path": attrs.get("file_path"),
+                "line_start": attrs.get("line_start"),
+                "line_end": attrs.get("line_end"),
+                "docstring": attrs.get("docstring"),
+                "signature": attrs.get("signature"),
+                "parent": attrs.get("parent"),
+            }
+        )
 
     # Sort for determinism
     nodes.sort(key=lambda n: n["id"])
@@ -46,13 +48,15 @@ def save_graph(graph: nx.DiGraph, output_dir: Path) -> None:
     # Serialize edges
     edges = []
     for source, target, attrs in graph.edges(data=True):
-        edges.append({
-            "source": source,
-            "target": target,
-            "type": attrs.get("type"),
-            "confidence": attrs.get("confidence"),
-            "line": attrs.get("line"),
-        })
+        edges.append(
+            {
+                "source": source,
+                "target": target,
+                "type": attrs.get("type"),
+                "confidence": attrs.get("confidence"),
+                "line": attrs.get("line"),
+            }
+        )
 
     # Sort for determinism
     edges.sort(key=lambda e: (e["source"], e["target"]))

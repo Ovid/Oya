@@ -1,7 +1,5 @@
 """Tests for graph data models."""
 
-import pytest
-
 
 def test_node_model_creation():
     """Node model stores entity metadata."""
@@ -198,10 +196,20 @@ def test_subgraph_to_mermaid():
         line_end=50,
     )
     edges = [
-        Edge(source="auth/handler.py::login", target="auth/session.py::create_session",
-             edge_type=EdgeType.CALLS, confidence=0.9, line=20),
-        Edge(source="auth/handler.py::login", target="models/user.py::User",
-             edge_type=EdgeType.INSTANTIATES, confidence=0.85, line=15),
+        Edge(
+            source="auth/handler.py::login",
+            target="auth/session.py::create_session",
+            edge_type=EdgeType.CALLS,
+            confidence=0.9,
+            line=20,
+        ),
+        Edge(
+            source="auth/handler.py::login",
+            target="models/user.py::User",
+            edge_type=EdgeType.INSTANTIATES,
+            confidence=0.85,
+            line=15,
+        ),
     ]
 
     subgraph = Subgraph(nodes=[node1, node2, node3], edges=edges)
@@ -221,29 +229,35 @@ def test_subgraph_to_mermaid():
 
 def test_graph_module_exports():
     """Graph module exports all public interfaces."""
-    from oya.graph import (
+    import oya.graph as graph_module
+
+    # Verify all expected exports are present
+    expected_exports = [
         # Models
-        Node,
-        NodeType,
-        Edge,
-        EdgeType,
-        Subgraph,
+        "Node",
+        "NodeType",
+        "Edge",
+        "EdgeType",
+        "Subgraph",
         # Builder
-        build_graph,
+        "build_graph",
         # Resolver
-        SymbolTable,
-        resolve_references,
+        "SymbolTable",
+        "resolve_references",
         # Persistence
-        save_graph,
-        load_graph,
+        "save_graph",
+        "load_graph",
         # Query
-        get_calls,
-        get_callers,
-        get_neighborhood,
-        trace_flow,
-        get_entry_points,
-        get_leaf_nodes,
-    )
+        "get_calls",
+        "get_callers",
+        "get_neighborhood",
+        "trace_flow",
+        "get_entry_points",
+        "get_leaf_nodes",
+    ]
+
+    for name in expected_exports:
+        assert hasattr(graph_module, name), f"Missing export: {name}"
 
     # Basic smoke test
-    assert NodeType.FUNCTION.value == "function"
+    assert graph_module.NodeType.FUNCTION.value == "function"
