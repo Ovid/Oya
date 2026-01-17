@@ -516,3 +516,41 @@ class TestFileTemplateIssues:
         assert "test.py" in prompt
         assert "def hello()" in prompt
         assert "issues:" in prompt
+
+
+def test_get_graph_architecture_prompt_includes_component_diagram():
+    """get_graph_architecture_prompt includes the component diagram."""
+    from oya.generation.prompts import get_graph_architecture_prompt
+
+    prompt = get_graph_architecture_prompt(
+        repo_name="my-project",
+        component_diagram="flowchart LR\n    api --> db",
+        entry_points=[
+            {"id": "api/main.py::handle", "name": "handle", "file": "api/main.py", "fanout": 3},
+        ],
+        flow_diagrams=[
+            {"entry_point": "handle", "diagram": "flowchart TD\n    handle --> query"},
+        ],
+        component_summaries={"api": "HTTP endpoints", "db": "Database access"},
+    )
+
+    assert "flowchart LR" in prompt
+    assert "api --> db" in prompt
+    assert "handle" in prompt
+    assert "HTTP endpoints" in prompt
+
+
+def test_get_graph_architecture_prompt_handles_empty_flows():
+    """get_graph_architecture_prompt handles case with no flow diagrams."""
+    from oya.generation.prompts import get_graph_architecture_prompt
+
+    prompt = get_graph_architecture_prompt(
+        repo_name="my-project",
+        component_diagram="flowchart LR\n    api --> db",
+        entry_points=[],
+        flow_diagrams=[],
+        component_summaries={},
+    )
+
+    assert "flowchart LR" in prompt
+    assert "my-project" in prompt
