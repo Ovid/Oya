@@ -61,6 +61,75 @@ def get_callers(
     return nodes
 
 
+def get_neighborhood(
+    graph: nx.DiGraph,
+    node_id: str,
+    hops: int = 2,
+    min_confidence: float = 0.0,
+) -> Subgraph:
+    """Get all nodes within N hops of the given node.
+
+    Args:
+        graph: The code graph.
+        node_id: ID of the center node.
+        hops: Maximum distance from center node.
+        min_confidence: Minimum edge confidence to traverse.
+
+    Returns:
+        Subgraph containing nodes and edges within the neighborhood.
+    """
+    if not graph.has_node(node_id):
+        return Subgraph(nodes=[], edges=[])
+
+    # Use BFS to find all nodes within N hops
+    visited = {node_id}
+    frontier = {node_id}
+
+    for _ in range(hops):
+        next_frontier = set()
+        for current in frontier:
+            # Check outgoing edges
+            for _, target, edge_data in graph.out_edges(current, data=True):
+                if edge_data.get("confidence", 0) >= min_confidence:
+                    if target not in visited:
+                        visited.add(target)
+                        next_frontier.add(target)
+            # Check incoming edges
+            for source, _, edge_data in graph.in_edges(current, data=True):
+                if edge_data.get("confidence", 0) >= min_confidence:
+                    if source not in visited:
+                        visited.add(source)
+                        next_frontier.add(source)
+        frontier = next_frontier
+
+    # Build subgraph
+    nodes = []
+    for nid in visited:
+        if graph.has_node(nid):
+            node_data = graph.nodes[nid]
+            nodes.append(_node_from_data(nid, node_data))
+
+    edges = []
+    for source, target, edge_data in graph.edges(data=True):
+        if source in visited and target in visited:
+            if edge_data.get("confidence", 0) >= min_confidence:
+                edge_type_str = edge_data.get("type", "calls")
+                try:
+                    edge_type = EdgeType(edge_type_str)
+                except ValueError:
+                    edge_type = EdgeType.CALLS
+
+                edges.append(Edge(
+                    source=source,
+                    target=target,
+                    edge_type=edge_type,
+                    confidence=edge_data.get("confidence", 0),
+                    line=edge_data.get("line", 0),
+                ))
+
+    return Subgraph(nodes=nodes, edges=edges)
+
+
 def _node_from_data(node_id: str, data: dict) -> Node:
     """Convert graph node data to Node model."""
     node_type_str = data.get("type", "function")
