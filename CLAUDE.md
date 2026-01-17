@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ọya is a local-first, editable wiki generator for codebases. It uses LLMs to generate documentation from source code and stores everything in `.oyawiki/` within the target repository.
 
+IMPORTANT: this is a generic repository analysis tool. DO NOT MAKE ASSUMPTIONS ABOUT THE CODEBASE BEING ANALYZED. For example, we often use Oya to analyze itself and you often create designs assuming the same tech stack as Oya. THIS IS AN ERROR. Do not make assumptions about the programming languages, frameworks, tools, etc. These must be discovered, not assumed.
+
 ## Development Commands
 
 ### Backend (Python/FastAPI)
