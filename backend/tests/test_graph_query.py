@@ -10,25 +10,71 @@ def sample_graph():
     G = nx.DiGraph()
 
     # Add nodes
-    G.add_node("handler.py::process_request", name="process_request", type="function",
-               file_path="handler.py", line_start=10, line_end=30, docstring=None, signature=None, parent=None)
-    G.add_node("auth.py::verify_token", name="verify_token", type="function",
-               file_path="auth.py", line_start=5, line_end=15, docstring=None, signature=None, parent=None)
-    G.add_node("db.py::get_user", name="get_user", type="function",
-               file_path="db.py", line_start=20, line_end=35, docstring=None, signature=None, parent=None)
-    G.add_node("response.py::send_response", name="send_response", type="function",
-               file_path="response.py", line_start=1, line_end=10, docstring=None, signature=None, parent=None)
+    G.add_node(
+        "handler.py::process_request",
+        name="process_request",
+        type="function",
+        file_path="handler.py",
+        line_start=10,
+        line_end=30,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
+    G.add_node(
+        "auth.py::verify_token",
+        name="verify_token",
+        type="function",
+        file_path="auth.py",
+        line_start=5,
+        line_end=15,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
+    G.add_node(
+        "db.py::get_user",
+        name="get_user",
+        type="function",
+        file_path="db.py",
+        line_start=20,
+        line_end=35,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
+    G.add_node(
+        "response.py::send_response",
+        name="send_response",
+        type="function",
+        file_path="response.py",
+        line_start=1,
+        line_end=10,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
 
     # Add edges: process_request calls verify_token, get_user, send_response
-    G.add_edge("handler.py::process_request", "auth.py::verify_token",
-               type="calls", confidence=0.95, line=15)
-    G.add_edge("handler.py::process_request", "db.py::get_user",
-               type="calls", confidence=0.9, line=20)
-    G.add_edge("handler.py::process_request", "response.py::send_response",
-               type="calls", confidence=0.85, line=25)
+    G.add_edge(
+        "handler.py::process_request",
+        "auth.py::verify_token",
+        type="calls",
+        confidence=0.95,
+        line=15,
+    )
+    G.add_edge(
+        "handler.py::process_request", "db.py::get_user", type="calls", confidence=0.9, line=20
+    )
+    G.add_edge(
+        "handler.py::process_request",
+        "response.py::send_response",
+        type="calls",
+        confidence=0.85,
+        line=25,
+    )
     # verify_token also calls get_user
-    G.add_edge("auth.py::verify_token", "db.py::get_user",
-               type="calls", confidence=0.7, line=10)
+    G.add_edge("auth.py::verify_token", "db.py::get_user", type="calls", confidence=0.7, line=10)
 
     return G
 
@@ -142,10 +188,28 @@ def test_trace_flow_no_path():
     from oya.graph.query import trace_flow
 
     G = nx.DiGraph()
-    G.add_node("a.py::func_a", name="func_a", type="function", file_path="a.py",
-               line_start=1, line_end=10, docstring=None, signature=None, parent=None)
-    G.add_node("b.py::func_b", name="func_b", type="function", file_path="b.py",
-               line_start=1, line_end=10, docstring=None, signature=None, parent=None)
+    G.add_node(
+        "a.py::func_a",
+        name="func_a",
+        type="function",
+        file_path="a.py",
+        line_start=1,
+        line_end=10,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
+    G.add_node(
+        "b.py::func_b",
+        name="func_b",
+        type="function",
+        file_path="b.py",
+        line_start=1,
+        line_end=10,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
     # No edge between them
 
     paths = trace_flow(G, "a.py::func_a", "b.py::func_b")

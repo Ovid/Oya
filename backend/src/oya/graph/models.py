@@ -121,12 +121,7 @@ class Subgraph:
 
         # Create stable node IDs (sanitize for Mermaid)
         def sanitize_id(node_id: str) -> str:
-            return (
-                node_id.replace("/", "_")
-                .replace("::", "_")
-                .replace(".", "_")
-                .replace("-", "_")
-            )
+            return node_id.replace("/", "_").replace("::", "_").replace(".", "_").replace("-", "_")
 
         # Sort for determinism
         sorted_nodes = sorted(self.nodes, key=lambda n: n.id)

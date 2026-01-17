@@ -1,6 +1,5 @@
 """Tests for NetworkX graph construction."""
 
-import pytest
 from oya.parsing.models import ParsedFile, ParsedSymbol, SymbolType, Reference, ReferenceType
 
 
@@ -12,7 +11,9 @@ def test_build_graph_from_parsed_files():
         path="auth/utils.py",
         language="python",
         symbols=[
-            ParsedSymbol(name="verify", symbol_type=SymbolType.FUNCTION, start_line=10, end_line=20),
+            ParsedSymbol(
+                name="verify", symbol_type=SymbolType.FUNCTION, start_line=10, end_line=20
+            ),
         ],
     )
     file2 = ParsedFile(

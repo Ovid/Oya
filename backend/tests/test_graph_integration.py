@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 from oya.parsing import PythonParser
-from oya.graph import build_graph, save_graph, load_graph, get_calls, get_neighborhood
+from oya.graph import build_graph, save_graph, load_graph, get_neighborhood
 
 
 class TestGraphSelfAnalysis:

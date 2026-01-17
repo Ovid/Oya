@@ -1,6 +1,5 @@
 """Tests for cross-file reference resolution."""
 
-import pytest
 from oya.parsing.models import ParsedFile, ParsedSymbol, SymbolType, Reference, ReferenceType
 
 
@@ -57,14 +56,18 @@ def test_symbol_table_handles_duplicates():
         path="a.py",
         language="python",
         symbols=[
-            ParsedSymbol(name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10),
+            ParsedSymbol(
+                name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10
+            ),
         ],
     )
     file2 = ParsedFile(
         path="b.py",
         language="python",
         symbols=[
-            ParsedSymbol(name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10),
+            ParsedSymbol(
+                name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10
+            ),
         ],
     )
 
@@ -84,7 +87,9 @@ def test_resolve_reference_exact_match():
         path="auth/utils.py",
         language="python",
         symbols=[
-            ParsedSymbol(name="verify", symbol_type=SymbolType.FUNCTION, start_line=10, end_line=20),
+            ParsedSymbol(
+                name="verify", symbol_type=SymbolType.FUNCTION, start_line=10, end_line=20
+            ),
         ],
         references=[],
     )
@@ -124,14 +129,18 @@ def test_resolve_reference_ambiguous():
         path="a.py",
         language="python",
         symbols=[
-            ParsedSymbol(name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10),
+            ParsedSymbol(
+                name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10
+            ),
         ],
     )
     file2 = ParsedFile(
         path="b.py",
         language="python",
         symbols=[
-            ParsedSymbol(name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10),
+            ParsedSymbol(
+                name="process", symbol_type=SymbolType.FUNCTION, start_line=1, end_line=10
+            ),
         ],
     )
     file3 = ParsedFile(

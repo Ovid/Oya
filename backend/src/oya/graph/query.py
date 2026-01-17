@@ -119,13 +119,15 @@ def get_neighborhood(
                 except ValueError:
                     edge_type = EdgeType.CALLS
 
-                edges.append(Edge(
-                    source=source,
-                    target=target,
-                    edge_type=edge_type,
-                    confidence=edge_data.get("confidence", 0),
-                    line=edge_data.get("line", 0),
-                ))
+                edges.append(
+                    Edge(
+                        source=source,
+                        target=target,
+                        edge_type=edge_type,
+                        confidence=edge_data.get("confidence", 0),
+                        line=edge_data.get("line", 0),
+                    )
+                )
 
     return Subgraph(nodes=nodes, edges=edges)
 
@@ -186,7 +188,9 @@ def get_entry_points(graph: nx.DiGraph) -> list[Node]:
     nodes = []
     for node_id in graph.nodes():
         in_calls = [1 for _, _, d in graph.in_edges(node_id, data=True) if d.get("type") == "calls"]
-        out_calls = [1 for _, _, d in graph.out_edges(node_id, data=True) if d.get("type") == "calls"]
+        out_calls = [
+            1 for _, _, d in graph.out_edges(node_id, data=True) if d.get("type") == "calls"
+        ]
 
         # Entry point: has outgoing calls but no incoming calls
         if len(out_calls) > 0 and len(in_calls) == 0:
@@ -207,7 +211,9 @@ def get_leaf_nodes(graph: nx.DiGraph) -> list[Node]:
     """
     nodes = []
     for node_id in graph.nodes():
-        out_calls = [1 for _, _, d in graph.out_edges(node_id, data=True) if d.get("type") == "calls"]
+        out_calls = [
+            1 for _, _, d in graph.out_edges(node_id, data=True) if d.get("type") == "calls"
+        ]
 
         if len(out_calls) == 0:
             node_data = graph.nodes[node_id]

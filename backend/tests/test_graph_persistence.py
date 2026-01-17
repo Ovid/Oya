@@ -1,7 +1,6 @@
 """Tests for graph persistence to JSON."""
 
 import json
-import pytest
 from pathlib import Path
 import networkx as nx
 
@@ -11,8 +10,17 @@ def test_save_graph_creates_files(tmp_path):
     from oya.graph.persistence import save_graph
 
     G = nx.DiGraph()
-    G.add_node("a.py::func", name="func", type="function", file_path="a.py",
-               line_start=1, line_end=10, docstring=None, signature=None, parent=None)
+    G.add_node(
+        "a.py::func",
+        name="func",
+        type="function",
+        file_path="a.py",
+        line_start=1,
+        line_end=10,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
     G.add_edge("a.py::func", "b.py::other", type="calls", confidence=0.9, line=5)
 
     output_dir = tmp_path / ".oyawiki" / "graph"
@@ -28,9 +36,17 @@ def test_save_graph_nodes_format(tmp_path):
     from oya.graph.persistence import save_graph
 
     G = nx.DiGraph()
-    G.add_node("models/user.py::User", name="User", type="class",
-               file_path="models/user.py", line_start=5, line_end=50,
-               docstring="A user entity.", signature=None, parent=None)
+    G.add_node(
+        "models/user.py::User",
+        name="User",
+        type="class",
+        file_path="models/user.py",
+        line_start=5,
+        line_end=50,
+        docstring="A user entity.",
+        signature=None,
+        parent=None,
+    )
 
     output_dir = tmp_path / "graph"
     save_graph(G, output_dir)
@@ -50,10 +66,28 @@ def test_save_graph_edges_format(tmp_path):
     from oya.graph.persistence import save_graph
 
     G = nx.DiGraph()
-    G.add_node("a.py::func", name="func", type="function", file_path="a.py",
-               line_start=1, line_end=10, docstring=None, signature=None, parent=None)
-    G.add_node("b.py::other", name="other", type="function", file_path="b.py",
-               line_start=1, line_end=5, docstring=None, signature=None, parent=None)
+    G.add_node(
+        "a.py::func",
+        name="func",
+        type="function",
+        file_path="a.py",
+        line_start=1,
+        line_end=10,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
+    G.add_node(
+        "b.py::other",
+        name="other",
+        type="function",
+        file_path="b.py",
+        line_start=1,
+        line_end=5,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
     G.add_edge("a.py::func", "b.py::other", type="calls", confidence=0.85, line=7)
 
     output_dir = tmp_path / "graph"
@@ -74,8 +108,17 @@ def test_save_graph_metadata(tmp_path):
     from oya.graph.persistence import save_graph
 
     G = nx.DiGraph()
-    G.add_node("a.py::func", name="func", type="function", file_path="a.py",
-               line_start=1, line_end=10, docstring=None, signature=None, parent=None)
+    G.add_node(
+        "a.py::func",
+        name="func",
+        type="function",
+        file_path="a.py",
+        line_start=1,
+        line_end=10,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
 
     output_dir = tmp_path / "graph"
     save_graph(G, output_dir)
@@ -93,10 +136,28 @@ def test_load_graph_roundtrip(tmp_path):
     from oya.graph.persistence import save_graph, load_graph
 
     G = nx.DiGraph()
-    G.add_node("a.py::func", name="func", type="function", file_path="a.py",
-               line_start=1, line_end=10, docstring="A function.", signature="def func():", parent=None)
-    G.add_node("b.py::other", name="other", type="function", file_path="b.py",
-               line_start=1, line_end=5, docstring=None, signature=None, parent=None)
+    G.add_node(
+        "a.py::func",
+        name="func",
+        type="function",
+        file_path="a.py",
+        line_start=1,
+        line_end=10,
+        docstring="A function.",
+        signature="def func():",
+        parent=None,
+    )
+    G.add_node(
+        "b.py::other",
+        name="other",
+        type="function",
+        file_path="b.py",
+        line_start=1,
+        line_end=5,
+        docstring=None,
+        signature=None,
+        parent=None,
+    )
     G.add_edge("a.py::func", "b.py::other", type="calls", confidence=0.85, line=7)
 
     output_dir = tmp_path / "graph"
