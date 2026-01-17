@@ -1,8 +1,12 @@
 """Q&A API endpoints."""
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends
 
-from oya.api.deps import get_db, get_issues_store, get_llm, get_vectorstore
+from oya.api.deps import get_db, get_issues_store, get_llm, get_settings, get_vectorstore
+from oya.config import Settings
+from oya.graph.persistence import load_graph
 from oya.db.connection import Database
 from oya.llm.client import LLMClient
 from oya.qa.schemas import QARequest, QAResponse
@@ -19,9 +23,23 @@ def get_qa_service(
     db: Database = Depends(get_db),
     llm: LLMClient = Depends(get_llm),
     issues_store: IssuesStore = Depends(get_issues_store),
+    settings: Settings = Depends(get_settings),
 ) -> QAService:
     """Get Q&A service instance."""
-    return QAService(vectorstore, db, llm, issues_store)
+    # Load graph if available
+    workspace = Path(settings.workspace_path)
+    graph_dir = workspace / ".oyawiki" / "graph"
+    graph = None
+    if graph_dir.exists():
+        try:
+            graph = load_graph(graph_dir)
+            if graph.number_of_nodes() == 0:
+                graph = None
+        except Exception:
+            # Graph loading failed, proceed without it
+            pass
+
+    return QAService(vectorstore, db, llm, issues_store, graph=graph)
 
 
 @router.post("/ask", response_model=QAResponse)

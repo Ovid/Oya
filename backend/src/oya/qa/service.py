@@ -5,8 +5,12 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
+import networkx as nx
+
 from oya.constants.issues import ISSUE_QUERY_KEYWORDS
 from oya.constants.qa import (
+    GRAPH_EXPANSION_CONFIDENCE_THRESHOLD,
+    GRAPH_EXPANSION_HOPS,
     HIGH_CONFIDENCE_THRESHOLD,
     MAX_CONTEXT_TOKENS,
     MAX_RESULT_TOKENS,
@@ -17,7 +21,15 @@ from oya.constants.qa import (
 from oya.constants.search import DEDUP_HASH_LENGTH, TYPE_PRIORITY
 from oya.db.connection import Database
 from oya.generation.chunking import estimate_tokens
+from oya.generation.prompts import format_graph_qa_context
+from oya.graph.models import Subgraph
 from oya.llm.client import LLMClient
+from oya.qa.graph_retrieval import (
+    build_graph_context,
+    expand_with_graph,
+    map_search_results_to_node_ids,
+    prioritize_nodes,
+)
 from oya.qa.ranking import RRFRanker
 from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, SearchQuality
 from oya.vectorstore.store import VectorStore
@@ -58,6 +70,7 @@ class QAService:
         db: Database,
         llm: LLMClient,
         issues_store: IssuesStore | None = None,
+        graph: nx.DiGraph | None = None,
     ) -> None:
         """Initialize Q&A service.
 
@@ -66,11 +79,13 @@ class QAService:
             db: SQLite database for full-text search.
             llm: LLM client for answer generation.
             issues_store: Optional IssuesStore for issue-aware Q&A.
+            graph: Optional code graph for graph-augmented retrieval.
         """
         self._vectorstore = vectorstore
         self._db = db
         self._llm = llm
         self._issues_store = issues_store
+        self._graph = graph
         self._ranker = RRFRanker(k=60)
 
     async def search(
@@ -314,6 +329,46 @@ QUESTION: {question}
 Answer the question based only on the context provided. Include citations to specific files."""
 
         return prompt, results_used
+
+    def _build_graph_context(self, results: list[dict[str, Any]]) -> str:
+        """Build graph-augmented context from search results.
+
+        Args:
+            results: Search results from hybrid search.
+
+        Returns:
+            Formatted graph context string, or empty string if no graph data.
+        """
+        if self._graph is None:
+            return ""
+
+        # Map search results to graph node IDs
+        node_ids = map_search_results_to_node_ids(results, self._graph)
+
+        if not node_ids:
+            return ""
+
+        # Expand via graph traversal
+        subgraph = expand_with_graph(
+            node_ids,
+            self._graph,
+            hops=GRAPH_EXPANSION_HOPS,
+            min_confidence=GRAPH_EXPANSION_CONFIDENCE_THRESHOLD,
+        )
+
+        if not subgraph.nodes:
+            return ""
+
+        # Prioritize nodes
+        prioritized = prioritize_nodes(subgraph.nodes, self._graph)
+        subgraph = Subgraph(nodes=prioritized, edges=subgraph.edges)
+
+        # Build context with budget
+        # Reserve some budget for graph context (1/3 of total)
+        graph_budget = MAX_CONTEXT_TOKENS // 3
+        mermaid, code = build_graph_context(subgraph, token_budget=graph_budget)
+
+        return format_graph_qa_context(mermaid, code)
 
     def _extract_citations(
         self,
@@ -629,6 +684,12 @@ Format your response with:
 
         # Build prompt with token budgeting
         prompt, results_used = self._build_context_prompt(request.question, results)
+
+        # Add graph context if available and enabled
+        if self._graph is not None and request.use_graph and results:
+            graph_context = self._build_graph_context(results)
+            if graph_context:
+                prompt = graph_context + "\n\n" + prompt
 
         try:
             raw_answer = await self._llm.generate(

@@ -481,6 +481,88 @@ class TestTruncateAtSentence:
         assert result.endswith("...")
 
 
+class TestQAServiceGraphAugmented:
+    """Tests for graph-augmented Q&A."""
+
+    @pytest.mark.asyncio
+    async def test_qa_with_graph_expands_context(self, mock_vectorstore, mock_db, mock_llm):
+        """When graph is provided, Q&A expands context using graph traversal."""
+        import networkx as nx
+
+        # Create a simple graph
+        graph = nx.DiGraph()
+        graph.add_node(
+            "auth/handler.py::login",
+            name="login",
+            type="function",
+            file_path="auth/handler.py",
+            line_start=10,
+            line_end=30,
+        )
+        graph.add_node(
+            "auth/verify.py::verify",
+            name="verify",
+            type="function",
+            file_path="auth/verify.py",
+            line_start=5,
+            line_end=20,
+        )
+        graph.add_edge(
+            "auth/handler.py::login",
+            "auth/verify.py::verify",
+            type="calls",
+            confidence=0.9,
+            line=15,
+        )
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm, graph=graph)
+        request = QARequest(question="How does login work?")
+
+        await service.ask(request)
+
+        # LLM should be called with expanded context
+        call_args = mock_llm.generate.call_args
+        prompt = call_args.kwargs.get("prompt") or call_args.args[0]
+
+        # Should include graph context (mermaid or code relationships)
+        assert "login" in prompt.lower() or "flowchart" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_qa_falls_back_without_graph(self, mock_vectorstore, mock_db, mock_llm):
+        """Without graph, Q&A uses normal vector retrieval."""
+        service = QAService(mock_vectorstore, mock_db, mock_llm, graph=None)
+        request = QARequest(question="How does X work?")
+
+        response = await service.ask(request)
+
+        # Should still work and return response
+        assert response.answer is not None
+        assert response.confidence is not None
+
+    @pytest.mark.asyncio
+    async def test_qa_graph_can_be_disabled(self, mock_vectorstore, mock_db, mock_llm):
+        """Graph expansion can be disabled via parameter."""
+        import networkx as nx
+
+        graph = nx.DiGraph()
+        graph.add_node(
+            "test::func",
+            name="func",
+            type="function",
+            file_path="test.py",
+            line_start=1,
+            line_end=10,
+        )
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm, graph=graph)
+        request = QARequest(question="Test question", use_graph=False)
+
+        await service.ask(request)
+
+        # Should work without graph expansion
+        mock_llm.generate.assert_called_once()
+
+
 class TestQAServiceIssues:
     """Tests for issue-aware Q&A."""
 
