@@ -234,6 +234,42 @@ Format the output as clean Markdown suitable for a wiki page."""
 )
 
 
+GRAPH_ARCHITECTURE_TEMPLATE = PromptTemplate(
+    """Generate an architecture documentation page for "{repo_name}".
+
+The following diagrams are ACCURATE and derived from static code analysis. Describe what they show - do NOT invent or modify relationships.
+
+## Component Diagram
+
+```mermaid
+{component_diagram}
+```
+
+## Components
+
+{component_summaries}
+
+## Entry Points
+
+{entry_points}
+
+## Data Flow Diagrams
+
+{flow_diagrams}
+
+Write an architecture overview that:
+1. Explains what each component does based on the summaries (1-2 sentences each)
+2. Describes how components interact based on the component diagram
+3. Explains the data flows shown in the flow diagrams
+4. Notes any architectural patterns visible (layering, separation of concerns, etc.)
+
+IMPORTANT: The diagrams are authoritative. Describe what they show, don't invent relationships not shown in the diagrams.
+
+Format: Markdown with clear headings. Include the diagrams inline where appropriate.
+"""
+)
+
+
 ARCHITECTURE_SYNTHESIS_TEMPLATE = PromptTemplate(
     """Generate an architecture documentation page for "{repo_name}".
 
@@ -981,6 +1017,59 @@ def get_architecture_prompt(
         file_tree=file_tree,
         key_symbols=_format_symbols(key_symbols or []),
         dependencies=_format_dependencies(deps),
+    )
+
+
+def get_graph_architecture_prompt(
+    repo_name: str,
+    component_diagram: str,
+    entry_points: list[dict],
+    flow_diagrams: list[dict],
+    component_summaries: dict[str, str],
+) -> str:
+    """Build prompt for graph-aware architecture generation.
+
+    Args:
+        repo_name: Name of the repository.
+        component_diagram: Mermaid diagram of component relationships.
+        entry_points: List of entry point dicts with id, name, file, fanout.
+        flow_diagrams: List of dicts with entry_point and diagram.
+        component_summaries: Dict mapping component name to summary.
+
+    Returns:
+        Formatted prompt string.
+    """
+    # Format component summaries
+    if component_summaries:
+        summaries_text = "\n".join(
+            f"- **{name}/**: {summary}" for name, summary in sorted(component_summaries.items())
+        )
+    else:
+        summaries_text = "No component summaries available."
+
+    # Format entry points
+    if entry_points:
+        ep_text = "\n".join(
+            f"- `{ep['name']}` in `{ep['file']}` (calls {ep['fanout']} other functions)"
+            for ep in entry_points
+        )
+    else:
+        ep_text = "No entry points detected."
+
+    # Format flow diagrams
+    if flow_diagrams:
+        flow_text = ""
+        for flow in flow_diagrams:
+            flow_text += f"\n### {flow['entry_point']}\n\n```mermaid\n{flow['diagram']}\n```\n"
+    else:
+        flow_text = "No flow diagrams generated."
+
+    return GRAPH_ARCHITECTURE_TEMPLATE.render(
+        repo_name=repo_name,
+        component_diagram=component_diagram,
+        component_summaries=summaries_text,
+        entry_points=ep_text,
+        flow_diagrams=flow_text,
     )
 
 
