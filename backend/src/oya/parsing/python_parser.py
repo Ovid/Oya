@@ -4,7 +4,14 @@ import ast
 from pathlib import Path
 
 from oya.parsing.base import BaseParser
-from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, SymbolType
+from oya.parsing.models import (
+    ParsedFile,
+    ParsedSymbol,
+    ParseResult,
+    Reference,
+    ReferenceType,
+    SymbolType,
+)
 
 
 # HTTP methods commonly used in web frameworks for route definitions
@@ -41,17 +48,29 @@ class PythonParser(BaseParser):
 
         symbols: list[ParsedSymbol] = []
         imports: list[str] = []
+        references: list[Reference] = []
 
         # Process top-level nodes
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 symbols.append(self._parse_function(node, parent=None))
+                scope = f"{file_path}::{node.name}"
+                references.extend(self._extract_calls(node, scope))
             elif isinstance(node, ast.ClassDef):
                 symbols.extend(self._parse_class(node))
+                # Extract inheritance
+                references.extend(self._extract_inheritance(node, str(file_path)))
+                # Extract calls from methods
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        scope = f"{file_path}::{node.name}.{item.name}"
+                        references.extend(self._extract_calls(item, scope))
             elif isinstance(node, ast.Import):
                 imports.extend(self._parse_import(node))
+                references.extend(self._extract_import_references(node, str(file_path)))
             elif isinstance(node, ast.ImportFrom):
                 imports.extend(self._parse_import_from(node))
+                references.extend(self._extract_import_references(node, str(file_path)))
             elif isinstance(node, ast.Assign):
                 symbols.extend(self._parse_assignment(node))
 
@@ -60,6 +79,7 @@ class PythonParser(BaseParser):
             language="python",
             symbols=symbols,
             imports=imports,
+            references=references,
             raw_content=content,
             line_count=content.count("\n") + 1,
         )
@@ -378,3 +398,138 @@ class PythonParser(BaseParser):
         if all_parts:
             return f"class {node.name}({', '.join(all_parts)})"
         return f"class {node.name}"
+
+    def _extract_inheritance(self, node: ast.ClassDef, file_path: str) -> list[Reference]:
+        """Extract inheritance relationships from a class definition.
+
+        Args:
+            node: The ClassDef AST node.
+            file_path: Path to the file being parsed.
+
+        Returns:
+            List of Reference objects for inheritance.
+        """
+        references = []
+        class_scope = f"{file_path}::{node.name}"
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                references.append(
+                    Reference(
+                        source=class_scope,
+                        target=base.id,
+                        reference_type=ReferenceType.INHERITS,
+                        confidence=0.95,  # High confidence for direct name
+                        line=node.lineno,
+                    )
+                )
+            elif isinstance(base, ast.Attribute):
+                target = self._get_attribute_name(base)
+                references.append(
+                    Reference(
+                        source=class_scope,
+                        target=target,
+                        reference_type=ReferenceType.INHERITS,
+                        confidence=0.9,  # Slightly lower for dotted names
+                        line=node.lineno,
+                    )
+                )
+
+        return references
+
+    def _extract_calls(self, node: ast.AST, current_scope: str) -> list[Reference]:
+        """Extract function/method calls from an AST node.
+
+        Args:
+            node: The AST node to analyze.
+            current_scope: The current function/method name for source.
+
+        Returns:
+            List of Reference objects for calls found.
+        """
+        references = []
+
+        for child in ast.walk(node):
+            if isinstance(child, ast.Call):
+                target, confidence, ref_type = self._resolve_call_target(child)
+                if target:
+                    references.append(
+                        Reference(
+                            source=current_scope,
+                            target=target,
+                            reference_type=ref_type,
+                            confidence=confidence,
+                            line=child.lineno,
+                        )
+                    )
+
+        return references
+
+    def _resolve_call_target(self, node: ast.Call) -> tuple[str | None, float, ReferenceType]:
+        """Resolve the target of a call expression.
+
+        Args:
+            node: The Call AST node.
+
+        Returns:
+            Tuple of (target_name, confidence, reference_type).
+        """
+        func = node.func
+
+        if isinstance(func, ast.Name):
+            name = func.id
+            # Convention: CapitalCase names are likely classes (instantiation)
+            if name and name[0].isupper():
+                return name, 0.85, ReferenceType.INSTANTIATES
+            return name, 0.9, ReferenceType.CALLS
+        elif isinstance(func, ast.Attribute):
+            attr_name = self._get_attribute_name(func)
+            # Check if final component is CapitalCase
+            parts = attr_name.split(".")
+            if parts and parts[-1][0].isupper():
+                return attr_name, 0.75, ReferenceType.INSTANTIATES
+            return attr_name, 0.7, ReferenceType.CALLS
+
+        return None, 0.0, ReferenceType.CALLS
+
+    def _extract_import_references(
+        self, node: ast.Import | ast.ImportFrom, file_path: str
+    ) -> list[Reference]:
+        """Extract import statements as references.
+
+        Args:
+            node: The Import or ImportFrom AST node.
+            file_path: Path to the file being parsed.
+
+        Returns:
+            List of Reference objects for imports.
+        """
+        references = []
+        file_scope = str(file_path)
+
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                references.append(
+                    Reference(
+                        source=file_scope,
+                        target=alias.name,
+                        reference_type=ReferenceType.IMPORTS,
+                        confidence=0.99,
+                        line=node.lineno,
+                    )
+                )
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            for alias in node.names:
+                target = f"{module}.{alias.name}" if module else alias.name
+                references.append(
+                    Reference(
+                        source=file_scope,
+                        target=target,
+                        reference_type=ReferenceType.IMPORTS,
+                        confidence=0.99,
+                        line=node.lineno,
+                    )
+                )
+
+        return references

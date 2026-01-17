@@ -172,3 +172,67 @@ function broken( {
     # Tree-sitter is lenient, so it may still parse partially
     # Just ensure no crash
     assert isinstance(result.ok, bool)
+
+
+def test_extracts_function_calls(parser):
+    """Extracts function calls with confidence."""
+    code = """
+function main() {
+    const result = helper();
+    process(result);
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    refs = result.file.references
+
+    call_names = [r.target for r in refs if r.reference_type.value == "calls"]
+    assert "helper" in call_names
+    assert "process" in call_names
+
+
+def test_extracts_new_expressions(parser):
+    """Extracts class instantiations via new keyword."""
+    code = """
+function main() {
+    const user = new User("alice");
+    const config = new Config();
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    refs = result.file.references
+
+    instantiations = [r for r in refs if r.reference_type.value == "instantiates"]
+    targets = [r.target for r in instantiations]
+
+    assert "User" in targets
+    assert "Config" in targets
+
+
+def test_extracts_inheritance(parser):
+    """Extracts class inheritance (extends)."""
+    code = """
+class Animal {}
+
+class Dog extends Animal {}
+
+class Labrador extends Dog implements Serializable {}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    refs = result.file.references
+
+    inherits = [r for r in refs if r.reference_type.value == "inherits"]
+
+    # Dog extends Animal
+    dog_inherits = [r for r in inherits if "Dog" in r.source]
+    assert len(dog_inherits) >= 1
+    assert any(r.target == "Animal" for r in dog_inherits)
+
+    # Labrador extends Dog
+    lab_inherits = [r for r in inherits if "Labrador" in r.source]
+    assert any(r.target == "Dog" for r in lab_inherits)

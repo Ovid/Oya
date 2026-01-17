@@ -8,6 +8,8 @@
   },
   "then": {
     "type": "askAgent",
-    "prompt": "Analyze the Kiro requirements.md, design documents, and task files in the .kiro directory for the current spec. Compare them systematically to verify:\n\n1. **Nothing Missing**: Every requirement has corresponding task(s) that will implement it\n2. **Nothing Extra**: No tasks exist that aren't tied to a specific requirement\n3. **Nothing Different**: Tasks accurately reflect the requirements without scope drift or misinterpretation\n\nProvide a detailed alignment report showing:\n- Requirements fully covered ✓\n- Requirements partially covered or missing tasks ⚠\n- Tasks without clear requirement traceability ⚠\n- Any discrepancies between requirement intent and task implementation\n- Present these ONE AT A TIME, listing solutions from best to worse, and give me the opportunity to resolve them before moving to the next issue.\n\nBe thorough and flag any misalignment, no matter how small."
-  }
+    "prompt": "Analyze the Kiro requirements.md, design documents, and task files in the .kiro directory for the current spec. Compare them systematically to verify:\n\n1. **Nothing Missing**: Every requirement has corresponding task(s) that will implement it\n2. **Nothing Extra**: No tasks exist that aren't tied to a specific requirement\n3. **Nothing Different**: Tasks accurately reflect the requirements without scope drift or misinterpretation\n\nProvide a detailed alignment report showing:\n- Requirements fully covered ✓\n- Requirements partially covered or missing tasks ⚠\n- Tasks without clear requirement traceability ⚠\n- Any discrepancies between requirement intent and task implementation\n- Present these ONE AT A TIME, listing solutions from best to worse, and give me the opportunity to resolve them before moving to the next issue.\n\nBe thorough and flag any misalignment, no matter how small.\n\nOnce both you and the developer are in agreement that the tasks are fully aligned, you MUST rewrite the entire task list in a red/green/refactor strategy, with every step being as small as possible. "
+  },
+  "workspaceFolderName": "oya",
+  "shortName": "task-requirements-alignment"
 }

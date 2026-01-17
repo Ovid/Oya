@@ -525,6 +525,7 @@ Answer the question based only on the context provided. Include citations to spe
         Returns:
             Q&A response based on pre-computed issues.
         """
+        assert self._issues_store is not None  # Caller verifies this
         # Query issues collection
         issues = self._issues_store.query_issues(query=request.question, limit=20)
 
@@ -592,7 +593,9 @@ Format your response with:
                         path=path,
                         title=issue.get("title", path),
                         lines=None,
-                        url=self._path_to_url(f"files/{path.replace('/', '-').replace('.', '-')}.md"),
+                        url=self._path_to_url(
+                            f"files/{path.replace('/', '-').replace('.', '-')}.md"
+                        ),
                     )
                 )
 

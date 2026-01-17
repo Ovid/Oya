@@ -557,6 +557,7 @@ Found 2 security issues.
         service = QAService(mock_vectorstore, mock_db, mock_llm, mock_issues_store)
 
         from oya.qa.schemas import QARequest
+
         request = QARequest(question="What security issues exist?")
         response = await service.ask(request)
 
@@ -600,8 +601,9 @@ No issues found, here is normal answer.
         service = QAService(mock_vectorstore, mock_db, mock_llm, mock_issues_store)
 
         from oya.qa.schemas import QARequest
+
         request = QARequest(question="What bugs exist?")
-        response = await service.ask(request)
+        await service.ask(request)
 
         # Should have tried issues store first
         mock_issues_store.query_issues.assert_called_once()
@@ -640,8 +642,9 @@ Normal answer.
         service = QAService(mock_vectorstore, mock_db, mock_llm)
 
         from oya.qa.schemas import QARequest
+
         request = QARequest(question="What bugs exist?")
-        response = await service.ask(request)
+        await service.ask(request)
 
         # Should use normal search flow
         mock_vectorstore.query.assert_called_once()

@@ -82,7 +82,7 @@ class FileIssue:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary for storage."""
-        result = {
+        result: dict[str, Any] = {
             "file_path": self.file_path,
             "category": self.category,
             "severity": self.severity,
@@ -556,9 +556,7 @@ class SummaryParser:
                 issue = FileIssue.from_dict(item_with_path)
                 issues.append(issue)
             except (ValueError, KeyError) as e:
-                logger.warning(
-                    f"Failed to parse issue for {file_path}: {e}. Item: {item}"
-                )
+                logger.warning(f"Failed to parse issue for {file_path}: {e}. Item: {item}")
 
         return issues
 

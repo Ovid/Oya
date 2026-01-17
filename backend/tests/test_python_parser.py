@@ -159,3 +159,105 @@ config = {
     names = [v.name for v in variables]
     assert "VERSION" in names
     assert "DEBUG" in names
+
+
+def test_extracts_function_calls(parser):
+    """Extracts function calls with confidence."""
+    code = """
+def main():
+    result = helper()
+    process(result)
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    # Should find calls to helper() and process()
+    call_names = [r.target for r in refs if r.reference_type.value == "calls"]
+    assert "helper" in call_names
+    assert "process" in call_names
+
+    # All calls should have confidence > 0
+    for ref in refs:
+        assert ref.confidence > 0
+        assert ref.line > 0
+
+
+def test_extracts_instantiations(parser):
+    """Extracts class instantiations."""
+    code = """
+def main():
+    user = User("alice")
+    config = Config()
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    # Should find instantiations of User and Config
+    instantiations = [r for r in refs if r.reference_type.value == "instantiates"]
+    targets = [r.target for r in instantiations]
+
+    assert "User" in targets
+    assert "Config" in targets
+
+
+def test_extracts_inheritance(parser):
+    """Extracts class inheritance relationships."""
+    code = """
+class Animal:
+    pass
+
+class Dog(Animal):
+    pass
+
+class Labrador(Dog, Serializable):
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    inherits = [r for r in refs if r.reference_type.value == "inherits"]
+
+    # Dog inherits from Animal
+    dog_inherits = [r for r in inherits if "Dog" in r.source]
+    assert len(dog_inherits) == 1
+    assert dog_inherits[0].target == "Animal"
+
+    # Labrador inherits from Dog and Serializable
+    lab_inherits = [r for r in inherits if "Labrador" in r.source]
+    assert len(lab_inherits) == 2
+    targets = [r.target for r in lab_inherits]
+    assert "Dog" in targets
+    assert "Serializable" in targets
+
+
+def test_extracts_import_references(parser):
+    """Extracts import statements as references."""
+    code = """
+import os
+from pathlib import Path
+from typing import List, Dict
+from myapp.models import User
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    import_refs = [r for r in refs if r.reference_type.value == "imports"]
+    targets = [r.target for r in import_refs]
+
+    assert "os" in targets
+    assert "pathlib.Path" in targets
+    assert "typing.List" in targets
+    assert "typing.Dict" in targets
+    assert "myapp.models.User" in targets
+
+    # All imports should have high confidence
+    for ref in import_refs:
+        assert ref.confidence >= 0.95
