@@ -1,7 +1,7 @@
 """Cross-file reference resolution using symbol tables."""
 
 from dataclasses import dataclass, field
-from oya.parsing.models import ParsedFile, ParsedSymbol
+from oya.parsing.models import ParsedFile, ParsedSymbol, Reference
 
 
 @dataclass
@@ -55,3 +55,69 @@ class SymbolTable:
             return self._by_qualified[name]
         # Fall back to simple name
         return self._by_name.get(name, [])
+
+
+def resolve_references(
+    files: list[ParsedFile],
+    symbol_table: SymbolTable,
+) -> list[Reference]:
+    """Resolve references against the symbol table.
+
+    Args:
+        files: Parsed files containing unresolved references.
+        symbol_table: Symbol table built from all parsed files.
+
+    Returns:
+        List of resolved (or attempted) references.
+    """
+    resolved = []
+
+    for file in files:
+        for ref in file.references:
+            if ref.target_resolved:
+                # Already resolved
+                resolved.append(ref)
+                continue
+
+            # Look up target in symbol table
+            candidates = symbol_table.lookup(ref.target)
+
+            if len(candidates) == 1:
+                # Exact match - high confidence
+                resolved.append(
+                    Reference(
+                        source=ref.source,
+                        target=candidates[0],
+                        reference_type=ref.reference_type,
+                        confidence=ref.confidence,  # Maintain original confidence
+                        line=ref.line,
+                        target_resolved=True,
+                    )
+                )
+            elif len(candidates) > 1:
+                # Ambiguous - create multiple refs with reduced confidence
+                for candidate in candidates:
+                    resolved.append(
+                        Reference(
+                            source=ref.source,
+                            target=candidate,
+                            reference_type=ref.reference_type,
+                            confidence=ref.confidence * 0.5,  # Reduce confidence
+                            line=ref.line,
+                            target_resolved=True,
+                        )
+                    )
+            else:
+                # No match - keep unresolved with low confidence
+                resolved.append(
+                    Reference(
+                        source=ref.source,
+                        target=ref.target,
+                        reference_type=ref.reference_type,
+                        confidence=ref.confidence * 0.3,  # Significantly reduce
+                        line=ref.line,
+                        target_resolved=False,
+                    )
+                )
+
+    return resolved
