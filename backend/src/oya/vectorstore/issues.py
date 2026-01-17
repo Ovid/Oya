@@ -2,10 +2,11 @@
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import chromadb
 from chromadb.config import Settings
+from chromadb.types import Where
 
 from oya.generation.summaries import FileIssue
 
@@ -40,11 +41,13 @@ class IssuesStore:
         if not issues:
             return
 
-        ids, documents, metadatas = [], [], []
+        ids: list[str] = []
+        documents: list[str] = []
+        metadatas: list[dict[str, str | int]] = []
         for i, issue in enumerate(issues):
             issue_id = self._make_id(file_path, issue.title, i)
             content = f"{issue.title}\n\n{issue.description}"
-            metadata: dict[str, Any] = {
+            metadata: dict[str, str | int] = {
                 "file_path": file_path,
                 "category": issue.category,
                 "severity": issue.severity,
@@ -58,7 +61,7 @@ class IssuesStore:
             documents.append(content)
             metadatas.append(metadata)
 
-        self._collection.add(ids=ids, documents=documents, metadatas=metadatas)
+        self._collection.add(ids=ids, documents=documents, metadatas=cast(Any, metadatas))
 
     def delete_issues_for_file(self, file_path: str) -> None:
         """Delete all issues for a specific file."""
@@ -78,7 +81,7 @@ class IssuesStore:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """Query issues with optional filters."""
-        where_clauses = []
+        where_clauses: list[dict[str, str]] = []
         if category:
             where_clauses.append({"category": category})
         if severity:
@@ -86,23 +89,23 @@ class IssuesStore:
         if file_path:
             where_clauses.append({"file_path": file_path})
 
-        where = None
+        where: Where | None = None
         if len(where_clauses) == 1:
-            where = where_clauses[0]
+            where = cast(Where, where_clauses[0])
         elif len(where_clauses) > 1:
-            where = {"$and": where_clauses}
+            where = cast(Where, {"$and": where_clauses})
 
         try:
             if query:
                 results = self._collection.query(query_texts=[query], n_results=limit, where=where)
-                ids = results.get("ids", [[]])[0]
-                documents = results.get("documents", [[]])[0]
-                metadatas = results.get("metadatas", [[]])[0]
+                ids = (results.get("ids") or [[]])[0]
+                documents = (results.get("documents") or [[]])[0]
+                metadatas = (results.get("metadatas") or [[]])[0]
             else:
-                results = self._collection.get(where=where, limit=limit)
-                ids = results.get("ids", [])
-                documents = results.get("documents", [])
-                metadatas = results.get("metadatas", [])
+                get_results = self._collection.get(where=where, limit=limit)
+                ids = get_results.get("ids") or []
+                documents = get_results.get("documents") or []
+                metadatas = get_results.get("metadatas") or []
 
             issues = []
             for i, issue_id in enumerate(ids):
