@@ -63,3 +63,67 @@ def test_edge_type_enum():
     assert EdgeType.INSTANTIATES.value == "instantiates"
     assert EdgeType.INHERITS.value == "inherits"
     assert EdgeType.IMPORTS.value == "imports"
+
+
+def test_subgraph_model():
+    """Subgraph aggregates nodes and edges."""
+    from oya.graph.models import Node, Edge, Subgraph, NodeType, EdgeType
+
+    node1 = Node(
+        id="a.py::func_a",
+        node_type=NodeType.FUNCTION,
+        name="func_a",
+        file_path="a.py",
+        line_start=1,
+        line_end=10,
+    )
+    node2 = Node(
+        id="b.py::func_b",
+        node_type=NodeType.FUNCTION,
+        name="func_b",
+        file_path="b.py",
+        line_start=1,
+        line_end=5,
+    )
+    edge = Edge(
+        source="a.py::func_a",
+        target="b.py::func_b",
+        edge_type=EdgeType.CALLS,
+        confidence=0.9,
+        line=5,
+    )
+
+    subgraph = Subgraph(nodes=[node1, node2], edges=[edge])
+
+    assert len(subgraph.nodes) == 2
+    assert len(subgraph.edges) == 1
+
+
+def test_subgraph_to_dict():
+    """Subgraph can be serialized to dict for JSON."""
+    from oya.graph.models import Node, Edge, Subgraph, NodeType, EdgeType
+
+    node = Node(
+        id="a.py::func",
+        node_type=NodeType.FUNCTION,
+        name="func",
+        file_path="a.py",
+        line_start=1,
+        line_end=10,
+    )
+    edge = Edge(
+        source="a.py::func",
+        target="b.py::other",
+        edge_type=EdgeType.CALLS,
+        confidence=0.85,
+        line=5,
+    )
+    subgraph = Subgraph(nodes=[node], edges=[edge])
+
+    data = subgraph.to_dict()
+
+    assert "nodes" in data
+    assert "edges" in data
+    assert len(data["nodes"]) == 1
+    assert data["nodes"][0]["id"] == "a.py::func"
+    assert data["edges"][0]["confidence"] == 0.85
