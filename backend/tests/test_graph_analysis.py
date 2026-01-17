@@ -65,3 +65,52 @@ def test_filter_test_nodes_preserves_graph_structure():
     assert filtered.number_of_nodes() == 2
     assert filtered.number_of_edges() == 1
     assert filtered.has_edge("a.py::func_a", "b.py::func_b")
+
+
+def test_get_component_graph_aggregates_by_directory():
+    """get_component_graph aggregates nodes by top-level directory."""
+    from oya.graph.analysis import get_component_graph
+
+    G = nx.DiGraph()
+    # api/ component
+    G.add_node("api/routes.py::handle", file_path="api/routes.py")
+    G.add_node("api/handlers.py::process", file_path="api/handlers.py")
+    # db/ component
+    G.add_node("db/models.py::User", file_path="db/models.py")
+    G.add_node("db/queries.py::get_user", file_path="db/queries.py")
+    # Edges: api calls db
+    G.add_edge("api/routes.py::handle", "db/queries.py::get_user",
+               type="calls", confidence=0.9, line=10)
+    G.add_edge("api/handlers.py::process", "db/models.py::User",
+               type="calls", confidence=0.8, line=20)
+
+    component_graph = get_component_graph(G)
+
+    # Should have 2 components
+    assert component_graph.number_of_nodes() == 2
+    assert component_graph.has_node("api")
+    assert component_graph.has_node("db")
+    # Should have 1 aggregated edge from api to db
+    assert component_graph.has_edge("api", "db")
+    # Edge should have aggregated confidence (max of underlying edges)
+    edge_data = component_graph.edges["api", "db"]
+    assert edge_data["confidence"] == 0.9
+    assert edge_data["count"] == 2  # 2 underlying edges
+
+
+def test_get_component_graph_respects_confidence_threshold():
+    """get_component_graph filters edges below confidence threshold."""
+    from oya.graph.analysis import get_component_graph
+
+    G = nx.DiGraph()
+    G.add_node("api/routes.py::handle", file_path="api/routes.py")
+    G.add_node("db/models.py::User", file_path="db/models.py")
+    G.add_edge("api/routes.py::handle", "db/models.py::User",
+               type="calls", confidence=0.5, line=10)
+
+    component_graph = get_component_graph(G, min_confidence=0.7)
+
+    # Should have nodes but no edges (confidence too low)
+    assert component_graph.has_node("api")
+    assert component_graph.has_node("db")
+    assert not component_graph.has_edge("api", "db")
