@@ -322,13 +322,14 @@ async def _retrieve_for_gap(
 
     # Try vector search for fuzzy gaps
     if vectorstore is not None:
-        results = await vectorstore.search(gap, top_k=CGRAG_TARGETED_TOP_K)
-        if results:
+        raw_results = vectorstore.query(query_text=gap, n_results=CGRAG_TARGETED_TOP_K)
+        documents = raw_results.get("documents", [[]])[0]
+        metadatas = raw_results.get("metadatas", [[]])[0]
+        if documents:
             context_parts = []
-            for result in results:
-                context_parts.append(
-                    f"### {result.get('file_path', 'Unknown')}\n{result.get('content', '')}"
-                )
+            for i, doc in enumerate(documents):
+                file_path = metadatas[i].get("path", "Unknown") if i < len(metadatas) else "Unknown"
+                context_parts.append(f"### {file_path}\n{doc}")
             return "\n\n".join(context_parts)
 
     return None

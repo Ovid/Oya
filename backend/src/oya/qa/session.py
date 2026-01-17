@@ -112,9 +112,7 @@ class SessionStore:
         Returns:
             Number of sessions removed.
         """
-        expired_ids = [
-            sid for sid, session in self._sessions.items() if session.is_expired()
-        ]
+        expired_ids = [sid for sid, session in self._sessions.items() if session.is_expired()]
         for sid in expired_ids:
             del self._sessions[sid]
         return len(expired_ids)

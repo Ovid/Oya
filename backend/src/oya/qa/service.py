@@ -644,6 +644,7 @@ Format your response with:
                     results_found=len(issues),
                     results_used=len(issues),
                 ),
+                cgrag=None,
             )
 
         answer = self._extract_answer(raw_answer)
@@ -677,6 +678,7 @@ Format your response with:
                 results_found=len(issues),
                 results_used=min(len(issues), 20),
             ),
+            cgrag=None,
         )
 
     async def _ask_normal(self, request: QARequest) -> QAResponse:
