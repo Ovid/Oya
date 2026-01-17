@@ -86,3 +86,31 @@ class Subgraph:
                 for e in self.edges
             ],
         }
+
+    def to_context(self) -> str:
+        """Format subgraph as text for LLM consumption."""
+        lines = ["## Code Graph Context\n"]
+
+        # Describe nodes
+        lines.append("### Entities\n")
+        for node in self.nodes:
+            node_desc = (
+                f"- **{node.name}** ({node.node_type.value}) "
+                f"in `{node.file_path}` (lines {node.line_start}-{node.line_end})"
+            )
+            if node.docstring:
+                node_desc += f"\n  > {node.docstring}"
+            lines.append(node_desc)
+
+        # Describe relationships
+        if self.edges:
+            lines.append("\n### Relationships\n")
+            for edge in self.edges:
+                source_name = edge.source.split("::")[-1] if "::" in edge.source else edge.source
+                target_name = edge.target.split("::")[-1] if "::" in edge.target else edge.target
+                lines.append(
+                    f"- `{source_name}` **{edge.edge_type.value}** `{target_name}` "
+                    f"(confidence: {edge.confidence:.0%})"
+                )
+
+        return "\n".join(lines)

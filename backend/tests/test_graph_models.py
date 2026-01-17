@@ -127,3 +127,43 @@ def test_subgraph_to_dict():
     assert len(data["nodes"]) == 1
     assert data["nodes"][0]["id"] == "a.py::func"
     assert data["edges"][0]["confidence"] == 0.85
+
+
+def test_subgraph_to_context():
+    """Subgraph formats as text for LLM consumption."""
+    from oya.graph.models import Node, Edge, Subgraph, NodeType, EdgeType
+
+    node1 = Node(
+        id="auth/handler.py::login",
+        node_type=NodeType.FUNCTION,
+        name="login",
+        file_path="auth/handler.py",
+        line_start=10,
+        line_end=25,
+        docstring="Authenticate user credentials.",
+    )
+    node2 = Node(
+        id="auth/session.py::create_session",
+        node_type=NodeType.FUNCTION,
+        name="create_session",
+        file_path="auth/session.py",
+        line_start=5,
+        line_end=15,
+    )
+    edge = Edge(
+        source="auth/handler.py::login",
+        target="auth/session.py::create_session",
+        edge_type=EdgeType.CALLS,
+        confidence=0.9,
+        line=20,
+    )
+
+    subgraph = Subgraph(nodes=[node1, node2], edges=[edge])
+    context = subgraph.to_context()
+
+    # Should contain node information
+    assert "login" in context
+    assert "create_session" in context
+    assert "auth/handler.py" in context
+    # Should describe relationships
+    assert "calls" in context.lower()
