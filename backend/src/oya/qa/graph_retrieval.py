@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import networkx as nx
 
 from oya.constants.qa import (
@@ -159,3 +161,71 @@ def _format_node_snippet(node: Node) -> str:
         parts.append(f"```\n{node.signature}\n```")
 
     return "\n".join(parts)
+
+
+def map_search_results_to_node_ids(
+    search_results: list[dict[str, Any]],
+    graph: nx.DiGraph,
+) -> list[str]:
+    """Map vector search results to graph node IDs.
+
+    Search results have wiki paths like 'files/auth-handler-py.md'.
+    We need to find corresponding node IDs like 'auth/handler.py::login'.
+
+    Args:
+        search_results: Vector search results with 'path' field.
+        graph: The code graph with node file_path attributes.
+
+    Returns:
+        List of graph node IDs that match the search results.
+    """
+    node_ids = []
+
+    # Build index of file paths to node IDs
+    file_to_nodes: dict[str, list[str]] = {}
+    for node_id in graph.nodes():
+        node_data = graph.nodes[node_id]
+        file_path = node_data.get("file_path", "")
+        if file_path:
+            if file_path not in file_to_nodes:
+                file_to_nodes[file_path] = []
+            file_to_nodes[file_path].append(node_id)
+
+    for result in search_results:
+        wiki_path = result.get("path", "")
+
+        # Convert wiki path to source path
+        # 'files/auth-handler-py.md' -> 'auth/handler.py'
+        source_path = _wiki_path_to_source_path(wiki_path)
+
+        if source_path in file_to_nodes:
+            node_ids.extend(file_to_nodes[source_path])
+
+    return node_ids
+
+
+def _wiki_path_to_source_path(wiki_path: str) -> str:
+    """Convert wiki path back to source file path.
+
+    Examples:
+        'files/auth-handler-py.md' -> 'auth/handler.py'
+        'files/src-utils-ts.md' -> 'src/utils.ts'
+    """
+    # Remove 'files/' prefix and '.md' suffix
+    if wiki_path.startswith("files/"):
+        wiki_path = wiki_path[6:]
+    if wiki_path.endswith(".md"):
+        wiki_path = wiki_path[:-3]
+
+    # Replace '-' with '/' for directory separators, except for file extension
+    # This is tricky because 'auth-handler-py' should become 'auth/handler.py'
+    # We assume the last '-' before a known extension is the extension separator
+
+    parts = wiki_path.rsplit("-", 1)
+    if len(parts) == 2 and parts[1] in ("py", "ts", "js", "tsx", "jsx", "java", "go", "rs", "rb"):
+        base = parts[0].replace("-", "/")
+        ext = parts[1]
+        return f"{base}.{ext}"
+
+    # Fallback: just replace all '-' with '/'
+    return wiki_path.replace("-", "/")
