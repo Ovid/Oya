@@ -17,6 +17,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   const [notFound, setNotFound] = useState(false)
   const [generatingJobId, setGeneratingJobId] = useState<string | null>(null)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [isStartingGeneration, setIsStartingGeneration] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -57,14 +58,19 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
 
   const handleGenerate = async () => {
     setGenerationError(null)
+    setIsStartingGeneration(true)
     const jobId = await startGeneration()
     if (jobId) {
       setGeneratingJobId(jobId)
+    } else {
+      // Generation failed to start
+      setIsStartingGeneration(false)
     }
   }
 
   const handleGenerationComplete = useCallback(async () => {
     setGeneratingJobId(null)
+    setIsStartingGeneration(false)
     // Clear the current job from global state
     dispatch({ type: 'SET_CURRENT_JOB', payload: null })
     // Refresh the wiki tree, repo status, and reload the page
@@ -91,12 +97,27 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   const handleGenerationError = useCallback(
     (errorMessage: string) => {
       setGeneratingJobId(null)
+      setIsStartingGeneration(false)
       setGenerationError(errorMessage)
       // Clear the current job from global state
       dispatch({ type: 'SET_CURRENT_JOB', payload: null })
     },
     [dispatch]
   )
+
+  // Show generation progress if starting or a job is running (either local or global)
+  // Check this FIRST - before loading spinner - so we show progress immediately when Generate is clicked
+  const activeJobId =
+    generatingJobId || (state.currentJob?.status === 'running' ? state.currentJob.job_id : null)
+  if (isStartingGeneration || activeJobId) {
+    return (
+      <GenerationProgress
+        jobId={activeJobId}
+        onComplete={handleGenerationComplete}
+        onError={handleGenerationError}
+      />
+    )
+  }
 
   // Show loading spinner while page is loading OR while AppContext is still initializing
   // This prevents showing "not found" before we've checked for running jobs
@@ -105,20 +126,6 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
       </div>
-    )
-  }
-
-  // Show generation progress if a job is running (either local or global)
-  // Check this BEFORE notFound to handle the case where generation started but wiki doesn't exist yet
-  const activeJobId =
-    generatingJobId || (state.currentJob?.status === 'running' ? state.currentJob.job_id : null)
-  if (activeJobId) {
-    return (
-      <GenerationProgress
-        jobId={activeJobId}
-        onComplete={handleGenerationComplete}
-        onError={handleGenerationError}
-      />
     )
   }
 

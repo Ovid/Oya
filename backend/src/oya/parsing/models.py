@@ -4,6 +4,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
+class ReferenceType(Enum):
+    """Types of references between code entities."""
+
+    CALLS = "calls"
+    INSTANTIATES = "instantiates"
+    INHERITS = "inherits"
+    IMPORTS = "imports"
+
+
 class SymbolType(Enum):
     """Types of code symbols that can be extracted."""
 
@@ -46,6 +55,7 @@ class ParsedFile:
     symbols: list[ParsedSymbol]
     imports: list[str] = field(default_factory=list)
     exports: list[str] = field(default_factory=list)
+    references: list["Reference"] = field(default_factory=list)
     raw_content: str | None = None
     line_count: int = 0
     metadata: dict = field(default_factory=dict)
@@ -69,3 +79,15 @@ class ParseResult:
     def failure(cls, path: str, error: str) -> "ParseResult":
         """Create a failed parse result."""
         return cls(ok=False, file=None, error=error, path=path)
+
+
+@dataclass
+class Reference:
+    """A reference from one code entity to another."""
+
+    source: str  # e.g., "auth/handler.py::login"
+    target: str  # e.g., "auth/session.py::create_session" or unresolved name
+    reference_type: ReferenceType
+    confidence: float  # 0.0 to 1.0
+    line: int  # Line number where reference occurs
+    target_resolved: bool = False  # True if target is a full path, False if just a name
