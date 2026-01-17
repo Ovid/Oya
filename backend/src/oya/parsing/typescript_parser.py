@@ -7,7 +7,14 @@ import tree_sitter_typescript as ts_typescript
 from tree_sitter import Language, Parser
 
 from oya.parsing.base import BaseParser
-from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, SymbolType, Reference, ReferenceType
+from oya.parsing.models import (
+    ParsedFile,
+    ParsedSymbol,
+    ParseResult,
+    SymbolType,
+    Reference,
+    ReferenceType,
+)
 
 
 class TypeScriptParser(BaseParser):
@@ -74,8 +81,14 @@ class TypeScriptParser(BaseParser):
 
             # Walk the AST
             self._walk_tree(
-                tree.root_node, symbols, imports, exports, content,
-                parent_class=None, references=references, file_path=str(file_path)
+                tree.root_node,
+                symbols,
+                imports,
+                exports,
+                content,
+                parent_class=None,
+                references=references,
+                file_path=str(file_path),
             )
 
             parsed_file = ParsedFile(
@@ -140,7 +153,9 @@ class TypeScriptParser(BaseParser):
             skip_children = True
         elif node_type == "lexical_declaration":
             # Could contain arrow functions or constants
-            self._extract_lexical_declaration(node, symbols, exports, content, references, file_path)
+            self._extract_lexical_declaration(
+                node, symbols, exports, content, references, file_path
+            )
             skip_children = True
         elif node_type == "class_declaration":
             self._extract_class(node, symbols, content, references, file_path)
@@ -167,7 +182,9 @@ class TypeScriptParser(BaseParser):
         # Recurse into children unless already fully processed
         if not skip_children:
             for child in node.children:
-                self._walk_tree(child, symbols, imports, exports, content, parent_class, references, file_path)
+                self._walk_tree(
+                    child, symbols, imports, exports, content, parent_class, references, file_path
+                )
 
     def _extract_function(
         self,
@@ -208,7 +225,9 @@ class TypeScriptParser(BaseParser):
 
         # Extract calls if references list provided
         if references is not None:
-            scope = f"{file_path}::{parent_class}.{name}" if parent_class else f"{file_path}::{name}"
+            scope = (
+                f"{file_path}::{parent_class}.{name}" if parent_class else f"{file_path}::{name}"
+            )
             body_node = node.child_by_field_name("body")
             if body_node:
                 self._extract_calls_from_node(body_node, references, content, scope)
@@ -320,13 +339,15 @@ class TypeScriptParser(BaseParser):
                             for ext_child in heritage_child.children:
                                 if ext_child.type in ("identifier", "type_identifier"):
                                     target = self._get_node_text(ext_child, content)
-                                    references.append(Reference(
-                                        source=class_scope,
-                                        target=target,
-                                        reference_type=ReferenceType.INHERITS,
-                                        confidence=0.95,
-                                        line=start_line,
-                                    ))
+                                    references.append(
+                                        Reference(
+                                            source=class_scope,
+                                            target=target,
+                                            reference_type=ReferenceType.INHERITS,
+                                            confidence=0.95,
+                                            line=start_line,
+                                        )
+                                    )
 
         # Process class body for methods
         body_node = node.child_by_field_name("body")
@@ -374,7 +395,9 @@ class TypeScriptParser(BaseParser):
 
         # Extract calls if references list provided
         if references is not None:
-            scope = f"{file_path}::{parent_class}.{name}" if parent_class else f"{file_path}::{name}"
+            scope = (
+                f"{file_path}::{parent_class}.{name}" if parent_class else f"{file_path}::{name}"
+            )
             body_node = node.child_by_field_name("body")
             if body_node:
                 self._extract_calls_from_node(body_node, references, content, scope)
@@ -525,7 +548,9 @@ class TypeScriptParser(BaseParser):
                         if name_node:
                             name = self._get_node_text(name_node, content)
                             exports.append(name)
-                self._extract_lexical_declaration(child, symbols, exports, content, references, file_path)
+                self._extract_lexical_declaration(
+                    child, symbols, exports, content, references, file_path
+                )
             elif child.type == "class_declaration":
                 name_node = child.child_by_field_name("name")
                 if name_node:
@@ -583,31 +608,37 @@ class TypeScriptParser(BaseParser):
             if func_node:
                 target, confidence, ref_type = self._resolve_ts_call_target(func_node, content)
                 if target:
-                    references.append(Reference(
-                        source=current_scope,
-                        target=target,
-                        reference_type=ref_type,
-                        confidence=confidence,
-                        line=node.start_point[0] + 1,
-                    ))
+                    references.append(
+                        Reference(
+                            source=current_scope,
+                            target=target,
+                            reference_type=ref_type,
+                            confidence=confidence,
+                            line=node.start_point[0] + 1,
+                        )
+                    )
         elif node.type == "new_expression":
             # new ClassName(...)
             constructor_node = node.child_by_field_name("constructor")
             if constructor_node:
                 target = self._get_node_text(constructor_node, content)
-                references.append(Reference(
-                    source=current_scope,
-                    target=target,
-                    reference_type=ReferenceType.INSTANTIATES,
-                    confidence=0.95,
-                    line=node.start_point[0] + 1,
-                ))
+                references.append(
+                    Reference(
+                        source=current_scope,
+                        target=target,
+                        reference_type=ReferenceType.INSTANTIATES,
+                        confidence=0.95,
+                        line=node.start_point[0] + 1,
+                    )
+                )
 
         # Recurse into children
         for child in node.children:
             self._extract_calls_from_node(child, references, content, current_scope)
 
-    def _resolve_ts_call_target(self, func_node, content: str) -> tuple[str | None, float, ReferenceType]:
+    def _resolve_ts_call_target(
+        self, func_node, content: str
+    ) -> tuple[str | None, float, ReferenceType]:
         """Resolve the target of a TypeScript call expression.
 
         Args:

@@ -163,11 +163,11 @@ config = {
 
 def test_extracts_function_calls(parser):
     """Extracts function calls with confidence."""
-    code = '''
+    code = """
 def main():
     result = helper()
     process(result)
-'''
+"""
     result = parser.parse_string(code, "test.py")
 
     assert result.ok
@@ -186,11 +186,11 @@ def main():
 
 def test_extracts_instantiations(parser):
     """Extracts class instantiations."""
-    code = '''
+    code = """
 def main():
     user = User("alice")
     config = Config()
-'''
+"""
     result = parser.parse_string(code, "test.py")
 
     assert result.ok
@@ -206,7 +206,7 @@ def main():
 
 def test_extracts_inheritance(parser):
     """Extracts class inheritance relationships."""
-    code = '''
+    code = """
 class Animal:
     pass
 
@@ -215,7 +215,7 @@ class Dog(Animal):
 
 class Labrador(Dog, Serializable):
     pass
-'''
+"""
     result = parser.parse_string(code, "test.py")
 
     assert result.ok
@@ -238,12 +238,12 @@ class Labrador(Dog, Serializable):
 
 def test_extracts_import_references(parser):
     """Extracts import statements as references."""
-    code = '''
+    code = """
 import os
 from pathlib import Path
 from typing import List, Dict
 from myapp.models import User
-'''
+"""
     result = parser.parse_string(code, "test.py")
 
     assert result.ok

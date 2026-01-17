@@ -53,24 +53,30 @@ class TestIssuesStore:
         from oya.generation.summaries import FileIssue
 
         # Add issues for two files
-        issues_store.add_issues("file1.py", [
-            FileIssue(
-                file_path="file1.py",
-                category="security",
-                severity="problem",
-                title="Issue 1",
-                description="Desc",
-            ),
-        ])
-        issues_store.add_issues("file2.py", [
-            FileIssue(
-                file_path="file2.py",
-                category="reliability",
-                severity="suggestion",
-                title="Issue 2",
-                description="Desc",
-            ),
-        ])
+        issues_store.add_issues(
+            "file1.py",
+            [
+                FileIssue(
+                    file_path="file1.py",
+                    category="security",
+                    severity="problem",
+                    title="Issue 1",
+                    description="Desc",
+                ),
+            ],
+        )
+        issues_store.add_issues(
+            "file2.py",
+            [
+                FileIssue(
+                    file_path="file2.py",
+                    category="reliability",
+                    severity="suggestion",
+                    title="Issue 2",
+                    description="Desc",
+                ),
+            ],
+        )
 
         # Delete issues for file1
         issues_store.delete_issues_for_file("file1.py")
@@ -84,22 +90,25 @@ class TestIssuesStore:
         """Can filter issues by category."""
         from oya.generation.summaries import FileIssue
 
-        issues_store.add_issues("test.py", [
-            FileIssue(
-                file_path="test.py",
-                category="security",
-                severity="problem",
-                title="Security issue",
-                description="Desc",
-            ),
-            FileIssue(
-                file_path="test.py",
-                category="reliability",
-                severity="problem",
-                title="Reliability issue",
-                description="Desc",
-            ),
-        ])
+        issues_store.add_issues(
+            "test.py",
+            [
+                FileIssue(
+                    file_path="test.py",
+                    category="security",
+                    severity="problem",
+                    title="Security issue",
+                    description="Desc",
+                ),
+                FileIssue(
+                    file_path="test.py",
+                    category="reliability",
+                    severity="problem",
+                    title="Reliability issue",
+                    description="Desc",
+                ),
+            ],
+        )
 
         security_issues = issues_store.query_issues(category="security")
         assert len(security_issues) == 1
@@ -109,22 +118,25 @@ class TestIssuesStore:
         """Can filter issues by severity."""
         from oya.generation.summaries import FileIssue
 
-        issues_store.add_issues("test.py", [
-            FileIssue(
-                file_path="test.py",
-                category="security",
-                severity="problem",
-                title="Critical",
-                description="Desc",
-            ),
-            FileIssue(
-                file_path="test.py",
-                category="security",
-                severity="suggestion",
-                title="Nice to have",
-                description="Desc",
-            ),
-        ])
+        issues_store.add_issues(
+            "test.py",
+            [
+                FileIssue(
+                    file_path="test.py",
+                    category="security",
+                    severity="problem",
+                    title="Critical",
+                    description="Desc",
+                ),
+                FileIssue(
+                    file_path="test.py",
+                    category="security",
+                    severity="suggestion",
+                    title="Nice to have",
+                    description="Desc",
+                ),
+            ],
+        )
 
         problems = issues_store.query_issues(severity="problem")
         assert len(problems) == 1
@@ -134,24 +146,30 @@ class TestIssuesStore:
         """Can search issues semantically."""
         from oya.generation.summaries import FileIssue
 
-        issues_store.add_issues("auth.py", [
-            FileIssue(
-                file_path="auth.py",
-                category="security",
-                severity="problem",
-                title="SQL injection vulnerability",
-                description="Query built with string concatenation allows injection attacks",
-            ),
-        ])
-        issues_store.add_issues("utils.py", [
-            FileIssue(
-                file_path="utils.py",
-                category="maintainability",
-                severity="suggestion",
-                title="Function too long",
-                description="Consider breaking into smaller functions",
-            ),
-        ])
+        issues_store.add_issues(
+            "auth.py",
+            [
+                FileIssue(
+                    file_path="auth.py",
+                    category="security",
+                    severity="problem",
+                    title="SQL injection vulnerability",
+                    description="Query built with string concatenation allows injection attacks",
+                ),
+            ],
+        )
+        issues_store.add_issues(
+            "utils.py",
+            [
+                FileIssue(
+                    file_path="utils.py",
+                    category="maintainability",
+                    severity="suggestion",
+                    title="Function too long",
+                    description="Consider breaking into smaller functions",
+                ),
+            ],
+        )
 
         # Search for injection-related issues
         results = issues_store.query_issues(query="injection attack")
@@ -162,15 +180,18 @@ class TestIssuesStore:
         """Can clear all issues."""
         from oya.generation.summaries import FileIssue
 
-        issues_store.add_issues("test.py", [
-            FileIssue(
-                file_path="test.py",
-                category="security",
-                severity="problem",
-                title="Issue",
-                description="Desc",
-            ),
-        ])
+        issues_store.add_issues(
+            "test.py",
+            [
+                FileIssue(
+                    file_path="test.py",
+                    category="security",
+                    severity="problem",
+                    title="Issue",
+                    description="Desc",
+                ),
+            ],
+        )
 
         issues_store.clear()
 

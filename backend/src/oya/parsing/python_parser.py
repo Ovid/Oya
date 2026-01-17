@@ -4,7 +4,14 @@ import ast
 from pathlib import Path
 
 from oya.parsing.base import BaseParser
-from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, Reference, ReferenceType, SymbolType
+from oya.parsing.models import (
+    ParsedFile,
+    ParsedSymbol,
+    ParseResult,
+    Reference,
+    ReferenceType,
+    SymbolType,
+)
 
 
 # HTTP methods commonly used in web frameworks for route definitions
@@ -407,22 +414,26 @@ class PythonParser(BaseParser):
 
         for base in node.bases:
             if isinstance(base, ast.Name):
-                references.append(Reference(
-                    source=class_scope,
-                    target=base.id,
-                    reference_type=ReferenceType.INHERITS,
-                    confidence=0.95,  # High confidence for direct name
-                    line=node.lineno,
-                ))
+                references.append(
+                    Reference(
+                        source=class_scope,
+                        target=base.id,
+                        reference_type=ReferenceType.INHERITS,
+                        confidence=0.95,  # High confidence for direct name
+                        line=node.lineno,
+                    )
+                )
             elif isinstance(base, ast.Attribute):
                 target = self._get_attribute_name(base)
-                references.append(Reference(
-                    source=class_scope,
-                    target=target,
-                    reference_type=ReferenceType.INHERITS,
-                    confidence=0.9,  # Slightly lower for dotted names
-                    line=node.lineno,
-                ))
+                references.append(
+                    Reference(
+                        source=class_scope,
+                        target=target,
+                        reference_type=ReferenceType.INHERITS,
+                        confidence=0.9,  # Slightly lower for dotted names
+                        line=node.lineno,
+                    )
+                )
 
         return references
 
@@ -442,13 +453,15 @@ class PythonParser(BaseParser):
             if isinstance(child, ast.Call):
                 target, confidence, ref_type = self._resolve_call_target(child)
                 if target:
-                    references.append(Reference(
-                        source=current_scope,
-                        target=target,
-                        reference_type=ref_type,
-                        confidence=confidence,
-                        line=child.lineno,
-                    ))
+                    references.append(
+                        Reference(
+                            source=current_scope,
+                            target=target,
+                            reference_type=ref_type,
+                            confidence=confidence,
+                            line=child.lineno,
+                        )
+                    )
 
         return references
 
@@ -496,23 +509,27 @@ class PythonParser(BaseParser):
 
         if isinstance(node, ast.Import):
             for alias in node.names:
-                references.append(Reference(
-                    source=file_scope,
-                    target=alias.name,
-                    reference_type=ReferenceType.IMPORTS,
-                    confidence=0.99,
-                    line=node.lineno,
-                ))
+                references.append(
+                    Reference(
+                        source=file_scope,
+                        target=alias.name,
+                        reference_type=ReferenceType.IMPORTS,
+                        confidence=0.99,
+                        line=node.lineno,
+                    )
+                )
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             for alias in node.names:
                 target = f"{module}.{alias.name}" if module else alias.name
-                references.append(Reference(
-                    source=file_scope,
-                    target=target,
-                    reference_type=ReferenceType.IMPORTS,
-                    confidence=0.99,
-                    line=node.lineno,
-                ))
+                references.append(
+                    Reference(
+                        source=file_scope,
+                        target=target,
+                        reference_type=ReferenceType.IMPORTS,
+                        confidence=0.99,
+                        line=node.lineno,
+                    )
+                )
 
         return references
