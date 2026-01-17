@@ -18,6 +18,11 @@ from oya.graph.query import (
     get_entry_points,
     get_leaf_nodes,
 )
+from oya.graph.analysis import (
+    filter_test_nodes,
+    get_component_graph,
+    select_top_entry_points,
+)
 
 __all__ = [
     # Models
@@ -41,4 +46,8 @@ __all__ = [
     "trace_flow",
     "get_entry_points",
     "get_leaf_nodes",
+    # Analysis
+    "filter_test_nodes",
+    "get_component_graph",
+    "select_top_entry_points",
 ]
