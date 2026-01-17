@@ -8,14 +8,37 @@ def test_filter_test_nodes_removes_test_files():
     from oya.graph.analysis import filter_test_nodes
 
     G = nx.DiGraph()
-    G.add_node("src/api/routes.py::handle", name="handle", type="function",
-               file_path="src/api/routes.py", line_start=1, line_end=10)
-    G.add_node("tests/test_routes.py::test_handle", name="test_handle", type="function",
-               file_path="tests/test_routes.py", line_start=1, line_end=10)
-    G.add_node("src/utils/test_helpers.py::helper", name="helper", type="function",
-               file_path="src/utils/test_helpers.py", line_start=1, line_end=10)
-    G.add_edge("tests/test_routes.py::test_handle", "src/api/routes.py::handle",
-               type="calls", confidence=0.9, line=5)
+    G.add_node(
+        "src/api/routes.py::handle",
+        name="handle",
+        type="function",
+        file_path="src/api/routes.py",
+        line_start=1,
+        line_end=10,
+    )
+    G.add_node(
+        "tests/test_routes.py::test_handle",
+        name="test_handle",
+        type="function",
+        file_path="tests/test_routes.py",
+        line_start=1,
+        line_end=10,
+    )
+    G.add_node(
+        "src/utils/test_helpers.py::helper",
+        name="helper",
+        type="function",
+        file_path="src/utils/test_helpers.py",
+        line_start=1,
+        line_end=10,
+    )
+    G.add_edge(
+        "tests/test_routes.py::test_handle",
+        "src/api/routes.py::handle",
+        type="calls",
+        confidence=0.9,
+        line=5,
+    )
 
     filtered = filter_test_nodes(G)
 
@@ -79,10 +102,12 @@ def test_get_component_graph_aggregates_by_directory():
     G.add_node("db/models.py::User", file_path="db/models.py")
     G.add_node("db/queries.py::get_user", file_path="db/queries.py")
     # Edges: api calls db
-    G.add_edge("api/routes.py::handle", "db/queries.py::get_user",
-               type="calls", confidence=0.9, line=10)
-    G.add_edge("api/handlers.py::process", "db/models.py::User",
-               type="calls", confidence=0.8, line=20)
+    G.add_edge(
+        "api/routes.py::handle", "db/queries.py::get_user", type="calls", confidence=0.9, line=10
+    )
+    G.add_edge(
+        "api/handlers.py::process", "db/models.py::User", type="calls", confidence=0.8, line=20
+    )
 
     component_graph = get_component_graph(G)
 
@@ -105,8 +130,7 @@ def test_get_component_graph_respects_confidence_threshold():
     G = nx.DiGraph()
     G.add_node("api/routes.py::handle", file_path="api/routes.py")
     G.add_node("db/models.py::User", file_path="db/models.py")
-    G.add_edge("api/routes.py::handle", "db/models.py::User",
-               type="calls", confidence=0.5, line=10)
+    G.add_edge("api/routes.py::handle", "db/models.py::User", type="calls", confidence=0.5, line=10)
 
     component_graph = get_component_graph(G, min_confidence=0.7)
 
@@ -126,9 +150,15 @@ def test_select_top_entry_points_by_fanout():
     G.add_node("db/query.py::query", file_path="db/query.py")
     G.add_node("cache/redis.py::get", file_path="cache/redis.py")
     G.add_node("log/logger.py::log", file_path="log/logger.py")
-    G.add_edge("api/main.py::handle_request", "db/query.py::query", type="calls", confidence=0.9, line=10)
-    G.add_edge("api/main.py::handle_request", "cache/redis.py::get", type="calls", confidence=0.9, line=15)
-    G.add_edge("api/main.py::handle_request", "log/logger.py::log", type="calls", confidence=0.9, line=20)
+    G.add_edge(
+        "api/main.py::handle_request", "db/query.py::query", type="calls", confidence=0.9, line=10
+    )
+    G.add_edge(
+        "api/main.py::handle_request", "cache/redis.py::get", type="calls", confidence=0.9, line=15
+    )
+    G.add_edge(
+        "api/main.py::handle_request", "log/logger.py::log", type="calls", confidence=0.9, line=20
+    )
 
     # Entry point with low fan-out (calls 1 thing)
     G.add_node("cli/cmd.py::run", file_path="cli/cmd.py")
@@ -151,7 +181,13 @@ def test_select_top_entry_points_excludes_test_files():
     G.add_node("tests/test_main.py::test_handle", file_path="tests/test_main.py")
     G.add_node("db/query.py::query", file_path="db/query.py")
     G.add_edge("api/main.py::handle", "db/query.py::query", type="calls", confidence=0.9, line=10)
-    G.add_edge("tests/test_main.py::test_handle", "api/main.py::handle", type="calls", confidence=0.9, line=5)
+    G.add_edge(
+        "tests/test_main.py::test_handle",
+        "api/main.py::handle",
+        type="calls",
+        confidence=0.9,
+        line=5,
+    )
 
     top = select_top_entry_points(G, n=5)
 
@@ -169,7 +205,9 @@ def test_component_graph_to_mermaid():
     G.add_node("db/models.py::User", file_path="db/models.py")
     G.add_node("llm/client.py::generate", file_path="llm/client.py")
     G.add_edge("api/routes.py::handle", "db/models.py::User", type="calls", confidence=0.9, line=10)
-    G.add_edge("api/routes.py::handle", "llm/client.py::generate", type="calls", confidence=0.8, line=15)
+    G.add_edge(
+        "api/routes.py::handle", "llm/client.py::generate", type="calls", confidence=0.8, line=15
+    )
 
     component_graph = get_component_graph(G)
     mermaid = component_graph_to_mermaid(component_graph)

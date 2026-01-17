@@ -1085,17 +1085,49 @@ class TestGraphArchitectureIntegration:
 
         # Create a graph with 5+ nodes
         mock_graph = nx.DiGraph()
-        mock_graph.add_node("src/main.py::main", name="main", type="function",
-                           file_path="src/main.py", line_start=1, line_end=1)
-        mock_graph.add_node("src/main.py::helper1", name="helper1", type="function",
-                           file_path="src/main.py", line_start=2, line_end=2)
-        mock_graph.add_node("src/main.py::helper2", name="helper2", type="function",
-                           file_path="src/main.py", line_start=3, line_end=3)
-        mock_graph.add_node("src/main.py::helper3", name="helper3", type="function",
-                           file_path="src/main.py", line_start=4, line_end=4)
-        mock_graph.add_node("src/main.py::helper4", name="helper4", type="function",
-                           file_path="src/main.py", line_start=5, line_end=5)
-        mock_graph.add_edge("src/main.py::main", "src/main.py::helper1", type="calls", confidence=1.0)
+        mock_graph.add_node(
+            "src/main.py::main",
+            name="main",
+            type="function",
+            file_path="src/main.py",
+            line_start=1,
+            line_end=1,
+        )
+        mock_graph.add_node(
+            "src/main.py::helper1",
+            name="helper1",
+            type="function",
+            file_path="src/main.py",
+            line_start=2,
+            line_end=2,
+        )
+        mock_graph.add_node(
+            "src/main.py::helper2",
+            name="helper2",
+            type="function",
+            file_path="src/main.py",
+            line_start=3,
+            line_end=3,
+        )
+        mock_graph.add_node(
+            "src/main.py::helper3",
+            name="helper3",
+            type="function",
+            file_path="src/main.py",
+            line_start=4,
+            line_end=4,
+        )
+        mock_graph.add_node(
+            "src/main.py::helper4",
+            name="helper4",
+            type="function",
+            file_path="src/main.py",
+            line_start=5,
+            line_end=5,
+        )
+        mock_graph.add_edge(
+            "src/main.py::main", "src/main.py::helper1", type="calls", confidence=1.0
+        )
 
         with patch("oya.generation.orchestrator.load_graph", return_value=mock_graph):
             from oya.generation.orchestrator import GenerationOrchestrator
@@ -1137,8 +1169,14 @@ class TestGraphArchitectureIntegration:
         # Create a graph with 5+ nodes
         mock_graph = nx.DiGraph()
         for i in range(5):
-            mock_graph.add_node(f"src/main.py::func{i}", name=f"func{i}", type="function",
-                               file_path="src/main.py", line_start=i, line_end=i)
+            mock_graph.add_node(
+                f"src/main.py::func{i}",
+                name=f"func{i}",
+                type="function",
+                file_path="src/main.py",
+                line_start=i,
+                line_end=i,
+            )
 
         orchestrator = GenerationOrchestrator(
             llm_client=mock_llm,
@@ -1162,11 +1200,13 @@ class TestGraphArchitectureIntegration:
                 orchestrator.graph_architecture_generator, "generate", new_callable=AsyncMock
             ) as mock_graph_gen:
                 mock_graph_gen.return_value = GeneratedPage(
-                    content="# Graph Arch", page_type="architecture",
-                    path="architecture.md", word_count=10
+                    content="# Graph Arch",
+                    page_type="architecture",
+                    path="architecture.md",
+                    word_count=10,
                 )
 
-                page = await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
+                await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
 
                 # Verify GraphArchitectureGenerator was called
                 mock_graph_gen.assert_called_once()
@@ -1221,11 +1261,13 @@ class TestGraphArchitectureIntegration:
                 orchestrator.architecture_generator, "generate", new_callable=AsyncMock
             ) as mock_std_gen:
                 mock_std_gen.return_value = GeneratedPage(
-                    content="# Standard Arch", page_type="architecture",
-                    path="architecture.md", word_count=10
+                    content="# Standard Arch",
+                    page_type="architecture",
+                    path="architecture.md",
+                    word_count=10,
                 )
 
-                page = await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
+                await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
 
                 # Verify standard generator was called (not graph generator)
                 mock_std_gen.assert_called_once()
@@ -1273,11 +1315,13 @@ class TestGraphArchitectureIntegration:
                 orchestrator.architecture_generator, "generate", new_callable=AsyncMock
             ) as mock_std_gen:
                 mock_std_gen.return_value = GeneratedPage(
-                    content="# Standard Arch", page_type="architecture",
-                    path="architecture.md", word_count=10
+                    content="# Standard Arch",
+                    page_type="architecture",
+                    path="architecture.md",
+                    word_count=10,
                 )
 
-                page = await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
+                await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
 
                 # Verify standard generator was called
                 mock_std_gen.assert_called_once()

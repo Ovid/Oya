@@ -68,22 +68,26 @@ class GraphArchitectureGenerator:
             node_data = filtered_graph.nodes.get(ep_id, {})
             fanout = filtered_graph.out_degree(ep_id)
 
-            entry_points.append({
-                "id": ep_id,
-                "name": node_data.get("name", ep_id.split("::")[-1]),
-                "file": node_data.get("file_path", ""),
-                "fanout": fanout,
-            })
+            entry_points.append(
+                {
+                    "id": ep_id,
+                    "name": node_data.get("name", ep_id.split("::")[-1]),
+                    "file": node_data.get("file_path", ""),
+                    "fanout": fanout,
+                }
+            )
 
             # Generate flow diagram
             neighborhood = get_neighborhood(
                 filtered_graph, ep_id, hops=flow_hops, min_confidence=min_confidence
             )
             if neighborhood.nodes:
-                flow_diagrams.append({
-                    "entry_point": node_data.get("name", ep_id.split("::")[-1]),
-                    "diagram": neighborhood.to_mermaid(),
-                })
+                flow_diagrams.append(
+                    {
+                        "entry_point": node_data.get("name", ep_id.split("::")[-1]),
+                        "diagram": neighborhood.to_mermaid(),
+                    }
+                )
 
         # Build prompt and generate narrative
         prompt = get_graph_architecture_prompt(

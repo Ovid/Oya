@@ -147,13 +147,10 @@ def select_top_entry_points(
         in_calls = [
             1
             for src, _, d in graph.in_edges(node_id, data=True)
-            if d.get("type") == "calls"
-            and not is_test_file(graph.nodes[src].get("file_path", src))
+            if d.get("type") == "calls" and not is_test_file(graph.nodes[src].get("file_path", src))
         ]
         out_calls = [
-            1
-            for _, _, d in graph.out_edges(node_id, data=True)
-            if d.get("type") == "calls"
+            1 for _, _, d in graph.out_edges(node_id, data=True) if d.get("type") == "calls"
         ]
 
         if len(out_calls) > 0 and len(in_calls) == 0:
