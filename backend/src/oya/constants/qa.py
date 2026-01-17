@@ -30,3 +30,14 @@ HIGH_CONFIDENCE_THRESHOLD = 0.3
 MEDIUM_CONFIDENCE_THRESHOLD = 0.6
 STRONG_MATCH_THRESHOLD = 0.5
 MIN_STRONG_MATCHES_FOR_HIGH = 3
+
+# =============================================================================
+# Graph Expansion (Phase 4)
+# =============================================================================
+# When graph data is available, Q&A retrieval can expand vector search results
+# by traversing the code graph to find connected code. This provides structural
+# context that pure vector search misses.
+
+GRAPH_EXPANSION_HOPS = 2
+GRAPH_EXPANSION_CONFIDENCE_THRESHOLD = 0.5
+GRAPH_MERMAID_TOKEN_BUDGET = 500
