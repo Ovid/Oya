@@ -7,11 +7,20 @@ and the system fetches missing pieces across multiple passes.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import networkx as nx
 
+from oya.constants.qa import CGRAG_MAX_PASSES, CGRAG_TARGETED_TOP_K
+from oya.generation.prompts import format_cgrag_prompt
 from oya.graph.models import Subgraph
 from oya.graph.query import get_neighborhood
+
+if TYPE_CHECKING:
+    from oya.llm.client import LLMClient
+    from oya.qa.session import CGRAGSession
+    from oya.vectorstore.store import VectorStore
 
 
 def parse_gaps(response: str) -> list[str]:
@@ -84,10 +93,7 @@ def is_specific_gap(gap: str) -> bool:
         return True
 
     # Contains type keyword followed by name
-    if any(
-        keyword in gap_lower
-        for keyword in ["function ", "class ", "method ", "def "]
-    ):
+    if any(keyword in gap_lower for keyword in ["function ", "class ", "method ", "def "]):
         return True
 
     return False
@@ -177,3 +183,164 @@ def _extract_node_name(gap: str) -> str | None:
             return word
 
     return None
+
+
+@dataclass
+class CGRAGResult:
+    """Result from CGRAG iteration loop."""
+
+    answer: str
+    passes_used: int
+    gaps_identified: list[str] = field(default_factory=list)
+    gaps_resolved: list[str] = field(default_factory=list)
+    gaps_unresolved: list[str] = field(default_factory=list)
+    context_from_cache: bool = False
+
+
+async def run_cgrag_loop(
+    question: str,
+    initial_context: str,
+    session: CGRAGSession,
+    llm: LLMClient,
+    graph: nx.DiGraph | None,
+    vectorstore: VectorStore | None,
+) -> CGRAGResult:
+    """Run the CGRAG iterative retrieval loop.
+
+    Repeatedly asks the LLM to answer and identify gaps, then retrieves
+    missing context until no more gaps or max passes reached.
+
+    Args:
+        question: The user's question.
+        initial_context: Starting context from initial retrieval.
+        session: CGRAG session for caching across passes.
+        llm: LLM client for generating answers.
+        graph: Optional code graph for targeted retrieval.
+        vectorstore: Optional vector store for fuzzy retrieval.
+
+    Returns:
+        CGRAGResult with final answer and iteration metadata.
+    """
+    context = initial_context
+    all_gaps_identified: list[str] = []
+    gaps_resolved: list[str] = []
+    gaps_unresolved: list[str] = []
+    answer = ""
+
+    for pass_num in range(1, CGRAG_MAX_PASSES + 1):
+        # Format prompt and get LLM response
+        prompt = format_cgrag_prompt(question, context)
+        response = await llm.generate(prompt)
+
+        # Parse answer and gaps
+        answer = parse_answer(response)
+        gaps = parse_gaps(response)
+
+        # If no gaps, we're done
+        if not gaps:
+            return CGRAGResult(
+                answer=answer,
+                passes_used=pass_num,
+                gaps_identified=all_gaps_identified,
+                gaps_resolved=gaps_resolved,
+                gaps_unresolved=gaps_unresolved,
+            )
+
+        # Track all gaps identified
+        for gap in gaps:
+            if gap not in all_gaps_identified:
+                all_gaps_identified.append(gap)
+
+        # Check if all gaps were already not found (stop condition)
+        new_gaps = [g for g in gaps if g not in session.not_found]
+        if not new_gaps:
+            # All gaps were already tried and not found
+            for gap in gaps:
+                if gap not in gaps_unresolved:
+                    gaps_unresolved.append(gap)
+            return CGRAGResult(
+                answer=answer,
+                passes_used=pass_num,
+                gaps_identified=all_gaps_identified,
+                gaps_resolved=gaps_resolved,
+                gaps_unresolved=gaps_unresolved,
+            )
+
+        # Try to retrieve context for each gap
+        new_context_parts: list[str] = []
+        for gap in new_gaps:
+            retrieved = await _retrieve_for_gap(gap, graph, vectorstore, session)
+            if retrieved:
+                new_context_parts.append(retrieved)
+                if gap not in gaps_resolved:
+                    gaps_resolved.append(gap)
+            else:
+                session.add_not_found(gap)
+                if gap not in gaps_unresolved:
+                    gaps_unresolved.append(gap)
+
+        # Append new context
+        if new_context_parts:
+            context = context + "\n\n" + "\n\n".join(new_context_parts)
+
+    # Hit max passes
+    return CGRAGResult(
+        answer=answer,
+        passes_used=CGRAG_MAX_PASSES,
+        gaps_identified=all_gaps_identified,
+        gaps_resolved=gaps_resolved,
+        gaps_unresolved=gaps_unresolved,
+    )
+
+
+async def _retrieve_for_gap(
+    gap: str,
+    graph: nx.DiGraph | None,
+    vectorstore: VectorStore | None,
+    session: CGRAGSession,
+) -> str | None:
+    """Retrieve context for a single gap.
+
+    Tries graph lookup first for specific gaps, then falls back to vector search.
+
+    Args:
+        gap: The gap description from LLM.
+        graph: Optional code graph for targeted retrieval.
+        vectorstore: Optional vector store for fuzzy retrieval.
+        session: CGRAG session for caching nodes.
+
+    Returns:
+        Retrieved context as a string, or None if not found.
+    """
+    # Try graph lookup for specific gaps
+    if graph is not None and is_specific_gap(gap):
+        subgraph = graph_lookup(gap, graph)
+        if subgraph and subgraph.nodes:
+            # Cache nodes in session
+            session.add_nodes(subgraph.nodes)
+            return _format_subgraph_context(subgraph)
+
+    # Try vector search for fuzzy gaps
+    if vectorstore is not None:
+        results = await vectorstore.search(gap, top_k=CGRAG_TARGETED_TOP_K)
+        if results:
+            context_parts = []
+            for result in results:
+                context_parts.append(
+                    f"### {result.get('file_path', 'Unknown')}\n{result.get('content', '')}"
+                )
+            return "\n\n".join(context_parts)
+
+    return None
+
+
+def _format_subgraph_context(subgraph: Subgraph) -> str:
+    """Format a subgraph as context text for the LLM.
+
+    Args:
+        subgraph: The subgraph containing nodes and edges.
+
+    Returns:
+        Formatted context string.
+    """
+    return subgraph.to_context()
