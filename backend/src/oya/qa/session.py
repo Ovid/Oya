@@ -70,3 +70,51 @@ class CGRAGSession:
             List of node IDs in the cache.
         """
         return list(self.cached_nodes.keys())
+
+
+class SessionStore:
+    """In-memory store for CGRAG sessions.
+
+    Thread-safe store for managing multiple concurrent sessions.
+    Sessions are automatically expired based on TTL.
+    """
+
+    def __init__(self) -> None:
+        """Initialize empty session store."""
+        self._sessions: dict[str, CGRAGSession] = {}
+
+    def get_or_create(self, session_id: str | None) -> CGRAGSession:
+        """Get existing session or create new one.
+
+        Args:
+            session_id: Optional session ID. If None or not found/expired,
+                creates a new session.
+
+        Returns:
+            The session (existing or newly created).
+        """
+        if session_id and session_id in self._sessions:
+            session = self._sessions[session_id]
+            if not session.is_expired():
+                session.touch()
+                return session
+            # Expired - remove and create new
+            del self._sessions[session_id]
+
+        # Create new session
+        session = CGRAGSession()
+        self._sessions[session.id] = session
+        return session
+
+    def cleanup_expired(self) -> int:
+        """Remove all expired sessions.
+
+        Returns:
+            Number of sessions removed.
+        """
+        expired_ids = [
+            sid for sid, session in self._sessions.items() if session.is_expired()
+        ]
+        for sid in expired_ids:
+            del self._sessions[sid]
+        return len(expired_ids)

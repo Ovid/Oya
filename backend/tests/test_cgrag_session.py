@@ -104,3 +104,66 @@ class TestCGRAGSession:
         session.add_nodes(nodes)
 
         assert len(session.cached_nodes) <= CGRAG_SESSION_MAX_NODES
+
+
+class TestSessionStore:
+    """Tests for SessionStore class."""
+
+    def test_store_get_or_create_new(self):
+        """Get with no ID creates new session."""
+        from oya.qa.session import SessionStore
+
+        store = SessionStore()
+
+        session = store.get_or_create(None)
+
+        assert session is not None
+        assert session.id is not None
+
+    def test_store_get_or_create_existing(self):
+        """Get with existing ID returns same session."""
+        from oya.qa.session import SessionStore
+
+        store = SessionStore()
+        session1 = store.get_or_create(None)
+
+        session2 = store.get_or_create(session1.id)
+
+        assert session2.id == session1.id
+
+    def test_store_get_or_create_expired(self):
+        """Get with expired session ID creates new session."""
+        from oya.qa.session import SessionStore
+        from oya.constants.qa import CGRAG_SESSION_TTL_MINUTES
+
+        store = SessionStore()
+        session1 = store.get_or_create(None)
+
+        # Manually expire the session
+        session1.last_accessed = datetime.now() - timedelta(
+            minutes=CGRAG_SESSION_TTL_MINUTES + 1
+        )
+
+        session2 = store.get_or_create(session1.id)
+
+        assert session2.id != session1.id
+
+    def test_store_cleanup_expired(self):
+        """Cleanup removes expired sessions."""
+        from oya.qa.session import SessionStore
+        from oya.constants.qa import CGRAG_SESSION_TTL_MINUTES
+
+        store = SessionStore()
+        session1 = store.get_or_create(None)
+        session2 = store.get_or_create(None)
+
+        # Expire session1
+        session1.last_accessed = datetime.now() - timedelta(
+            minutes=CGRAG_SESSION_TTL_MINUTES + 1
+        )
+
+        store.cleanup_expired()
+
+        # session1 should be gone, session2 should remain
+        assert store.get_or_create(session1.id).id != session1.id
+        assert store.get_or_create(session2.id).id == session2.id
