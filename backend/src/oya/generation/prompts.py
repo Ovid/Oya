@@ -1327,3 +1327,39 @@ def get_synthesis_prompt(
         file_summaries=_format_file_summaries(file_summaries),
         directory_summaries=_format_directory_summaries(directory_summaries),
     )
+
+
+# =============================================================================
+# Graph-Augmented Q&A (Phase 4)
+# =============================================================================
+
+GRAPH_QA_CONTEXT_TEMPLATE = """## Code Relationships
+The following diagram shows how the relevant code connects:
+
+```mermaid
+{mermaid_diagram}
+```
+
+## Relevant Code
+
+{code_snippets}
+"""
+
+
+def format_graph_qa_context(mermaid_diagram: str, code_snippets: str) -> str:
+    """Format graph context for Q&A prompt.
+
+    Args:
+        mermaid_diagram: Mermaid flowchart showing code relationships.
+        code_snippets: Formatted code snippets with file paths and line numbers.
+
+    Returns:
+        Formatted context string for inclusion in Q&A prompt.
+    """
+    if not mermaid_diagram and not code_snippets:
+        return ""
+
+    return GRAPH_QA_CONTEXT_TEMPLATE.format(
+        mermaid_diagram=mermaid_diagram,
+        code_snippets=code_snippets,
+    )
