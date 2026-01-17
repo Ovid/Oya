@@ -151,3 +151,30 @@ def test_trace_flow_no_path():
     paths = trace_flow(G, "a.py::func_a", "b.py::func_b")
 
     assert len(paths) == 0
+
+
+def test_get_entry_points(sample_graph):
+    """get_entry_points finds nodes with no incoming calls."""
+    from oya.graph.query import get_entry_points
+
+    entry_points = get_entry_points(sample_graph)
+
+    # Only process_request has no incoming calls
+    entry_ids = [n.id for n in entry_points]
+    assert "handler.py::process_request" in entry_ids
+    assert "auth.py::verify_token" not in entry_ids  # Has incoming call
+    assert "db.py::get_user" not in entry_ids  # Has incoming calls
+
+
+def test_get_leaf_nodes(sample_graph):
+    """get_leaf_nodes finds nodes with no outgoing calls."""
+    from oya.graph.query import get_leaf_nodes
+
+    leaves = get_leaf_nodes(sample_graph)
+
+    leaf_ids = [n.id for n in leaves]
+    # Nodes that don't call anything
+    assert "db.py::get_user" in leaf_ids
+    assert "response.py::send_response" in leaf_ids
+    # Nodes that do call others
+    assert "handler.py::process_request" not in leaf_ids

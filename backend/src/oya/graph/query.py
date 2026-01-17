@@ -174,6 +174,48 @@ def trace_flow(
         return []
 
 
+def get_entry_points(graph: nx.DiGraph) -> list[Node]:
+    """Find nodes with no incoming call edges (likely entry points).
+
+    Args:
+        graph: The code graph.
+
+    Returns:
+        List of nodes that have outgoing calls but no incoming calls.
+    """
+    nodes = []
+    for node_id in graph.nodes():
+        in_calls = [1 for _, _, d in graph.in_edges(node_id, data=True) if d.get("type") == "calls"]
+        out_calls = [1 for _, _, d in graph.out_edges(node_id, data=True) if d.get("type") == "calls"]
+
+        # Entry point: has outgoing calls but no incoming calls
+        if len(out_calls) > 0 and len(in_calls) == 0:
+            node_data = graph.nodes[node_id]
+            nodes.append(_node_from_data(node_id, node_data))
+
+    return nodes
+
+
+def get_leaf_nodes(graph: nx.DiGraph) -> list[Node]:
+    """Find nodes with no outgoing call edges (endpoints like DB, external APIs).
+
+    Args:
+        graph: The code graph.
+
+    Returns:
+        List of nodes that have no outgoing call edges.
+    """
+    nodes = []
+    for node_id in graph.nodes():
+        out_calls = [1 for _, _, d in graph.out_edges(node_id, data=True) if d.get("type") == "calls"]
+
+        if len(out_calls) == 0:
+            node_data = graph.nodes[node_id]
+            nodes.append(_node_from_data(node_id, node_data))
+
+    return nodes
+
+
 def _node_from_data(node_id: str, data: dict) -> Node:
     """Convert graph node data to Node model."""
     node_type_str = data.get("type", "function")
