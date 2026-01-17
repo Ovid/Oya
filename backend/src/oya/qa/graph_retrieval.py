@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import networkx as nx
 
-from oya.constants.qa import GRAPH_EXPANSION_CONFIDENCE_THRESHOLD, GRAPH_EXPANSION_HOPS
+from oya.constants.qa import (
+    GRAPH_EXPANSION_CONFIDENCE_THRESHOLD,
+    GRAPH_EXPANSION_HOPS,
+    GRAPH_MERMAID_TOKEN_BUDGET,
+)
+from oya.generation.chunking import estimate_tokens
 from oya.graph.models import Node, Subgraph
 from oya.graph.query import get_neighborhood
 
@@ -81,3 +86,76 @@ def prioritize_nodes(
         return in_degree + out_degree
 
     return sorted(nodes, key=node_score, reverse=True)
+
+
+def build_graph_context(
+    subgraph: Subgraph,
+    token_budget: int,
+) -> tuple[str, str]:
+    """Format subgraph as context for LLM consumption.
+
+    Returns a Mermaid diagram showing relationships and formatted
+    code snippets for each node, respecting the token budget.
+
+    Args:
+        subgraph: The expanded subgraph from graph traversal.
+        token_budget: Maximum tokens for the combined output.
+
+    Returns:
+        Tuple of (mermaid_diagram, code_snippets).
+    """
+    if not subgraph.nodes:
+        return "", ""
+
+    # Generate Mermaid diagram
+    mermaid = subgraph.to_mermaid()
+    mermaid_tokens = estimate_tokens(mermaid)
+
+    # Reserve budget for mermaid, rest for code
+    mermaid_budget = min(mermaid_tokens, GRAPH_MERMAID_TOKEN_BUDGET)
+    code_budget = token_budget - mermaid_budget
+
+    # If mermaid is too big, truncate it
+    if mermaid_tokens > GRAPH_MERMAID_TOKEN_BUDGET:
+        # Simple truncation - could be smarter
+        lines = mermaid.split("\n")
+        truncated_lines = [lines[0]]  # Keep header
+        current_tokens = estimate_tokens(truncated_lines[0])
+        for line in lines[1:]:
+            line_tokens = estimate_tokens(line)
+            if current_tokens + line_tokens > GRAPH_MERMAID_TOKEN_BUDGET:
+                break
+            truncated_lines.append(line)
+            current_tokens += line_tokens
+        mermaid = "\n".join(truncated_lines)
+
+    # Build code snippets
+    code_parts = []
+    current_tokens = 0
+
+    for node in subgraph.nodes:
+        snippet = _format_node_snippet(node)
+        snippet_tokens = estimate_tokens(snippet)
+
+        if current_tokens + snippet_tokens > code_budget:
+            break
+
+        code_parts.append(snippet)
+        current_tokens += snippet_tokens
+
+    code = "\n\n".join(code_parts)
+
+    return mermaid, code
+
+
+def _format_node_snippet(node: Node) -> str:
+    """Format a node as a code reference snippet."""
+    parts = [f"### {node.file_path}::{node.name} (lines {node.line_start}-{node.line_end})"]
+
+    if node.docstring:
+        parts.append(f"> {node.docstring}")
+
+    if node.signature:
+        parts.append(f"```\n{node.signature}\n```")
+
+    return "\n".join(parts)

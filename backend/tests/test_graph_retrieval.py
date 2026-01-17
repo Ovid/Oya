@@ -223,3 +223,113 @@ class TestPrioritizeNodes:
         assert len(prioritized) == 2
         names = {n.name for n in prioritized}
         assert names == {"a", "b"}
+
+
+class TestBuildGraphContext:
+    """Tests for build_graph_context function."""
+
+    def test_includes_mermaid_diagram(self):
+        """Output includes Mermaid diagram."""
+        from oya.qa.graph_retrieval import build_graph_context
+        from oya.graph.models import Node, Edge, NodeType, EdgeType, Subgraph
+
+        subgraph = Subgraph(
+            nodes=[
+                Node(
+                    id="a.py::func_a",
+                    node_type=NodeType.FUNCTION,
+                    name="func_a",
+                    file_path="a.py",
+                    line_start=1,
+                    line_end=10,
+                ),
+                Node(
+                    id="b.py::func_b",
+                    node_type=NodeType.FUNCTION,
+                    name="func_b",
+                    file_path="b.py",
+                    line_start=1,
+                    line_end=10,
+                ),
+            ],
+            edges=[
+                Edge(
+                    source="a.py::func_a",
+                    target="b.py::func_b",
+                    edge_type=EdgeType.CALLS,
+                    confidence=0.9,
+                    line=5,
+                ),
+            ],
+        )
+
+        mermaid, code = build_graph_context(subgraph, token_budget=2000)
+
+        assert "flowchart" in mermaid
+        assert "func_a" in mermaid
+        assert "func_b" in mermaid
+
+    def test_includes_code_snippets(self):
+        """Output includes code location info."""
+        from oya.qa.graph_retrieval import build_graph_context
+        from oya.graph.models import Node, NodeType, Subgraph
+
+        subgraph = Subgraph(
+            nodes=[
+                Node(
+                    id="auth/handler.py::login",
+                    node_type=NodeType.FUNCTION,
+                    name="login",
+                    file_path="auth/handler.py",
+                    line_start=10,
+                    line_end=30,
+                    docstring="Handle user login.",
+                ),
+            ],
+            edges=[],
+        )
+
+        mermaid, code = build_graph_context(subgraph, token_budget=2000)
+
+        assert "auth/handler.py" in code
+        assert "login" in code
+        assert "10" in code  # line number
+
+    def test_respects_token_budget(self):
+        """Code output respects token budget."""
+        from oya.qa.graph_retrieval import build_graph_context
+        from oya.graph.models import Node, NodeType, Subgraph
+        from oya.generation.chunking import estimate_tokens
+
+        # Create many nodes
+        nodes = [
+            Node(
+                id=f"file{i}.py::func{i}",
+                node_type=NodeType.FUNCTION,
+                name=f"func{i}",
+                file_path=f"file{i}.py",
+                line_start=1,
+                line_end=100,
+                docstring="A" * 500,
+            )  # Long docstring
+            for i in range(20)
+        ]
+        subgraph = Subgraph(nodes=nodes, edges=[])
+
+        mermaid, code = build_graph_context(subgraph, token_budget=500)
+
+        # Total should be under budget (with some margin for structure)
+        total_tokens = estimate_tokens(mermaid) + estimate_tokens(code)
+        assert total_tokens < 700  # Budget + some overhead
+
+    def test_empty_subgraph(self):
+        """Empty subgraph returns empty strings."""
+        from oya.qa.graph_retrieval import build_graph_context
+        from oya.graph.models import Subgraph
+
+        subgraph = Subgraph(nodes=[], edges=[])
+
+        mermaid, code = build_graph_context(subgraph, token_budget=2000)
+
+        assert mermaid == ""
+        assert code == ""
