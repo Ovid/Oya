@@ -69,3 +69,55 @@ def save_graph(graph: nx.DiGraph, output_dir: Path) -> None:
 
     with open(output_dir / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
+
+
+def load_graph(input_dir: Path) -> nx.DiGraph:
+    """Load graph from JSON files.
+
+    Args:
+        input_dir: Directory containing nodes.json, edges.json.
+
+    Returns:
+        Reconstructed NetworkX directed graph, or empty graph if files don't exist.
+    """
+    input_dir = Path(input_dir)
+    G = nx.DiGraph()
+
+    nodes_file = input_dir / "nodes.json"
+    edges_file = input_dir / "edges.json"
+
+    if not nodes_file.exists():
+        return G
+
+    # Load nodes
+    with open(nodes_file) as f:
+        nodes = json.load(f)
+
+    for node in nodes:
+        G.add_node(
+            node["id"],
+            name=node.get("name"),
+            type=node.get("type"),
+            file_path=node.get("file_path"),
+            line_start=node.get("line_start"),
+            line_end=node.get("line_end"),
+            docstring=node.get("docstring"),
+            signature=node.get("signature"),
+            parent=node.get("parent"),
+        )
+
+    # Load edges
+    if edges_file.exists():
+        with open(edges_file) as f:
+            edges = json.load(f)
+
+        for edge in edges:
+            G.add_edge(
+                edge["source"],
+                edge["target"],
+                type=edge.get("type"),
+                confidence=edge.get("confidence"),
+                line=edge.get("line"),
+            )
+
+    return G
