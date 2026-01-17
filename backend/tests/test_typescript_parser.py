@@ -210,3 +210,29 @@ function main() {
 
     assert "User" in targets
     assert "Config" in targets
+
+
+def test_extracts_inheritance(parser):
+    """Extracts class inheritance (extends)."""
+    code = '''
+class Animal {}
+
+class Dog extends Animal {}
+
+class Labrador extends Dog implements Serializable {}
+'''
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    refs = result.file.references
+
+    inherits = [r for r in refs if r.reference_type.value == "inherits"]
+
+    # Dog extends Animal
+    dog_inherits = [r for r in inherits if "Dog" in r.source]
+    assert len(dog_inherits) >= 1
+    assert any(r.target == "Animal" for r in dog_inherits)
+
+    # Labrador extends Dog
+    lab_inherits = [r for r in inherits if "Labrador" in r.source]
+    assert any(r.target == "Dog" for r in lab_inherits)

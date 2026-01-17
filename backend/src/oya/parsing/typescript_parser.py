@@ -299,6 +299,7 @@ class TypeScriptParser(BaseParser):
         class_name = self._get_node_text(name_node, content)
         start_line = node.start_point[0] + 1
         end_line = node.end_point[0] + 1
+        class_scope = f"{file_path}::{class_name}"
 
         symbols.append(
             ParsedSymbol(
@@ -308,6 +309,24 @@ class TypeScriptParser(BaseParser):
                 end_line=end_line,
             )
         )
+
+        # Extract inheritance (extends clause)
+        if references is not None:
+            for child in node.children:
+                if child.type == "class_heritage":
+                    for heritage_child in child.children:
+                        if heritage_child.type == "extends_clause":
+                            # Get the class being extended
+                            for ext_child in heritage_child.children:
+                                if ext_child.type in ("identifier", "type_identifier"):
+                                    target = self._get_node_text(ext_child, content)
+                                    references.append(Reference(
+                                        source=class_scope,
+                                        target=target,
+                                        reference_type=ReferenceType.INHERITS,
+                                        confidence=0.95,
+                                        line=start_line,
+                                    ))
 
         # Process class body for methods
         body_node = node.child_by_field_name("body")
