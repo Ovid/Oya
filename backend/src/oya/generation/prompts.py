@@ -1363,3 +1363,43 @@ def format_graph_qa_context(mermaid_diagram: str, code_snippets: str) -> str:
         mermaid_diagram=mermaid_diagram,
         code_snippets=code_snippets,
     )
+
+
+# =============================================================================
+# CGRAG - Iterative Retrieval (Phase 5)
+# =============================================================================
+
+CGRAG_QA_TEMPLATE = """You are answering a question about a codebase. You have been given some context, but it may be incomplete.
+
+## Question
+{question}
+
+## Available Context
+{context}
+
+## Instructions
+1. Answer the question as best you can with the available context
+2. If your answer would be MORE COMPLETE with additional code, list what's missing
+3. Format your response as:
+
+ANSWER:
+[Your answer here]
+
+MISSING (or "NONE" if nothing needed):
+- function_name in path/to/file.py
+- ClassName in some/module.py
+- the file that handles X
+"""
+
+
+def format_cgrag_prompt(question: str, context: str) -> str:
+    """Format CGRAG prompt for iterative Q&A.
+
+    Args:
+        question: The user's question.
+        context: The accumulated context from retrieval passes.
+
+    Returns:
+        Formatted prompt string.
+    """
+    return CGRAG_QA_TEMPLATE.format(question=question, context=context)
