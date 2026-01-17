@@ -69,3 +69,42 @@ def test_get_callers(sample_graph):
     caller_ids = [n.id for n in callers]
     assert "handler.py::process_request" in caller_ids
     assert "auth.py::verify_token" in caller_ids
+
+
+def test_get_neighborhood_one_hop(sample_graph):
+    """get_neighborhood with hops=1 returns immediate neighbors."""
+    from oya.graph.query import get_neighborhood
+
+    subgraph = get_neighborhood(sample_graph, "auth.py::verify_token", hops=1)
+
+    node_ids = [n.id for n in subgraph.nodes]
+    # Should include the center node
+    assert "auth.py::verify_token" in node_ids
+    # Should include nodes 1 hop away
+    assert "handler.py::process_request" in node_ids  # caller
+    assert "db.py::get_user" in node_ids  # callee
+
+
+def test_get_neighborhood_two_hops(sample_graph):
+    """get_neighborhood with hops=2 returns 2-hop neighborhood."""
+    from oya.graph.query import get_neighborhood
+
+    subgraph = get_neighborhood(sample_graph, "auth.py::verify_token", hops=2)
+
+    node_ids = [n.id for n in subgraph.nodes]
+    # Should include all connected nodes within 2 hops
+    assert "auth.py::verify_token" in node_ids
+    assert "handler.py::process_request" in node_ids
+    assert "db.py::get_user" in node_ids
+    assert "response.py::send_response" in node_ids  # 2 hops via process_request
+
+
+def test_get_neighborhood_includes_edges(sample_graph):
+    """get_neighborhood includes edges between included nodes."""
+    from oya.graph.query import get_neighborhood
+
+    subgraph = get_neighborhood(sample_graph, "auth.py::verify_token", hops=1)
+
+    # Should have edge from verify_token to get_user
+    edge_pairs = [(e.source, e.target) for e in subgraph.edges]
+    assert ("auth.py::verify_token", "db.py::get_user") in edge_pairs
