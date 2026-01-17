@@ -86,3 +86,39 @@ def test_save_graph_metadata(tmp_path):
     assert "build_timestamp" in metadata
     assert metadata["node_count"] == 1
     assert metadata["edge_count"] == 0
+
+
+def test_load_graph_roundtrip(tmp_path):
+    """load_graph reconstructs the saved graph."""
+    from oya.graph.persistence import save_graph, load_graph
+
+    G = nx.DiGraph()
+    G.add_node("a.py::func", name="func", type="function", file_path="a.py",
+               line_start=1, line_end=10, docstring="A function.", signature="def func():", parent=None)
+    G.add_node("b.py::other", name="other", type="function", file_path="b.py",
+               line_start=1, line_end=5, docstring=None, signature=None, parent=None)
+    G.add_edge("a.py::func", "b.py::other", type="calls", confidence=0.85, line=7)
+
+    output_dir = tmp_path / "graph"
+    save_graph(G, output_dir)
+
+    loaded = load_graph(output_dir)
+
+    # Same nodes
+    assert set(loaded.nodes()) == set(G.nodes())
+    # Same edges
+    assert set(loaded.edges()) == set(G.edges())
+    # Node attributes preserved
+    assert loaded.nodes["a.py::func"]["docstring"] == "A function."
+    # Edge attributes preserved
+    assert loaded.edges["a.py::func", "b.py::other"]["confidence"] == 0.85
+
+
+def test_load_graph_missing_dir_returns_empty():
+    """load_graph returns empty graph for missing directory."""
+    from oya.graph.persistence import load_graph
+
+    loaded = load_graph(Path("/nonexistent/path"))
+
+    assert loaded.number_of_nodes() == 0
+    assert loaded.number_of_edges() == 0
