@@ -16,21 +16,82 @@ def _make_test_graph() -> nx.DiGraph:
 
     # Add nodes
     nodes = [
-        ("auth/handler.py::login", {"name": "login", "type": "function", "file_path": "auth/handler.py", "line_start": 10, "line_end": 30}),
-        ("auth/verify.py::verify_token", {"name": "verify_token", "type": "function", "file_path": "auth/verify.py", "line_start": 5, "line_end": 25}),
-        ("db/users.py::get_user", {"name": "get_user", "type": "function", "file_path": "db/users.py", "line_start": 20, "line_end": 40}),
-        ("db/query.py::db_query", {"name": "db_query", "type": "function", "file_path": "db/query.py", "line_start": 1, "line_end": 15}),
-        ("auth/session.py::save_session", {"name": "save_session", "type": "function", "file_path": "auth/session.py", "line_start": 10, "line_end": 20}),
+        (
+            "auth/handler.py::login",
+            {
+                "name": "login",
+                "type": "function",
+                "file_path": "auth/handler.py",
+                "line_start": 10,
+                "line_end": 30,
+            },
+        ),
+        (
+            "auth/verify.py::verify_token",
+            {
+                "name": "verify_token",
+                "type": "function",
+                "file_path": "auth/verify.py",
+                "line_start": 5,
+                "line_end": 25,
+            },
+        ),
+        (
+            "db/users.py::get_user",
+            {
+                "name": "get_user",
+                "type": "function",
+                "file_path": "db/users.py",
+                "line_start": 20,
+                "line_end": 40,
+            },
+        ),
+        (
+            "db/query.py::db_query",
+            {
+                "name": "db_query",
+                "type": "function",
+                "file_path": "db/query.py",
+                "line_start": 1,
+                "line_end": 15,
+            },
+        ),
+        (
+            "auth/session.py::save_session",
+            {
+                "name": "save_session",
+                "type": "function",
+                "file_path": "auth/session.py",
+                "line_start": 10,
+                "line_end": 20,
+            },
+        ),
     ]
     for node_id, attrs in nodes:
         G.add_node(node_id, **attrs)
 
     # Add edges with confidence
     edges = [
-        ("auth/handler.py::login", "auth/verify.py::verify_token", {"type": "calls", "confidence": 0.9, "line": 15}),
-        ("auth/verify.py::verify_token", "db/users.py::get_user", {"type": "calls", "confidence": 0.8, "line": 10}),
-        ("auth/verify.py::verify_token", "auth/session.py::save_session", {"type": "calls", "confidence": 0.7, "line": 20}),
-        ("db/users.py::get_user", "db/query.py::db_query", {"type": "calls", "confidence": 0.6, "line": 25}),
+        (
+            "auth/handler.py::login",
+            "auth/verify.py::verify_token",
+            {"type": "calls", "confidence": 0.9, "line": 15},
+        ),
+        (
+            "auth/verify.py::verify_token",
+            "db/users.py::get_user",
+            {"type": "calls", "confidence": 0.8, "line": 10},
+        ),
+        (
+            "auth/verify.py::verify_token",
+            "auth/session.py::save_session",
+            {"type": "calls", "confidence": 0.7, "line": 20},
+        ),
+        (
+            "db/users.py::get_user",
+            "db/query.py::db_query",
+            {"type": "calls", "confidence": 0.6, "line": 25},
+        ),
     ]
     for source, target, attrs in edges:
         G.add_edge(source, target, **attrs)
