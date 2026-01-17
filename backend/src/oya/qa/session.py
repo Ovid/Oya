@@ -75,7 +75,7 @@ class CGRAGSession:
 class SessionStore:
     """In-memory store for CGRAG sessions.
 
-    Thread-safe store for managing multiple concurrent sessions.
+    Manages multiple concurrent sessions with automatic expiration.
     Sessions are automatically expired based on TTL.
     """
 
