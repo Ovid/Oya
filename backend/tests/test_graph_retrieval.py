@@ -333,3 +333,35 @@ class TestBuildGraphContext:
 
         assert mermaid == ""
         assert code == ""
+
+
+class TestMapSearchResultsToNodeIds:
+    """Tests for mapping vector search results to graph node IDs."""
+
+    def test_maps_file_paths_to_node_ids(self):
+        """Search result paths are mapped to matching node IDs in graph."""
+        from oya.qa.graph_retrieval import map_search_results_to_node_ids
+
+        graph = _make_test_graph()
+        search_results = [
+            {"path": "files/auth-handler-py.md", "content": "..."},
+            {"path": "files/db-users-py.md", "content": "..."},
+        ]
+
+        node_ids = map_search_results_to_node_ids(search_results, graph)
+
+        # Should find nodes whose file_path matches
+        assert any("auth/handler.py" in nid for nid in node_ids)
+
+    def test_handles_no_matches(self):
+        """Returns empty list when no matches found."""
+        from oya.qa.graph_retrieval import map_search_results_to_node_ids
+
+        graph = _make_test_graph()
+        search_results = [
+            {"path": "files/unknown-py.md", "content": "..."},
+        ]
+
+        node_ids = map_search_results_to_node_ids(search_results, graph)
+
+        assert node_ids == []
