@@ -30,8 +30,17 @@ from oya.qa.graph_retrieval import (
     map_search_results_to_node_ids,
     prioritize_nodes,
 )
+from oya.qa.cgrag import run_cgrag_loop, CGRAGResult
 from oya.qa.ranking import RRFRanker
-from oya.qa.schemas import Citation, ConfidenceLevel, QARequest, QAResponse, SearchQuality
+from oya.qa.schemas import (
+    CGRAGMetadata,
+    Citation,
+    ConfidenceLevel,
+    QARequest,
+    QAResponse,
+    SearchQuality,
+)
+from oya.qa.session import SessionStore
 from oya.vectorstore.store import VectorStore
 
 if TYPE_CHECKING:
@@ -59,6 +68,9 @@ Your answer here...
 
 Only cite sources that directly support your answer. Include 1-5 citations.
 """
+
+# Module-level session store for CGRAG
+_session_store = SessionStore()
 
 
 class QAService:
@@ -668,7 +680,7 @@ Format your response with:
         )
 
     async def _ask_normal(self, request: QARequest) -> QAResponse:
-        """Answer a question using normal hybrid search.
+        """Answer a question using CGRAG iterative retrieval.
 
         Args:
             request: Q&A request with question.
@@ -682,20 +694,28 @@ Format your response with:
         # Calculate confidence from results
         confidence = self._calculate_confidence(results)
 
-        # Build prompt with token budgeting
-        prompt, results_used = self._build_context_prompt(request.question, results)
+        # Build initial context with token budgeting
+        initial_context, results_used = self._build_context_prompt(request.question, results)
 
         # Add graph context if available and enabled
         if self._graph is not None and request.use_graph and results:
             graph_context = self._build_graph_context(results)
             if graph_context:
-                prompt = graph_context + "\n\n" + prompt
+                initial_context = graph_context + "\n\n" + initial_context
+
+        # Get or create CGRAG session
+        session = _session_store.get_or_create(request.session_id)
+        context_from_cache = bool(session.cached_nodes) and request.session_id is not None
 
         try:
-            raw_answer = await self._llm.generate(
-                prompt=prompt,
-                system_prompt=QA_SYSTEM_PROMPT,
-                temperature=0.2,  # Lower for factual Q&A
+            # Run CGRAG iterative loop
+            cgrag_result: CGRAGResult = await run_cgrag_loop(
+                question=request.question,
+                initial_context=initial_context,
+                session=session,
+                llm=self._llm,
+                graph=self._graph,
+                vectorstore=self._vectorstore,
             )
         except Exception as e:
             return QAResponse(
@@ -709,11 +729,31 @@ Format your response with:
                     results_found=len(results),
                     results_used=results_used,
                 ),
+                cgrag=CGRAGMetadata(
+                    passes_used=0,
+                    gaps_identified=[],
+                    gaps_resolved=[],
+                    gaps_unresolved=[],
+                    session_id=session.id,
+                    context_from_cache=context_from_cache,
+                ),
             )
 
-        # Extract citations and answer from structured response
-        citations = self._extract_citations(raw_answer, results)
-        answer = self._extract_answer(raw_answer)
+        # Extract answer from CGRAG result
+        answer = cgrag_result.answer
+
+        # Use fallback citations from search results since CGRAG uses different format
+        citations = self._fallback_citations(results[:5])
+
+        # Build CGRAG metadata
+        cgrag_metadata = CGRAGMetadata(
+            passes_used=cgrag_result.passes_used,
+            gaps_identified=cgrag_result.gaps_identified,
+            gaps_resolved=cgrag_result.gaps_resolved,
+            gaps_unresolved=cgrag_result.gaps_unresolved,
+            session_id=session.id,
+            context_from_cache=context_from_cache,
+        )
 
         # Build disclaimer based on confidence
         disclaimers = {
@@ -733,4 +773,5 @@ Format your response with:
                 results_found=len(results),
                 results_used=results_used,
             ),
+            cgrag=cgrag_metadata,
         )
