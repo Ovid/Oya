@@ -152,10 +152,11 @@ def _extract_node_name(gap: str) -> str | None:
     if "::" in gap:
         return gap.split("::")[-1].strip()
 
-    # Handle "name in path" format
+    # Handle "name in path" format (preserve original case)
     if " in " in gap.lower():
-        parts = gap.lower().split(" in ")
-        return parts[0].strip()
+        lower_gap = gap.lower()
+        in_pos = lower_gap.find(" in ")
+        return gap[:in_pos].strip()
 
     # Handle "function name" format
     for keyword in ["function ", "class ", "method ", "def "]:
