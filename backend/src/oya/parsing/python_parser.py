@@ -60,8 +60,10 @@ class PythonParser(BaseParser):
                         references.extend(self._extract_calls(item, scope))
             elif isinstance(node, ast.Import):
                 imports.extend(self._parse_import(node))
+                references.extend(self._extract_import_references(node, str(file_path)))
             elif isinstance(node, ast.ImportFrom):
                 imports.extend(self._parse_import_from(node))
+                references.extend(self._extract_import_references(node, str(file_path)))
             elif isinstance(node, ast.Assign):
                 symbols.extend(self._parse_assignment(node))
 
@@ -476,3 +478,41 @@ class PythonParser(BaseParser):
             return attr_name, 0.7, ReferenceType.CALLS
 
         return None, 0.0, ReferenceType.CALLS
+
+    def _extract_import_references(
+        self, node: ast.Import | ast.ImportFrom, file_path: str
+    ) -> list[Reference]:
+        """Extract import statements as references.
+
+        Args:
+            node: The Import or ImportFrom AST node.
+            file_path: Path to the file being parsed.
+
+        Returns:
+            List of Reference objects for imports.
+        """
+        references = []
+        file_scope = str(file_path)
+
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                references.append(Reference(
+                    source=file_scope,
+                    target=alias.name,
+                    reference_type=ReferenceType.IMPORTS,
+                    confidence=0.99,
+                    line=node.lineno,
+                ))
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            for alias in node.names:
+                target = f"{module}.{alias.name}" if module else alias.name
+                references.append(Reference(
+                    source=file_scope,
+                    target=target,
+                    reference_type=ReferenceType.IMPORTS,
+                    confidence=0.99,
+                    line=node.lineno,
+                ))
+
+        return references

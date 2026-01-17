@@ -234,3 +234,30 @@ class Labrador(Dog, Serializable):
     targets = [r.target for r in lab_inherits]
     assert "Dog" in targets
     assert "Serializable" in targets
+
+
+def test_extracts_import_references(parser):
+    """Extracts import statements as references."""
+    code = '''
+import os
+from pathlib import Path
+from typing import List, Dict
+from myapp.models import User
+'''
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    import_refs = [r for r in refs if r.reference_type.value == "imports"]
+    targets = [r.target for r in import_refs]
+
+    assert "os" in targets
+    assert "pathlib.Path" in targets
+    assert "typing.List" in targets
+    assert "typing.Dict" in targets
+    assert "myapp.models.User" in targets
+
+    # All imports should have high confidence
+    for ref in import_refs:
+        assert ref.confidence >= 0.95
