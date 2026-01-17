@@ -163,3 +163,33 @@ def select_top_entry_points(
     entry_points.sort(key=lambda x: x[1], reverse=True)
 
     return [ep[0] for ep in entry_points[:n]]
+
+
+def component_graph_to_mermaid(component_graph: nx.DiGraph) -> str:
+    """Generate a Mermaid flowchart from a component graph.
+
+    Args:
+        component_graph: Graph with directory-level nodes and edges.
+
+    Returns:
+        Mermaid flowchart string.
+    """
+    lines = ["flowchart LR"]
+
+    # Sort nodes for deterministic output
+    nodes = sorted(component_graph.nodes())
+
+    # Add node definitions
+    for node in nodes:
+        # Sanitize node name for Mermaid (replace special chars)
+        safe_name = node.replace("-", "_").replace(".", "_")
+        lines.append(f"    {safe_name}[{node}/]")
+
+    # Add edges (sorted for determinism)
+    edges = sorted(component_graph.edges(data=True), key=lambda e: (e[0], e[1]))
+    for source, target, data in edges:
+        safe_source = source.replace("-", "_").replace(".", "_")
+        safe_target = target.replace("-", "_").replace(".", "_")
+        lines.append(f"    {safe_source} --> {safe_target}")
+
+    return "\n".join(lines)

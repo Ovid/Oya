@@ -158,3 +158,24 @@ def test_select_top_entry_points_excludes_test_files():
     # Should only return production entry point
     assert len(top) == 1
     assert top[0] == "api/main.py::handle"
+
+
+def test_component_graph_to_mermaid():
+    """component_graph_to_mermaid generates valid Mermaid diagram."""
+    from oya.graph.analysis import get_component_graph, component_graph_to_mermaid
+
+    G = nx.DiGraph()
+    G.add_node("api/routes.py::handle", file_path="api/routes.py")
+    G.add_node("db/models.py::User", file_path="db/models.py")
+    G.add_node("llm/client.py::generate", file_path="llm/client.py")
+    G.add_edge("api/routes.py::handle", "db/models.py::User", type="calls", confidence=0.9, line=10)
+    G.add_edge("api/routes.py::handle", "llm/client.py::generate", type="calls", confidence=0.8, line=15)
+
+    component_graph = get_component_graph(G)
+    mermaid = component_graph_to_mermaid(component_graph)
+
+    assert mermaid.startswith("flowchart")
+    assert "api" in mermaid
+    assert "db" in mermaid
+    assert "llm" in mermaid
+    assert "-->" in mermaid
