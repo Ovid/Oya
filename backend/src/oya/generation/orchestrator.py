@@ -28,7 +28,9 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
+from oya.generation.graph_architecture import GraphArchitectureGenerator
 from oya.generation.mermaid import LayerDiagramGenerator
+from oya.graph import load_graph
 from oya.generation.metrics import compute_code_metrics
 from oya.generation.overview import GeneratedPage, OverviewGenerator
 from oya.generation.summaries import DirectorySummary, EntryPointInfo, FileSummary, SynthesisMap
@@ -267,6 +269,7 @@ class GenerationOrchestrator:
         # Initialize generators
         self.overview_generator = OverviewGenerator(llm_client, repo)
         self.architecture_generator = ArchitectureGenerator(llm_client, repo)
+        self.graph_architecture_generator = GraphArchitectureGenerator(llm_client)
         self.workflow_generator = WorkflowGenerator(llm_client, repo)
         self.directory_generator = DirectoryGenerator(llm_client, repo)
         self.file_generator = FileGenerator(llm_client, repo)
@@ -274,6 +277,9 @@ class GenerationOrchestrator:
 
         # Diagram generator for overview architecture diagram
         self.layer_diagram_generator = LayerDiagramGenerator()
+
+        # Graph directory for graph-based architecture generation
+        self.graph_path = self.wiki_path.parent / "graph"
 
         # Meta path for synthesis storage
         self.meta_path = self.wiki_path.parent / "meta"
@@ -863,6 +869,9 @@ class GenerationOrchestrator:
     ) -> GeneratedPage:
         """Run architecture generation phase.
 
+        Uses graph-based generation when a code graph with >= 5 nodes is available,
+        otherwise falls back to standard LLM-only generation.
+
         Args:
             analysis: Analysis results.
             synthesis_map: Optional SynthesisMap for richer architecture context.
@@ -870,6 +879,25 @@ class GenerationOrchestrator:
         Returns:
             Generated architecture page.
         """
+        # Try to load graph for graph-based architecture generation
+        graph = load_graph(self.graph_path)
+
+        # Use graph-based generation if graph has >= 5 nodes
+        min_graph_nodes = 5
+        if graph.number_of_nodes() >= min_graph_nodes:
+            # Build component summaries from synthesis map if available
+            component_summaries: dict[str, str] = {}
+            if synthesis_map is not None:
+                for component in synthesis_map.key_components:
+                    component_summaries[component.name] = component.role
+
+            return await self.graph_architecture_generator.generate(
+                repo_name=self.repo.path.name,
+                graph=graph,
+                component_summaries=component_summaries,
+            )
+
+        # Fall back to standard generation
         # Extract dependencies from package info
         package_info = self._extract_package_info(analysis["file_contents"])
         dependencies = package_info.get("dependencies", [])

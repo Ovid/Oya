@@ -1037,3 +1037,247 @@ class TestEnhancedDirectorySignature:
         sig2 = compute_directory_signature_with_children(file_hashes, child_summaries)
 
         assert sig1 == sig2
+
+
+# ============================================================================
+# Task 9: Graph-Based Architecture Integration Tests
+# ============================================================================
+
+
+class TestGraphArchitectureIntegration:
+    """Tests for integrating graph-based architecture generation."""
+
+    @pytest.fixture
+    def orchestrator_with_graph(self, mock_llm_client, mock_repo, mock_db, tmp_path):
+        """Create orchestrator with a graph available."""
+        return GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=tmp_path / "wiki",
+        )
+
+    @pytest.mark.asyncio
+    async def test_orchestrator_uses_graph_for_architecture_when_available(self, tmp_path):
+        """Orchestrator uses graph-based architecture when graph exists with >= 5 nodes."""
+        import networkx as nx
+
+        # Create a minimal repo structure
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "main.py").write_text("def main(): pass")
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Architecture\n\nContent here."
+
+        mock_repo = MagicMock()
+        mock_repo.path = tmp_path
+
+        mock_db = MagicMock()
+        mock_db.execute = MagicMock(return_value=MagicMock(fetchone=lambda: None))
+
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+
+        # Create graph directory with a graph that has >= 5 nodes
+        graph_dir = wiki_path / "graph"
+        graph_dir.mkdir()
+
+        # Create a graph with 5+ nodes
+        mock_graph = nx.DiGraph()
+        mock_graph.add_node("src/main.py::main", name="main", type="function",
+                           file_path="src/main.py", line_start=1, line_end=1)
+        mock_graph.add_node("src/main.py::helper1", name="helper1", type="function",
+                           file_path="src/main.py", line_start=2, line_end=2)
+        mock_graph.add_node("src/main.py::helper2", name="helper2", type="function",
+                           file_path="src/main.py", line_start=3, line_end=3)
+        mock_graph.add_node("src/main.py::helper3", name="helper3", type="function",
+                           file_path="src/main.py", line_start=4, line_end=4)
+        mock_graph.add_node("src/main.py::helper4", name="helper4", type="function",
+                           file_path="src/main.py", line_start=5, line_end=5)
+        mock_graph.add_edge("src/main.py::main", "src/main.py::helper1", type="calls", confidence=1.0)
+
+        with patch("oya.generation.orchestrator.load_graph", return_value=mock_graph):
+            from oya.generation.orchestrator import GenerationOrchestrator
+
+            orchestrator = GenerationOrchestrator(
+                llm_client=mock_llm,
+                repo=mock_repo,
+                db=mock_db,
+                wiki_path=wiki_path,
+            )
+
+            # The orchestrator should have a graph_architecture_generator initialized
+            assert hasattr(orchestrator, "graph_architecture_generator")
+
+    @pytest.mark.asyncio
+    async def test_run_architecture_uses_graph_when_graph_has_enough_nodes(self, tmp_path):
+        """_run_architecture uses GraphArchitectureGenerator when graph has >= 5 nodes."""
+        import networkx as nx
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Graph Architecture\n\nGenerated from graph."
+
+        # Create a repo directory with a name
+        repo_dir = tmp_path / "test-repo"
+        repo_dir.mkdir()
+
+        mock_repo = MagicMock()
+        mock_repo.path = repo_dir
+
+        mock_db = MagicMock()
+
+        wiki_path = repo_dir / ".oyawiki"
+        wiki_path.mkdir()
+
+        # Create graph directory
+        graph_dir = repo_dir / "graph"
+        graph_dir.mkdir()
+
+        # Create a graph with 5+ nodes
+        mock_graph = nx.DiGraph()
+        for i in range(5):
+            mock_graph.add_node(f"src/main.py::func{i}", name=f"func{i}", type="function",
+                               file_path="src/main.py", line_start=i, line_end=i)
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=wiki_path,
+        )
+
+        analysis = {
+            "files": ["src/main.py"],
+            "symbols": [],
+            "file_tree": "src/main.py",
+            "file_contents": {"src/main.py": "def func(): pass"},
+            "file_imports": {},
+        }
+
+        # Mock the graph loading
+        with patch("oya.generation.orchestrator.load_graph", return_value=mock_graph):
+            # Mock the GraphArchitectureGenerator.generate to verify it's called
+            with patch.object(
+                orchestrator.graph_architecture_generator, "generate", new_callable=AsyncMock
+            ) as mock_graph_gen:
+                mock_graph_gen.return_value = GeneratedPage(
+                    content="# Graph Arch", page_type="architecture",
+                    path="architecture.md", word_count=10
+                )
+
+                page = await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
+
+                # Verify GraphArchitectureGenerator was called
+                mock_graph_gen.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_architecture_falls_back_when_graph_too_small(self, tmp_path):
+        """_run_architecture uses standard generator when graph has < 5 nodes."""
+        import networkx as nx
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Standard Architecture"
+
+        # Create a repo directory with a name
+        repo_dir = tmp_path / "test-repo"
+        repo_dir.mkdir()
+
+        mock_repo = MagicMock()
+        mock_repo.path = repo_dir
+
+        mock_db = MagicMock()
+
+        wiki_path = repo_dir / ".oyawiki"
+        wiki_path.mkdir()
+
+        # Create graph directory
+        graph_dir = repo_dir / "graph"
+        graph_dir.mkdir()
+
+        # Create a graph with < 5 nodes (too small)
+        small_graph = nx.DiGraph()
+        small_graph.add_node("src/main.py::main", name="main", type="function")
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=wiki_path,
+        )
+
+        analysis = {
+            "files": ["src/main.py"],
+            "symbols": [],
+            "file_tree": "src/main.py",
+            "file_contents": {"src/main.py": "def main(): pass"},
+            "file_imports": {},
+        }
+
+        # Mock the graph loading to return small graph
+        with patch("oya.generation.orchestrator.load_graph", return_value=small_graph):
+            # Mock the standard architecture generator
+            with patch.object(
+                orchestrator.architecture_generator, "generate", new_callable=AsyncMock
+            ) as mock_std_gen:
+                mock_std_gen.return_value = GeneratedPage(
+                    content="# Standard Arch", page_type="architecture",
+                    path="architecture.md", word_count=10
+                )
+
+                page = await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
+
+                # Verify standard generator was called (not graph generator)
+                mock_std_gen.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_architecture_falls_back_when_no_graph(self, tmp_path):
+        """_run_architecture uses standard generator when no graph exists."""
+        import networkx as nx
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Standard Architecture"
+
+        # Create a repo directory with a name
+        repo_dir = tmp_path / "test-repo"
+        repo_dir.mkdir()
+
+        mock_repo = MagicMock()
+        mock_repo.path = repo_dir
+
+        mock_db = MagicMock()
+
+        wiki_path = repo_dir / ".oyawiki"
+        wiki_path.mkdir()
+        # No graph directory created
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=wiki_path,
+        )
+
+        analysis = {
+            "files": ["src/main.py"],
+            "symbols": [],
+            "file_tree": "src/main.py",
+            "file_contents": {"src/main.py": "def main(): pass"},
+            "file_imports": {},
+        }
+
+        # Mock load_graph to return empty graph (no graph file exists)
+        with patch("oya.generation.orchestrator.load_graph", return_value=nx.DiGraph()):
+            # Mock the standard architecture generator
+            with patch.object(
+                orchestrator.architecture_generator, "generate", new_callable=AsyncMock
+            ) as mock_std_gen:
+                mock_std_gen.return_value = GeneratedPage(
+                    content="# Standard Arch", page_type="architecture",
+                    path="architecture.md", word_count=10
+                )
+
+                page = await orchestrator._run_architecture(analysis, synthesis_map=SynthesisMap())
+
+                # Verify standard generator was called
+                mock_std_gen.assert_called_once()
