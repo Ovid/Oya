@@ -217,3 +217,33 @@ def test_subgraph_to_mermaid():
     assert "-->" in mermaid  # calls edge
     # Should be deterministic (same input = same output)
     assert subgraph.to_mermaid() == mermaid
+
+
+def test_graph_module_exports():
+    """Graph module exports all public interfaces."""
+    from oya.graph import (
+        # Models
+        Node,
+        NodeType,
+        Edge,
+        EdgeType,
+        Subgraph,
+        # Builder
+        build_graph,
+        # Resolver
+        SymbolTable,
+        resolve_references,
+        # Persistence
+        save_graph,
+        load_graph,
+        # Query
+        get_calls,
+        get_callers,
+        get_neighborhood,
+        trace_flow,
+        get_entry_points,
+        get_leaf_nodes,
+    )
+
+    # Basic smoke test
+    assert NodeType.FUNCTION.value == "function"
