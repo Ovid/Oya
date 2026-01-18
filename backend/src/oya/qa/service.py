@@ -682,7 +682,7 @@ Format your response with:
         )
 
     async def _ask_normal(self, request: QARequest) -> QAResponse:
-        """Answer a question using CGRAG iterative retrieval.
+        """Answer a question, routing to quick or CGRAG mode.
 
         Args:
             request: Q&A request with question.
@@ -705,6 +705,133 @@ Format your response with:
             if graph_context:
                 initial_context = graph_context + "\n\n" + initial_context
 
+        # Route to quick or CGRAG mode
+        if request.quick_mode:
+            return await self._ask_quick(
+                request=request,
+                context=initial_context,
+                results=results,
+                confidence=confidence,
+                semantic_ok=semantic_ok,
+                fts_ok=fts_ok,
+                results_used=results_used,
+            )
+        else:
+            return await self._ask_with_cgrag(
+                request=request,
+                initial_context=initial_context,
+                results=results,
+                confidence=confidence,
+                semantic_ok=semantic_ok,
+                fts_ok=fts_ok,
+                results_used=results_used,
+            )
+
+    async def _ask_quick(
+        self,
+        request: QARequest,
+        context: str,
+        results: list[dict[str, Any]],
+        confidence: ConfidenceLevel,
+        semantic_ok: bool,
+        fts_ok: bool,
+        results_used: int,
+    ) -> QAResponse:
+        """Answer a question with a single LLM call (no CGRAG iteration).
+
+        Args:
+            request: Q&A request with question.
+            context: Pre-built context from search results.
+            results: Search results for citations.
+            confidence: Calculated confidence level.
+            semantic_ok: Whether semantic search succeeded.
+            fts_ok: Whether FTS search succeeded.
+            results_used: Number of results included in context.
+
+        Returns:
+            Q&A response with answer, citations, and confidence.
+        """
+        # Build prompt for single-pass answer
+        prompt = f"""{context}
+
+QUESTION: {request.question}
+
+Answer the question based only on the context provided. Include citations to specific files."""
+
+        try:
+            # Use request temperature if provided, otherwise use default
+            generate_kwargs: dict[str, Any] = {
+                "prompt": prompt,
+                "system_prompt": QA_SYSTEM_PROMPT,
+            }
+            if request.temperature is not None:
+                generate_kwargs["temperature"] = request.temperature
+
+            raw_answer = await self._llm.generate(**generate_kwargs)
+        except Exception as e:
+            return QAResponse(
+                answer=f"Error generating answer: {str(e)}",
+                citations=[],
+                confidence=confidence,
+                disclaimer="An error occurred while generating the answer.",
+                search_quality=SearchQuality(
+                    semantic_searched=semantic_ok,
+                    fts_searched=fts_ok,
+                    results_found=len(results),
+                    results_used=results_used,
+                ),
+                cgrag=None,
+            )
+
+        # Extract answer and citations
+        answer = self._extract_answer(raw_answer)
+        citations = self._extract_citations(raw_answer, results)
+
+        # Build disclaimer based on confidence
+        disclaimers = {
+            ConfidenceLevel.HIGH: "Based on strong evidence from the codebase.",
+            ConfidenceLevel.MEDIUM: "Based on partial evidence. Verify against source code.",
+            ConfidenceLevel.LOW: "Limited evidence found. This answer may be speculative.",
+        }
+
+        return QAResponse(
+            answer=answer,
+            citations=citations,
+            confidence=confidence,
+            disclaimer=disclaimers[confidence],
+            search_quality=SearchQuality(
+                semantic_searched=semantic_ok,
+                fts_searched=fts_ok,
+                results_found=len(results),
+                results_used=results_used,
+            ),
+            cgrag=None,
+        )
+
+    async def _ask_with_cgrag(
+        self,
+        request: QARequest,
+        initial_context: str,
+        results: list[dict[str, Any]],
+        confidence: ConfidenceLevel,
+        semantic_ok: bool,
+        fts_ok: bool,
+        results_used: int,
+    ) -> QAResponse:
+        """Answer a question using CGRAG iterative retrieval.
+
+        Args:
+            request: Q&A request with question.
+            initial_context: Pre-built context from search results.
+            results: Search results for citations.
+            confidence: Calculated confidence level.
+            semantic_ok: Whether semantic search succeeded.
+            fts_ok: Whether FTS search succeeded.
+            results_used: Number of results included in context.
+
+        Returns:
+            Q&A response with answer, citations, confidence, and CGRAG metadata.
+        """
         # Get or create CGRAG session
         session = _session_store.get_or_create(request.session_id)
         context_from_cache = bool(session.cached_nodes) and request.session_id is not None
