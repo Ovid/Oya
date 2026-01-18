@@ -269,20 +269,40 @@ class LLMClient:
         if self.endpoint and self.provider == "ollama":
             kwargs["api_base"] = self.endpoint
 
+        start_time = time.perf_counter()
+        accumulated_tokens: list[str] = []
+        error_msg: str | None = None
+
         try:
             response = await acompletion(**kwargs)
             async for chunk in response:
                 content = chunk.choices[0].delta.content
                 if content:
+                    accumulated_tokens.append(content)
                     yield content
         except AuthenticationError as e:
+            error_msg = str(e)
             raise LLMAuthenticationError(f"Authentication failed: {e}") from e
         except RateLimitError as e:
+            error_msg = str(e)
             raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
         except APIConnectionError as e:
+            error_msg = str(e)
             raise LLMConnectionError(f"Connection failed: {e}") from e
         except APIError as e:
+            error_msg = str(e)
             raise LLMError(f"LLM API error: {e}") from e
+        finally:
+            duration_ms = int((time.perf_counter() - start_time) * 1000)
+            self._log_query(
+                system_prompt,
+                prompt,
+                temperature,
+                max_tokens,
+                response="".join(accumulated_tokens) if accumulated_tokens else None,
+                duration_ms=duration_ms,
+                error=error_msg,
+            )
 
     async def generate_with_json(
         self,
