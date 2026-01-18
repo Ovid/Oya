@@ -207,3 +207,42 @@ async def test_generate_stream_yields_tokens():
             tokens.append(token)
 
         assert tokens == ["Hello", " world"]
+
+
+@pytest.mark.asyncio
+async def test_generate_stream_logs_to_jsonl(tmp_path):
+    """generate_stream logs accumulated response to JSONL file."""
+    import json
+
+    log_file = tmp_path / "meta" / "llm-queries.jsonl"
+
+    mock_chunks = [
+        MagicMock(choices=[MagicMock(delta=MagicMock(content="Hello"))]),
+        MagicMock(choices=[MagicMock(delta=MagicMock(content=" world"))]),
+        MagicMock(choices=[MagicMock(delta=MagicMock(content=None))]),
+    ]
+
+    async def mock_aiter():
+        for chunk in mock_chunks:
+            yield chunk
+
+    with patch("oya.llm.client.acompletion") as mock_acompletion:
+        mock_acompletion.return_value = mock_aiter()
+
+        client = LLMClient(provider="openai", model="gpt-4", log_path=log_file)
+        tokens = []
+        async for token in client.generate_stream("test prompt", system_prompt="System"):
+            tokens.append(token)
+
+    # Verify log file was created with accumulated response
+    assert log_file.exists()
+    with open(log_file) as f:
+        entry = json.loads(f.readline())
+
+    assert entry["provider"] == "openai"
+    assert entry["model"] == "gpt-4"
+    assert entry["request"]["prompt"] == "test prompt"
+    assert entry["request"]["system_prompt"] == "System"
+    assert entry["response"] == "Hello world"
+    assert entry["error"] is None
+    assert "duration_ms" in entry
