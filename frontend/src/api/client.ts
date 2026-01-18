@@ -8,6 +8,8 @@ import type {
   ProgressEvent,
   QARequest,
   QAResponse,
+  Citation,
+  SearchQuality,
   NoteCreate,
   Note,
   WorkspaceSwitchResponse,
@@ -154,6 +156,81 @@ export async function askQuestion(request: QARequest): Promise<QAResponse> {
     method: 'POST',
     body: JSON.stringify(request),
   })
+}
+
+// Q&A streaming types and function
+export interface StreamCallbacks {
+  onToken: (text: string) => void
+  onStatus: (stage: string, pass: number) => void
+  onDone: (data: {
+    citations: Citation[]
+    confidence: string
+    session_id: string | null
+    search_quality: SearchQuality
+    disclaimer: string
+  }) => void
+  onError: (message: string) => void
+}
+
+export async function askQuestionStream(
+  request: {
+    question: string
+    session_id?: string | null
+    quick_mode?: boolean
+    temperature?: number
+  },
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/qa/ask/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error: ${response.status}`)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    let currentEvent = ''
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        currentEvent = line.slice(7)
+      } else if (line.startsWith('data: ') && currentEvent) {
+        const data = JSON.parse(line.slice(6))
+        switch (currentEvent) {
+          case 'token':
+            callbacks.onToken(data.text)
+            break
+          case 'status':
+            callbacks.onStatus(data.stage, data.pass)
+            break
+          case 'done':
+            callbacks.onDone(data)
+            break
+          case 'error':
+            callbacks.onError(data.message)
+            break
+        }
+        currentEvent = ''
+      }
+    }
+  }
 }
 
 // Notes endpoints

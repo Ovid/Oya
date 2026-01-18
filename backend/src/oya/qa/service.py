@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
 import networkx as nx
@@ -682,7 +684,7 @@ Format your response with:
         )
 
     async def _ask_normal(self, request: QARequest) -> QAResponse:
-        """Answer a question using CGRAG iterative retrieval.
+        """Answer a question, routing to quick or CGRAG mode.
 
         Args:
             request: Q&A request with question.
@@ -705,6 +707,133 @@ Format your response with:
             if graph_context:
                 initial_context = graph_context + "\n\n" + initial_context
 
+        # Route to quick or CGRAG mode
+        if request.quick_mode:
+            return await self._ask_quick(
+                request=request,
+                context=initial_context,
+                results=results,
+                confidence=confidence,
+                semantic_ok=semantic_ok,
+                fts_ok=fts_ok,
+                results_used=results_used,
+            )
+        else:
+            return await self._ask_with_cgrag(
+                request=request,
+                initial_context=initial_context,
+                results=results,
+                confidence=confidence,
+                semantic_ok=semantic_ok,
+                fts_ok=fts_ok,
+                results_used=results_used,
+            )
+
+    async def _ask_quick(
+        self,
+        request: QARequest,
+        context: str,
+        results: list[dict[str, Any]],
+        confidence: ConfidenceLevel,
+        semantic_ok: bool,
+        fts_ok: bool,
+        results_used: int,
+    ) -> QAResponse:
+        """Answer a question with a single LLM call (no CGRAG iteration).
+
+        Args:
+            request: Q&A request with question.
+            context: Pre-built context from search results.
+            results: Search results for citations.
+            confidence: Calculated confidence level.
+            semantic_ok: Whether semantic search succeeded.
+            fts_ok: Whether FTS search succeeded.
+            results_used: Number of results included in context.
+
+        Returns:
+            Q&A response with answer, citations, and confidence.
+        """
+        # Build prompt for single-pass answer
+        prompt = f"""{context}
+
+QUESTION: {request.question}
+
+Answer the question based only on the context provided. Include citations to specific files."""
+
+        try:
+            # Use request temperature if provided, otherwise use default
+            generate_kwargs: dict[str, Any] = {
+                "prompt": prompt,
+                "system_prompt": QA_SYSTEM_PROMPT,
+            }
+            if request.temperature is not None:
+                generate_kwargs["temperature"] = request.temperature
+
+            raw_answer = await self._llm.generate(**generate_kwargs)
+        except Exception as e:
+            return QAResponse(
+                answer=f"Error generating answer: {str(e)}",
+                citations=[],
+                confidence=confidence,
+                disclaimer="An error occurred while generating the answer.",
+                search_quality=SearchQuality(
+                    semantic_searched=semantic_ok,
+                    fts_searched=fts_ok,
+                    results_found=len(results),
+                    results_used=results_used,
+                ),
+                cgrag=None,
+            )
+
+        # Extract answer and citations
+        answer = self._extract_answer(raw_answer)
+        citations = self._extract_citations(raw_answer, results)
+
+        # Build disclaimer based on confidence
+        disclaimers = {
+            ConfidenceLevel.HIGH: "Based on strong evidence from the codebase.",
+            ConfidenceLevel.MEDIUM: "Based on partial evidence. Verify against source code.",
+            ConfidenceLevel.LOW: "Limited evidence found. This answer may be speculative.",
+        }
+
+        return QAResponse(
+            answer=answer,
+            citations=citations,
+            confidence=confidence,
+            disclaimer=disclaimers[confidence],
+            search_quality=SearchQuality(
+                semantic_searched=semantic_ok,
+                fts_searched=fts_ok,
+                results_found=len(results),
+                results_used=results_used,
+            ),
+            cgrag=None,
+        )
+
+    async def _ask_with_cgrag(
+        self,
+        request: QARequest,
+        initial_context: str,
+        results: list[dict[str, Any]],
+        confidence: ConfidenceLevel,
+        semantic_ok: bool,
+        fts_ok: bool,
+        results_used: int,
+    ) -> QAResponse:
+        """Answer a question using CGRAG iterative retrieval.
+
+        Args:
+            request: Q&A request with question.
+            initial_context: Pre-built context from search results.
+            results: Search results for citations.
+            confidence: Calculated confidence level.
+            semantic_ok: Whether semantic search succeeded.
+            fts_ok: Whether FTS search succeeded.
+            results_used: Number of results included in context.
+
+        Returns:
+            Q&A response with answer, citations, confidence, and CGRAG metadata.
+        """
         # Get or create CGRAG session
         session = _session_store.get_or_create(request.session_id)
         context_from_cache = bool(session.cached_nodes) and request.session_id is not None
@@ -777,3 +906,108 @@ Format your response with:
             ),
             cgrag=cgrag_metadata,
         )
+
+    async def ask_stream(self, request: QARequest) -> AsyncGenerator[str, None]:
+        """Stream Q&A response as SSE events.
+
+        Yields SSE-formatted event strings:
+        - event: token, data: {"text": "..."}
+        - event: status, data: {"stage": "...", "pass": N}
+        - event: done, data: {"citations": [...], "confidence": "...", "session_id": "...", "disclaimer": "..."}
+        - event: error, data: {"message": "..."}
+        """
+        # Issue 1 fix: Emit "searching" status BEFORE performing search
+        yield f"event: status\ndata: {json.dumps({'stage': 'searching', 'pass': 1})}\n\n"
+
+        # Perform hybrid search
+        results, semantic_ok, fts_ok = await self.search(request.question)
+        confidence = self._calculate_confidence(results)
+        initial_context, results_used = self._build_context_prompt(request.question, results)
+
+        # Add graph context if available
+        if self._graph is not None and request.use_graph and results:
+            graph_context = self._build_graph_context(results)
+            if graph_context:
+                initial_context = graph_context + "\n\n" + initial_context
+
+        # Issue 1 fix: Emit "generating" status AFTER search completes
+        yield f"event: status\ndata: {json.dumps({'stage': 'generating', 'pass': 1})}\n\n"
+
+        temperature = request.temperature if request.temperature is not None else 0.7
+        accumulated_response = ""
+
+        # Issue 3 fix: Get session once for CGRAG mode (reuse later instead of second lookup)
+        session = None
+        if not request.quick_mode:
+            session = _session_store.get_or_create(request.session_id)
+
+        try:
+            if request.quick_mode:
+                # Issue 5 fix: Match prompt format from _ask_quick()
+                prompt = f"""{initial_context}
+
+QUESTION: {request.question}
+
+Answer the question based only on the context provided. Include citations to specific files."""
+
+                # Single pass streaming
+                async for token in self._llm.generate_stream(
+                    prompt=prompt,
+                    system_prompt=QA_SYSTEM_PROMPT,
+                    temperature=temperature,
+                ):
+                    accumulated_response += token
+                    yield f"event: token\ndata: {json.dumps({'text': token})}\n\n"
+            else:
+                # CGRAG mode - run iteration first, then send answer
+                assert session is not None  # Guaranteed by check at line 941
+                cgrag_result = await run_cgrag_loop(
+                    question=request.question,
+                    initial_context=initial_context,
+                    session=session,
+                    llm=self._llm,
+                    graph=self._graph,
+                    vectorstore=self._vectorstore,
+                )
+                # Issue 2 fix: Stream in word chunks instead of character-by-character
+                # Split by spaces to yield words with trailing space, batching for efficiency
+                words = cgrag_result.answer.split(" ")
+                for i, word in enumerate(words):
+                    # Add space back except for last word
+                    chunk = word + (" " if i < len(words) - 1 else "")
+                    yield f"event: token\ndata: {json.dumps({'text': chunk})}\n\n"
+                accumulated_response = cgrag_result.answer
+
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+            return
+
+        # Extract citations from the accumulated response
+        if "<citations>" in accumulated_response:
+            citations = self._extract_citations(accumulated_response, results)
+        else:
+            citations = self._fallback_citations(results[:5])
+
+        # Issue 3 fix: Reuse session variable from earlier lookup (no duplicate lookup)
+        session_id = session.id if session is not None else None
+
+        # Issue 4 fix: Add disclaimer to done event based on confidence level
+        disclaimers = {
+            ConfidenceLevel.HIGH: "Based on strong evidence from the codebase.",
+            ConfidenceLevel.MEDIUM: "Based on partial evidence. Verify against source code.",
+            ConfidenceLevel.LOW: "Limited evidence found. This answer may be speculative.",
+        }
+
+        done_data = {
+            "citations": [c.model_dump() for c in citations],
+            "confidence": confidence.value,
+            "session_id": session_id,
+            "disclaimer": disclaimers[confidence],
+            "search_quality": {
+                "semantic_searched": semantic_ok,
+                "fts_searched": fts_ok,
+                "results_found": len(results),
+                "results_used": results_used,
+            },
+        }
+        yield f"event: done\ndata: {json.dumps(done_data)}\n\n"

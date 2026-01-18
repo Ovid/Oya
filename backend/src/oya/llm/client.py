@@ -3,6 +3,7 @@
 
 import json
 import time
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -227,6 +228,60 @@ class LLMClient:
                 duration_ms=duration_ms,
                 error=str(e),
             )
+            raise LLMError(f"LLM API error: {e}") from e
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float = DEFAULT_TEMPERATURE,
+        max_tokens: int = MAX_TOKENS,
+    ) -> AsyncGenerator[str, None]:
+        """Generate completion with streaming tokens.
+
+        Args:
+            prompt: User prompt.
+            system_prompt: Optional system prompt.
+            temperature: Sampling temperature.
+            max_tokens: Maximum response tokens.
+
+        Yields:
+            Individual tokens as they are generated.
+        """
+        messages = []
+
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        messages.append({"role": "user", "content": prompt})
+
+        kwargs = {
+            "model": self._get_model_string(),
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+
+        if self.endpoint and self.provider == "ollama":
+            kwargs["api_base"] = self.endpoint
+
+        try:
+            response = await acompletion(**kwargs)
+            async for chunk in response:
+                content = chunk.choices[0].delta.content
+                if content:
+                    yield content
+        except AuthenticationError as e:
+            raise LLMAuthenticationError(f"Authentication failed: {e}") from e
+        except RateLimitError as e:
+            raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
+        except APIConnectionError as e:
+            raise LLMConnectionError(f"Connection failed: {e}") from e
+        except APIError as e:
             raise LLMError(f"LLM API error: {e}") from e
 
     async def generate_with_json(

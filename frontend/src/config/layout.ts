@@ -14,9 +14,13 @@
 // itself and the margin applied to the main content area when panels are open.
 // Values are in pixels and correspond to Tailwind classes (w-64 = 256px, etc.)
 
-export const SIDEBAR_WIDTH = 256 // w-64 - Left navigation sidebar
+export const SIDEBAR_WIDTH = 256 // w-64 - Left navigation sidebar (default)
+export const SIDEBAR_MIN_WIDTH = 180 // Minimum width for left sidebar
+export const SIDEBAR_MAX_WIDTH = 400 // Maximum width for left sidebar
 export const RIGHT_SIDEBAR_WIDTH = 224 // w-56 - Table of contents
-export const ASK_PANEL_WIDTH = 350 // w-[350px] - Q&A panel
+export const ASK_PANEL_WIDTH = 350 // w-[350px] - Q&A panel (default)
+export const ASK_PANEL_MIN_WIDTH = 280 // Minimum width for ask panel
+export const ASK_PANEL_MAX_WIDTH = 600 // Maximum width for ask panel
 export const TOP_BAR_HEIGHT = 56 // h-14 - Fixed header height
 
 // =============================================================================
