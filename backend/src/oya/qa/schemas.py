@@ -66,6 +66,16 @@ class QARequest(BaseModel):
         None,
         description="Session ID for CGRAG context continuity",
     )
+    quick_mode: bool = Field(
+        default=False,
+        description="Skip CGRAG iteration for faster responses",
+    )
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Override the default LLM temperature (0.0-1.0)",
+    )
 
 
 class QAResponse(BaseModel):
