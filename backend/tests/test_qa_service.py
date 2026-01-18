@@ -805,3 +805,39 @@ NONE"""
         response2 = await service.ask(request2)
 
         assert response2.cgrag.session_id == session_id
+
+    @pytest.mark.asyncio
+    async def test_ask_quick_mode_skips_cgrag(
+        self,
+        mock_vectorstore,
+        mock_db,
+        mock_llm,
+    ):
+        """Quick mode should make single LLM call, not multiple CGRAG passes."""
+        mock_llm.generate.return_value = "<answer>Quick answer</answer><citations>[]</citations>"
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+        request = QARequest(question="test question", quick_mode=True)
+        response = await service.ask(request)
+
+        # Quick mode should only call generate once (no CGRAG iteration)
+        assert mock_llm.generate.call_count == 1
+        assert response.cgrag is None or response.cgrag.passes_used == 0
+
+    @pytest.mark.asyncio
+    async def test_ask_quick_mode_uses_temperature(
+        self,
+        mock_vectorstore,
+        mock_db,
+        mock_llm,
+    ):
+        """Quick mode should pass temperature to LLM when provided."""
+        mock_llm.generate.return_value = "<answer>Answer</answer><citations>[]</citations>"
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+        request = QARequest(question="test question", quick_mode=True, temperature=0.7)
+        await service.ask(request)
+
+        # Verify temperature was passed to LLM
+        call_kwargs = mock_llm.generate.call_args.kwargs
+        assert call_kwargs.get("temperature") == 0.7

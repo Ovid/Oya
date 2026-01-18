@@ -13,3 +13,5 @@
 
 export const STORAGE_KEY_DARK_MODE = 'oya-dark-mode'
 export const STORAGE_KEY_ASK_PANEL_OPEN = 'oya-ask-panel-open'
+export const STORAGE_KEY_SIDEBAR_LEFT_WIDTH = 'oya-sidebar-left-width'
+export const STORAGE_KEY_SIDEBAR_RIGHT_WIDTH = 'oya-sidebar-right-width'

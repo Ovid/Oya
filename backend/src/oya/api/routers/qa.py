@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from oya.api.deps import get_db, get_issues_store, get_llm, get_settings, get_vectorstore
 from oya.config import Settings
@@ -54,3 +55,19 @@ async def ask_question(
     search result quality.
     """
     return await service.ask(request)
+
+
+@router.post("/ask/stream")
+async def ask_question_stream(
+    request: QARequest,
+    service: QAService = Depends(get_qa_service),
+) -> StreamingResponse:
+    """Stream Q&A response as Server-Sent Events."""
+    return StreamingResponse(
+        service.ask_stream(request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
