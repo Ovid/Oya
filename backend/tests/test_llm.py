@@ -182,3 +182,28 @@ async def test_llm_client_logs_errors_to_jsonl(tmp_path):
     assert entry["response"] is None
     assert entry["error"] is not None
     assert "Rate limit" in entry["error"]
+
+
+@pytest.mark.asyncio
+async def test_generate_stream_yields_tokens():
+    """generate_stream yields tokens from LLM response."""
+    # Mock streaming response
+    mock_chunks = [
+        MagicMock(choices=[MagicMock(delta=MagicMock(content="Hello"))]),
+        MagicMock(choices=[MagicMock(delta=MagicMock(content=" world"))]),
+        MagicMock(choices=[MagicMock(delta=MagicMock(content=None))]),
+    ]
+
+    async def mock_aiter():
+        for chunk in mock_chunks:
+            yield chunk
+
+    with patch("oya.llm.client.acompletion") as mock_acompletion:
+        mock_acompletion.return_value = mock_aiter()
+
+        client = LLMClient(provider="openai", model="gpt-4")
+        tokens = []
+        async for token in client.generate_stream("test prompt"):
+            tokens.append(token)
+
+        assert tokens == ["Hello", " world"]
