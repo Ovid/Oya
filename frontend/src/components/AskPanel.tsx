@@ -167,11 +167,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   }
 
   const renderCitation = (citation: Citation, index: number) => (
-    <Link
-      key={index}
-      to={citation.url}
-      className="text-blue-600 hover:underline text-sm mr-2"
-    >
+    <Link key={index} to={citation.url} className="text-blue-600 hover:underline text-sm mr-2">
       {citation.title}
     </Link>
   )
@@ -228,9 +224,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             {/* Answer */}
             <div className="space-y-2">
               {/* Confidence banner */}
-              <div
-                className={`px-3 py-1 rounded text-xs ${CONFIDENCE_COLORS[msg.confidence]}`}
-              >
+              <div className={`px-3 py-1 rounded text-xs ${CONFIDENCE_COLORS[msg.confidence]}`}>
                 {msg.disclaimer}
               </div>
 
@@ -248,8 +242,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
               )}
 
               {/* Search quality warning */}
-              {(!msg.searchQuality.semantic_searched ||
-                !msg.searchQuality.fts_searched) && (
+              {(!msg.searchQuality.semantic_searched || !msg.searchQuality.fts_searched) && (
                 <div className="text-xs text-yellow-600 dark:text-yellow-400">
                   {!msg.searchQuality.semantic_searched && 'Vector search unavailable. '}
                   {!msg.searchQuality.fts_searched && 'Text search unavailable.'}
@@ -265,25 +258,19 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             {/* Show current question while streaming */}
             {pendingQuestion && (
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
-                <p className="text-sm text-gray-900 dark:text-white">
-                  {pendingQuestion}
-                </p>
+                <p className="text-sm text-gray-900 dark:text-white">{pendingQuestion}</p>
               </div>
             )}
 
             {/* Status indicator */}
             {currentStatus && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 italic">
-                {currentStatus}
-              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 italic">{currentStatus}</div>
             )}
 
             {/* Streaming answer content */}
             {currentStreamText && (
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {currentStreamText}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentStreamText}</ReactMarkdown>
                 <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1" />
               </div>
             )}

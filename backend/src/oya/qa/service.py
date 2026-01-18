@@ -917,7 +917,7 @@ Answer the question based only on the context provided. Include citations to spe
         - event: error, data: {"message": "..."}
         """
         # Issue 1 fix: Emit "searching" status BEFORE performing search
-        yield f'event: status\ndata: {json.dumps({"stage": "searching", "pass": 1})}\n\n'
+        yield f"event: status\ndata: {json.dumps({'stage': 'searching', 'pass': 1})}\n\n"
 
         # Perform hybrid search
         results, semantic_ok, fts_ok = await self.search(request.question)
@@ -931,7 +931,7 @@ Answer the question based only on the context provided. Include citations to spe
                 initial_context = graph_context + "\n\n" + initial_context
 
         # Issue 1 fix: Emit "generating" status AFTER search completes
-        yield f'event: status\ndata: {json.dumps({"stage": "generating", "pass": 1})}\n\n'
+        yield f"event: status\ndata: {json.dumps({'stage': 'generating', 'pass': 1})}\n\n"
 
         temperature = request.temperature if request.temperature is not None else 0.7
         accumulated_response = ""
@@ -957,7 +957,7 @@ Answer the question based only on the context provided. Include citations to spe
                     temperature=temperature,
                 ):
                     accumulated_response += token
-                    yield f'event: token\ndata: {json.dumps({"text": token})}\n\n'
+                    yield f"event: token\ndata: {json.dumps({'text': token})}\n\n"
             else:
                 # CGRAG mode - run iteration first, then send answer
                 assert session is not None  # Guaranteed by check at line 941
@@ -975,11 +975,11 @@ Answer the question based only on the context provided. Include citations to spe
                 for i, word in enumerate(words):
                     # Add space back except for last word
                     chunk = word + (" " if i < len(words) - 1 else "")
-                    yield f'event: token\ndata: {json.dumps({"text": chunk})}\n\n'
+                    yield f"event: token\ndata: {json.dumps({'text': chunk})}\n\n"
                 accumulated_response = cgrag_result.answer
 
         except Exception as e:
-            yield f'event: error\ndata: {json.dumps({"message": str(e)})}\n\n'
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
             return
 
         # Extract citations from the accumulated response
@@ -1010,4 +1010,4 @@ Answer the question based only on the context provided. Include citations to spe
                 "results_used": results_used,
             },
         }
-        yield f'event: done\ndata: {json.dumps(done_data)}\n\n'
+        yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
