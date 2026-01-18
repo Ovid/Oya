@@ -45,7 +45,7 @@ describe('QASettingsPopover', () => {
     expect(screen.getByText('Answer Settings')).toBeInTheDocument()
 
     // Find the close button (X icon) and click it
-    const closeButton = screen.getByRole('button', { name: '' })
+    const closeButton = screen.getByRole('button', { name: /close/i })
     fireEvent.click(closeButton)
     expect(screen.queryByText('Answer Settings')).not.toBeInTheDocument()
   })
@@ -86,10 +86,6 @@ describe('QASettingsPopover', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
     fireEvent.click(screen.getByText(/reset to defaults/i))
 
-    expect(mockOnChange).toHaveBeenCalledWith({
-      quickMode: true,
-      temperature: 0.5,
-      timeoutMinutes: 3,
-    })
+    expect(mockOnChange).toHaveBeenCalledWith({ ...QA_DEFAULTS })
   })
 })

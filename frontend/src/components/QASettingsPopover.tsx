@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { QA_CONSTRAINTS } from '../config/qa'
+import { QA_CONSTRAINTS, QA_DEFAULTS } from '../config/qa'
 
 export interface QASettings {
   quickMode: boolean
@@ -49,7 +49,7 @@ export function QASettingsPopover({ settings, onChange }: QASettingsPopoverProps
         <div className="absolute right-0 bottom-full mb-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
           <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <span className="font-medium text-gray-900 dark:text-white text-sm">Answer Settings</span>
-            <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => setIsOpen(false)} aria-label="Close settings" className="text-gray-400 hover:text-gray-600">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -130,7 +130,7 @@ export function QASettingsPopover({ settings, onChange }: QASettingsPopoverProps
 
             {/* Reset Button */}
             <button
-              onClick={() => onChange({ quickMode: true, temperature: 0.5, timeoutMinutes: 3 })}
+              onClick={() => onChange({ ...QA_DEFAULTS })}
               className="w-full text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
             >
               Reset to defaults
