@@ -195,3 +195,63 @@ class TestQAServiceSearch:
         assert results[0]["path"] == "a.md", (
             f"Expected a.md (in both lists) to rank first, but got {results[0]['path']}"
         )
+
+
+class TestQARequestSchema:
+    """Tests for QARequest schema validation."""
+
+    def test_qa_request_has_quick_mode_field(self):
+        """QARequest schema has quick_mode field with correct default."""
+        from oya.qa.schemas import QARequest
+
+        # Field should exist and have default value
+        request = QARequest(question="test")
+        assert hasattr(request, "quick_mode")
+        assert request.quick_mode is False  # default
+
+        # Field should accept True
+        request = QARequest(question="test", quick_mode=True)
+        assert request.quick_mode is True
+
+    def test_qa_request_has_temperature_field(self):
+        """QARequest schema has temperature field with validation."""
+        from oya.qa.schemas import QARequest
+        from pydantic import ValidationError
+
+        # Field should exist and have None default
+        request = QARequest(question="test")
+        assert hasattr(request, "temperature")
+        assert request.temperature is None
+
+        # Field should accept valid values
+        request = QARequest(question="test", temperature=0.5)
+        assert request.temperature == 0.5
+
+        # Field should reject invalid values
+        with pytest.raises(ValidationError):
+            QARequest(question="test", temperature=1.5)  # > 1.0
+
+        with pytest.raises(ValidationError):
+            QARequest(question="test", temperature=-0.1)  # < 0.0
+
+    @pytest.mark.asyncio
+    async def test_ask_accepts_quick_mode_and_temperature(self, workspace, mock_qa_service):
+        """QARequest accepts quick_mode and temperature parameters via API."""
+        app.dependency_overrides[get_qa_service] = lambda: mock_qa_service
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                response = await client.post(
+                    "/api/qa/ask",
+                    json={
+                        "question": "What is this?",
+                        "quick_mode": True,
+                        "temperature": 0.3,
+                    },
+                )
+            # Should not fail with validation error
+            assert response.status_code in (200, 500)  # 500 if no wiki, but not 422
+        finally:
+            app.dependency_overrides.clear()
