@@ -197,6 +197,21 @@ class TestQAServiceSearch:
         )
 
 
+@pytest.mark.asyncio
+async def test_ask_stream_returns_sse(workspace, monkeypatch):
+    """Streaming endpoint returns SSE content type."""
+    # Test that the endpoint exists and returns SSE content type
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/api/qa/ask/stream",
+            json={"question": "test"},
+        )
+        assert response.headers["content-type"].startswith("text/event-stream")
+
+
 class TestQARequestSchema:
     """Tests for QARequest schema validation."""
 

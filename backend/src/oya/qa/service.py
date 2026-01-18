@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
 import networkx as nx
@@ -904,3 +906,82 @@ Answer the question based only on the context provided. Include citations to spe
             ),
             cgrag=cgrag_metadata,
         )
+
+    async def ask_stream(self, request: QARequest) -> AsyncGenerator[str, None]:
+        """Stream Q&A response as SSE events.
+
+        Yields SSE-formatted event strings:
+        - event: token, data: {"text": "..."}
+        - event: status, data: {"stage": "...", "pass": N}
+        - event: done, data: {"citations": [...], "confidence": "...", "session_id": "..."}
+        - event: error, data: {"message": "..."}
+        """
+        # Perform hybrid search
+        results, semantic_ok, fts_ok = await self.search(request.question)
+        confidence = self._calculate_confidence(results)
+        initial_context, results_used = self._build_context_prompt(request.question, results)
+
+        # Add graph context if available
+        if self._graph is not None and request.use_graph and results:
+            graph_context = self._build_graph_context(results)
+            if graph_context:
+                initial_context = graph_context + "\n\n" + initial_context
+
+        yield f'event: status\ndata: {json.dumps({"stage": "searching", "pass": 1})}\n\n'
+
+        temperature = request.temperature if request.temperature is not None else 0.7
+        accumulated_response = ""
+
+        try:
+            if request.quick_mode:
+                # Single pass streaming
+                async for token in self._llm.generate_stream(
+                    prompt=initial_context,
+                    system_prompt=QA_SYSTEM_PROMPT,
+                    temperature=temperature,
+                ):
+                    accumulated_response += token
+                    yield f'event: token\ndata: {json.dumps({"text": token})}\n\n'
+            else:
+                # CGRAG mode - run iteration first, then send answer
+                session = _session_store.get_or_create(request.session_id)
+                cgrag_result = await run_cgrag_loop(
+                    question=request.question,
+                    initial_context=initial_context,
+                    session=session,
+                    llm=self._llm,
+                    graph=self._graph,
+                    vectorstore=self._vectorstore,
+                )
+                # Stream the final answer character by character
+                for char in cgrag_result.answer:
+                    yield f'event: token\ndata: {json.dumps({"text": char})}\n\n'
+                accumulated_response = cgrag_result.answer
+
+        except Exception as e:
+            yield f'event: error\ndata: {json.dumps({"message": str(e)})}\n\n'
+            return
+
+        # Extract citations from the accumulated response
+        if "<citations>" in accumulated_response:
+            citations = self._extract_citations(accumulated_response, results)
+        else:
+            citations = self._fallback_citations(results[:5])
+
+        session_id = None
+        if not request.quick_mode:
+            session = _session_store.get_or_create(request.session_id)
+            session_id = session.id
+
+        done_data = {
+            "citations": [c.model_dump() for c in citations],
+            "confidence": confidence.value,
+            "session_id": session_id,
+            "search_quality": {
+                "semantic_searched": semantic_ok,
+                "fts_searched": fts_ok,
+                "results_found": len(results),
+                "results_used": results_used,
+            },
+        }
+        yield f'event: done\ndata: {json.dumps(done_data)}\n\n'
