@@ -16,10 +16,7 @@ import {
   ASK_PANEL_MIN_WIDTH,
   ASK_PANEL_MAX_WIDTH,
 } from '../config/layout'
-import {
-  STORAGE_KEY_SIDEBAR_LEFT_WIDTH,
-  STORAGE_KEY_SIDEBAR_RIGHT_WIDTH,
-} from '../config/storage'
+import { STORAGE_KEY_SIDEBAR_LEFT_WIDTH, STORAGE_KEY_SIDEBAR_RIGHT_WIDTH } from '../config/storage'
 
 interface LayoutProps {
   children: ReactNode
