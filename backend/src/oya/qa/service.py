@@ -913,9 +913,12 @@ Answer the question based only on the context provided. Include citations to spe
         Yields SSE-formatted event strings:
         - event: token, data: {"text": "..."}
         - event: status, data: {"stage": "...", "pass": N}
-        - event: done, data: {"citations": [...], "confidence": "...", "session_id": "..."}
+        - event: done, data: {"citations": [...], "confidence": "...", "session_id": "...", "disclaimer": "..."}
         - event: error, data: {"message": "..."}
         """
+        # Issue 1 fix: Emit "searching" status BEFORE performing search
+        yield f'event: status\ndata: {json.dumps({"stage": "searching", "pass": 1})}\n\n'
+
         # Perform hybrid search
         results, semantic_ok, fts_ok = await self.search(request.question)
         confidence = self._calculate_confidence(results)
@@ -927,16 +930,29 @@ Answer the question based only on the context provided. Include citations to spe
             if graph_context:
                 initial_context = graph_context + "\n\n" + initial_context
 
-        yield f'event: status\ndata: {json.dumps({"stage": "searching", "pass": 1})}\n\n'
+        # Issue 1 fix: Emit "generating" status AFTER search completes
+        yield f'event: status\ndata: {json.dumps({"stage": "generating", "pass": 1})}\n\n'
 
         temperature = request.temperature if request.temperature is not None else 0.7
         accumulated_response = ""
 
+        # Issue 3 fix: Get session once for CGRAG mode (reuse later instead of second lookup)
+        session = None
+        if not request.quick_mode:
+            session = _session_store.get_or_create(request.session_id)
+
         try:
             if request.quick_mode:
+                # Issue 5 fix: Match prompt format from _ask_quick()
+                prompt = f"""{initial_context}
+
+QUESTION: {request.question}
+
+Answer the question based only on the context provided. Include citations to specific files."""
+
                 # Single pass streaming
                 async for token in self._llm.generate_stream(
-                    prompt=initial_context,
+                    prompt=prompt,
                     system_prompt=QA_SYSTEM_PROMPT,
                     temperature=temperature,
                 ):
@@ -944,7 +960,7 @@ Answer the question based only on the context provided. Include citations to spe
                     yield f'event: token\ndata: {json.dumps({"text": token})}\n\n'
             else:
                 # CGRAG mode - run iteration first, then send answer
-                session = _session_store.get_or_create(request.session_id)
+                assert session is not None  # Guaranteed by check at line 941
                 cgrag_result = await run_cgrag_loop(
                     question=request.question,
                     initial_context=initial_context,
@@ -953,9 +969,13 @@ Answer the question based only on the context provided. Include citations to spe
                     graph=self._graph,
                     vectorstore=self._vectorstore,
                 )
-                # Stream the final answer character by character
-                for char in cgrag_result.answer:
-                    yield f'event: token\ndata: {json.dumps({"text": char})}\n\n'
+                # Issue 2 fix: Stream in word chunks instead of character-by-character
+                # Split by spaces to yield words with trailing space, batching for efficiency
+                words = cgrag_result.answer.split(" ")
+                for i, word in enumerate(words):
+                    # Add space back except for last word
+                    chunk = word + (" " if i < len(words) - 1 else "")
+                    yield f'event: token\ndata: {json.dumps({"text": chunk})}\n\n'
                 accumulated_response = cgrag_result.answer
 
         except Exception as e:
@@ -968,15 +988,21 @@ Answer the question based only on the context provided. Include citations to spe
         else:
             citations = self._fallback_citations(results[:5])
 
-        session_id = None
-        if not request.quick_mode:
-            session = _session_store.get_or_create(request.session_id)
-            session_id = session.id
+        # Issue 3 fix: Reuse session variable from earlier lookup (no duplicate lookup)
+        session_id = session.id if session is not None else None
+
+        # Issue 4 fix: Add disclaimer to done event based on confidence level
+        disclaimers = {
+            ConfidenceLevel.HIGH: "Based on strong evidence from the codebase.",
+            ConfidenceLevel.MEDIUM: "Based on partial evidence. Verify against source code.",
+            ConfidenceLevel.LOW: "Limited evidence found. This answer may be speculative.",
+        }
 
         done_data = {
             "citations": [c.model_dump() for c in citations],
             "confidence": confidence.value,
             "session_id": session_id,
+            "disclaimer": disclaimers[confidence],
             "search_quality": {
                 "semantic_searched": semantic_ok,
                 "fts_searched": fts_ok,
