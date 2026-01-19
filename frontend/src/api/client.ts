@@ -199,21 +199,14 @@ export async function askQuestionStream(
   const decoder = new TextDecoder()
   let buffer = ''
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() || ''
-
-    let currentEvent = ''
+  const processLines = (lines: string[], currentEvent: string): string => {
+    let event = currentEvent
     for (const line of lines) {
       if (line.startsWith('event: ')) {
-        currentEvent = line.slice(7)
-      } else if (line.startsWith('data: ') && currentEvent) {
+        event = line.slice(7)
+      } else if (line.startsWith('data: ') && event) {
         const data = JSON.parse(line.slice(6))
-        switch (currentEvent) {
+        switch (event) {
           case 'token':
             callbacks.onToken(data.text)
             break
@@ -227,9 +220,27 @@ export async function askQuestionStream(
             callbacks.onError(data.message)
             break
         }
-        currentEvent = ''
+        event = ''
       }
     }
+    return event
+  }
+
+  let currentEvent = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    currentEvent = processLines(lines, currentEvent)
+  }
+
+  // Process any remaining data in buffer after stream ends
+  if (buffer.trim()) {
+    const finalLines = buffer.split('\n')
+    processLines(finalLines, currentEvent)
   }
 }
 

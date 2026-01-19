@@ -3,7 +3,7 @@
 from oya.db.connection import Database
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS generations (
     current_step INTEGER,  -- Step within current phase (e.g., file 3 of 20)
     total_steps INTEGER,  -- Total steps in current phase
     error_message TEXT,
-    metadata TEXT  -- JSON for additional data
+    metadata TEXT,  -- JSON for additional data
+    changes_made INTEGER  -- Boolean: whether any content was regenerated
 );
 
 -- Wiki page metadata
@@ -139,6 +140,15 @@ def run_migrations(db: Database) -> None:
                 db.commit()
             except Exception:
                 # Columns may already exist if schema was recreated
+                pass
+
+        # Version 5 migration: Add changes_made column to generations table
+        if current_version >= 1 and current_version < 5:
+            try:
+                db.execute("ALTER TABLE generations ADD COLUMN changes_made INTEGER")
+                db.commit()
+            except Exception:
+                # Column may already exist if schema was recreated
                 pass
 
         # Record schema version

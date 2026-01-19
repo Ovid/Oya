@@ -25,6 +25,7 @@ class JobStatus(BaseModel):
     current_phase: str | None = None
     total_phases: int | None = None
     error_message: str | None = None
+    changes_made: bool | None = None
 
 
 class JobCancelled(BaseModel):
@@ -44,7 +45,7 @@ async def list_jobs(
     cursor = db.execute(
         """
         SELECT id, type, status, started_at, completed_at,
-               current_phase, total_phases, error_message
+               current_phase, total_phases, error_message, changes_made
         FROM generations
         ORDER BY started_at DESC
         LIMIT ?
@@ -64,6 +65,7 @@ async def list_jobs(
                 current_phase=row["current_phase"],
                 total_phases=row["total_phases"],
                 error_message=row["error_message"],
+                changes_made=bool(row["changes_made"]) if row["changes_made"] is not None else None,
             )
         )
 
@@ -79,7 +81,7 @@ async def get_job(
     cursor = db.execute(
         """
         SELECT id, type, status, started_at, completed_at,
-               current_phase, total_phases, error_message
+               current_phase, total_phases, error_message, changes_made
         FROM generations
         WHERE id = ?
         """,
@@ -99,6 +101,7 @@ async def get_job(
         current_phase=row["current_phase"],
         total_phases=row["total_phases"],
         error_message=row["error_message"],
+        changes_made=bool(row["changes_made"]) if row["changes_made"] is not None else None,
     )
 
 

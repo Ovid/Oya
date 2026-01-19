@@ -1,5 +1,8 @@
 # TODO
 
+* We're using ChromaDB's default embeddings. That's OK for prototyping, but
+  for prod, we need users to be able to specify the embedding model they want.
+* "Ask" should be disabled while generating wiki
 * Review code to see if it's making language/framework/tool, etc. assumptions
   which violate the "generic analysis" rule.
 * Test suite hitting openai (possibly). Validate and then have ways to skip

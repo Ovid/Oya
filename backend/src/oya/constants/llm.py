@@ -11,6 +11,6 @@ but provide sensible defaults for most use cases.
 # DEFAULT_TEMPERATURE balances creativity and consistency (0.7 is a common default).
 # JSON_TEMPERATURE is lower for structured output where consistency matters more.
 
-MAX_TOKENS = 4096
+MAX_TOKENS = 8192
 DEFAULT_TEMPERATURE = 0.7
 JSON_TEMPERATURE = 0.3

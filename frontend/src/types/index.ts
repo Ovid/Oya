@@ -30,12 +30,13 @@ export interface JobCreated {
 export interface JobStatus {
   job_id: string
   type: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   started_at: string | null
   completed_at: string | null
   current_phase: string | null
   total_phases: number | null
   error_message: string | null
+  changes_made?: boolean | null
 }
 
 export interface WikiPage {
