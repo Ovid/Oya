@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { askQuestionStream } from '../api/client'
 import { CONFIDENCE_COLORS, QA_DEFAULTS, QA_STORAGE_KEY } from '../config'
 import { QASettingsPopover, type QASettings } from './QASettingsPopover'
+import { formatElapsedTime } from './generationConstants'
 import type { Citation, SearchQuality, ConfidenceLevel } from '../types'
 
 interface QAMessage {
@@ -14,6 +15,7 @@ interface QAMessage {
   confidence: ConfidenceLevel
   disclaimer: string
   searchQuality: SearchQuality
+  durationSeconds: number
   isStreaming?: boolean
 }
 
@@ -79,6 +81,8 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
 
   // Ref to track accumulated stream text (needed because onDone callback captures stale state)
   const streamTextRef = useRef('')
+  // Ref to track start time for duration calculation
+  const startTimeRef = useRef<number>(0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,6 +95,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
     setError(null)
     setCurrentStreamText('')
     streamTextRef.current = ''
+    startTimeRef.current = Date.now()
     setCurrentStatus('Searching...')
 
     // Create abort controller with timeout
@@ -120,6 +125,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
           },
           onDone: (data) => {
             const finalAnswer = streamTextRef.current
+            const durationSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000)
             setMessages((prev) => [
               ...prev,
               {
@@ -129,6 +135,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
                 confidence: data.confidence as ConfidenceLevel,
                 disclaimer: data.disclaimer,
                 searchQuality: data.search_quality,
+                durationSeconds,
               },
             ])
             if (data.session_id) {
@@ -248,6 +255,11 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
                   {!msg.searchQuality.fts_searched && 'Text search unavailable.'}
                 </div>
               )}
+
+              {/* Duration */}
+              <div className="text-xs text-gray-400 dark:text-gray-500 italic">
+                Thought for {formatElapsedTime(msg.durationSeconds)}
+              </div>
             </div>
           </div>
         ))}
