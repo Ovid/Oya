@@ -28,6 +28,7 @@ interface AppState {
   darkMode: boolean
   generationStatus: GenerationStatus | null
   askPanelOpen: boolean
+  showUpToDateModal: boolean
 }
 
 type Action =
@@ -43,6 +44,7 @@ type Action =
   | { type: 'SET_DARK_MODE'; payload: boolean }
   | { type: 'SET_GENERATION_STATUS'; payload: GenerationStatus | null }
   | { type: 'SET_ASK_PANEL_OPEN'; payload: boolean }
+  | { type: 'SET_UP_TO_DATE_MODAL'; payload: boolean }
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') return false
@@ -73,6 +75,7 @@ const initialState: AppState = {
   darkMode: getInitialDarkMode(),
   generationStatus: null,
   askPanelOpen: getInitialAskPanelOpen(),
+  showUpToDateModal: false,
 }
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -115,6 +118,8 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, generationStatus: action.payload }
     case 'SET_ASK_PANEL_OPEN':
       return { ...state, askPanelOpen: action.payload }
+    case 'SET_UP_TO_DATE_MODAL':
+      return { ...state, showUpToDateModal: action.payload }
     default:
       return state
   }
@@ -133,6 +138,7 @@ interface AppContextValue {
   setNoteEditorDirty: (isDirty: boolean) => void
   dismissGenerationStatus: () => void
   setAskPanelOpen: (open: boolean) => void
+  dismissUpToDateModal: () => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -169,6 +175,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Start polling job status
       const job = await api.getJob(result.job_id)
+
+      // Check if job completed instantly with no changes
+      if (job.status === 'completed' && job.changes_made === false) {
+        dispatch({ type: 'SET_UP_TO_DATE_MODAL', payload: true })
+        return null
+      }
+
       dispatch({ type: 'SET_CURRENT_JOB', payload: job })
 
       return result.job_id
@@ -284,6 +297,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_GENERATION_STATUS', payload: null })
   }
 
+  const dismissUpToDateModal = () => {
+    dispatch({ type: 'SET_UP_TO_DATE_MODAL', payload: false })
+  }
+
   const contextValue: AppContextValue = {
     state,
     dispatch,
@@ -297,6 +314,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNoteEditorDirty,
     dismissGenerationStatus,
     setAskPanelOpen,
+    dismissUpToDateModal,
   }
 
   return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>

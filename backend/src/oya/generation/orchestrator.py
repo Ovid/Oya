@@ -94,12 +94,16 @@ class GenerationResult:
         synthesis_map: The synthesis map with layers, entry points, etc.
         analysis_symbols: List of parsed symbol dicts from code analysis.
         file_imports: Mapping of file paths to their imports.
+        files_regenerated: Whether any files were regenerated.
+        directories_regenerated: Whether any directories were regenerated.
     """
 
     job_id: str
     synthesis_map: SynthesisMap | None = None
     analysis_symbols: list[dict[str, Any]] | None = None
     file_imports: dict[str, list[str]] | None = None
+    files_regenerated: bool = False
+    directories_regenerated: bool = False
 
 
 # Type alias for progress callback
@@ -642,6 +646,8 @@ class GenerationOrchestrator:
             synthesis_map=synthesis_map,
             analysis_symbols=analysis_symbols,
             file_imports=analysis.get("file_imports"),
+            files_regenerated=files_regenerated,
+            directories_regenerated=directories_regenerated,
         )
 
     async def _emit_progress(

@@ -35,11 +35,11 @@ export const QA_DEFAULTS = {
 // Q&A Settings Constraints
 // =============================================================================
 // Min/max/step values for settings sliders. Temperature ranges 0-1 (deterministic
-// to creative). Timeout ranges 1-5 minutes.
+// to creative). Timeout ranges 1-10 minutes.
 
 export const QA_CONSTRAINTS = {
   temperature: { min: 0, max: 1, step: 0.1 },
-  timeout: { min: 1, max: 5, step: 1 },
+  timeout: { min: 1, max: 10, step: 1 },
 } as const
 
 // =============================================================================
