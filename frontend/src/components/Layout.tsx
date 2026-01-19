@@ -4,6 +4,7 @@ import { TopBar } from './TopBar'
 import { RightSidebar } from './RightSidebar'
 import { AskPanel } from './AskPanel'
 import { NoteEditor } from './NoteEditor'
+import { UpToDateModal } from './UpToDateModal'
 import { InterruptedGenerationBanner } from './InterruptedGenerationBanner'
 import { useApp } from '../context/useApp'
 import { useResizablePanel } from '../hooks/useResizablePanel'
@@ -25,8 +26,8 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
-  const { state, closeNoteEditor, refreshTree, setAskPanelOpen } = useApp()
-  const { noteEditor, askPanelOpen } = state
+  const { state, closeNoteEditor, refreshTree, setAskPanelOpen, dismissUpToDateModal } = useApp()
+  const { noteEditor, askPanelOpen, showUpToDateModal } = state
 
   const leftPanel = useResizablePanel({
     side: 'left',
@@ -140,6 +141,9 @@ export function Layout({ children }: LayoutProps) {
         defaultScope={noteEditor.defaultScope}
         defaultTarget={noteEditor.defaultTarget}
       />
+
+      {/* Up-to-date Modal */}
+      <UpToDateModal isOpen={showUpToDateModal} onClose={dismissUpToDateModal} />
     </div>
   )
 }
