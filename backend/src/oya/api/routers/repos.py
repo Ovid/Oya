@@ -245,26 +245,20 @@ async def update_oyaignore(
     request: OyaignoreUpdateRequest,
     settings: Settings = Depends(get_settings),
 ) -> OyaignoreUpdateResponse:
-    """Add exclusions to .oyawiki/.oyaignore.
+    """Add exclusions to .oyaignore in the repository root.
 
-    Creates the .oyawiki directory and .oyaignore file if they don't exist.
+    Creates the .oyaignore file if it doesn't exist.
     Appends new exclusions to the end of the file, preserving existing entries.
     Adds trailing slash to directory patterns.
     Removes duplicate entries.
 
+    Note: .oyaignore is in root (not .oyawiki) so users can delete .oyawiki
+    for a fresh regeneration without losing their exclusion settings.
+
     Requirements: 5.6, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
     """
     workspace_path = settings.workspace_path
-    oyawiki_dir = workspace_path / ".oyawiki"
-    oyaignore_path = oyawiki_dir / ".oyaignore"
-
-    # Create .oyawiki directory if it doesn't exist
-    try:
-        oyawiki_dir.mkdir(exist_ok=True)
-    except PermissionError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create .oyawiki directory: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create .oyawiki directory: {e}")
+    oyaignore_path = workspace_path / ".oyaignore"
 
     try:
         # Read existing content, preserving order but tracking for deduplication

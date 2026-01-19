@@ -629,10 +629,9 @@ class TestIndexableItemsPropertyTests:
                 file_path = temp_workspace / file_name
             file_path.write_text(f"content of {file_name}")
 
-        # Create .oyaignore with patterns
+        # Create .oyaignore with patterns (in root directory)
         if oyaignore_patterns:
-            (temp_workspace / ".oyawiki").mkdir(exist_ok=True)
-            (temp_workspace / ".oyawiki" / ".oyaignore").write_text("\n".join(oyaignore_patterns))
+            (temp_workspace / ".oyaignore").write_text("\n".join(oyaignore_patterns))
 
         # Get files using FileFilter (same as GenerationOrchestrator._run_analysis)
         # GenerationOrchestrator uses: FileFilter(self.repo.path)
@@ -673,8 +672,8 @@ async def test_post_oyaignore_creates_file_if_not_exists(client, workspace_with_
 
     Requirements: 5.6, 8.4
     """
-    # Ensure .oyaignore doesn't exist
-    oyaignore_path = workspace_with_files / ".oyawiki" / ".oyaignore"
+    # Ensure .oyaignore doesn't exist (in root directory)
+    oyaignore_path = workspace_with_files / ".oyaignore"
     if oyaignore_path.exists():
         oyaignore_path.unlink()
 
@@ -696,10 +695,8 @@ async def test_post_oyaignore_appends_to_existing_file(client, workspace_with_fi
 
     Requirements: 8.2, 8.3
     """
-    # Create .oyawiki directory and .oyaignore with existing content
-    oyawiki_dir = workspace_with_files / ".oyawiki"
-    oyawiki_dir.mkdir(exist_ok=True)
-    oyaignore_path = oyawiki_dir / ".oyaignore"
+    # Create .oyaignore with existing content (in root directory)
+    oyaignore_path = workspace_with_files / ".oyaignore"
     oyaignore_path.write_text("# Existing content\nexisting_dir/\nexisting_file.txt\n")
 
     response = await client.post(
@@ -728,7 +725,7 @@ async def test_post_oyaignore_adds_trailing_slash_to_directories(client, workspa
 
     assert response.status_code == 200
 
-    oyaignore_path = workspace_with_files / ".oyawiki" / ".oyaignore"
+    oyaignore_path = workspace_with_files / ".oyaignore"
     content = oyaignore_path.read_text()
 
     # Directories should have trailing slash
@@ -767,25 +764,24 @@ async def test_post_oyaignore_returns_correct_response_schema(client, workspace_
     assert data["total_added"] == 4
 
 
-async def test_post_oyaignore_creates_oyawiki_directory_if_needed(client, workspace_with_files):
-    """POST /api/repos/oyaignore creates .oyawiki directory if it doesn't exist.
+async def test_post_oyaignore_creates_file_in_root_directory(client, workspace_with_files):
+    """POST /api/repos/oyaignore creates .oyaignore in root directory.
 
     Requirements: 8.4
     """
-    # Remove .oyawiki directory if it exists
-    oyawiki_dir = workspace_with_files / ".oyawiki"
-    if oyawiki_dir.exists():
-        import shutil
-
-        shutil.rmtree(oyawiki_dir)
+    # Remove .oyaignore if it exists
+    oyaignore_path = workspace_with_files / ".oyaignore"
+    if oyaignore_path.exists():
+        oyaignore_path.unlink()
 
     response = await client.post(
         "/api/repos/oyaignore", json={"directories": ["docs"], "files": []}
     )
 
     assert response.status_code == 200
-    assert oyawiki_dir.exists()
-    assert (oyawiki_dir / ".oyaignore").exists()
+    assert oyaignore_path.exists()
+    content = oyaignore_path.read_text()
+    assert "docs/" in content
 
 
 # ============================================================================
@@ -801,14 +797,10 @@ async def test_post_oyaignore_permission_error_returns_403(client, workspace_wit
     """
     import os
 
-    # Create .oyawiki directory
-    oyawiki_dir = workspace_with_files / ".oyawiki"
-    oyawiki_dir.mkdir(exist_ok=True)
-
-    # Make the directory read-only to cause permission error
-    original_mode = oyawiki_dir.stat().st_mode
+    # Make the workspace directory read-only to prevent writing .oyaignore
+    original_mode = workspace_with_files.stat().st_mode
     try:
-        os.chmod(oyawiki_dir, 0o444)  # Read-only
+        os.chmod(workspace_with_files, 0o444)  # Read-only
 
         response = await client.post(
             "/api/repos/oyaignore", json={"directories": ["docs"], "files": []}
@@ -819,38 +811,35 @@ async def test_post_oyaignore_permission_error_returns_403(client, workspace_wit
         assert "detail" in data
     finally:
         # Restore permissions for cleanup
-        os.chmod(oyawiki_dir, original_mode)
+        os.chmod(workspace_with_files, original_mode)
 
 
-async def test_post_oyaignore_cannot_create_oyawiki_returns_500(client, workspace_with_files):
-    """POST /api/repos/oyaignore returns 500 if .oyawiki directory cannot be created.
+async def test_post_oyaignore_permission_error_on_existing_file_returns_403(
+    client, workspace_with_files
+):
+    """POST /api/repos/oyaignore returns 403 if existing .oyaignore is not writable.
 
     Requirements: 8.8
     """
     import os
 
-    # Remove .oyawiki if it exists
-    oyawiki_dir = workspace_with_files / ".oyawiki"
-    if oyawiki_dir.exists():
-        import shutil
-
-        shutil.rmtree(oyawiki_dir)
-
-    # Make the workspace directory read-only to prevent creating .oyawiki
-    original_mode = workspace_with_files.stat().st_mode
+    # Create .oyaignore and make it read-only
+    oyaignore_path = workspace_with_files / ".oyaignore"
+    oyaignore_path.write_text("# existing\n")
+    original_mode = oyaignore_path.stat().st_mode
     try:
-        os.chmod(workspace_with_files, 0o444)  # Read-only
+        os.chmod(oyaignore_path, 0o444)  # Read-only
 
         response = await client.post(
             "/api/repos/oyaignore", json={"directories": ["docs"], "files": []}
         )
 
-        assert response.status_code == 500
+        assert response.status_code == 403
         data = response.json()
         assert "detail" in data
     finally:
         # Restore permissions for cleanup
-        os.chmod(workspace_with_files, original_mode)
+        os.chmod(oyaignore_path, original_mode)
 
 
 # ============================================================================
@@ -955,10 +944,8 @@ class TestOyaignorePropertyTests:
         from httpx import ASGITransport, AsyncClient
         from oya.main import app
 
-        # Create .oyawiki directory and .oyaignore with existing content
-        oyawiki_dir = temp_workspace_for_oyaignore / ".oyawiki"
-        oyawiki_dir.mkdir(exist_ok=True)
-        oyaignore_path = oyawiki_dir / ".oyaignore"
+        # Create .oyaignore with existing content (in root directory)
+        oyaignore_path = temp_workspace_for_oyaignore / ".oyaignore"
 
         # Write existing entries (directories with trailing slash, files without)
         existing_entries = []
@@ -1069,10 +1056,8 @@ class TestOyaignorePropertyTests:
         from httpx import ASGITransport, AsyncClient
         from oya.main import app
 
-        # Create .oyawiki directory
-        oyawiki_dir = temp_workspace_for_oyaignore / ".oyawiki"
-        oyawiki_dir.mkdir(exist_ok=True)
-        oyaignore_path = oyawiki_dir / ".oyaignore"
+        # Create .oyaignore path (in root directory)
+        oyaignore_path = temp_workspace_for_oyaignore / ".oyaignore"
 
         # Prepare files: some inside the excluded directory, some outside
         files_inside = [f"{dir_to_exclude}/{f}" for f in files_in_dir]
@@ -1161,12 +1146,8 @@ class TestOyaignorePropertyTests:
         from httpx import ASGITransport, AsyncClient
         from oya.main import app
 
-        # Create .oyawiki directory and clean up any existing .oyaignore
-        oyawiki_dir = temp_workspace_for_oyaignore / ".oyawiki"
-        oyawiki_dir.mkdir(exist_ok=True)
-        oyaignore_path = oyawiki_dir / ".oyaignore"
-
-        # Clean up from previous iteration
+        # Create .oyaignore path (in root directory) and clean up from previous iteration
+        oyaignore_path = temp_workspace_for_oyaignore / ".oyaignore"
         if oyaignore_path.exists():
             oyaignore_path.unlink()
 
