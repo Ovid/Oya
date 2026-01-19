@@ -502,15 +502,20 @@ async def _run_generation(
             file_imports=generation_result.file_imports,
         )
 
+        # Compute whether any changes were made
+        changes_made = (
+            generation_result.files_regenerated or generation_result.directories_regenerated
+        )
+
         # Update status to completed BEFORE promoting staging
         # (promotion deletes .oyawiki which contains the database file)
         db.execute(
             """
             UPDATE generations
-            SET status = 'completed', completed_at = datetime('now')
+            SET status = 'completed', completed_at = datetime('now'), changes_made = ?
             WHERE id = ?
             """,
-            (job_id,),
+            (changes_made, job_id),
         )
         db.commit()
 
