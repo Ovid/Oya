@@ -77,6 +77,7 @@ class LLMClient:
         response: str | None,
         duration_ms: int,
         error: str | None,
+        error_details: dict | None = None,
     ) -> None:
         """Log a query to the JSONL log file.
 
@@ -88,6 +89,7 @@ class LLMClient:
             response: Response text (None if error).
             duration_ms: Request duration in milliseconds.
             error: Error message (None if success).
+            error_details: Optional dict with status_code, headers, etc.
         """
         if not self.log_path:
             return
@@ -107,6 +109,9 @@ class LLMClient:
             "error": error,
         }
 
+        if error_details:
+            entry["error_details"] = error_details
+
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.log_path, "a", encoding="utf-8") as f:
@@ -114,6 +119,63 @@ class LLMClient:
         except Exception:
             # Don't let logging failures break the application
             pass
+
+    def _extract_error_details(self, e: Exception) -> dict | None:
+        """Extract HTTP details from LiteLLM exceptions.
+
+        Args:
+            e: The exception to extract details from.
+
+        Returns:
+            Dict with status_code, headers, and body if available.
+        """
+        details: dict = {}
+
+        # LiteLLM exceptions often have these attributes
+        if hasattr(e, "status_code"):
+            details["status_code"] = e.status_code
+
+        if hasattr(e, "response") and e.response is not None:
+            resp = e.response
+            # httpx Response object
+            if hasattr(resp, "status_code"):
+                details["status_code"] = resp.status_code
+            if hasattr(resp, "headers"):
+                # Convert headers to dict, filtering to useful ones
+                try:
+                    headers = dict(resp.headers)
+                    # Keep only relevant headers for debugging
+                    relevant_headers = {
+                        k: v for k, v in headers.items()
+                        if k.lower() in (
+                            "x-ratelimit-limit-requests",
+                            "x-ratelimit-limit-tokens",
+                            "x-ratelimit-remaining-requests",
+                            "x-ratelimit-remaining-tokens",
+                            "x-ratelimit-reset-requests",
+                            "x-ratelimit-reset-tokens",
+                            "retry-after",
+                            "x-request-id",
+                            "openai-organization",
+                            "openai-processing-ms",
+                            "openai-version",
+                            "cf-ray",
+                        )
+                    }
+                    if relevant_headers:
+                        details["response_headers"] = relevant_headers
+                except Exception:
+                    pass
+
+        # Some exceptions have llm_provider info
+        if hasattr(e, "llm_provider"):
+            details["llm_provider"] = e.llm_provider
+
+        # Message often contains useful info
+        if hasattr(e, "message"):
+            details["message"] = str(e.message)
+
+        return details if details else None
 
     def _get_model_string(self) -> str:
         """Get LiteLLM model string.
@@ -191,6 +253,7 @@ class LLMClient:
                 response=None,
                 duration_ms=duration_ms,
                 error=str(e),
+                error_details=self._extract_error_details(e),
             )
             raise LLMAuthenticationError(f"Authentication failed: {e}") from e
         except RateLimitError as e:
@@ -203,6 +266,7 @@ class LLMClient:
                 response=None,
                 duration_ms=duration_ms,
                 error=str(e),
+                error_details=self._extract_error_details(e),
             )
             raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
         except APIConnectionError as e:
@@ -215,6 +279,7 @@ class LLMClient:
                 response=None,
                 duration_ms=duration_ms,
                 error=str(e),
+                error_details=self._extract_error_details(e),
             )
             raise LLMConnectionError(f"Connection failed: {e}") from e
         except APIError as e:
@@ -227,6 +292,7 @@ class LLMClient:
                 response=None,
                 duration_ms=duration_ms,
                 error=str(e),
+                error_details=self._extract_error_details(e),
             )
             raise LLMError(f"LLM API error: {e}") from e
 
@@ -272,6 +338,7 @@ class LLMClient:
         start_time = time.perf_counter()
         accumulated_tokens: list[str] = []
         error_msg: str | None = None
+        error_details: dict | None = None
 
         try:
             response = await acompletion(**kwargs)
@@ -282,15 +349,19 @@ class LLMClient:
                     yield content
         except AuthenticationError as e:
             error_msg = str(e)
+            error_details = self._extract_error_details(e)
             raise LLMAuthenticationError(f"Authentication failed: {e}") from e
         except RateLimitError as e:
             error_msg = str(e)
+            error_details = self._extract_error_details(e)
             raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
         except APIConnectionError as e:
             error_msg = str(e)
+            error_details = self._extract_error_details(e)
             raise LLMConnectionError(f"Connection failed: {e}") from e
         except APIError as e:
             error_msg = str(e)
+            error_details = self._extract_error_details(e)
             raise LLMError(f"LLM API error: {e}") from e
         finally:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
@@ -302,6 +373,7 @@ class LLMClient:
                 response="".join(accumulated_tokens) if accumulated_tokens else None,
                 duration_ms=duration_ms,
                 error=error_msg,
+                error_details=error_details,
             )
 
     async def generate_with_json(
