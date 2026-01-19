@@ -431,6 +431,10 @@ async def _run_generation(
         )
         db.commit()
 
+    # Create staging database connection (separate from job tracking db)
+    # This db is used by orchestrator for wiki_pages and survives promotion
+    staging_db: Database | None = None
+
     try:
         # Update status to running
         db.execute(
@@ -441,6 +445,14 @@ async def _run_generation(
 
         # Prepare staging directory (copies production for incremental, or creates empty)
         prepare_staging_directory(staging_path, settings.oyawiki_path)
+
+        # Create staging database connection for orchestrator
+        # This ensures wiki_pages data survives the staging → production promotion
+        staging_db_path = staging_meta_path / "oya.db"
+        staging_db = Database(staging_db_path)
+        # Run migrations on staging db to ensure schema is up to date
+        from oya.db.migrations import run_migrations
+        run_migrations(staging_db)
 
         # Create orchestrator to build in staging directory
         llm = LLMClient(
@@ -454,7 +466,7 @@ async def _run_generation(
         orchestrator = GenerationOrchestrator(
             llm_client=llm,
             repo=repo,
-            db=db,
+            db=staging_db,  # Use staging db for wiki_pages
             wiki_path=staging_wiki_path,
             parallel_limit=settings.parallel_file_limit,
             issues_store=issues_store,
@@ -474,7 +486,7 @@ async def _run_generation(
         vectorstore = VectorStore(staging_chroma_path)
         indexing_service = IndexingService(
             vectorstore=vectorstore,
-            db=db,
+            db=staging_db,  # Use staging db for FTS content
             wiki_path=staging_wiki_path,
             meta_path=staging_meta_path,
         )
@@ -519,6 +531,10 @@ async def _run_generation(
         )
         db.commit()
 
+        # Close staging db before promotion (releases file handle)
+        staging_db.close()
+        staging_db = None
+
         # SUCCESS: Promote staging to production
         promote_staging_to_production(staging_path, settings.oyawiki_path)
 
@@ -534,6 +550,10 @@ async def _run_generation(
             (str(e), job_id),
         )
         db.commit()
+    finally:
+        # Ensure staging db is closed
+        if staging_db is not None:
+            staging_db.close()
 
 
 @router.post("/workspace", response_model=WorkspaceSwitchResponse)
