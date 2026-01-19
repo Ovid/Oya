@@ -5,9 +5,12 @@ services:
       - "8000:8000"
     volumes:
       - ${REPO_PATH:-.}:/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - WORKSPACE_PATH=/workspace
       - WORKSPACE_DISPLAY_PATH=${REPO_PATH:-.}
+      - PYTHONUNBUFFERED=1
     env_file:
       - .env
 
