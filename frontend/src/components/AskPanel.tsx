@@ -175,9 +175,9 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   if (!isOpen) return null
 
   return (
-    <div className="w-[350px] border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col h-full">
+    <div className="w-full bg-white dark:bg-gray-800 flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
         <h2 className="font-semibold text-gray-900 dark:text-white">Ask about this codebase</h2>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
@@ -206,7 +206,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
         {messages.length === 0 && !currentStreamText && !currentStatus && (
           <div className="text-center text-gray-500 dark:text-gray-400 text-sm py-8">
             <p>Ask any question about the codebase.</p>
@@ -288,7 +288,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
         <div className="flex gap-2 items-center">
           <input
             type="text"
