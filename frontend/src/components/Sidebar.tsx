@@ -75,22 +75,18 @@ const FILE_EXTENSIONS = new Set([
 /**
  * Convert a file slug back to a full relative path.
  * Slugs are created by replacing / and . with -, so we need to reconstruct.
- * e.g., "lib-mymodule-foo-pm" -> "lib/MyModule/Foo.pm"
+ * e.g., "lib-MooseX-Extended-pm" -> "lib/MooseX/Extended.pm"
  *
- * Note: We cannot perfectly reconstruct the original path because:
- * 1. The slug is lowercased, so we lose case information
- * 2. Both / and . become -, so we need to guess which - was originally a .
- *
- * We use the known file extensions to identify where the extension starts.
+ * We use known file extensions to identify where the extension starts.
  */
 function slugToPath(slug: string): string {
   const parts = slug.split('-')
 
   if (parts.length === 0) return slug
 
-  // Check if last part is a known extension
+  // Check if last part is a known extension (case-insensitive lookup)
   const lastPart = parts[parts.length - 1]
-  if (FILE_EXTENSIONS.has(lastPart) && parts.length >= 2) {
+  if (FILE_EXTENSIONS.has(lastPart.toLowerCase()) && parts.length >= 2) {
     // Join all but last with /, then add .extension
     const pathParts = parts.slice(0, -1)
     return pathParts.join('/') + '.' + lastPart
