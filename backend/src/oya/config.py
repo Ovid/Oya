@@ -223,14 +223,18 @@ def _load_section(
     return result
 
 
-def load_config(config_path: Optional[Path] = None) -> "Config":
-    """Load configuration from an INI file.
+def _load_config(config_path: Optional[Path] = None) -> "Config":
+    """Load configuration from an INI file (internal use only).
+
+    This is an internal function called by load_settings(). It returns a Config
+    with a placeholder workspace_path that load_settings() will replace with
+    the actual workspace path from WORKSPACE_PATH environment variable.
 
     Args:
         config_path: Path to config file. If None, uses defaults from schema.
 
     Returns:
-        Config object with all sections populated
+        Config object with all sections populated (workspace_path is placeholder)
 
     Raises:
         ConfigError: If validation fails
@@ -471,7 +475,7 @@ def load_settings() -> Config:
         config_exists = config_file.exists()
     except PermissionError:
         config_exists = False
-    base_config = load_config(config_file if config_exists else None)
+    base_config = _load_config(config_file if config_exists else None)
 
     # Get provider and model, auto-detecting if not explicitly set
     active_provider = os.getenv("ACTIVE_PROVIDER")
