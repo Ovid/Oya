@@ -300,7 +300,10 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+      <form
+        onSubmit={handleSubmit}
+        className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0"
+      >
         <div className="flex gap-2 items-center">
           <input
             type="text"

@@ -146,8 +146,10 @@ class LLMClient:
                     headers = dict(resp.headers)
                     # Keep only relevant headers for debugging
                     relevant_headers = {
-                        k: v for k, v in headers.items()
-                        if k.lower() in (
+                        k: v
+                        for k, v in headers.items()
+                        if k.lower()
+                        in (
                             "x-ratelimit-limit-requests",
                             "x-ratelimit-limit-tokens",
                             "x-ratelimit-remaining-requests",
