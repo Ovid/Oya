@@ -261,7 +261,8 @@ export function IndexingPreviewModal({ isOpen, onClose, onGenerate }: IndexingPr
   }, [indexableItems, pendingExclusions, pendingInclusions])
 
   // Check if there are any pending changes
-  const hasChanges = pendingExclusions.directories.size > 0 ||
+  const hasChanges =
+    pendingExclusions.directories.size > 0 ||
     pendingExclusions.files.size > 0 ||
     pendingInclusions.size > 0
 
@@ -290,13 +291,13 @@ export function IndexingPreviewModal({ isOpen, onClose, onGenerate }: IndexingPr
           removals: Array.from(pendingInclusions),
         })
       }
-      setShowGenerateConfirm(false)
       onGenerate()
       onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save changes'
       setError(message)
     } finally {
+      setShowGenerateConfirm(false)
       setIsSaving(false)
     }
   }
