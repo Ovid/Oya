@@ -13,7 +13,7 @@ from oya.config import (
     CONFIG_SCHEMA,
     Config,
     ConfigError,
-    load_config,
+    _load_config,
     load_settings,
 )
 
@@ -49,7 +49,7 @@ def write_config(workspace: Path, content: str) -> Path:
 
 def test_all_settings_have_correct_types(temp_workspace: Path):
     """Every setting matches its declared type from schema."""
-    config = load_config(None)  # Load with defaults only
+    config = _load_config(None)  # Load with defaults only
 
     for section_name, keys in CONFIG_SCHEMA.items():
         section = getattr(config, section_name)
@@ -66,7 +66,7 @@ def test_invalid_type_raises_clear_error(temp_workspace: Path):
     config_path = write_config(temp_workspace, "[generation]\ncontext_limit = not_a_number")
 
     with pytest.raises(ConfigError) as exc_info:
-        load_config(config_path)
+        _load_config(config_path)
 
     assert "generation" in str(exc_info.value)
     assert "context_limit" in str(exc_info.value)
@@ -78,7 +78,7 @@ def test_invalid_float_raises_clear_error(temp_workspace: Path):
     config_path = write_config(temp_workspace, "[generation]\ntemperature = very_hot")
 
     with pytest.raises(ConfigError) as exc_info:
-        load_config(config_path)
+        _load_config(config_path)
 
     assert "generation" in str(exc_info.value)
     assert "temperature" in str(exc_info.value)
@@ -92,7 +92,7 @@ def test_invalid_float_raises_clear_error(temp_workspace: Path):
 
 def test_numeric_settings_in_valid_ranges(temp_workspace: Path):
     """Default values are within their declared ranges."""
-    config = load_config(None)  # Load with defaults only
+    config = _load_config(None)  # Load with defaults only
 
     # Temperatures between 0 and their max
     assert 0.0 <= config.generation.temperature <= 1.0
@@ -113,7 +113,7 @@ def test_value_below_minimum_raises_error(temp_workspace: Path):
     config_path = write_config(temp_workspace, "[generation]\ntemperature = -0.5")
 
     with pytest.raises(ConfigError) as exc_info:
-        load_config(config_path)
+        _load_config(config_path)
 
     assert "generation" in str(exc_info.value)
     assert "temperature" in str(exc_info.value)
@@ -125,7 +125,7 @@ def test_value_above_maximum_raises_error(temp_workspace: Path):
     config_path = write_config(temp_workspace, "[generation]\ntemperature = 5.0")
 
     with pytest.raises(ConfigError) as exc_info:
-        load_config(config_path)
+        _load_config(config_path)
 
     assert "generation" in str(exc_info.value)
     assert "temperature" in str(exc_info.value)
@@ -139,7 +139,7 @@ def test_value_above_maximum_raises_error(temp_workspace: Path):
 
 def test_missing_config_uses_defaults(temp_workspace: Path):
     """No config.ini file? All defaults load successfully."""
-    config = load_config(None)  # No config file
+    config = _load_config(None)  # No config file
 
     assert config is not None
     # All sections should exist with default values
@@ -155,7 +155,7 @@ def test_partial_config_merges_with_defaults(temp_workspace: Path):
     """Config with only [generation] still has [ask] defaults."""
     config_path = write_config(temp_workspace, "[generation]\ntemperature = 0.5")
 
-    config = load_config(config_path)
+    config = _load_config(config_path)
 
     assert config.generation.temperature == 0.5
     # Other sections should have defaults
@@ -167,7 +167,7 @@ def test_empty_config_file_uses_defaults(temp_workspace: Path):
     """Empty config.ini file loads all defaults."""
     config_path = write_config(temp_workspace, "")
 
-    config = load_config(config_path)
+    config = _load_config(config_path)
 
     assert config is not None
 
@@ -181,8 +181,8 @@ def test_computed_paths_use_config_values(temp_workspace: Path):
     """Computed path properties use paths section values."""
     config_path = write_config(temp_workspace, "[paths]\nwiki_dir = .custom-wiki")
 
-    config = load_config(config_path)
-    # Manually set workspace_path since load_config uses a placeholder
+    config = _load_config(config_path)
+    # Manually set workspace_path since _load_config uses a placeholder
     # We need to create a new Config with proper workspace_path
     config_with_workspace = Config(
         workspace_path=temp_workspace,
@@ -200,7 +200,7 @@ def test_computed_paths_use_config_values(temp_workspace: Path):
 
 def test_default_paths_are_correct(temp_workspace: Path):
     """Default path values produce expected paths."""
-    config = load_config(None)
+    config = _load_config(None)
 
     assert config.paths.wiki_dir == ".oyawiki"
     assert config.paths.staging_dir == ".oyawiki-building"
