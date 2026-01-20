@@ -12,7 +12,7 @@
   which violate the "generic analysis" rule.
 * Test suite hitting openai (possibly). Validate and then have ways to skip
   those tests unless requested.
-    * Remove provider from .end and see if tests pass
+    * Remove provider from .env and see if tests pass
     * Look at LLM as a Judge for some tests.
 * When I first generate, it has a spinner for the entire time of the analysis
   phase (I think).
