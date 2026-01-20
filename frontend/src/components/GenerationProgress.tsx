@@ -18,8 +18,8 @@ export function GenerationProgress({
   onCancelled,
 }: GenerationProgressProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('starting')
-  const [currentPhaseNum, setCurrentPhaseNum] = useState<number>(0)
-  const [totalPhases, setTotalPhases] = useState<number>(6)
+  const [currentPhaseNum, setCurrentPhaseNum] = useState<number>(1)
+  const [totalPhases, setTotalPhases] = useState<number>(PHASE_ORDER.length)
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [totalSteps, setTotalSteps] = useState<number>(0)
   const [startTime] = useState<Date>(new Date())
@@ -31,6 +31,7 @@ export function GenerationProgress({
   const [phaseElapsedTimes, setPhaseElapsedTimes] = useState<Record<string, number>>({})
   const [phaseStartElapsedTimes, setPhaseStartElapsedTimes] = useState<Record<string, number>>({})
   const phaseStartTimesRef = useRef<Record<string, number>>({})
+  const currentPhaseRef = useRef<string>('starting')
 
   // Update elapsed time every second
   useEffect(() => {
@@ -53,34 +54,55 @@ export function GenerationProgress({
           const phaseNum = parseInt(numStr, 10)
 
           if (phaseName) {
-            setCurrentPhase((prevPhase) => {
-              // Record start time for new phase
-              if (!(phaseName in phaseStartTimesRef.current)) {
-                phaseStartTimesRef.current[phaseName] = Date.now()
-                // Also store elapsed seconds at phase start (for render use)
-                const elapsedAtStart = Math.floor((Date.now() - startTime.getTime()) / 1000)
-                setPhaseStartElapsedTimes((prev) => ({
-                  ...prev,
-                  [phaseName]: elapsedAtStart,
-                }))
-              }
+            const prevPhase = currentPhaseRef.current
 
-              // When phase changes, record elapsed time for the previous phase
-              if (
-                prevPhase !== 'starting' &&
-                prevPhase !== phaseName &&
-                prevPhase in phaseStartTimesRef.current
-              ) {
-                const elapsedForPhase = Math.floor(
-                  (Date.now() - phaseStartTimesRef.current[prevPhase]) / 1000
-                )
-                setPhaseElapsedTimes((prev) => ({
-                  ...prev,
-                  [prevPhase]: elapsedForPhase,
-                }))
+            // Record start time for new phase
+            const isNewPhase = !(phaseName in phaseStartTimesRef.current)
+            if (isNewPhase) {
+              phaseStartTimesRef.current[phaseName] = Date.now()
+              // Also store elapsed seconds at phase start (for render use)
+              const elapsedAtStart = Math.floor((Date.now() - startTime.getTime()) / 1000)
+              setPhaseStartElapsedTimes((prev) => ({
+                ...prev,
+                [phaseName]: elapsedAtStart,
+              }))
+
+              // Handle skipped phases: if we go from 'starting' directly to phase > 1,
+              // the earlier phases completed before SSE connected. Record their elapsed time.
+              if (prevPhase === 'starting' && phaseNum > 1) {
+                const skippedTimes: Record<string, number> = {}
+                // Distribute time among skipped phases
+                const timePerPhase = Math.floor(elapsedAtStart / (phaseNum - 1))
+                for (let i = 0; i < phaseNum - 1; i++) {
+                  skippedTimes[PHASE_ORDER[i]] = timePerPhase
+                }
+                // Give remainder to the last skipped phase
+                const remainder = elapsedAtStart - timePerPhase * (phaseNum - 1)
+                if (remainder > 0) {
+                  skippedTimes[PHASE_ORDER[phaseNum - 2]] += remainder
+                }
+                setPhaseElapsedTimes((prev) => ({ ...prev, ...skippedTimes }))
               }
-              return phaseName
-            })
+            }
+
+            // When phase changes, record elapsed time for the previous phase
+            if (
+              prevPhase !== 'starting' &&
+              prevPhase !== phaseName &&
+              prevPhase in phaseStartTimesRef.current
+            ) {
+              const elapsedForPhase = Math.floor(
+                (Date.now() - phaseStartTimesRef.current[prevPhase]) / 1000
+              )
+              setPhaseElapsedTimes((prev) => ({
+                ...prev,
+                [prevPhase]: elapsedForPhase,
+              }))
+            }
+
+            // Update ref and state
+            currentPhaseRef.current = phaseName
+            setCurrentPhase(phaseName)
             setCurrentPhaseNum(phaseNum)
           }
         }
@@ -99,18 +121,16 @@ export function GenerationProgress({
       },
       () => {
         // Record elapsed time for the final phase on completion
-        setCurrentPhase((prevPhase) => {
-          if (prevPhase !== 'starting' && prevPhase in phaseStartTimesRef.current) {
-            const elapsedForPhase = Math.floor(
-              (Date.now() - phaseStartTimesRef.current[prevPhase]) / 1000
-            )
-            setPhaseElapsedTimes((prev) => ({
-              ...prev,
-              [prevPhase]: elapsedForPhase,
-            }))
-          }
-          return prevPhase
-        })
+        const finalPhase = currentPhaseRef.current
+        if (finalPhase !== 'starting' && finalPhase in phaseStartTimesRef.current) {
+          const elapsedForPhase = Math.floor(
+            (Date.now() - phaseStartTimesRef.current[finalPhase]) / 1000
+          )
+          setPhaseElapsedTimes((prev) => ({
+            ...prev,
+            [finalPhase]: elapsedForPhase,
+          }))
+        }
         setIsComplete(true)
         onComplete()
       },
