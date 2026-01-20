@@ -11,6 +11,31 @@ import networkx as nx
 
 from oya.config import load_settings
 from oya.db.connection import Database
+from oya.generation.chunking import estimate_tokens
+from oya.generation.prompts import format_graph_qa_context
+from oya.graph.models import Subgraph
+from oya.llm.client import LLMClient
+from oya.qa.graph_retrieval import (
+    build_graph_context,
+    expand_with_graph,
+    map_search_results_to_node_ids,
+    prioritize_nodes,
+)
+from oya.qa.cgrag import run_cgrag_loop, CGRAGResult
+from oya.qa.ranking import RRFRanker
+from oya.qa.schemas import (
+    CGRAGMetadata,
+    Citation,
+    ConfidenceLevel,
+    QARequest,
+    QAResponse,
+    SearchQuality,
+)
+from oya.qa.session import SessionStore
+from oya.vectorstore.store import VectorStore
+
+if TYPE_CHECKING:
+    from oya.vectorstore.issues import IssuesStore
 
 # Keywords that trigger issue-aware Q&A responses (code logic, not configuration)
 ISSUE_QUERY_KEYWORDS: frozenset[str] = frozenset(
@@ -37,31 +62,6 @@ ISSUE_QUERY_KEYWORDS: frozenset[str] = frozenset(
 
 # Result prioritization: lower number = higher priority (code logic, not configuration)
 TYPE_PRIORITY: dict[str, int] = {"note": 0, "code": 1, "wiki": 2}
-from oya.generation.chunking import estimate_tokens
-from oya.generation.prompts import format_graph_qa_context
-from oya.graph.models import Subgraph
-from oya.llm.client import LLMClient
-from oya.qa.graph_retrieval import (
-    build_graph_context,
-    expand_with_graph,
-    map_search_results_to_node_ids,
-    prioritize_nodes,
-)
-from oya.qa.cgrag import run_cgrag_loop, CGRAGResult
-from oya.qa.ranking import RRFRanker
-from oya.qa.schemas import (
-    CGRAGMetadata,
-    Citation,
-    ConfidenceLevel,
-    QARequest,
-    QAResponse,
-    SearchQuality,
-)
-from oya.qa.session import SessionStore
-from oya.vectorstore.store import VectorStore
-
-if TYPE_CHECKING:
-    from oya.vectorstore.issues import IssuesStore
 
 QA_SYSTEM_PROMPT = """You are a helpful assistant that answers questions about a codebase.
 You have access to documentation, code, and notes from the repository.
