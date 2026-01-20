@@ -88,10 +88,13 @@ class IndexableItems(BaseModel):
 
 
 class OyaignoreUpdateRequest(BaseModel):
-    """Request to update .oyaignore with new exclusions."""
+    """Request to update .oyaignore with new exclusions and removals."""
 
     directories: list[str] = Field(default_factory=list)
     files: list[str] = Field(default_factory=list)
+    removals: list[str] = Field(
+        default_factory=list, description="Patterns to remove from .oyaignore"
+    )
 
 
 class OyaignoreUpdateResponse(BaseModel):
@@ -99,4 +102,6 @@ class OyaignoreUpdateResponse(BaseModel):
 
     added_directories: list[str]
     added_files: list[str]
+    removed: list[str]
     total_added: int
+    total_removed: int

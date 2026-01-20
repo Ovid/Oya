@@ -276,9 +276,10 @@ async def update_oyaignore(
     request: OyaignoreUpdateRequest,
     settings: Settings = Depends(get_settings),
 ) -> OyaignoreUpdateResponse:
-    """Add exclusions to .oyaignore in the repository root.
+    """Add exclusions to and remove patterns from .oyaignore in the repository root.
 
     Creates the .oyaignore file if it doesn't exist.
+    Processes removals first (before additions).
     Appends new exclusions to the end of the file, preserving existing entries.
     Adds trailing slash to directory patterns.
     Removes duplicate entries.
@@ -307,6 +308,30 @@ async def update_oyaignore(
                     # Only add non-duplicate entries
                     existing_entries_ordered.append(stripped)
                     existing_entries_set.add(stripped)
+
+        # Process removals first (before additions)
+        removed: list[str] = []
+        if request.removals:
+            # Normalize removal patterns for matching
+            removal_patterns: set[str] = set()
+            for pattern in request.removals:
+                # Add both with and without trailing slash for matching
+                normalized = pattern.rstrip("/")
+                removal_patterns.add(normalized)
+                removal_patterns.add(normalized + "/")
+
+            # Remove matching entries
+            entries_to_remove: list[str] = []
+            for entry in existing_entries_ordered:
+                entry_normalized = entry.rstrip("/")
+                if entry in removal_patterns or entry_normalized in removal_patterns:
+                    entries_to_remove.append(entry)
+                    removed.append(entry)
+
+            # Remove from lists
+            for entry in entries_to_remove:
+                existing_entries_ordered.remove(entry)
+                existing_entries_set.discard(entry)
 
         # Prepare new entries
         added_directories: list[str] = []
@@ -378,7 +403,9 @@ async def update_oyaignore(
         return OyaignoreUpdateResponse(
             added_directories=added_directories,
             added_files=added_files,
+            removed=removed,
             total_added=len(added_directories) + len(added_files),
+            total_removed=len(removed),
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=f"Permission denied writing to .oyaignore: {e}")
