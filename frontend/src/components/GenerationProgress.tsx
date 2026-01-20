@@ -134,6 +134,7 @@ export function GenerationProgress({
   }
 
   const handleConfirmCancel = async () => {
+    if (!jobId) return
     setIsCancelling(true)
     try {
       await cancelJob(jobId)

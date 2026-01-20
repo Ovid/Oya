@@ -22,6 +22,7 @@ describe('IndexingPreviewModal Property Tests', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
+    onGenerate: vi.fn(),
   }
 
   beforeEach(() => {

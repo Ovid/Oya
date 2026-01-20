@@ -6,6 +6,7 @@ import { askQuestionStream } from '../api/client'
 import { CONFIDENCE_COLORS, QA_DEFAULTS, QA_STORAGE_KEY } from '../config'
 import { QASettingsPopover, type QASettings } from './QASettingsPopover'
 import { formatElapsedTime } from './generationConstants'
+import { useApp } from '../context/useApp'
 import type { Citation, SearchQuality, ConfidenceLevel } from '../types'
 
 interface QAMessage {
@@ -46,6 +47,9 @@ function saveSettings(settings: QASettings): void {
 }
 
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
+  const { state } = useApp()
+  const isGenerating = state.currentJob?.status === 'running'
+
   const [question, setQuestion] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState<QAMessage[]>([])
@@ -212,6 +216,13 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
         </div>
       </div>
 
+      {/* Generation in progress banner */}
+      {isGenerating && (
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-sm border-b border-yellow-200 dark:border-yellow-800">
+          Q&A is unavailable while the wiki is being generated.
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
         {messages.length === 0 && !currentStreamText && !currentStatus && (
@@ -311,12 +322,12 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Ask a question..."
             className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            disabled={isLoading}
+            disabled={isLoading || isGenerating}
           />
           <QASettingsPopover settings={settings} onChange={handleSettingsChange} />
           <button
             type="submit"
-            disabled={isLoading || !question.trim()}
+            disabled={isLoading || !question.trim() || isGenerating}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             {isLoading ? '...' : 'Ask'}

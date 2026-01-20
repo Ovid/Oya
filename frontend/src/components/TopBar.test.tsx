@@ -186,7 +186,13 @@ describe('TopBar with DirectoryPicker', () => {
           files: [],
         },
       })
-      vi.mocked(api.updateOyaignore).mockResolvedValue({ success: true })
+      vi.mocked(api.updateOyaignore).mockResolvedValue({
+        added_directories: [],
+        added_files: [],
+        removed: [],
+        total_added: 0,
+        total_removed: 0,
+      })
 
       renderTopBar()
 
@@ -255,7 +261,13 @@ describe('TopBar with DirectoryPicker', () => {
           files: [],
         },
       })
-      vi.mocked(api.updateOyaignore).mockResolvedValue({ success: true })
+      vi.mocked(api.updateOyaignore).mockResolvedValue({
+        added_directories: [],
+        added_files: [],
+        removed: [],
+        total_added: 0,
+        total_removed: 0,
+      })
 
       renderTopBar()
 
@@ -521,7 +533,13 @@ describe('Generate Wiki Button', () => {
       total_phases: null,
       error_message: null,
     })
-    vi.mocked(api.updateOyaignore).mockResolvedValue({ success: true })
+    vi.mocked(api.updateOyaignore).mockResolvedValue({
+        added_directories: [],
+        added_files: [],
+        removed: [],
+        total_added: 0,
+        total_removed: 0,
+      })
 
     renderTopBar()
 
@@ -562,5 +580,102 @@ describe('Generate Wiki Button', () => {
       const generateButtons = screen.queryAllByRole('button', { name: /generate wiki/i })
       expect(generateButtons).toHaveLength(0)
     })
+  })
+})
+
+describe('Ask button during generation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
+    vi.mocked(api.getIndexableItems).mockResolvedValue({
+      included: {
+        directories: ['src'],
+        files: ['src/main.ts'],
+      },
+      excluded_by_oyaignore: {
+        directories: [],
+        files: [],
+      },
+      excluded_by_rule: {
+        directories: [],
+        files: [],
+      },
+    })
+    vi.mocked(api.updateOyaignore).mockResolvedValue({
+        added_directories: [],
+        added_files: [],
+        removed: [],
+        total_added: 0,
+        total_removed: 0,
+      })
+  })
+
+  it('disables Ask button when generation is running', async () => {
+    vi.mocked(api.getRepoStatus).mockResolvedValue({
+      ...mockRepoStatus,
+      initialized: false,
+    })
+    vi.mocked(api.initRepo).mockResolvedValue({
+      job_id: 'job-123',
+      status: 'pending',
+      message: 'Job created',
+    })
+    vi.mocked(api.getJob).mockResolvedValue({
+      job_id: 'job-123',
+      type: 'generation',
+      status: 'running',
+      started_at: null,
+      completed_at: null,
+      current_phase: null,
+      total_phases: null,
+      error_message: null,
+    })
+
+    renderTopBar()
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    })
+
+    // Click Generate Wiki to open modal first
+    const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+    await userEvent.click(generateButton)
+
+    // Wait for modal to open
+    await waitFor(() => {
+      expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+    })
+
+    // Click Generate Wiki button in modal footer
+    const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
+    const modalFooterButton = footerButtons[footerButtons.length - 1]
+    await userEvent.click(modalFooterButton)
+
+    // Confirm the generation dialog
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
+
+    // Ask button should be disabled
+    await waitFor(() => {
+      const askButton = screen.getByRole('button', { name: /ask/i })
+      expect(askButton).toBeDisabled()
+      expect(askButton).toHaveAttribute('title', 'Q&A unavailable during generation')
+    })
+  })
+
+  it('enables Ask button when no generation is running', async () => {
+    renderTopBar()
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    })
+
+    const askButton = screen.getByRole('button', { name: /ask/i })
+    expect(askButton).not.toBeDisabled()
+    expect(askButton).toHaveAttribute('title', 'Ask about the codebase')
   })
 })
