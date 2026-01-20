@@ -1,0 +1,119 @@
+# Oya Configuration File
+# =====================
+# Copy this file to config.ini and customize as needed.
+# All values shown are defaults - delete lines to use defaults.
+# Environment variables override config.ini values.
+# Env var format: OYA_{SECTION}_{KEY} (e.g., OYA_GENERATION_TEMPERATURE)
+
+[generation]
+# LLM temperature for documentation synthesis (0.0-1.0)
+# Lower = more deterministic, higher = more creative
+temperature = 0.3
+
+# Token estimation multiplier (chars * this = estimated tokens)
+tokens_per_char = 0.25
+
+# Maximum tokens to send to LLM in one request
+context_limit = 100000
+
+# Target size in tokens when splitting large files
+chunk_tokens = 1000
+
+# Lines of overlap between chunks to preserve context
+chunk_overlap_lines = 5
+
+# How often to emit progress updates (1 = every file)
+progress_report_interval = 1
+
+# Concurrent LLM calls during generation
+parallel_limit = 10
+
+[files]
+# Skip files larger than this (KB)
+max_file_size_kb = 500
+
+# Bytes to read when detecting binary files
+binary_check_bytes = 1024
+
+# Average line length above this = minified/generated file
+minified_line_length = 500
+
+# Parallel file limit for local LLM (Ollama)
+parallel_limit_local = 2
+
+# Parallel file limit for cloud LLM (OpenAI, Anthropic, Google)
+parallel_limit_cloud = 10
+
+# Settings for the chat/Q&A system
+[ask]
+# Total context budget for building prompts (tokens)
+max_context_tokens = 6000
+
+# Maximum tokens from any single document
+max_result_tokens = 1500
+
+# Vector distance threshold for "high" confidence (0.0-1.0, lower = stricter)
+high_confidence_threshold = 0.3
+
+# Vector distance threshold for "medium" confidence
+medium_confidence_threshold = 0.6
+
+# Threshold for counting a match as "strong"
+strong_match_threshold = 0.5
+
+# Minimum strong matches needed for high confidence
+min_strong_matches = 3
+
+# Graph traversal depth for context expansion
+graph_expansion_hops = 2
+
+# Confidence threshold for graph expansion
+graph_expansion_confidence_threshold = 0.5
+
+# Token budget for mermaid diagram generation
+graph_mermaid_token_budget = 500
+
+# Maximum retrieval passes in CGRAG mode
+cgrag_max_passes = 3
+
+# Session timeout for CGRAG (minutes)
+cgrag_session_ttl_minutes = 30
+
+# Maximum nodes tracked in CGRAG session
+cgrag_session_max_nodes = 50
+
+# Top-k for targeted retrieval in CGRAG
+cgrag_targeted_top_k = 3
+
+[search]
+# Default number of results to return
+result_limit = 10
+
+# Maximum characters in result snippets
+snippet_max_length = 200
+
+# Characters to hash for deduplication
+dedup_hash_length = 500
+
+[llm]
+# Maximum tokens in LLM response
+max_tokens = 8192
+
+# Default temperature for general LLM calls
+default_temperature = 0.7
+
+# Temperature for structured/JSON output (lower = more consistent)
+json_temperature = 0.3
+
+[paths]
+# Directory for generated wiki content
+wiki_dir = .oyawiki
+
+# Staging directory during generation (deleted on completion)
+staging_dir = .oyawiki-building
+
+# Directory for LLM query logs
+logs_dir = .oya-logs
+
+# File specifying patterns to exclude from generation
+ignore_file = .oyaignore
