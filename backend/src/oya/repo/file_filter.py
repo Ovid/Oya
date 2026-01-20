@@ -1,8 +1,18 @@
 """File filtering with default excludes and .oyaignore support."""
 
 import fnmatch
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+
+@dataclass
+class CategorizedFiles:
+    """Files categorized by exclusion reason."""
+
+    included: list[str] = field(default_factory=list)
+    excluded_by_oyaignore: list[str] = field(default_factory=list)
+    excluded_by_rule: list[str] = field(default_factory=list)
 
 
 def extract_directories_from_files(files: list[str]) -> list[str]:
@@ -112,10 +122,13 @@ class FileFilter:
             max_file_size_kb = default_max_file_size_kb
         self.max_file_size_bytes = max_file_size_kb * 1024
 
-        # Build exclude patterns
-        self.exclude_patterns = list(DEFAULT_EXCLUDES)
+        # Build exclude patterns - track oyaignore patterns separately for categorization
+        self.default_exclude_patterns = list(DEFAULT_EXCLUDES)
         if extra_excludes:
-            self.exclude_patterns.extend(extra_excludes)
+            self.default_exclude_patterns.extend(extra_excludes)
+
+        # Oyaignore patterns are tracked separately
+        self.oyaignore_patterns: list[str] = []
 
         # Determine ignore file path - always relative to repo_path
         if ignore_path is None:
@@ -126,7 +139,10 @@ class FileFilter:
             for line in ignore_path.read_text().splitlines():
                 line = line.strip()
                 if line and not line.startswith("#"):
-                    self.exclude_patterns.append(line)
+                    self.oyaignore_patterns.append(line)
+
+        # Combined patterns for backward compatibility with get_files()
+        self.exclude_patterns = self.default_exclude_patterns + self.oyaignore_patterns
 
     def _is_excluded(self, path: str) -> bool:
         """Check if path matches any exclude pattern.
@@ -137,6 +153,18 @@ class FileFilter:
         Returns:
             True if path should be excluded.
         """
+        return self._is_excluded_by_patterns(path, self.exclude_patterns)
+
+    def _is_excluded_by_patterns(self, path: str, patterns: list[str]) -> bool:
+        """Check if path matches any of the given exclude patterns.
+
+        Args:
+            path: Relative file path.
+            patterns: List of patterns to check against.
+
+        Returns:
+            True if path matches any pattern.
+        """
         # Check if path is in an explicitly allowed location
         for allowed in ALLOWED_PATHS:
             if path.startswith(allowed + "/") or path == allowed:
@@ -144,7 +172,7 @@ class FileFilter:
 
         parts = path.split("/")
 
-        for pattern in self.exclude_patterns:
+        for pattern in patterns:
             # Handle directory patterns (trailing slash means directory)
             # e.g., "docs/" should match any path starting with "docs/"
             if pattern.endswith("/"):
@@ -172,6 +200,28 @@ class FileFilter:
                     return True
 
         return False
+
+    def _is_excluded_by_default_rules(self, path: str) -> bool:
+        """Check if path is excluded by DEFAULT_EXCLUDES patterns.
+
+        Args:
+            path: Relative file path.
+
+        Returns:
+            True if path should be excluded by default rules.
+        """
+        return self._is_excluded_by_patterns(path, self.default_exclude_patterns)
+
+    def _is_excluded_by_oyaignore(self, path: str) -> bool:
+        """Check if path is excluded by .oyaignore patterns.
+
+        Args:
+            path: Relative file path.
+
+        Returns:
+            True if path should be excluded by oyaignore.
+        """
+        return self._is_excluded_by_patterns(path, self.oyaignore_patterns)
 
     def _is_binary(self, file_path: Path) -> bool:
         """Check if file appears to be binary.
@@ -257,3 +307,65 @@ class FileFilter:
             files.append(relative)
 
         return sorted(files)
+
+    def get_files_categorized(self) -> CategorizedFiles:
+        """Get files categorized by exclusion reason.
+
+        Returns files in three categories:
+        - included: Files that will be indexed
+        - excluded_by_oyaignore: Files excluded via .oyaignore (user can re-include)
+        - excluded_by_rule: Files excluded via built-in rules (cannot be changed)
+
+        Note: Files excluded by rule take precedence. A file excluded by both
+        default rules AND oyaignore will appear only in excluded_by_rule.
+
+        Returns:
+            CategorizedFiles with files in each category.
+        """
+        result = CategorizedFiles()
+
+        for file_path in self.repo_path.rglob("*"):
+            if not file_path.is_file():
+                continue
+
+            relative = str(file_path.relative_to(self.repo_path))
+
+            # Check if excluded by default rules first (takes precedence)
+            if self._is_excluded_by_default_rules(relative):
+                result.excluded_by_rule.append(relative)
+                continue
+
+            # Check file properties that are "rule" based exclusions
+            # Check size
+            try:
+                if file_path.stat().st_size > self.max_file_size_bytes:
+                    result.excluded_by_rule.append(relative)
+                    continue
+            except OSError:
+                result.excluded_by_rule.append(relative)
+                continue
+
+            # Check binary
+            if self._is_binary(file_path):
+                result.excluded_by_rule.append(relative)
+                continue
+
+            # Check minified (only for text files that passed other checks)
+            if self._is_minified(file_path):
+                result.excluded_by_rule.append(relative)
+                continue
+
+            # Check if excluded by oyaignore (user-configurable)
+            if self._is_excluded_by_oyaignore(relative):
+                result.excluded_by_oyaignore.append(relative)
+                continue
+
+            # File is included
+            result.included.append(relative)
+
+        # Sort all lists
+        result.included.sort()
+        result.excluded_by_oyaignore.sort()
+        result.excluded_by_rule.sort()
+
+        return result
