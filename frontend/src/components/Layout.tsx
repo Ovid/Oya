@@ -90,7 +90,7 @@ export function Layout({ children }: LayoutProps) {
             className="flex-1 min-h-[calc(100vh-3.5rem)]"
             style={{
               marginLeft: sidebarOpen ? leftPanel.width : 0,
-              marginRight: (askPanelOpen || rightSidebarOpen) ? rightPanel.width : 0,
+              marginRight: askPanelOpen || rightSidebarOpen ? rightPanel.width : 0,
             }}
           >
             <div className="max-w-4xl mx-auto px-6 py-8">{children}</div>

@@ -67,6 +67,7 @@ def has_incomplete_build(workspace_path: Path) -> bool:
     staging_dir = ".oyawiki-building"  # Default
     try:
         from oya.config import load_settings
+
         settings = load_settings()
         staging_dir = settings.paths.staging_dir
     except (ValueError, OSError):

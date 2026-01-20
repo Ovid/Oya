@@ -290,10 +290,7 @@ class QAService:
         # Check best result quality
         best_distance = min(r.get("distance", 1.0) for r in results)
 
-        if (
-            strong_matches >= min_strong_matches
-            and best_distance < high_confidence_threshold
-        ):
+        if strong_matches >= min_strong_matches and best_distance < high_confidence_threshold:
             return ConfidenceLevel.HIGH
         elif strong_matches >= 1 and best_distance < medium_confidence_threshold:
             return ConfidenceLevel.MEDIUM
