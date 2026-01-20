@@ -171,20 +171,27 @@ export interface GenerationStatus {
 }
 
 // Indexing Preview Types
-export interface IndexableItems {
+export interface FileList {
   directories: string[]
   files: string[]
-  total_directories: number
-  total_files: number
+}
+
+export interface IndexableItems {
+  included: FileList
+  excluded_by_oyaignore: FileList
+  excluded_by_rule: FileList
 }
 
 export interface OyaignoreUpdateRequest {
   directories: string[]
   files: string[]
+  removals: string[]
 }
 
 export interface OyaignoreUpdateResponse {
   added_directories: string[]
   added_files: string[]
+  removed: string[]
   total_added: number
+  total_removed: number
 }
