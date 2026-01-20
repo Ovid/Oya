@@ -6,16 +6,16 @@ import { AskPanel } from './AskPanel'
 import { NoteEditor } from './NoteEditor'
 import { UpToDateModal } from './UpToDateModal'
 import { InterruptedGenerationBanner } from './InterruptedGenerationBanner'
+import { ResizeHandle } from './ResizeHandle'
 import { useApp } from '../context/useApp'
 import { useResizablePanel } from '../hooks/useResizablePanel'
 import {
   SIDEBAR_WIDTH,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_MAX_WIDTH,
-  RIGHT_SIDEBAR_WIDTH,
-  ASK_PANEL_WIDTH,
-  ASK_PANEL_MIN_WIDTH,
-  ASK_PANEL_MAX_WIDTH,
+  RIGHT_PANEL_WIDTH,
+  RIGHT_PANEL_MIN_WIDTH,
+  RIGHT_PANEL_MAX_WIDTH,
 } from '../config/layout'
 import { STORAGE_KEY_SIDEBAR_LEFT_WIDTH, STORAGE_KEY_SIDEBAR_RIGHT_WIDTH } from '../config/storage'
 
@@ -39,9 +39,9 @@ export function Layout({ children }: LayoutProps) {
 
   const rightPanel = useResizablePanel({
     side: 'right',
-    defaultWidth: ASK_PANEL_WIDTH,
-    minWidth: ASK_PANEL_MIN_WIDTH,
-    maxWidth: ASK_PANEL_MAX_WIDTH,
+    defaultWidth: RIGHT_PANEL_WIDTH,
+    minWidth: RIGHT_PANEL_MIN_WIDTH,
+    maxWidth: RIGHT_PANEL_MAX_WIDTH,
     storageKey: STORAGE_KEY_SIDEBAR_RIGHT_WIDTH,
   })
 
@@ -76,12 +76,11 @@ export function Layout({ children }: LayoutProps) {
                 <Sidebar />
               </aside>
               {/* Left resize handle */}
-              <div
+              <ResizeHandle
+                side="left"
+                position={leftPanel.width - 2}
+                isDragging={leftPanel.isDragging}
                 onMouseDown={leftPanel.handleMouseDown}
-                className={`fixed top-14 bottom-0 w-1 cursor-col-resize transition-colors z-10 ${
-                  leftPanel.isDragging ? 'bg-blue-500' : 'bg-transparent hover:bg-blue-300'
-                }`}
-                style={{ left: leftPanel.width - 2 }}
               />
             </>
           )}
@@ -91,36 +90,40 @@ export function Layout({ children }: LayoutProps) {
             className="flex-1 min-h-[calc(100vh-3.5rem)]"
             style={{
               marginLeft: sidebarOpen ? leftPanel.width : 0,
-              marginRight: askPanelOpen
-                ? rightPanel.width
-                : rightSidebarOpen
-                  ? RIGHT_SIDEBAR_WIDTH
-                  : 0,
+              marginRight: (askPanelOpen || rightSidebarOpen) ? rightPanel.width : 0,
             }}
           >
             <div className="max-w-4xl mx-auto px-6 py-8">{children}</div>
           </main>
 
-          {/* Right Sidebar - TOC (fixed width, not resizable) */}
+          {/* Right Sidebar - TOC */}
           {rightSidebarOpen && !askPanelOpen && (
-            <aside
-              className="fixed right-0 top-14 bottom-0 overflow-y-auto border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
-              style={{ width: RIGHT_SIDEBAR_WIDTH }}
-            >
-              <RightSidebar />
-            </aside>
+            <>
+              {/* Right resize handle */}
+              <ResizeHandle
+                side="right"
+                position={rightPanel.width - 2}
+                isDragging={rightPanel.isDragging}
+                onMouseDown={rightPanel.handleMouseDown}
+              />
+              <aside
+                className="fixed right-0 top-14 bottom-0 overflow-y-auto border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                style={{ width: rightPanel.width }}
+              >
+                <RightSidebar />
+              </aside>
+            </>
           )}
 
           {/* Ask Panel */}
           {askPanelOpen && (
             <>
               {/* Right resize handle */}
-              <div
+              <ResizeHandle
+                side="right"
+                position={rightPanel.width - 2}
+                isDragging={rightPanel.isDragging}
                 onMouseDown={rightPanel.handleMouseDown}
-                className={`fixed top-14 bottom-0 w-1 cursor-col-resize transition-colors z-10 ${
-                  rightPanel.isDragging ? 'bg-blue-500' : 'bg-transparent hover:bg-blue-300'
-                }`}
-                style={{ right: rightPanel.width - 2 }}
               />
               <aside
                 className="fixed right-0 top-14 bottom-0 overflow-hidden border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
