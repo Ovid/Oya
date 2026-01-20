@@ -21,7 +21,7 @@ describe('IndexingPreviewModal', () => {
   const defaultProps = {
     isOpen: false,
     onClose: vi.fn(),
-    onSave: vi.fn(),
+    onGenerate: vi.fn(),
   }
 
   // New mock data structure with three categories
@@ -58,9 +58,13 @@ describe('IndexingPreviewModal', () => {
       expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
     })
 
-    it('calls onClose when close button is clicked', async () => {
+    it('calls onClose when close button is clicked with no changes', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
 
       const closeButton = screen.getByLabelText('Close')
       await userEvent.click(closeButton)
@@ -68,9 +72,13 @@ describe('IndexingPreviewModal', () => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
-    it('calls onClose when clicking outside the modal', async () => {
+    it('calls onClose when clicking outside the modal with no changes', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
 
       // Click on the backdrop (the overlay div)
       const backdrop = screen.getByTestId('modal-backdrop')
@@ -551,8 +559,38 @@ describe('IndexingPreviewModal', () => {
     })
   })
 
-  describe('save with confirmation', () => {
-    it('shows confirmation dialog when save button is clicked with changes', async () => {
+  describe('generate wiki with confirmation', () => {
+    it('shows confirmation dialog when Generate Wiki button is clicked', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
+
+      // Confirmation dialog should appear (dialog title as h3)
+      expect(screen.getByRole('heading', { name: 'Generate Wiki' })).toBeInTheDocument()
+    })
+
+    it('shows summary of files to be indexed in confirmation dialog', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
+
+      // Summary should show the file count
+      expect(screen.getByText(/3 files will be indexed/i)).toBeInTheDocument()
+    })
+
+    it('shows oyaignore update note when there are changes', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
@@ -564,39 +602,47 @@ describe('IndexingPreviewModal', () => {
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Confirmation dialog should appear
-      expect(screen.getByText(/confirm changes/i)).toBeInTheDocument()
+      // Should show oyaignore update note
+      expect(screen.getByText(/\.oyaignore will be updated/i)).toBeInTheDocument()
     })
 
-    it('shows summary of changes in confirmation dialog', async () => {
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+    it('calls onGenerate and onClose on confirm without changes', async () => {
+      const onClose = vi.fn()
+      const onGenerate = vi.fn()
+
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} onGenerate={onGenerate} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory by unchecking
-      const srcRow = screen.getByText('src').closest('div')
-      const dirCheckbox = srcRow?.querySelector('input[type="checkbox"]')
-      await userEvent.click(dirCheckbox!)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
+      await userEvent.click(confirmButton)
 
-      // Summary should show the changes in the confirmation dialog
-      expect(screen.getByText('Confirm Changes')).toBeInTheDocument()
-      // The dialog should show exclusion info
-      const confirmDialog = screen.getByText('Confirm Changes').closest('div')
-      expect(confirmDialog).toBeInTheDocument()
+      // onGenerate should be called
+      await waitFor(() => {
+        expect(onGenerate).toHaveBeenCalled()
+      })
+
+      // Modal should close
+      expect(onClose).toHaveBeenCalled()
+
+      // API should NOT be called when no changes
+      expect(api.updateOyaignore).not.toHaveBeenCalled()
     })
 
-    it('calls API with correct parameters and closes modal on confirm', async () => {
+    it('calls API with changes, onGenerate, and onClose on confirm', async () => {
       const onClose = vi.fn()
+      const onGenerate = vi.fn()
       vi.mocked(api.updateOyaignore).mockResolvedValue({
         added_directories: ['src/'],
         added_files: [],
@@ -605,7 +651,7 @@ describe('IndexingPreviewModal', () => {
         total_removed: 0,
       })
 
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} onGenerate={onGenerate} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
@@ -616,12 +662,12 @@ describe('IndexingPreviewModal', () => {
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Click confirm in dialog
-      const confirmButton = screen.getByRole('button', { name: /confirm/i })
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
       await userEvent.click(confirmButton)
 
       // API should be called with correct structure
@@ -633,12 +679,16 @@ describe('IndexingPreviewModal', () => {
         })
       })
 
+      // onGenerate should be called
+      expect(onGenerate).toHaveBeenCalled()
+
       // Modal should close
       expect(onClose).toHaveBeenCalled()
     })
 
     it('includes removals when re-including oyaignore items', async () => {
       const onClose = vi.fn()
+      const onGenerate = vi.fn()
       vi.mocked(api.updateOyaignore).mockResolvedValue({
         added_directories: [],
         added_files: [],
@@ -647,7 +697,7 @@ describe('IndexingPreviewModal', () => {
         total_removed: 1,
       })
 
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} onGenerate={onGenerate} />)
 
       await waitFor(() => {
         expect(screen.getByText('node_modules')).toBeInTheDocument()
@@ -658,12 +708,12 @@ describe('IndexingPreviewModal', () => {
       const checkbox = nodeModulesRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Click confirm in dialog
-      const confirmButton = screen.getByRole('button', { name: /confirm/i })
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
       await userEvent.click(confirmButton)
 
       // API should be called with removals
@@ -674,25 +724,24 @@ describe('IndexingPreviewModal', () => {
           removals: ['node_modules'],
         })
       })
+
+      // onGenerate should be called
+      expect(onGenerate).toHaveBeenCalled()
     })
 
-    it('does not call API when cancel is clicked in confirmation', async () => {
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+    it('does not call API or onGenerate when cancel is clicked in confirmation', async () => {
+      const onGenerate = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onGenerate={onGenerate} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory by unchecking
-      const srcRow = screen.getByText('src').closest('div')
-      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
-      await userEvent.click(checkbox!)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
-
-      // Click cancel in dialog (the second Cancel button, in the confirmation dialog)
+      // Click Cancel in dialog
       const cancelButtons = screen.getAllByRole('button', { name: /cancel/i })
       // The confirmation dialog's cancel button is the last one
       await userEvent.click(cancelButtons[cancelButtons.length - 1])
@@ -700,14 +749,18 @@ describe('IndexingPreviewModal', () => {
       // API should not be called
       expect(api.updateOyaignore).not.toHaveBeenCalled()
 
+      // onGenerate should not be called
+      expect(onGenerate).not.toHaveBeenCalled()
+
       // Confirmation dialog should close but modal stays open
-      expect(screen.queryByText(/confirm changes/i)).not.toBeInTheDocument()
+      // The dialog title should be gone (but Generate Wiki button still exists)
+      expect(screen.queryByRole('heading', { name: 'Generate Wiki' })).not.toBeInTheDocument()
       expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
     })
   })
 
-  describe('cancel/discard behavior', () => {
-    it('closes modal without saving when cancel button is clicked', async () => {
+  describe('unsaved changes warning', () => {
+    it('shows unsaved warning when closing with pending changes', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
 
@@ -720,9 +773,38 @@ describe('IndexingPreviewModal', () => {
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Click cancel button (in footer, not confirmation dialog)
+      // Click cancel button (in footer)
       const cancelButton = screen.getByRole('button', { name: /cancel/i })
       await userEvent.click(cancelButton)
+
+      // Unsaved changes warning should appear
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument()
+      expect(screen.getByText(/exclusion changes that haven't been saved/i)).toBeInTheDocument()
+
+      // Modal should not close yet
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('closes modal when discarding changes in warning dialog', async () => {
+      const onClose = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Exclude a directory by unchecking
+      const srcRow = screen.getByText('src').closest('div')
+      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(checkbox!)
+
+      // Click cancel button (in footer)
+      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      await userEvent.click(cancelButton)
+
+      // Click Discard Changes in warning dialog
+      const discardButton = screen.getByRole('button', { name: /discard changes/i })
+      await userEvent.click(discardButton)
 
       // Modal should close
       expect(onClose).toHaveBeenCalled()
@@ -731,7 +813,36 @@ describe('IndexingPreviewModal', () => {
       expect(api.updateOyaignore).not.toHaveBeenCalled()
     })
 
-    it('closes modal without saving when clicking outside', async () => {
+    it('keeps modal open when choosing Keep Editing in warning dialog', async () => {
+      const onClose = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Exclude a directory by unchecking
+      const srcRow = screen.getByText('src').closest('div')
+      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(checkbox!)
+
+      // Click cancel button (in footer)
+      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      await userEvent.click(cancelButton)
+
+      // Click Keep Editing in warning dialog
+      const keepEditingButton = screen.getByRole('button', { name: /keep editing/i })
+      await userEvent.click(keepEditingButton)
+
+      // Warning dialog should close
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument()
+
+      // Modal should stay open
+      expect(onClose).not.toHaveBeenCalled()
+      expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+    })
+
+    it('shows unsaved warning when clicking outside with pending changes', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
 
@@ -748,15 +859,40 @@ describe('IndexingPreviewModal', () => {
       const backdrop = screen.getByTestId('modal-backdrop')
       await userEvent.click(backdrop)
 
-      // Modal should close
-      expect(onClose).toHaveBeenCalled()
+      // Unsaved changes warning should appear
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument()
 
-      // API should not be called
-      expect(api.updateOyaignore).not.toHaveBeenCalled()
+      // Modal should not close yet
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('shows unsaved warning when clicking close button with pending changes', async () => {
+      const onClose = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Exclude a directory by unchecking
+      const srcRow = screen.getByText('src').closest('div')
+      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(checkbox!)
+
+      // Click close button (X button in header)
+      const closeButton = screen.getByLabelText('Close')
+      await userEvent.click(closeButton)
+
+      // Unsaved changes warning should appear
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument()
+
+      // Modal should not close yet
+      expect(onClose).not.toHaveBeenCalled()
     })
 
     it('discards pending changes when modal is closed and reopened', async () => {
-      const { rerender } = render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+      const onClose = vi.fn()
+      const { rerender } = render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
@@ -770,11 +906,11 @@ describe('IndexingPreviewModal', () => {
       // Verify it's unchecked (excluded)
       expect(checkbox).not.toBeChecked()
 
-      // Close the modal
-      rerender(<IndexingPreviewModal {...defaultProps} isOpen={false} />)
+      // Close the modal (simulating actual close after discard)
+      rerender(<IndexingPreviewModal {...defaultProps} isOpen={false} onClose={onClose} />)
 
       // Reopen the modal
-      rerender(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+      rerender(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
