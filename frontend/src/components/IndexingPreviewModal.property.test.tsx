@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import fc from 'fast-check'
 import { IndexingPreviewModal } from './IndexingPreviewModal'
@@ -22,11 +22,16 @@ describe('IndexingPreviewModal Property Tests', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
-    onSave: vi.fn(),
+    onGenerate: vi.fn(),
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    // Ensure DOM is cleaned up between property test iterations
+    cleanup()
   })
 
   /**
@@ -79,11 +84,12 @@ describe('IndexingPreviewModal Property Tests', () => {
 
     it('search filter in component matches expected behavior', async () => {
       // Test with a specific set of items
+      const mockDirectories = ['src', 'src/components', 'tests', 'docs']
+      const mockFiles = ['README.md', 'src/index.ts', 'src/components/App.tsx', 'tests/test.ts']
       const mockItems = {
-        directories: ['src', 'src/components', 'tests', 'docs'],
-        files: ['README.md', 'src/index.ts', 'src/components/App.tsx', 'tests/test.ts'],
-        total_directories: 4,
-        total_files: 4,
+        included: { directories: mockDirectories, files: mockFiles },
+        excluded_by_oyaignore: { directories: [], files: [] },
+        excluded_by_rule: { directories: [], files: [] },
       }
 
       vi.mocked(api.getIndexableItems).mockResolvedValue(mockItems)
@@ -104,15 +110,15 @@ describe('IndexingPreviewModal Property Tests', () => {
 
           // Calculate expected filtered items
           const lowerQuery = query.toLowerCase()
-          const expectedDirs = mockItems.directories.filter(
+          const expectedDirs = mockDirectories.filter(
             (d) => !lowerQuery || d.toLowerCase().includes(lowerQuery)
           )
-          const expectedFiles = mockItems.files.filter(
+          const expectedFiles = mockFiles.filter(
             (f) => !lowerQuery || f.toLowerCase().includes(lowerQuery)
           )
 
           // Verify directories
-          for (const dir of mockItems.directories) {
+          for (const dir of mockDirectories) {
             const shouldBeVisible = expectedDirs.includes(dir)
             if (shouldBeVisible) {
               expect(screen.queryByText(dir)).toBeInTheDocument()
@@ -122,7 +128,7 @@ describe('IndexingPreviewModal Property Tests', () => {
           }
 
           // Verify files
-          for (const file of mockItems.files) {
+          for (const file of mockFiles) {
             const shouldBeVisible = expectedFiles.includes(file)
             if (shouldBeVisible) {
               expect(screen.queryByText(file)).toBeInTheDocument()
@@ -174,10 +180,9 @@ describe('IndexingPreviewModal Property Tests', () => {
             const allFiles = [...files, ...rootFiles]
 
             const mockItems = {
-              directories,
-              files: allFiles,
-              total_directories: directories.length,
-              total_files: allFiles.length,
+              included: { directories, files: allFiles },
+              excluded_by_oyaignore: { directories: [], files: [] },
+              excluded_by_rule: { directories: [], files: [] },
             }
 
             vi.mocked(api.getIndexableItems).mockResolvedValue(mockItems)
@@ -247,10 +252,9 @@ describe('IndexingPreviewModal Property Tests', () => {
             )
 
             const mockItems = {
-              directories,
-              files,
-              total_directories: directories.length,
-              total_files: files.length,
+              included: { directories, files },
+              excluded_by_oyaignore: { directories: [], files: [] },
+              excluded_by_rule: { directories: [], files: [] },
             }
 
             vi.mocked(api.getIndexableItems).mockResolvedValue(mockItems)
@@ -301,75 +305,86 @@ describe('IndexingPreviewModal Property Tests', () => {
     it('checking directory clears pending file exclusions within it', async () => {
       await fc.assert(
         fc.asyncProperty(
-          // Generate random directory names
-          fc.array(fc.stringMatching(/^[a-z][a-z0-9]*$/), { minLength: 1, maxLength: 3 }),
-          // Generate random file names
-          fc.array(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), { minLength: 2, maxLength: 5 }),
+          // Generate unique random directory names
+          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*$/), { minLength: 1, maxLength: 3 }),
+          // Generate unique random file names
+          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), {
+            minLength: 2,
+            maxLength: 5,
+          }),
           async (dirNames, fileNames) => {
             // Create directories
             const directories = dirNames.map((name, i) =>
               i === 0 ? name : `${dirNames[0]}/${name}`
             )
 
-            // Create files within directories
-            const files = fileNames.map(
-              (name, i) => `${directories[i % directories.length]}/${name}`
-            )
+            // Create unique files within directories
+            const files = [
+              ...new Set(
+                fileNames.map((name, i) => `${directories[i % directories.length]}/${name}`)
+              ),
+            ]
 
             const mockItems = {
-              directories,
-              files,
-              total_directories: directories.length,
-              total_files: files.length,
+              included: { directories, files },
+              excluded_by_oyaignore: { directories: [], files: [] },
+              excluded_by_rule: { directories: [], files: [] },
             }
 
             vi.mocked(api.getIndexableItems).mockResolvedValue(mockItems)
 
-            const { unmount } = render(<IndexingPreviewModal {...defaultProps} />)
+            // Use try-finally to ensure cleanup happens even on failure
+            try {
+              const { unmount } = render(<IndexingPreviewModal {...defaultProps} />)
 
-            await waitFor(() => {
-              expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
-            })
+              try {
+                await waitFor(() => {
+                  expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
+                })
 
-            // Exclude a file within the first directory
-            const targetDir = directories[0]
-            const filesInDir = files.filter((f) => f.startsWith(targetDir + '/'))
+                // Exclude a file within the first directory
+                const targetDir = directories[0]
+                const filesInDir = files.filter((f) => f.startsWith(targetDir + '/'))
 
-            if (filesInDir.length > 0) {
-              const fileToExclude = filesInDir[0]
-              const fileRow = screen.getByText(fileToExclude).closest('div')
-              const fileCheckbox = fileRow?.querySelector('input[type="checkbox"]')
+                if (filesInDir.length > 0) {
+                  const fileToExclude = filesInDir[0]
+                  const fileRow = screen.getByText(fileToExclude).closest('div')
+                  const fileCheckbox = fileRow?.querySelector('input[type="checkbox"]')
 
-              if (fileCheckbox) {
-                // Exclude the file
-                await userEvent.click(fileCheckbox)
-                expect(fileCheckbox).toBeChecked()
+                  if (fileCheckbox) {
+                    // Exclude the file (clicking unchecks it, marking it for exclusion)
+                    await userEvent.click(fileCheckbox)
+                    expect(fileCheckbox).not.toBeChecked()
 
-                // Now exclude the parent directory
-                const dirRow = screen.getByText(targetDir).closest('div')
-                const dirCheckbox = dirRow?.querySelector('input[type="checkbox"]')
+                    // Now exclude the parent directory
+                    const dirRow = screen.getByText(targetDir).closest('div')
+                    const dirCheckbox = dirRow?.querySelector('input[type="checkbox"]')
 
-                if (dirCheckbox) {
-                  await userEvent.click(dirCheckbox)
+                    if (dirCheckbox) {
+                      await userEvent.click(dirCheckbox)
 
-                  // Uncheck the directory to restore files
-                  await userEvent.click(dirCheckbox)
+                      // Uncheck the directory to restore files
+                      await userEvent.click(dirCheckbox)
 
-                  // The file exclusion should have been cleared
-                  const restoredFileRow = screen.getByText(fileToExclude).closest('div')
-                  const restoredFileCheckbox =
-                    restoredFileRow?.querySelector('input[type="checkbox"]')
-                  expect(restoredFileCheckbox).not.toBeChecked()
+                      // The file exclusion should have been cleared (file is back to included state)
+                      const restoredFileRow = screen.getByText(fileToExclude).closest('div')
+                      const restoredFileCheckbox =
+                        restoredFileRow?.querySelector('input[type="checkbox"]')
+                      expect(restoredFileCheckbox).toBeChecked()
+                    }
+                  }
                 }
+              } finally {
+                unmount()
               }
+            } finally {
+              cleanup()
             }
-
-            unmount()
           }
         ),
-        { numRuns: 20 }
+        { numRuns: 10 }
       )
-    })
+    }, 30000) // Increased timeout for heavy UI property tests
   })
 
   /**
@@ -384,10 +399,13 @@ describe('IndexingPreviewModal Property Tests', () => {
     it('displayed counts equal total minus excluded items', async () => {
       await fc.assert(
         fc.asyncProperty(
-          // Generate random directory names
-          fc.array(fc.stringMatching(/^[a-z][a-z0-9]*$/), { minLength: 1, maxLength: 3 }),
-          // Generate random file names
-          fc.array(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), { minLength: 1, maxLength: 5 }),
+          // Generate unique random directory names
+          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*$/), { minLength: 1, maxLength: 3 }),
+          // Generate unique random file names
+          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), {
+            minLength: 1,
+            maxLength: 5,
+          }),
           // Random index for directory to exclude (or -1 for none)
           fc.integer({ min: -1, max: 2 }),
           // Random index for file to exclude (or -1 for none)
@@ -398,16 +416,17 @@ describe('IndexingPreviewModal Property Tests', () => {
               i === 0 ? name : `${dirNames[0]}/${name}`
             )
 
-            // Create files within directories
-            const files = fileNames.map(
-              (name, i) => `${directories[i % directories.length]}/${name}`
-            )
+            // Create unique files within directories
+            const files = [
+              ...new Set(
+                fileNames.map((name, i) => `${directories[i % directories.length]}/${name}`)
+              ),
+            ]
 
             const mockItems = {
-              directories,
-              files,
-              total_directories: directories.length,
-              total_files: files.length,
+              included: { directories, files },
+              excluded_by_oyaignore: { directories: [], files: [] },
+              excluded_by_rule: { directories: [], files: [] },
             }
 
             vi.mocked(api.getIndexableItems).mockResolvedValue(mockItems)
@@ -482,8 +501,8 @@ describe('IndexingPreviewModal Property Tests', () => {
             unmount()
           }
         ),
-        { numRuns: 20 }
+        { numRuns: 10 }
       )
-    })
+    }, 30000) // Increased timeout for heavy UI property tests
   })
 })

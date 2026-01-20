@@ -24,6 +24,7 @@ from oya.api.schemas import (
     DirectoryListing,
     EmbeddingMetadata,
     IndexableItems,
+    FileList,
     OyaignoreUpdateRequest,
     OyaignoreUpdateResponse,
 )
@@ -210,7 +211,12 @@ async def get_generation_status(
 async def get_indexable_items(
     settings: Settings = Depends(get_settings),
 ) -> IndexableItems:
-    """Get list of directories and files that will be indexed.
+    """Get list of directories and files categorized by exclusion reason.
+
+    Returns files in three categories:
+    - included: Files that will be indexed
+    - excluded_by_oyaignore: Files excluded via .oyaignore (user can re-include)
+    - excluded_by_rule: Files excluded via built-in rules (cannot be changed)
 
     Uses the same FileFilter class as GenerationOrchestrator to ensure
     the preview matches actual generation behavior.
@@ -232,16 +238,30 @@ async def get_indexable_items(
     try:
         # Use the same FileFilter class as GenerationOrchestrator._run_analysis()
         file_filter = FileFilter(settings.workspace_path)
-        files = sorted(file_filter.get_files())
+        categorized = file_filter.get_files_categorized()
 
-        # Derive directories using the same logic as GenerationOrchestrator._run_directories()
-        directories = extract_directories_from_files(files)
+        # Derive directories from file paths for each category
+        included_dirs = extract_directories_from_files(categorized.included)
+        oyaignore_dirs = extract_directories_from_files(categorized.excluded_by_oyaignore)
+        rule_dirs = extract_directories_from_files(categorized.excluded_by_rule)
+
+        # Remove root directory ("") from oyaignore and rule dirs since it's always in included
+        oyaignore_dirs = [d for d in oyaignore_dirs if d != ""]
+        rule_dirs = [d for d in rule_dirs if d != ""]
 
         return IndexableItems(
-            directories=directories,
-            files=files,
-            total_directories=len(directories),
-            total_files=len(files),
+            included=FileList(
+                directories=included_dirs,
+                files=categorized.included,
+            ),
+            excluded_by_oyaignore=FileList(
+                directories=oyaignore_dirs,
+                files=categorized.excluded_by_oyaignore,
+            ),
+            excluded_by_rule=FileList(
+                directories=rule_dirs,
+                files=categorized.excluded_by_rule,
+            ),
         )
     except PermissionError as e:
         raise HTTPException(
@@ -256,9 +276,10 @@ async def update_oyaignore(
     request: OyaignoreUpdateRequest,
     settings: Settings = Depends(get_settings),
 ) -> OyaignoreUpdateResponse:
-    """Add exclusions to .oyaignore in the repository root.
+    """Add exclusions to and remove patterns from .oyaignore in the repository root.
 
     Creates the .oyaignore file if it doesn't exist.
+    Processes removals first (before additions).
     Appends new exclusions to the end of the file, preserving existing entries.
     Adds trailing slash to directory patterns.
     Removes duplicate entries.
@@ -287,6 +308,30 @@ async def update_oyaignore(
                     # Only add non-duplicate entries
                     existing_entries_ordered.append(stripped)
                     existing_entries_set.add(stripped)
+
+        # Process removals first (before additions)
+        removed: list[str] = []
+        if request.removals:
+            # Normalize removal patterns for matching
+            removal_patterns: set[str] = set()
+            for pattern in request.removals:
+                # Add both with and without trailing slash for matching
+                normalized = pattern.rstrip("/")
+                removal_patterns.add(normalized)
+                removal_patterns.add(normalized + "/")
+
+            # Remove matching entries
+            entries_to_remove: list[str] = []
+            for entry in existing_entries_ordered:
+                entry_normalized = entry.rstrip("/")
+                if entry in removal_patterns or entry_normalized in removal_patterns:
+                    entries_to_remove.append(entry)
+                    removed.append(entry)
+
+            # Remove from lists
+            for entry in entries_to_remove:
+                existing_entries_ordered.remove(entry)
+                existing_entries_set.discard(entry)
 
         # Prepare new entries
         added_directories: list[str] = []
@@ -358,7 +403,9 @@ async def update_oyaignore(
         return OyaignoreUpdateResponse(
             added_directories=added_directories,
             added_files=added_files,
+            removed=removed,
             total_added=len(added_directories) + len(added_files),
+            total_removed=len(removed),
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=f"Permission denied writing to .oyaignore: {e}")
