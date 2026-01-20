@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from oya.constants.qa import CGRAG_MAX_PASSES, CGRAG_TARGETED_TOP_K
+from oya.config import load_settings
 from oya.generation.prompts import format_cgrag_prompt
 from oya.graph.models import Subgraph
 from oya.graph.query import get_neighborhood
@@ -221,13 +221,20 @@ async def run_cgrag_loop(
     Returns:
         CGRAGResult with final answer and iteration metadata.
     """
+    try:
+        settings = load_settings()
+        max_passes = settings.ask.cgrag_max_passes
+    except (ValueError, OSError):
+        # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+        max_passes = 3  # Default from CONFIG_SCHEMA
+
     context = initial_context
     all_gaps_identified: list[str] = []
     gaps_resolved: list[str] = []
     gaps_unresolved: list[str] = []
     answer = ""
 
-    for pass_num in range(1, CGRAG_MAX_PASSES + 1):
+    for pass_num in range(1, max_passes + 1):
         # Format prompt and get LLM response
         prompt = format_cgrag_prompt(question, context)
         response = await llm.generate(prompt)
@@ -286,7 +293,7 @@ async def run_cgrag_loop(
     # Hit max passes
     return CGRAGResult(
         answer=answer,
-        passes_used=CGRAG_MAX_PASSES,
+        passes_used=max_passes,
         gaps_identified=all_gaps_identified,
         gaps_resolved=gaps_resolved,
         gaps_unresolved=gaps_unresolved,
@@ -322,7 +329,13 @@ async def _retrieve_for_gap(
 
     # Try vector search for fuzzy gaps
     if vectorstore is not None:
-        raw_results = vectorstore.query(query_text=gap, n_results=CGRAG_TARGETED_TOP_K)
+        try:
+            settings = load_settings()
+            top_k = settings.ask.cgrag_targeted_top_k
+        except (ValueError, OSError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            top_k = 3  # Default from CONFIG_SCHEMA
+        raw_results = vectorstore.query(query_text=gap, n_results=top_k)
         documents = raw_results.get("documents", [[]])[0]
         metadatas = raw_results.get("metadatas", [[]])[0]
         if documents:

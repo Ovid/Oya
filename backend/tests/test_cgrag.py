@@ -301,7 +301,9 @@ NONE""",
         """Stops after max passes even if gaps remain."""
         from oya.qa.cgrag import run_cgrag_loop
         from oya.qa.session import CGRAGSession
-        from oya.constants.qa import CGRAG_MAX_PASSES
+
+        # Default from CONFIG_SCHEMA: cgrag_max_passes = 3
+        CGRAG_MAX_PASSES = 3
 
         mock_llm = AsyncMock()
         # Report different gaps each time so we don't hit the "already not found" early exit

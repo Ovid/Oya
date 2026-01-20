@@ -13,9 +13,13 @@ import yaml
 
 import logging
 
-from oya.constants.issues import ISSUE_CATEGORIES, ISSUE_SEVERITIES
-
 logger = logging.getLogger(__name__)
+
+# Issue categories for validation. These are code logic constants, not configuration.
+ISSUE_CATEGORIES: frozenset[str] = frozenset(["security", "reliability", "maintainability"])
+
+# Issue severities for validation. These are code logic constants, not configuration.
+ISSUE_SEVERITIES: frozenset[str] = frozenset(["problem", "suggestion"])
 
 
 # Valid layer classifications for code files

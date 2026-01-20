@@ -7,11 +7,7 @@ directory summaries into a coherent codebase understanding map (SynthesisMap).
 import json
 import logging
 
-from oya.constants.generation import (
-    DEFAULT_CONTEXT_LIMIT,
-    SYNTHESIS_TEMPERATURE,
-    TOKENS_PER_CHAR,
-)
+from oya.config import load_settings
 from oya.generation.summaries import (
     ComponentInfo,
     DirectorySummary,
@@ -38,7 +34,7 @@ class SynthesisGenerator:
         context_limit: Maximum tokens allowed in a single LLM call.
     """
 
-    def __init__(self, llm_client, context_limit: int = DEFAULT_CONTEXT_LIMIT):
+    def __init__(self, llm_client, context_limit: int | None = None):
         """Initialize the SynthesisGenerator.
 
         Args:
@@ -47,6 +43,13 @@ class SynthesisGenerator:
             context_limit: Maximum tokens allowed in a single LLM call.
         """
         self.llm_client = llm_client
+        if context_limit is None:
+            try:
+                settings = load_settings()
+                context_limit = settings.generation.context_limit
+            except (ValueError, OSError):
+                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                context_limit = 100_000  # Default from CONFIG_SCHEMA
         self.context_limit = context_limit
 
     async def generate(
@@ -125,10 +128,16 @@ class SynthesisGenerator:
 
         try:
             # Call LLM
+            try:
+                settings = load_settings()
+                temperature = settings.generation.temperature
+            except (ValueError, OSError):
+                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                temperature = 0.3  # Default from CONFIG_SCHEMA
             response = await self.llm_client.generate(
                 prompt=prompt,
                 system_prompt=SYSTEM_PROMPT,
-                temperature=SYNTHESIS_TEMPERATURE,
+                temperature=temperature,
             )
 
             # Parse JSON response
@@ -229,7 +238,13 @@ class SynthesisGenerator:
         # Add overhead for formatting (markdown, labels, etc.)
         total_chars = int(total_chars * 1.5)
 
-        return int(total_chars * TOKENS_PER_CHAR)
+        try:
+            settings = load_settings()
+            tokens_per_char = settings.generation.tokens_per_char
+        except (ValueError, OSError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            tokens_per_char = 0.25  # Default from CONFIG_SCHEMA
+        return int(total_chars * tokens_per_char)
 
     def create_batches(
         self,

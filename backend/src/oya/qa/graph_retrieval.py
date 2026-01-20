@@ -6,11 +6,7 @@ from typing import Any
 
 import networkx as nx
 
-from oya.constants.qa import (
-    GRAPH_EXPANSION_CONFIDENCE_THRESHOLD,
-    GRAPH_EXPANSION_HOPS,
-    GRAPH_MERMAID_TOKEN_BUDGET,
-)
+from oya.config import load_settings
 from oya.generation.chunking import estimate_tokens
 from oya.graph.models import Node, Subgraph
 from oya.graph.query import get_neighborhood
@@ -19,8 +15,8 @@ from oya.graph.query import get_neighborhood
 def expand_with_graph(
     node_ids: list[str],
     graph: nx.DiGraph,
-    hops: int = GRAPH_EXPANSION_HOPS,
-    min_confidence: float = GRAPH_EXPANSION_CONFIDENCE_THRESHOLD,
+    hops: int | None = None,
+    min_confidence: float | None = None,
 ) -> Subgraph:
     """Expand vector search results by traversing the code graph.
 
@@ -36,6 +32,20 @@ def expand_with_graph(
     Returns:
         Subgraph containing all discovered nodes and edges.
     """
+    if hops is None or min_confidence is None:
+        try:
+            settings = load_settings()
+            if hops is None:
+                hops = settings.ask.graph_expansion_hops
+            if min_confidence is None:
+                min_confidence = settings.ask.graph_expansion_confidence_threshold
+        except (ValueError, OSError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            if hops is None:
+                hops = 2  # Default from CONFIG_SCHEMA
+            if min_confidence is None:
+                min_confidence = 0.5  # Default from CONFIG_SCHEMA
+
     if not node_ids:
         return Subgraph(nodes=[], edges=[])
 
@@ -114,18 +124,25 @@ def build_graph_context(
     mermaid_tokens = estimate_tokens(mermaid)
 
     # Reserve budget for mermaid, rest for code
-    mermaid_budget = min(mermaid_tokens, GRAPH_MERMAID_TOKEN_BUDGET)
+    try:
+        settings = load_settings()
+        mermaid_token_budget = settings.ask.graph_mermaid_token_budget
+    except (ValueError, OSError):
+        # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+        mermaid_token_budget = 500  # Default from CONFIG_SCHEMA
+
+    mermaid_budget = min(mermaid_tokens, mermaid_token_budget)
     code_budget = token_budget - mermaid_budget
 
     # If mermaid is too big, truncate it
-    if mermaid_tokens > GRAPH_MERMAID_TOKEN_BUDGET:
+    if mermaid_tokens > mermaid_token_budget:
         # Simple truncation - could be smarter
         lines = mermaid.split("\n")
         truncated_lines = [lines[0]]  # Keep header
         current_tokens = estimate_tokens(truncated_lines[0])
         for line in lines[1:]:
             line_tokens = estimate_tokens(line)
-            if current_tokens + line_tokens > GRAPH_MERMAID_TOKEN_BUDGET:
+            if current_tokens + line_tokens > mermaid_token_budget:
                 break
             truncated_lines.append(line)
             current_tokens += line_tokens
