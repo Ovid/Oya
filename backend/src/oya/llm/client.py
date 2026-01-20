@@ -9,7 +9,7 @@ from pathlib import Path
 
 from litellm import acompletion
 
-from oya.config import load_settings
+from oya.config import ConfigError, load_settings
 from litellm.exceptions import (
     APIConnectionError,
     APIError,
@@ -217,7 +217,7 @@ class LLMClient:
                     temperature = settings.llm.default_temperature
                 if max_tokens is None:
                     max_tokens = settings.llm.max_tokens
-            except (ValueError, OSError):
+            except (ValueError, OSError, ConfigError):
                 # Settings not available (e.g., WORKSPACE_PATH not set in tests)
                 if temperature is None:
                     temperature = 0.7  # Default from CONFIG_SCHEMA
@@ -337,7 +337,7 @@ class LLMClient:
                     temperature = settings.llm.default_temperature
                 if max_tokens is None:
                     max_tokens = settings.llm.max_tokens
-            except (ValueError, OSError):
+            except (ValueError, OSError, ConfigError):
                 # Settings not available (e.g., WORKSPACE_PATH not set in tests)
                 if temperature is None:
                     temperature = 0.7  # Default from CONFIG_SCHEMA
@@ -423,7 +423,7 @@ class LLMClient:
         try:
             settings = load_settings()
             json_temperature = settings.llm.json_temperature
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             json_temperature = 0.3  # Default from CONFIG_SCHEMA
         full_system = (system_prompt or "") + "\n\nRespond with valid JSON only."

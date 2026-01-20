@@ -42,11 +42,11 @@ def initialize_workspace(workspace_path: Path) -> bool:
     # Get wiki directory name from settings, fallback to default
     wiki_dir = ".oyawiki"  # Default
     try:
-        from oya.config import load_settings
+        from oya.config import ConfigError, load_settings
 
         settings = load_settings()
         wiki_dir = settings.paths.wiki_dir
-    except (ValueError, OSError):
+    except (ValueError, OSError, ConfigError):
         # Settings not available, use default
         pass
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from oya.api.deps import get_db
-from oya.config import load_settings
+from oya.config import ConfigError, load_settings
 from oya.db.connection import Database
 
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -88,7 +88,7 @@ def _create_snippet(content: str, query: str, max_length: int | None = None) -> 
         try:
             settings = load_settings()
             max_length = settings.search.snippet_max_length
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             max_length = 200  # Default from CONFIG_SCHEMA
     lower_content = content.lower()

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 
-from oya.config import load_settings
+from oya.config import ConfigError, load_settings
 from oya.parsing.models import ParsedSymbol
 
 
@@ -67,7 +67,7 @@ def chunk_file_content(
                 max_tokens = settings.generation.chunk_tokens
             if overlap_lines is None:
                 overlap_lines = settings.generation.chunk_overlap_lines
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             if max_tokens is None:
                 max_tokens = 1000  # Default from CONFIG_SCHEMA
@@ -153,7 +153,7 @@ def chunk_by_symbols(
         try:
             settings = load_settings()
             max_tokens = settings.generation.chunk_tokens
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             max_tokens = 1000  # Default from CONFIG_SCHEMA
 

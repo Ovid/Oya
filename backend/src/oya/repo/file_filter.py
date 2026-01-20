@@ -98,12 +98,12 @@ class FileFilter:
         ignore_filename = ".oyaignore"  # Default
         default_max_file_size_kb = 500  # Default from CONFIG_SCHEMA
         try:
-            from oya.config import load_settings
+            from oya.config import ConfigError, load_settings
 
             settings = load_settings()
             ignore_filename = settings.paths.ignore_file
             default_max_file_size_kb = settings.files.max_file_size_kb
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             pass
 
@@ -211,11 +211,11 @@ class FileFilter:
             # Get minified threshold from settings if available
             minified_threshold = 500  # Default
             try:
-                from oya.config import load_settings
+                from oya.config import ConfigError, load_settings
 
                 settings = load_settings()
                 minified_threshold = settings.files.minified_line_length
-            except (ValueError, OSError):
+            except (ValueError, OSError, ConfigError):
                 pass  # Settings not available, use default
             return avg_length > minified_threshold
         except Exception:
