@@ -452,6 +452,7 @@ async def _run_generation(
         staging_db = Database(staging_db_path)
         # Run migrations on staging db to ensure schema is up to date
         from oya.db.migrations import run_migrations
+
         run_migrations(staging_db)
 
         # Create orchestrator to build in staging directory
