@@ -35,12 +35,8 @@ export function ConfirmationDialog({
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 mx-4 max-w-md w-full"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          {title}
-        </h3>
-        <div className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          {children}
-        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{title}</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400 mb-6">{children}</div>
         <div className="flex justify-end space-x-2">
           <button
             onClick={onCancel}

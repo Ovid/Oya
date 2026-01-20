@@ -157,7 +157,9 @@ async def test_no_overlap_between_categories(client, temp_workspace):
     rule_files = set(data["excluded_by_rule"]["files"])
 
     # No file should appear in multiple categories
-    assert len(included_files & oyaignore_files) == 0, "Files overlap between included and oyaignore"
+    assert len(included_files & oyaignore_files) == 0, (
+        "Files overlap between included and oyaignore"
+    )
     assert len(included_files & rule_files) == 0, "Files overlap between included and rule"
     assert len(oyaignore_files & rule_files) == 0, "Files overlap between oyaignore and rule"
 

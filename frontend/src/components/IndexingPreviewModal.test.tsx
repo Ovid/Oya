@@ -614,7 +614,14 @@ describe('IndexingPreviewModal', () => {
       const onClose = vi.fn()
       const onGenerate = vi.fn()
 
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} onGenerate={onGenerate} />)
+      render(
+        <IndexingPreviewModal
+          {...defaultProps}
+          isOpen={true}
+          onClose={onClose}
+          onGenerate={onGenerate}
+        />
+      )
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
@@ -651,7 +658,14 @@ describe('IndexingPreviewModal', () => {
         total_removed: 0,
       })
 
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} onGenerate={onGenerate} />)
+      render(
+        <IndexingPreviewModal
+          {...defaultProps}
+          isOpen={true}
+          onClose={onClose}
+          onGenerate={onGenerate}
+        />
+      )
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
@@ -697,7 +711,14 @@ describe('IndexingPreviewModal', () => {
         total_removed: 1,
       })
 
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} onGenerate={onGenerate} />)
+      render(
+        <IndexingPreviewModal
+          {...defaultProps}
+          isOpen={true}
+          onClose={onClose}
+          onGenerate={onGenerate}
+        />
+      )
 
       await waitFor(() => {
         expect(screen.getByText('node_modules')).toBeInTheDocument()
@@ -892,7 +913,9 @@ describe('IndexingPreviewModal', () => {
 
     it('discards pending changes when modal is closed and reopened', async () => {
       const onClose = vi.fn()
-      const { rerender } = render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+      const { rerender } = render(
+        <IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />
+      )
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()

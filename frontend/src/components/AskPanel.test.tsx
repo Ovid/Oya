@@ -210,7 +210,9 @@ describe('AskPanel', () => {
       renderAskPanel({ isOpen: true }, { currentJob: mockRunningJob })
 
       await waitFor(() => {
-        expect(screen.getByText('Q&A is unavailable while the wiki is being generated.')).toBeInTheDocument()
+        expect(
+          screen.getByText('Q&A is unavailable while the wiki is being generated.')
+        ).toBeInTheDocument()
       })
     })
 
@@ -236,7 +238,9 @@ describe('AskPanel', () => {
       renderAskPanel({ isOpen: true }, { currentJob: null })
 
       await waitFor(() => {
-        expect(screen.queryByText('Q&A is unavailable while the wiki is being generated.')).not.toBeInTheDocument()
+        expect(
+          screen.queryByText('Q&A is unavailable while the wiki is being generated.')
+        ).not.toBeInTheDocument()
       })
     })
 
@@ -244,7 +248,9 @@ describe('AskPanel', () => {
       renderAskPanel({ isOpen: true }, { currentJob: mockCompletedJob })
 
       await waitFor(() => {
-        expect(screen.queryByText('Q&A is unavailable while the wiki is being generated.')).not.toBeInTheDocument()
+        expect(
+          screen.queryByText('Q&A is unavailable while the wiki is being generated.')
+        ).not.toBeInTheDocument()
       })
     })
 

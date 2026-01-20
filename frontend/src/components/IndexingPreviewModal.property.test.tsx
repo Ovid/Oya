@@ -302,15 +302,16 @@ describe('IndexingPreviewModal Property Tests', () => {
    * **Validates: Requirements 3.5**
    */
   describe('Property 8: Directory Check Clears Child File Exclusions', () => {
-    it(
-      'checking directory clears pending file exclusions within it',
-      async () => {
+    it('checking directory clears pending file exclusions within it', async () => {
       await fc.assert(
         fc.asyncProperty(
           // Generate unique random directory names
           fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*$/), { minLength: 1, maxLength: 3 }),
           // Generate unique random file names
-          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), { minLength: 2, maxLength: 5 }),
+          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), {
+            minLength: 2,
+            maxLength: 5,
+          }),
           async (dirNames, fileNames) => {
             // Create directories
             const directories = dirNames.map((name, i) =>
@@ -318,9 +319,11 @@ describe('IndexingPreviewModal Property Tests', () => {
             )
 
             // Create unique files within directories
-            const files = [...new Set(fileNames.map(
-              (name, i) => `${directories[i % directories.length]}/${name}`
-            ))]
+            const files = [
+              ...new Set(
+                fileNames.map((name, i) => `${directories[i % directories.length]}/${name}`)
+              ),
+            ]
 
             const mockItems = {
               included: { directories, files },
@@ -399,7 +402,10 @@ describe('IndexingPreviewModal Property Tests', () => {
           // Generate unique random directory names
           fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*$/), { minLength: 1, maxLength: 3 }),
           // Generate unique random file names
-          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), { minLength: 1, maxLength: 5 }),
+          fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]*\.[a-z]+$/), {
+            minLength: 1,
+            maxLength: 5,
+          }),
           // Random index for directory to exclude (or -1 for none)
           fc.integer({ min: -1, max: 2 }),
           // Random index for file to exclude (or -1 for none)
@@ -411,9 +417,11 @@ describe('IndexingPreviewModal Property Tests', () => {
             )
 
             // Create unique files within directories
-            const files = [...new Set(fileNames.map(
-              (name, i) => `${directories[i % directories.length]}/${name}`
-            ))]
+            const files = [
+              ...new Set(
+                fileNames.map((name, i) => `${directories[i % directories.length]}/${name}`)
+              ),
+            ]
 
             const mockItems = {
               included: { directories, files },

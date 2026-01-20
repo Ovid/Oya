@@ -534,12 +534,12 @@ describe('Generate Wiki Button', () => {
       error_message: null,
     })
     vi.mocked(api.updateOyaignore).mockResolvedValue({
-        added_directories: [],
-        added_files: [],
-        removed: [],
-        total_added: 0,
-        total_removed: 0,
-      })
+      added_directories: [],
+      added_files: [],
+      removed: [],
+      total_added: 0,
+      total_removed: 0,
+    })
 
     renderTopBar()
 
@@ -604,12 +604,12 @@ describe('Ask button during generation', () => {
       },
     })
     vi.mocked(api.updateOyaignore).mockResolvedValue({
-        added_directories: [],
-        added_files: [],
-        removed: [],
-        total_added: 0,
-        total_removed: 0,
-      })
+      added_directories: [],
+      added_files: [],
+      removed: [],
+      total_added: 0,
+      total_removed: 0,
+    })
   })
 
   it('disables Ask button when generation is running', async () => {
