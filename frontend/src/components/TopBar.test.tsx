@@ -12,6 +12,7 @@ vi.mock('../api/client', () => ({
   initRepo: vi.fn(),
   getJob: vi.fn(),
   getIndexableItems: vi.fn(),
+  updateOyaignore: vi.fn(),
   ApiError: class ApiError extends Error {
     status: number
     constructor(status: number, message: string) {
@@ -171,6 +172,21 @@ describe('TopBar with DirectoryPicker', () => {
         total_phases: null,
         error_message: null,
       })
+      vi.mocked(api.getIndexableItems).mockResolvedValue({
+        included: {
+          directories: ['src'],
+          files: ['src/main.ts'],
+        },
+        excluded_by_oyaignore: {
+          directories: [],
+          files: [],
+        },
+        excluded_by_rule: {
+          directories: [],
+          files: [],
+        },
+      })
+      vi.mocked(api.updateOyaignore).mockResolvedValue({ success: true })
 
       renderTopBar()
 
@@ -178,9 +194,25 @@ describe('TopBar with DirectoryPicker', () => {
         expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
       })
 
-      // Start generation
-      const generateButton = screen.getByText('Generate Wiki')
+      // Click Generate Wiki button to open modal
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
       await userEvent.click(generateButton)
+
+      // Wait for modal to open
+      await waitFor(() => {
+        expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+      })
+
+      // Click Generate Wiki button in modal footer
+      const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
+      const modalFooterButton = footerButtons[footerButtons.length - 1]
+      await userEvent.click(modalFooterButton)
+
+      // Confirm the generation dialog
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
+      })
+      await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
 
       // DirectoryPicker should be disabled
       await waitFor(() => {
@@ -209,6 +241,21 @@ describe('TopBar with DirectoryPicker', () => {
         total_phases: null,
         error_message: null,
       })
+      vi.mocked(api.getIndexableItems).mockResolvedValue({
+        included: {
+          directories: ['src'],
+          files: ['src/main.ts'],
+        },
+        excluded_by_oyaignore: {
+          directories: [],
+          files: [],
+        },
+        excluded_by_rule: {
+          directories: [],
+          files: [],
+        },
+      })
+      vi.mocked(api.updateOyaignore).mockResolvedValue({ success: true })
 
       renderTopBar()
 
@@ -216,9 +263,25 @@ describe('TopBar with DirectoryPicker', () => {
         expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
       })
 
-      // Start generation
-      const generateButton = screen.getByText('Generate Wiki')
+      // Click Generate Wiki button to open modal
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
       await userEvent.click(generateButton)
+
+      // Wait for modal to open
+      await waitFor(() => {
+        expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+      })
+
+      // Click Generate Wiki button in modal footer
+      const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
+      const modalFooterButton = footerButtons[footerButtons.length - 1]
+      await userEvent.click(modalFooterButton)
+
+      // Confirm the generation dialog
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
+      })
+      await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
 
       // Should show disabled reason
       await waitFor(() => {
@@ -366,32 +429,79 @@ describe('TopBar with DirectoryPicker', () => {
   })
 })
 
-describe('Preview Button', () => {
+describe('Generate Wiki Button', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
     vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
     vi.mocked(api.getIndexableItems).mockResolvedValue({
-      directories: ['src', 'tests'],
-      files: ['src/main.ts', 'tests/test.ts'],
-      total_directories: 2,
-      total_files: 2,
+      included: {
+        directories: ['src', 'tests'],
+        files: ['src/main.ts', 'tests/test.ts'],
+      },
+      excluded_by_oyaignore: {
+        directories: [],
+        files: [],
+      },
+      excluded_by_rule: {
+        directories: [],
+        files: [],
+      },
     })
   })
 
-  it('renders Preview button when no generation is in progress', async () => {
+  it('renders Generate Wiki button when no generation is in progress', async () => {
     renderTopBar()
 
     await waitFor(() => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
     })
 
-    // Preview button should be visible
-    expect(screen.getByRole('button', { name: /preview/i })).toBeInTheDocument()
+    // Generate Wiki button should be visible
+    expect(screen.getByRole('button', { name: /generate wiki/i })).toBeInTheDocument()
   })
 
-  it('disables Preview button during generation', async () => {
+  it('does not render Preview button (consolidated into Generate Wiki)', async () => {
+    renderTopBar()
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    })
+
+    // Preview button should NOT exist
+    expect(screen.queryByRole('button', { name: /^preview$/i })).not.toBeInTheDocument()
+  })
+
+  it('does not render Regenerate button (consolidated into Generate Wiki)', async () => {
+    renderTopBar()
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    })
+
+    // Regenerate button should NOT exist
+    expect(screen.queryByRole('button', { name: /regenerate/i })).not.toBeInTheDocument()
+  })
+
+  it('opens IndexingPreviewModal when Generate Wiki button is clicked', async () => {
+    renderTopBar()
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    })
+
+    // Click Generate Wiki button
+    const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+    await userEvent.click(generateButton)
+
+    // Modal should be open
+    await waitFor(() => {
+      expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+    })
+  })
+
+  it('hides Generate Wiki button when generation job is running', async () => {
     vi.mocked(api.getRepoStatus).mockResolvedValue({
       ...mockRepoStatus,
       initialized: false,
@@ -411,6 +521,7 @@ describe('Preview Button', () => {
       total_phases: null,
       error_message: null,
     })
+    vi.mocked(api.updateOyaignore).mockResolvedValue({ success: true })
 
     renderTopBar()
 
@@ -418,31 +529,38 @@ describe('Preview Button', () => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
     })
 
-    // Start generation
-    const generateButton = screen.getByText('Generate Wiki')
+    // Click Generate Wiki to open modal first
+    const generateButton = screen.getByRole('button', { name: /generate wiki/i })
     await userEvent.click(generateButton)
 
-    // Preview button should be disabled
-    await waitFor(() => {
-      const previewButton = screen.getByRole('button', { name: /preview/i })
-      expect(previewButton).toBeDisabled()
-    })
-  })
-
-  it('opens IndexingPreviewModal when Preview button is clicked', async () => {
-    renderTopBar()
-
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
-
-    // Click Preview button
-    const previewButton = screen.getByRole('button', { name: /preview/i })
-    await userEvent.click(previewButton)
-
-    // Modal should be open
+    // Wait for modal to open
     await waitFor(() => {
       expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+    })
+
+    // Click Generate Wiki button in modal footer
+    const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
+    const modalFooterButton = footerButtons[footerButtons.length - 1]
+    await userEvent.click(modalFooterButton)
+
+    // Confirm the generation dialog
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
+
+    // Modal should close and TopBar Generate Wiki button should be hidden (currentJob is set)
+    await waitFor(() => {
+      // The modal closes after generation starts
+      expect(screen.queryByText('Indexing Preview')).not.toBeInTheDocument()
+    })
+
+    // The TopBar Generate Wiki button should be hidden because currentJob is now set
+    await waitFor(() => {
+      // After generation starts, only the status badge should indicate generation in progress
+      // The Generate Wiki button in TopBar should be hidden (!currentJob condition)
+      const generateButtons = screen.queryAllByRole('button', { name: /generate wiki/i })
+      expect(generateButtons).toHaveLength(0)
     })
   })
 })

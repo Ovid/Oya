@@ -118,41 +118,14 @@ export function TopBar({
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          {repoStatus?.initialized && !currentJob && (
-            <>
-              <button
-                onClick={() => setIsPreviewModalOpen(true)}
-                disabled={isGenerating}
-                className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Preview
-              </button>
-              <button
-                onClick={() => startGeneration()}
-                className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
-              >
-                Regenerate
-              </button>
-            </>
-          )}
-
-          {!repoStatus?.initialized && (
-            <>
-              <button
-                onClick={() => setIsPreviewModalOpen(true)}
-                disabled={isLoading || isGenerating}
-                className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Preview
-              </button>
-              <button
-                onClick={() => startGeneration()}
-                disabled={isLoading}
-                className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
-              >
-                Generate Wiki
-              </button>
-            </>
+          {!currentJob && (
+            <button
+              onClick={() => setIsPreviewModalOpen(true)}
+              disabled={isLoading || isGenerating}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+            >
+              Generate Wiki
+            </button>
           )}
 
           <button
@@ -229,7 +202,7 @@ export function TopBar({
       <IndexingPreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
-        onSave={() => setIsPreviewModalOpen(false)}
+        onGenerate={() => startGeneration()}
       />
     </header>
   )
