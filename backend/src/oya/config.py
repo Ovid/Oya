@@ -190,6 +190,7 @@ def _load_section(
         # Get value from parser or use default
         if parser.has_option(section, key):
             raw_value = parser.get(section, key)
+            value: bool | int | float | str
             try:
                 if typ is bool:
                     value = raw_value.lower() in ("true", "1", "yes", "on")
