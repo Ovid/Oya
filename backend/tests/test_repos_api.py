@@ -330,7 +330,7 @@ def workspace_with_files(tmp_path, monkeypatch):
 
 
 async def test_get_indexable_items_returns_correct_schema(client, workspace_with_files):
-    """GET /api/repos/indexable returns directories, files, and counts.
+    """GET /api/repos/indexable returns categorized directories and files.
 
     Requirements: 2.2, 2.3, 2.4, 7.1, 7.6
     """
@@ -339,25 +339,21 @@ async def test_get_indexable_items_returns_correct_schema(client, workspace_with
     assert response.status_code == 200
     data = response.json()
 
-    # Check schema has required fields
-    assert "directories" in data
-    assert "files" in data
-    assert "total_directories" in data
-    assert "total_files" in data
+    # Check schema has three categories
+    assert "included" in data
+    assert "excluded_by_oyaignore" in data
+    assert "excluded_by_rule" in data
 
-    # Check types
-    assert isinstance(data["directories"], list)
-    assert isinstance(data["files"], list)
-    assert isinstance(data["total_directories"], int)
-    assert isinstance(data["total_files"], int)
-
-    # Check counts match array lengths
-    assert data["total_directories"] == len(data["directories"])
-    assert data["total_files"] == len(data["files"])
+    # Check each category has directories and files
+    for category in ["included", "excluded_by_oyaignore", "excluded_by_rule"]:
+        assert "directories" in data[category]
+        assert "files" in data[category]
+        assert isinstance(data[category]["directories"], list)
+        assert isinstance(data[category]["files"], list)
 
 
 async def test_get_indexable_items_returns_expected_content(client, workspace_with_files):
-    """GET /api/repos/indexable returns expected directories and files.
+    """GET /api/repos/indexable returns expected directories and files in included category.
 
     Requirements: 2.2, 2.3, 2.4, 7.7
     """
@@ -366,16 +362,16 @@ async def test_get_indexable_items_returns_expected_content(client, workspace_wi
     assert response.status_code == 200
     data = response.json()
 
-    # Check expected directories are present
-    assert "src" in data["directories"]
-    assert "src/utils" in data["directories"]
-    assert "docs" in data["directories"]
+    # Check expected directories are present in included category
+    assert "src" in data["included"]["directories"]
+    assert "src/utils" in data["included"]["directories"]
+    assert "docs" in data["included"]["directories"]
 
-    # Check expected files are present
-    assert "README.md" in data["files"]
-    assert "src/main.py" in data["files"]
-    assert "src/utils/helpers.py" in data["files"]
-    assert "docs/guide.md" in data["files"]
+    # Check expected files are present in included category
+    assert "README.md" in data["included"]["files"]
+    assert "src/main.py" in data["included"]["files"]
+    assert "src/utils/helpers.py" in data["included"]["files"]
+    assert "docs/guide.md" in data["included"]["files"]
 
 
 async def test_get_indexable_items_invalid_path_returns_400(client, tmp_path, monkeypatch):

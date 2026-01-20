@@ -66,13 +66,25 @@ class DirectoryListing(BaseModel):
     entries: list[DirectoryEntry]
 
 
-class IndexableItems(BaseModel):
-    """List of indexable directories and files for preview."""
+class FileList(BaseModel):
+    """A list of directories and files."""
 
-    directories: list[str]
-    files: list[str]
-    total_directories: int
-    total_files: int
+    directories: list[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
+
+
+class IndexableItems(BaseModel):
+    """List of indexable items categorized by exclusion reason.
+
+    Three categories:
+    - included: Files that will be indexed
+    - excluded_by_oyaignore: Files excluded via .oyaignore (user can re-include)
+    - excluded_by_rule: Files excluded via built-in rules (cannot be changed)
+    """
+
+    included: FileList
+    excluded_by_oyaignore: FileList
+    excluded_by_rule: FileList
 
 
 class OyaignoreUpdateRequest(BaseModel):
