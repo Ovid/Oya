@@ -1,17 +1,5 @@
 # TODO
 
-* Generate Wiki
-    * Remove "Preview" button in top bar.
-    * Show modal with preview on Generate, but now all files/directories are
-      checked and "included." Unchecking one will exclude it. Also make it
-      clear which files are excluded via rules (those cannot be included) and
-      via .oyaignore (we should be able to include those, and make it clear
-      that .oyaignore will be rewritten).
-    * There will always be a button availabe in modal to regenerate wiki.
-      Generation does not start until that button is clicked, but now there's
-      going to be a confirmation dialog. Reuse confirmation logic already in
-      system.
-    * While regenerating, the "Ask" Q&A functionality must be disabled.
 * Investigate RLM (Recursive Language Models for "unlimited" context)
     * https://arxiv.org/abs/2512.24601
     * https://www.youtube.com/watch?v=huszaaJPjU8
@@ -34,25 +22,19 @@
     * Should it also try to process files in dependency order like
       directories?
     * Mermaid diagrams should omit test files
-* Need to make chat more useful
-    * Have chat persist, even when navigating.
-    * Allow follow-up questions
-* The "Ask" button should be hidden while regenerating.
 * "Are there any architectural flaws in the frontend?" DeepWiki caught one. We
   missed it. Investigate it. Check the jsonl logs and feed it back.
 * Have AI use the vector database and code to independently validate logic and
   behavior.
-* faa427b - (HEAD -> ovid/fix-missing-spec-issues) Move .oyaignore back to
-  root directory (15 hours ago) <Ovid>
 * b6d4122 - If we delete .oyawiki while server is running, it dies on
   rebuild due to bad db connection (16 hours ago) <Ovid>
 * We no longer have incremental regeneration. Need a better strategy, while
   still allowing atomic regeneration.
 
 * Interface:
-    - Templates
+    - Templates (done)
     - Need left and right search areas to be "widenable" so I can see more
-      content
+      content (done)
     - Proper filenames on left side
     - lib/MooseX/Extended/Core.pm showing nothing
     - Prompt injections!
@@ -109,3 +91,20 @@ The following ideas were identified during Phase 6 overview improvements but def
 * For each file we analyze, we should also look for common design flaws or
   possible bugs and put them in another part of the response. In other
   words, try to offload some of the hard work to the remote LLM.
+* Generate Wiki
+    * Remove "Preview" button in top bar.
+    * Show modal with preview on Generate, but now all files/directories are
+      checked and "included." Unchecking one will exclude it. Also make it
+      clear which files are excluded via rules (those cannot be included) and
+      via .oyaignore (we should be able to include those, and make it clear
+      that .oyaignore will be rewritten).
+    * There will always be a button availabe in modal to regenerate wiki.
+      Generation does not start until that button is clicked, but now there's
+      going to be a confirmation dialog. Reuse confirmation logic already in
+      system.
+    * While regenerating, the "Ask" Q&A functionality must be disabled.
+* Need to make chat more useful
+    * Have chat persist, even when navigating.
+    * Allow follow-up questions
+* faa427b - (HEAD -> ovid/fix-missing-spec-issues) Move .oyaignore back to
+  root directory (15 hours ago) <Ovid>

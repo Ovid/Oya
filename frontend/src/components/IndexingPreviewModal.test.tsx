@@ -21,14 +21,23 @@ describe('IndexingPreviewModal', () => {
   const defaultProps = {
     isOpen: false,
     onClose: vi.fn(),
-    onSave: vi.fn(),
+    onGenerate: vi.fn(),
   }
 
+  // New mock data structure with three categories
   const mockIndexableItems = {
-    directories: ['src', 'src/components', 'tests'],
-    files: ['README.md', 'src/index.ts', 'src/components/App.tsx'],
-    total_directories: 3,
-    total_files: 3,
+    included: {
+      directories: ['src', 'src/components', 'tests'],
+      files: ['README.md', 'src/index.ts', 'src/components/App.tsx'],
+    },
+    excluded_by_oyaignore: {
+      directories: ['node_modules'],
+      files: ['secret.env'],
+    },
+    excluded_by_rule: {
+      directories: ['.git'],
+      files: ['package-lock.json'],
+    },
   }
 
   beforeEach(() => {
@@ -49,9 +58,13 @@ describe('IndexingPreviewModal', () => {
       expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
     })
 
-    it('calls onClose when close button is clicked', async () => {
+    it('calls onClose when close button is clicked with no changes', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
 
       const closeButton = screen.getByLabelText('Close')
       await userEvent.click(closeButton)
@@ -59,9 +72,13 @@ describe('IndexingPreviewModal', () => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
-    it('calls onClose when clicking outside the modal', async () => {
+    it('calls onClose when clicking outside the modal with no changes', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
 
       // Click on the backdrop (the overlay div)
       const backdrop = screen.getByTestId('modal-backdrop')
@@ -97,7 +114,7 @@ describe('IndexingPreviewModal', () => {
       ).toBeTruthy()
     })
 
-    it('displays directory items', async () => {
+    it('displays included directory items', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
@@ -107,7 +124,7 @@ describe('IndexingPreviewModal', () => {
       })
     })
 
-    it('displays file items', async () => {
+    it('displays included file items', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
@@ -139,6 +156,65 @@ describe('IndexingPreviewModal', () => {
       await waitFor(() => {
         expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
       })
+    })
+  })
+
+  describe('three display states', () => {
+    it('shows included files as checked by default', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Find the checkbox for 'src' directory - should be checked (included)
+      const srcRow = screen.getByText('src').closest('div')
+      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
+      expect(checkbox).toBeChecked()
+    })
+
+    it('shows oyaignore files as unchecked with badge', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Excluded by .oyaignore')).toBeInTheDocument()
+      })
+
+      // Check for node_modules (excluded by oyaignore)
+      expect(screen.getByText('node_modules')).toBeInTheDocument()
+      expect(screen.getByText('secret.env')).toBeInTheDocument()
+
+      // Find the checkbox for 'node_modules' - should be unchecked
+      const nodeModulesRow = screen.getByText('node_modules').closest('div')
+      const checkbox = nodeModulesRow?.querySelector('input[type="checkbox"]')
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox).not.toBeDisabled()
+
+      // Check for "(from .oyaignore)" badge
+      const badges = screen.getAllByText('(from .oyaignore)')
+      expect(badges.length).toBeGreaterThan(0)
+    })
+
+    it('shows rule-excluded files as disabled with badge', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Excluded by Rules')).toBeInTheDocument()
+      })
+
+      // Check for .git (excluded by rule)
+      expect(screen.getByText('.git')).toBeInTheDocument()
+      expect(screen.getByText('package-lock.json')).toBeInTheDocument()
+
+      // Find the checkbox for '.git' - should be disabled
+      const gitRow = screen.getByText('.git').closest('div')
+      const checkbox = gitRow?.querySelector('input[type="checkbox"]')
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox).toBeDisabled()
+
+      // Check for "(excluded by rule)" badge
+      const badges = screen.getAllByText('(excluded by rule)')
+      expect(badges.length).toBeGreaterThan(0)
     })
   })
 
@@ -220,7 +296,7 @@ describe('IndexingPreviewModal', () => {
     })
   })
 
-  describe('directory exclusion', () => {
+  describe('directory exclusion (inverted checkbox)', () => {
     it('displays checkbox for each directory', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
@@ -230,10 +306,10 @@ describe('IndexingPreviewModal', () => {
 
       // Each directory should have a checkbox
       const checkboxes = screen.getAllByRole('checkbox')
-      expect(checkboxes.length).toBeGreaterThanOrEqual(3) // At least 3 directories
+      expect(checkboxes.length).toBeGreaterThanOrEqual(3) // At least 3 included directories
     })
 
-    it('toggles directory exclusion state when checkbox is clicked', async () => {
+    it('unchecking an included directory adds to pendingExclusions', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
@@ -245,16 +321,16 @@ describe('IndexingPreviewModal', () => {
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       expect(checkbox).toBeInTheDocument()
 
-      // Initially unchecked
-      expect(checkbox).not.toBeChecked()
-
-      // Click to check
-      await userEvent.click(checkbox!)
+      // Initially checked (included)
       expect(checkbox).toBeChecked()
 
-      // Click to uncheck
+      // Click to uncheck (exclude)
       await userEvent.click(checkbox!)
       expect(checkbox).not.toBeChecked()
+
+      // Click to check again (include)
+      await userEvent.click(checkbox!)
+      expect(checkbox).toBeChecked()
     })
 
     it('hides files within excluded directory', async () => {
@@ -265,7 +341,7 @@ describe('IndexingPreviewModal', () => {
         expect(screen.getByText('src/components/App.tsx')).toBeInTheDocument()
       })
 
-      // Find and click the checkbox for 'src' directory
+      // Find and click the checkbox for 'src' directory to uncheck (exclude)
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
@@ -278,14 +354,14 @@ describe('IndexingPreviewModal', () => {
       expect(screen.getByText('README.md')).toBeInTheDocument()
     })
 
-    it('restores files when directory is unchecked', async () => {
+    it('restores files when directory is re-checked', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
         expect(screen.getByText('src/index.ts')).toBeInTheDocument()
       })
 
-      // Find and click the checkbox for 'src' directory
+      // Find and click the checkbox for 'src' directory to uncheck (exclude)
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
@@ -293,7 +369,7 @@ describe('IndexingPreviewModal', () => {
       // Files should be hidden
       expect(screen.queryByText('src/index.ts')).not.toBeInTheDocument()
 
-      // Uncheck the directory
+      // Check the directory again (re-include)
       await userEvent.click(checkbox!)
 
       // Files should be restored
@@ -302,7 +378,7 @@ describe('IndexingPreviewModal', () => {
     })
   })
 
-  describe('file exclusion', () => {
+  describe('file exclusion (inverted checkbox)', () => {
     it('displays checkbox for each file', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
@@ -316,7 +392,7 @@ describe('IndexingPreviewModal', () => {
       expect(checkbox).toBeInTheDocument()
     })
 
-    it('toggles file exclusion state when checkbox is clicked', async () => {
+    it('unchecking an included file adds to pendingExclusions', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
@@ -328,16 +404,16 @@ describe('IndexingPreviewModal', () => {
       const checkbox = fileRow?.querySelector('input[type="checkbox"]')
       expect(checkbox).toBeInTheDocument()
 
-      // Initially unchecked
-      expect(checkbox).not.toBeChecked()
-
-      // Click to check
-      await userEvent.click(checkbox!)
+      // Initially checked (included)
       expect(checkbox).toBeChecked()
 
-      // Click to uncheck
+      // Click to uncheck (exclude)
       await userEvent.click(checkbox!)
       expect(checkbox).not.toBeChecked()
+
+      // Click to check again (include)
+      await userEvent.click(checkbox!)
+      expect(checkbox).toBeChecked()
     })
 
     it('shows visual indication when file is excluded', async () => {
@@ -347,7 +423,7 @@ describe('IndexingPreviewModal', () => {
         expect(screen.getByText('README.md')).toBeInTheDocument()
       })
 
-      // Find and click the checkbox for 'README.md' file
+      // Find and click the checkbox for 'README.md' file to uncheck (exclude)
       const fileRow = screen.getByText('README.md').closest('div')
       const checkbox = fileRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
@@ -357,33 +433,88 @@ describe('IndexingPreviewModal', () => {
       expect(fileText).toHaveClass('line-through')
     })
 
-    it('clears pending file exclusions when parent directory is checked', async () => {
+    it('clears pending file exclusions when parent directory is unchecked', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
         expect(screen.getByText('src/index.ts')).toBeInTheDocument()
       })
 
-      // First, exclude a file within 'src' directory
+      // First, exclude a file within 'src' directory (uncheck it)
       const fileRow = screen.getByText('src/index.ts').closest('div')
       const fileCheckbox = fileRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(fileCheckbox!)
 
-      // File should be marked as excluded (checkbox checked)
-      expect(fileCheckbox).toBeChecked()
+      // File should be marked as excluded (checkbox unchecked)
+      expect(fileCheckbox).not.toBeChecked()
 
-      // Now exclude the parent directory 'src'
+      // Now exclude the parent directory 'src' (uncheck it)
       const srcRow = screen.getByText('src').closest('div')
       const dirCheckbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(dirCheckbox!)
 
-      // Uncheck the directory to restore files
+      // Re-check the directory to restore files
       await userEvent.click(dirCheckbox!)
 
-      // The file exclusion should have been cleared - file checkbox should be unchecked
+      // The file exclusion should have been cleared - file checkbox should be checked
       const restoredFileRow = screen.getByText('src/index.ts').closest('div')
       const restoredFileCheckbox = restoredFileRow?.querySelector('input[type="checkbox"]')
-      expect(restoredFileCheckbox).not.toBeChecked()
+      expect(restoredFileCheckbox).toBeChecked()
+    })
+  })
+
+  describe('oyaignore re-inclusion', () => {
+    it('checking an oyaignore item adds to pendingInclusions', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('node_modules')).toBeInTheDocument()
+      })
+
+      // Find the checkbox for 'node_modules' (oyaignore item)
+      const nodeModulesRow = screen.getByText('node_modules').closest('div')
+      const checkbox = nodeModulesRow?.querySelector('input[type="checkbox"]')
+      expect(checkbox).toBeInTheDocument()
+
+      // Initially unchecked (excluded by oyaignore)
+      expect(checkbox).not.toBeChecked()
+
+      // Click to check (re-include)
+      await userEvent.click(checkbox!)
+      expect(checkbox).toBeChecked()
+
+      // Click to uncheck again (keep excluded)
+      await userEvent.click(checkbox!)
+      expect(checkbox).not.toBeChecked()
+    })
+
+    it('updates counts when oyaignore items are re-included', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/3 directories/i)).toBeInTheDocument()
+        expect(screen.getByText(/3 files/i)).toBeInTheDocument()
+      })
+
+      // Re-include node_modules (check the checkbox)
+      const nodeModulesRow = screen.getByText('node_modules').closest('div')
+      const dirCheckbox = nodeModulesRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(dirCheckbox!)
+
+      // Directory count should increase by 1
+      await waitFor(() => {
+        expect(screen.getByText(/4 directories/i)).toBeInTheDocument()
+      })
+
+      // Re-include secret.env
+      const secretEnvRow = screen.getByText('secret.env').closest('div')
+      const fileCheckbox = secretEnvRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(fileCheckbox!)
+
+      // File count should increase by 1
+      await waitFor(() => {
+        expect(screen.getByText(/4 files/i)).toBeInTheDocument()
+      })
     })
   })
 
@@ -396,7 +527,7 @@ describe('IndexingPreviewModal', () => {
         expect(screen.getByText(/3 files/i)).toBeInTheDocument()
       })
 
-      // Exclude 'src' directory (which contains 2 files: src/index.ts and src/components/App.tsx)
+      // Exclude 'src' directory by unchecking (which contains 2 files: src/index.ts and src/components/App.tsx)
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
@@ -416,7 +547,7 @@ describe('IndexingPreviewModal', () => {
         expect(screen.getByText(/3 files/i)).toBeInTheDocument()
       })
 
-      // Exclude README.md file
+      // Exclude README.md file by unchecking
       const fileRow = screen.getByText('README.md').closest('div')
       const checkbox = fileRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
@@ -428,106 +559,210 @@ describe('IndexingPreviewModal', () => {
     })
   })
 
-  describe('save with confirmation', () => {
-    it('shows confirmation dialog when save button is clicked with exclusions', async () => {
+  describe('generate wiki with confirmation', () => {
+    it('shows confirmation dialog when Generate Wiki button is clicked', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
+
+      // Confirmation dialog should appear (dialog title as h3)
+      expect(screen.getByRole('heading', { name: 'Generate Wiki' })).toBeInTheDocument()
+    })
+
+    it('shows summary of files to be indexed in confirmation dialog', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
+
+      // Summary should show the file count
+      expect(screen.getByText(/3 files will be indexed/i)).toBeInTheDocument()
+    })
+
+    it('shows oyaignore update note when there are changes', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Exclude a directory by unchecking
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Confirmation dialog should appear
-      expect(screen.getByText(/confirm exclusions/i)).toBeInTheDocument()
+      // Should show oyaignore update note
+      expect(screen.getByText(/\.oyaignore will be updated/i)).toBeInTheDocument()
     })
 
-    it('shows summary of exclusions in confirmation dialog', async () => {
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+    it('calls onGenerate and onClose on confirm without changes', async () => {
+      const onClose = vi.fn()
+      const onGenerate = vi.fn()
+
+      render(
+        <IndexingPreviewModal
+          {...defaultProps}
+          isOpen={true}
+          onClose={onClose}
+          onGenerate={onGenerate}
+        />
+      )
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory and a file
-      const srcRow = screen.getByText('src').closest('div')
-      const dirCheckbox = srcRow?.querySelector('input[type="checkbox"]')
-      await userEvent.click(dirCheckbox!)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
+      await userEvent.click(confirmButton)
 
-      // Summary should show the exclusions in the confirmation dialog
-      expect(screen.getByText('Confirm Exclusions')).toBeInTheDocument()
-      // The dialog should show "1 directory" in the list
-      const confirmDialog = screen.getByText('Confirm Exclusions').closest('div')
-      expect(confirmDialog).toBeInTheDocument()
+      // onGenerate should be called
+      await waitFor(() => {
+        expect(onGenerate).toHaveBeenCalled()
+      })
+
+      // Modal should close
+      expect(onClose).toHaveBeenCalled()
+
+      // API should NOT be called when no changes
+      expect(api.updateOyaignore).not.toHaveBeenCalled()
     })
 
-    it('calls API and closes modal on confirm', async () => {
+    it('calls API with changes, onGenerate, and onClose on confirm', async () => {
       const onClose = vi.fn()
+      const onGenerate = vi.fn()
       vi.mocked(api.updateOyaignore).mockResolvedValue({
         added_directories: ['src/'],
         added_files: [],
+        removed: [],
         total_added: 1,
+        total_removed: 0,
       })
 
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+      render(
+        <IndexingPreviewModal
+          {...defaultProps}
+          isOpen={true}
+          onClose={onClose}
+          onGenerate={onGenerate}
+        />
+      )
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory
+      // Exclude a directory by unchecking
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Click confirm in dialog
-      const confirmButton = screen.getByRole('button', { name: /confirm/i })
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
       await userEvent.click(confirmButton)
 
-      // API should be called
+      // API should be called with correct structure
       await waitFor(() => {
         expect(api.updateOyaignore).toHaveBeenCalledWith({
           directories: ['src'],
           files: [],
+          removals: [],
         })
       })
+
+      // onGenerate should be called
+      expect(onGenerate).toHaveBeenCalled()
 
       // Modal should close
       expect(onClose).toHaveBeenCalled()
     })
 
-    it('does not call API when cancel is clicked in confirmation', async () => {
-      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+    it('includes removals when re-including oyaignore items', async () => {
+      const onClose = vi.fn()
+      const onGenerate = vi.fn()
+      vi.mocked(api.updateOyaignore).mockResolvedValue({
+        added_directories: [],
+        added_files: [],
+        removed: ['node_modules'],
+        total_added: 0,
+        total_removed: 1,
+      })
+
+      render(
+        <IndexingPreviewModal
+          {...defaultProps}
+          isOpen={true}
+          onClose={onClose}
+          onGenerate={onGenerate}
+        />
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('node_modules')).toBeInTheDocument()
+      })
+
+      // Re-include node_modules by checking
+      const nodeModulesRow = screen.getByText('node_modules').closest('div')
+      const checkbox = nodeModulesRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(checkbox!)
+
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
+
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
+      await userEvent.click(confirmButton)
+
+      // API should be called with removals
+      await waitFor(() => {
+        expect(api.updateOyaignore).toHaveBeenCalledWith({
+          directories: [],
+          files: [],
+          removals: ['node_modules'],
+        })
+      })
+
+      // onGenerate should be called
+      expect(onGenerate).toHaveBeenCalled()
+    })
+
+    it('does not call API or onGenerate when cancel is clicked in confirmation', async () => {
+      const onGenerate = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onGenerate={onGenerate} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory
-      const srcRow = screen.getByText('src').closest('div')
-      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
-      await userEvent.click(checkbox!)
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
 
-      // Click save button
-      const saveButton = screen.getByRole('button', { name: /save/i })
-      await userEvent.click(saveButton)
-
-      // Click cancel in dialog (the second Cancel button, in the confirmation dialog)
+      // Click Cancel in dialog
       const cancelButtons = screen.getAllByRole('button', { name: /cancel/i })
       // The confirmation dialog's cancel button is the last one
       await userEvent.click(cancelButtons[cancelButtons.length - 1])
@@ -535,14 +770,18 @@ describe('IndexingPreviewModal', () => {
       // API should not be called
       expect(api.updateOyaignore).not.toHaveBeenCalled()
 
+      // onGenerate should not be called
+      expect(onGenerate).not.toHaveBeenCalled()
+
       // Confirmation dialog should close but modal stays open
-      expect(screen.queryByText(/confirm exclusions/i)).not.toBeInTheDocument()
+      // The dialog title should be gone (but Generate Wiki button still exists)
+      expect(screen.queryByRole('heading', { name: 'Generate Wiki' })).not.toBeInTheDocument()
       expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
     })
   })
 
-  describe('cancel/discard behavior', () => {
-    it('closes modal without saving when cancel button is clicked', async () => {
+  describe('unsaved changes warning', () => {
+    it('shows unsaved warning when closing with pending changes', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
 
@@ -550,14 +789,43 @@ describe('IndexingPreviewModal', () => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory
+      // Exclude a directory by unchecking
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Click cancel button (in footer, not confirmation dialog)
+      // Click cancel button (in footer)
       const cancelButton = screen.getByRole('button', { name: /cancel/i })
       await userEvent.click(cancelButton)
+
+      // Unsaved changes warning should appear
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument()
+      expect(screen.getByText(/exclusion changes that haven't been saved/i)).toBeInTheDocument()
+
+      // Modal should not close yet
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('closes modal when discarding changes in warning dialog', async () => {
+      const onClose = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Exclude a directory by unchecking
+      const srcRow = screen.getByText('src').closest('div')
+      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(checkbox!)
+
+      // Click cancel button (in footer)
+      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      await userEvent.click(cancelButton)
+
+      // Click Discard Changes in warning dialog
+      const discardButton = screen.getByRole('button', { name: /discard changes/i })
+      await userEvent.click(discardButton)
 
       // Modal should close
       expect(onClose).toHaveBeenCalled()
@@ -566,7 +834,7 @@ describe('IndexingPreviewModal', () => {
       expect(api.updateOyaignore).not.toHaveBeenCalled()
     })
 
-    it('closes modal without saving when clicking outside', async () => {
+    it('keeps modal open when choosing Keep Editing in warning dialog', async () => {
       const onClose = vi.fn()
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
 
@@ -574,7 +842,36 @@ describe('IndexingPreviewModal', () => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory
+      // Exclude a directory by unchecking
+      const srcRow = screen.getByText('src').closest('div')
+      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(checkbox!)
+
+      // Click cancel button (in footer)
+      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      await userEvent.click(cancelButton)
+
+      // Click Keep Editing in warning dialog
+      const keepEditingButton = screen.getByRole('button', { name: /keep editing/i })
+      await userEvent.click(keepEditingButton)
+
+      // Warning dialog should close
+      expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument()
+
+      // Modal should stay open
+      expect(onClose).not.toHaveBeenCalled()
+      expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+    })
+
+    it('shows unsaved warning when clicking outside with pending changes', async () => {
+      const onClose = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // Exclude a directory by unchecking
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
@@ -583,42 +880,69 @@ describe('IndexingPreviewModal', () => {
       const backdrop = screen.getByTestId('modal-backdrop')
       await userEvent.click(backdrop)
 
-      // Modal should close
-      expect(onClose).toHaveBeenCalled()
+      // Unsaved changes warning should appear
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument()
 
-      // API should not be called
-      expect(api.updateOyaignore).not.toHaveBeenCalled()
+      // Modal should not close yet
+      expect(onClose).not.toHaveBeenCalled()
     })
 
-    it('discards pending exclusions when modal is closed and reopened', async () => {
-      const { rerender } = render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+    it('shows unsaved warning when clicking close button with pending changes', async () => {
+      const onClose = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // Exclude a directory
+      // Exclude a directory by unchecking
       const srcRow = screen.getByText('src').closest('div')
       const checkbox = srcRow?.querySelector('input[type="checkbox"]')
       await userEvent.click(checkbox!)
 
-      // Verify it's checked
-      expect(checkbox).toBeChecked()
+      // Click close button (X button in header)
+      const closeButton = screen.getByLabelText('Close')
+      await userEvent.click(closeButton)
 
-      // Close the modal
-      rerender(<IndexingPreviewModal {...defaultProps} isOpen={false} />)
+      // Unsaved changes warning should appear
+      expect(screen.getByText('Unsaved Changes')).toBeInTheDocument()
 
-      // Reopen the modal
-      rerender(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+      // Modal should not close yet
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('discards pending changes when modal is closed and reopened', async () => {
+      const onClose = vi.fn()
+      const { rerender } = render(
+        <IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />
+      )
 
       await waitFor(() => {
         expect(screen.getByText('src')).toBeInTheDocument()
       })
 
-      // The checkbox should be unchecked (exclusions discarded)
+      // Exclude a directory by unchecking
+      const srcRow = screen.getByText('src').closest('div')
+      const checkbox = srcRow?.querySelector('input[type="checkbox"]')
+      await userEvent.click(checkbox!)
+
+      // Verify it's unchecked (excluded)
+      expect(checkbox).not.toBeChecked()
+
+      // Close the modal (simulating actual close after discard)
+      rerender(<IndexingPreviewModal {...defaultProps} isOpen={false} onClose={onClose} />)
+
+      // Reopen the modal
+      rerender(<IndexingPreviewModal {...defaultProps} isOpen={true} onClose={onClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
+
+      // The checkbox should be checked (changes discarded, back to included)
       const newSrcRow = screen.getByText('src').closest('div')
       const newCheckbox = newSrcRow?.querySelector('input[type="checkbox"]')
-      expect(newCheckbox).not.toBeChecked()
+      expect(newCheckbox).toBeChecked()
     })
   })
 })
