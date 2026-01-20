@@ -7,7 +7,7 @@ directory summaries into a coherent codebase understanding map (SynthesisMap).
 import json
 import logging
 
-from oya.config import load_settings
+from oya.config import ConfigError, load_settings
 from oya.generation.summaries import (
     ComponentInfo,
     DirectorySummary,
@@ -47,7 +47,7 @@ class SynthesisGenerator:
             try:
                 settings = load_settings()
                 context_limit = settings.generation.context_limit
-            except (ValueError, OSError):
+            except (ValueError, OSError, ConfigError):
                 # Settings not available (e.g., WORKSPACE_PATH not set in tests)
                 context_limit = 100_000  # Default from CONFIG_SCHEMA
         self.context_limit = context_limit
@@ -131,7 +131,7 @@ class SynthesisGenerator:
             try:
                 settings = load_settings()
                 temperature = settings.generation.temperature
-            except (ValueError, OSError):
+            except (ValueError, OSError, ConfigError):
                 # Settings not available (e.g., WORKSPACE_PATH not set in tests)
                 temperature = 0.3  # Default from CONFIG_SCHEMA
             response = await self.llm_client.generate(
@@ -241,7 +241,7 @@ class SynthesisGenerator:
         try:
             settings = load_settings()
             tokens_per_char = settings.generation.tokens_per_char
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             tokens_per_char = 0.25  # Default from CONFIG_SCHEMA
         return int(total_chars * tokens_per_char)

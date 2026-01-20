@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from oya.config import load_settings
+from oya.config import ConfigError, load_settings
 from oya.generation.prompts import format_cgrag_prompt
 from oya.graph.models import Subgraph
 from oya.graph.query import get_neighborhood
@@ -224,7 +224,7 @@ async def run_cgrag_loop(
     try:
         settings = load_settings()
         max_passes = settings.ask.cgrag_max_passes
-    except (ValueError, OSError):
+    except (ValueError, OSError, ConfigError):
         # Settings not available (e.g., WORKSPACE_PATH not set in tests)
         max_passes = 3  # Default from CONFIG_SCHEMA
 
@@ -332,7 +332,7 @@ async def _retrieve_for_gap(
         try:
             settings = load_settings()
             top_k = settings.ask.cgrag_targeted_top_k
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             top_k = 3  # Default from CONFIG_SCHEMA
         raw_results = vectorstore.query(query_text=gap, n_results=top_k)

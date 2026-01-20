@@ -42,7 +42,7 @@ from oya.generation.workflows import (
     extract_entry_point_description,
     find_entry_points,
 )
-from oya.config import load_settings
+from oya.config import ConfigError, load_settings
 from oya.parsing.fallback_parser import FallbackParser
 from oya.parsing.models import ParsedSymbol
 from oya.parsing.registry import ParserRegistry
@@ -751,7 +751,7 @@ class GenerationOrchestrator:
             try:
                 settings = load_settings()
                 progress_interval = settings.generation.progress_report_interval
-            except (ValueError, OSError):
+            except (ValueError, OSError, ConfigError):
                 # Settings not available (e.g., WORKSPACE_PATH not set in tests)
                 progress_interval = 1  # Default from CONFIG_SCHEMA
             if (idx + 1) % progress_interval == 0 or idx == total_files - 1:

@@ -7,7 +7,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from oya.config import load_settings
+from oya.config import ConfigError, load_settings
 from oya.graph.models import Node, Subgraph
 
 
@@ -42,7 +42,7 @@ class CGRAGSession:
         try:
             settings = load_settings()
             max_nodes = settings.ask.cgrag_session_max_nodes
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             max_nodes = 50  # Default from CONFIG_SCHEMA
         while len(self.cached_nodes) > max_nodes:
@@ -65,7 +65,7 @@ class CGRAGSession:
         try:
             settings = load_settings()
             ttl_minutes = settings.ask.cgrag_session_ttl_minutes
-        except (ValueError, OSError):
+        except (ValueError, OSError, ConfigError):
             # Settings not available (e.g., WORKSPACE_PATH not set in tests)
             ttl_minutes = 30  # Default from CONFIG_SCHEMA
         expiry = self.last_accessed + timedelta(minutes=ttl_minutes)
