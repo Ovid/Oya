@@ -157,7 +157,7 @@ def get_issues_store() -> IssuesStore:
     global _issues_store
     if _issues_store is None:
         settings = get_settings()
-        persist_path = settings.workspace_path / ".oyawiki" / "vectorstore"
+        persist_path = settings.oyawiki_path / "vectorstore"
         _issues_store = IssuesStore(persist_path)
     return _issues_store
 
