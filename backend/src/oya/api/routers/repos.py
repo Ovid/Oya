@@ -111,6 +111,7 @@ def _build_repo_status(
     else:
         # Fallback for cases where settings isn't available yet
         from oya.config import load_settings as _load_settings
+
         _settings = _load_settings()
         meta_path = _settings.oyawiki_path / "meta"
         wiki_path = _settings.wiki_path

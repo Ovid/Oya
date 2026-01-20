@@ -55,7 +55,13 @@ CONFIG_SCHEMA: dict[str, dict[str, tuple[type, Any, Any, Any, str]]] = {
         "strong_match_threshold": (float, 0.5, 0.0, 1.0, "Threshold for strong match"),
         "min_strong_matches": (int, 3, 1, 20, "Minimum strong matches for high confidence"),
         "graph_expansion_hops": (int, 2, 0, 5, "Graph traversal depth"),
-        "graph_expansion_confidence_threshold": (float, 0.5, 0.0, 1.0, "Confidence threshold for graph expansion"),
+        "graph_expansion_confidence_threshold": (
+            float,
+            0.5,
+            0.0,
+            1.0,
+            "Confidence threshold for graph expansion",
+        ),
         "graph_mermaid_token_budget": (int, 500, 100, 2000, "Token budget for mermaid diagrams"),
         "cgrag_max_passes": (int, 3, 1, 10, "Maximum CGRAG retrieval passes"),
         "cgrag_session_ttl_minutes": (int, 30, 5, 120, "CGRAG session timeout"),
@@ -195,8 +201,7 @@ def _load_section(
                     value = raw_value
             except ValueError as e:
                 raise ConfigError(
-                    f"Invalid value for [{section}].{key}: {raw_value!r} "
-                    f"(expected {typ.__name__})"
+                    f"Invalid value for [{section}].{key}: {raw_value!r} (expected {typ.__name__})"
                 ) from e
         else:
             value = default
@@ -205,13 +210,11 @@ def _load_section(
         if typ in (int, float) and value is not None:
             if min_val is not None and value < min_val:
                 raise ConfigError(
-                    f"Value for [{section}].{key} is {value}, "
-                    f"but minimum is {min_val}"
+                    f"Value for [{section}].{key} is {value}, but minimum is {min_val}"
                 )
             if max_val is not None and value > max_val:
                 raise ConfigError(
-                    f"Value for [{section}].{key} is {value}, "
-                    f"but maximum is {max_val}"
+                    f"Value for [{section}].{key} is {value}, but maximum is {max_val}"
                 )
 
         result[key] = value
@@ -499,9 +502,7 @@ def load_settings() -> Config:
         parallel_file_limit = base_config.files.parallel_limit_cloud
 
     # Get max_file_size_kb from env or config
-    max_file_size_kb = int(
-        os.getenv("MAX_FILE_SIZE_KB", str(base_config.files.max_file_size_kb))
-    )
+    max_file_size_kb = int(os.getenv("MAX_FILE_SIZE_KB", str(base_config.files.max_file_size_kb)))
 
     return Config(
         workspace_path=workspace_path,

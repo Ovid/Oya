@@ -99,6 +99,7 @@ class FileFilter:
         default_max_file_size_kb = 500  # Default from CONFIG_SCHEMA
         try:
             from oya.config import load_settings
+
             settings = load_settings()
             ignore_filename = settings.paths.ignore_file
             default_max_file_size_kb = settings.files.max_file_size_kb
@@ -211,6 +212,7 @@ class FileFilter:
             minified_threshold = 500  # Default
             try:
                 from oya.config import load_settings
+
                 settings = load_settings()
                 minified_threshold = settings.files.minified_line_length
             except (ValueError, OSError):

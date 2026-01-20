@@ -43,6 +43,7 @@ def initialize_workspace(workspace_path: Path) -> bool:
     wiki_dir = ".oyawiki"  # Default
     try:
         from oya.config import load_settings
+
         settings = load_settings()
         wiki_dir = settings.paths.wiki_dir
     except (ValueError, OSError):
