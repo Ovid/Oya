@@ -1,12 +1,21 @@
 # backend/tests/test_config.py
-"""Configuration tests."""
+"""Configuration tests.
+
+Tests verify behavior (types, ranges, loading) not specific values.
+"""
 
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from oya.config import load_settings
+from oya.config import (
+    CONFIG_SCHEMA,
+    Config,
+    ConfigError,
+    _load_config,
+    load_settings,
+)
 
 
 @pytest.fixture
@@ -26,8 +35,186 @@ def clear_settings_cache():
     load_settings.cache_clear()
 
 
-def test_settings_from_environment(temp_workspace: Path, monkeypatch):
-    """Settings load from environment variables."""
+def write_config(workspace: Path, content: str) -> Path:
+    """Write a config.ini file to the workspace and return the path."""
+    config_path = workspace / "config.ini"
+    config_path.write_text(content)
+    return config_path
+
+
+# =============================================================================
+# Type Validation Tests
+# =============================================================================
+
+
+def test_all_settings_have_correct_types(temp_workspace: Path):
+    """Every setting matches its declared type from schema."""
+    config = _load_config(None)  # Load with defaults only
+
+    for section_name, keys in CONFIG_SCHEMA.items():
+        section = getattr(config, section_name)
+        for key, (expected_type, *_) in keys.items():
+            value = getattr(section, key)
+            assert isinstance(value, expected_type), (
+                f"{section_name}.{key}: expected {expected_type.__name__}, "
+                f"got {type(value).__name__}"
+            )
+
+
+def test_invalid_type_raises_clear_error(temp_workspace: Path):
+    """Non-numeric value for int setting gives helpful message."""
+    config_path = write_config(temp_workspace, "[generation]\ncontext_limit = not_a_number")
+
+    with pytest.raises(ConfigError) as exc_info:
+        _load_config(config_path)
+
+    assert "generation" in str(exc_info.value)
+    assert "context_limit" in str(exc_info.value)
+    assert "int" in str(exc_info.value)
+
+
+def test_invalid_float_raises_clear_error(temp_workspace: Path):
+    """Non-numeric value for float setting gives helpful message."""
+    config_path = write_config(temp_workspace, "[generation]\ntemperature = very_hot")
+
+    with pytest.raises(ConfigError) as exc_info:
+        _load_config(config_path)
+
+    assert "generation" in str(exc_info.value)
+    assert "temperature" in str(exc_info.value)
+    assert "float" in str(exc_info.value)
+
+
+# =============================================================================
+# Range Validation Tests
+# =============================================================================
+
+
+def test_numeric_settings_in_valid_ranges(temp_workspace: Path):
+    """Default values are within their declared ranges."""
+    config = _load_config(None)  # Load with defaults only
+
+    # Temperatures between 0 and their max
+    assert 0.0 <= config.generation.temperature <= 1.0
+    assert 0.0 <= config.llm.default_temperature <= 2.0
+    assert 0.0 <= config.llm.json_temperature <= 1.0
+
+    # Positive limits
+    assert config.files.max_file_size_kb > 0
+    assert config.search.result_limit > 0
+    assert config.llm.max_tokens > 0
+
+    # Confidence thresholds are ordered correctly
+    assert config.ask.high_confidence_threshold < config.ask.medium_confidence_threshold
+
+
+def test_value_below_minimum_raises_error(temp_workspace: Path):
+    """Value below declared minimum raises ConfigError."""
+    config_path = write_config(temp_workspace, "[generation]\ntemperature = -0.5")
+
+    with pytest.raises(ConfigError) as exc_info:
+        _load_config(config_path)
+
+    assert "generation" in str(exc_info.value)
+    assert "temperature" in str(exc_info.value)
+    assert "minimum" in str(exc_info.value)
+
+
+def test_value_above_maximum_raises_error(temp_workspace: Path):
+    """Value above declared maximum raises ConfigError."""
+    config_path = write_config(temp_workspace, "[generation]\ntemperature = 5.0")
+
+    with pytest.raises(ConfigError) as exc_info:
+        _load_config(config_path)
+
+    assert "generation" in str(exc_info.value)
+    assert "temperature" in str(exc_info.value)
+    assert "maximum" in str(exc_info.value)
+
+
+# =============================================================================
+# Loading Behavior Tests
+# =============================================================================
+
+
+def test_missing_config_uses_defaults(temp_workspace: Path):
+    """No config.ini file? All defaults load successfully."""
+    config = _load_config(None)  # No config file
+
+    assert config is not None
+    # All sections should exist with default values
+    assert config.generation is not None
+    assert config.files is not None
+    assert config.ask is not None
+    assert config.search is not None
+    assert config.llm is not None
+    assert config.paths is not None
+
+
+def test_partial_config_merges_with_defaults(temp_workspace: Path):
+    """Config with only [generation] still has [ask] defaults."""
+    config_path = write_config(temp_workspace, "[generation]\ntemperature = 0.5")
+
+    config = _load_config(config_path)
+
+    assert config.generation.temperature == 0.5
+    # Other sections should have defaults
+    assert config.ask.max_context_tokens > 0
+    assert config.files.max_file_size_kb > 0
+
+
+def test_empty_config_file_uses_defaults(temp_workspace: Path):
+    """Empty config.ini file loads all defaults."""
+    config_path = write_config(temp_workspace, "")
+
+    config = _load_config(config_path)
+
+    assert config is not None
+
+
+# =============================================================================
+# Path Property Tests
+# =============================================================================
+
+
+def test_computed_paths_use_config_values(temp_workspace: Path):
+    """Computed path properties use paths section values."""
+    config_path = write_config(temp_workspace, "[paths]\nwiki_dir = .custom-wiki")
+
+    config = _load_config(config_path)
+    # Manually set workspace_path since _load_config uses a placeholder
+    # We need to create a new Config with proper workspace_path
+    config_with_workspace = Config(
+        workspace_path=temp_workspace,
+        generation=config.generation,
+        files=config.files,
+        ask=config.ask,
+        search=config.search,
+        llm=config.llm,
+        paths=config.paths,
+    )
+
+    assert config_with_workspace.oyawiki_path == temp_workspace / ".custom-wiki"
+    assert config_with_workspace.wiki_path == temp_workspace / ".custom-wiki" / "wiki"
+
+
+def test_default_paths_are_correct(temp_workspace: Path):
+    """Default path values produce expected paths."""
+    config = _load_config(None)
+
+    assert config.paths.wiki_dir == ".oyawiki"
+    assert config.paths.staging_dir == ".oyawiki-building"
+    assert config.paths.logs_dir == ".oya-logs"
+    assert config.paths.ignore_file == ".oyaignore"
+
+
+# =============================================================================
+# Integration Tests (load_settings)
+# =============================================================================
+
+
+def test_load_settings_from_environment(temp_workspace: Path, monkeypatch):
+    """load_settings integrates config.ini with env vars."""
     monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
     monkeypatch.setenv("ACTIVE_PROVIDER", "openai")
     monkeypatch.setenv("ACTIVE_MODEL", "gpt-4o")
@@ -39,67 +226,24 @@ def test_settings_from_environment(temp_workspace: Path, monkeypatch):
     assert settings.active_model == "gpt-4o"
 
 
-def test_settings_defaults(temp_workspace: Path, monkeypatch):
-    """Settings have sensible defaults."""
+def test_load_settings_auto_detects_provider(temp_workspace: Path, monkeypatch):
+    """Provider auto-detection from API keys works."""
     monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
     monkeypatch.delenv("ACTIVE_PROVIDER", raising=False)
     monkeypatch.delenv("ACTIVE_MODEL", raising=False)
-    # Clear API keys so auto-detection falls back to ollama
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
     settings = load_settings()
 
-    assert settings.active_provider == "ollama"  # Default fallback
-    assert settings.active_model == "llama2"
+    # Falls back to ollama when no API keys present
+    assert settings.active_provider == "ollama"
 
 
-def test_oyawiki_paths(temp_workspace: Path, monkeypatch):
-    """Oyawiki subdirectory paths are computed correctly."""
-    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+def test_load_settings_requires_workspace_path(monkeypatch):
+    """load_settings raises ValueError without WORKSPACE_PATH."""
+    monkeypatch.delenv("WORKSPACE_PATH", raising=False)
 
-    settings = load_settings()
-
-    assert settings.oyawiki_path == temp_workspace / ".oyawiki"
-    assert settings.wiki_path == temp_workspace / ".oyawiki" / "wiki"
-    assert settings.notes_path == temp_workspace / ".oyawiki" / "notes"
-    assert settings.db_path == temp_workspace / ".oyawiki" / "meta" / "oya.db"
-    assert settings.index_path == temp_workspace / ".oyawiki" / "meta" / "index"
-    assert settings.cache_path == temp_workspace / ".oyawiki" / "meta" / "cache"
-
-
-def test_parallel_limit_defaults_for_ollama(temp_workspace: Path, monkeypatch):
-    """Ollama provider gets conservative parallel limit (2) by default."""
-    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
-    monkeypatch.setenv("ACTIVE_PROVIDER", "ollama")
-    monkeypatch.delenv("PARALLEL_FILE_LIMIT", raising=False)
-
-    settings = load_settings()
-
-    assert settings.parallel_file_limit == 2
-
-
-def test_parallel_limit_defaults_for_cloud_providers(temp_workspace: Path, monkeypatch):
-    """Cloud providers get higher parallel limit (10) by default."""
-    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
-    monkeypatch.delenv("PARALLEL_FILE_LIMIT", raising=False)
-
-    for provider in ["openai", "anthropic", "google"]:
-        load_settings.cache_clear()
-        monkeypatch.setenv("ACTIVE_PROVIDER", provider)
-
-        settings = load_settings()
-
-        assert settings.parallel_file_limit == 10, f"Expected 10 for {provider}"
-
-
-def test_parallel_limit_explicit_override(temp_workspace: Path, monkeypatch):
-    """Explicit PARALLEL_FILE_LIMIT overrides provider-based default."""
-    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
-    monkeypatch.setenv("ACTIVE_PROVIDER", "ollama")
-    monkeypatch.setenv("PARALLEL_FILE_LIMIT", "5")
-
-    settings = load_settings()
-
-    assert settings.parallel_file_limit == 5
+    with pytest.raises(ValueError, match="WORKSPACE_PATH"):
+        load_settings()

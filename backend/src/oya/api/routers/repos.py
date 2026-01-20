@@ -104,7 +104,18 @@ def _build_repo_status(
     current_model = settings.active_model if settings else None
     last_generation = _get_last_generation(db)
 
-    meta_path = workspace_path / ".oyawiki" / "meta"
+    # Use settings for paths if available, otherwise compute from workspace_path
+    if settings:
+        meta_path = settings.oyawiki_path / "meta"
+        wiki_path = settings.wiki_path
+    else:
+        # Fallback for cases where settings isn't available yet
+        from oya.config import load_settings as _load_settings
+
+        _settings = _load_settings()
+        meta_path = _settings.oyawiki_path / "meta"
+        wiki_path = _settings.wiki_path
+
     if meta_path.exists():
         # Create a temporary indexing service just to read metadata
         try:
@@ -112,7 +123,7 @@ def _build_repo_status(
             indexing_service = IndexingService(
                 vectorstore=None,  # type: ignore
                 db=None,  # type: ignore
-                wiki_path=workspace_path / ".oyawiki" / "wiki",
+                wiki_path=wiki_path,
                 meta_path=meta_path,
             )
             raw_metadata = indexing_service.get_embedding_metadata()
@@ -257,8 +268,7 @@ async def update_oyaignore(
 
     Requirements: 5.6, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
     """
-    workspace_path = settings.workspace_path
-    oyaignore_path = workspace_path / ".oyaignore"
+    oyaignore_path = settings.ignore_path
 
     try:
         # Read existing content, preserving order but tracking for deduplication

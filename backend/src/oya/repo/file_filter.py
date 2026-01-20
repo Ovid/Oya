@@ -2,8 +2,7 @@
 
 import fnmatch
 from pathlib import Path
-
-from oya.constants.files import MINIFIED_AVG_LINE_LENGTH
+from typing import Optional
 
 
 def extract_directories_from_files(files: list[str]) -> list[str]:
@@ -81,17 +80,36 @@ class FileFilter:
     def __init__(
         self,
         repo_path: Path,
-        max_file_size_kb: int = 500,
+        max_file_size_kb: Optional[int] = None,
         extra_excludes: list[str] | None = None,
+        ignore_path: Optional[Path] = None,
     ):
         """Initialize file filter.
 
         Args:
             repo_path: Path to repository root.
-            max_file_size_kb: Maximum file size in KB.
+            max_file_size_kb: Maximum file size in KB. If None, uses settings or default (500).
             extra_excludes: Additional exclude patterns.
+            ignore_path: Path to ignore file. If None, uses repo_path with ignore filename from settings.
         """
         self.repo_path = repo_path
+
+        # Get defaults from settings if available
+        ignore_filename = ".oyaignore"  # Default
+        default_max_file_size_kb = 500  # Default from CONFIG_SCHEMA
+        try:
+            from oya.config import ConfigError, load_settings
+
+            settings = load_settings()
+            ignore_filename = settings.paths.ignore_file
+            default_max_file_size_kb = settings.files.max_file_size_kb
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            pass
+
+        # Get max_file_size_kb from settings if not provided
+        if max_file_size_kb is None:
+            max_file_size_kb = default_max_file_size_kb
         self.max_file_size_bytes = max_file_size_kb * 1024
 
         # Build exclude patterns
@@ -99,10 +117,13 @@ class FileFilter:
         if extra_excludes:
             self.exclude_patterns.extend(extra_excludes)
 
-        # Load .oyaignore if exists (in root directory, not .oyawiki)
-        oyaignore = repo_path / ".oyaignore"
-        if oyaignore.exists():
-            for line in oyaignore.read_text().splitlines():
+        # Determine ignore file path - always relative to repo_path
+        if ignore_path is None:
+            ignore_path = repo_path / ignore_filename
+
+        # Load ignore file if exists (in root directory, not .oyawiki)
+        if ignore_path.exists():
+            for line in ignore_path.read_text().splitlines():
                 line = line.strip()
                 if line and not line.startswith("#"):
                     self.exclude_patterns.append(line)
@@ -187,7 +208,16 @@ class FileFilter:
             if not lines:
                 return False
             avg_length = sum(len(line) for line in lines) / len(lines)
-            return avg_length > MINIFIED_AVG_LINE_LENGTH
+            # Get minified threshold from settings if available
+            minified_threshold = 500  # Default
+            try:
+                from oya.config import ConfigError, load_settings
+
+                settings = load_settings()
+                minified_threshold = settings.files.minified_line_length
+            except (ValueError, OSError, ConfigError):
+                pass  # Settings not available, use default
+            return avg_length > minified_threshold
         except Exception:
             return False
 

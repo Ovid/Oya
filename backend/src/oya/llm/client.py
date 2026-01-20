@@ -9,7 +9,7 @@ from pathlib import Path
 
 from litellm import acompletion
 
-from oya.constants.llm import DEFAULT_TEMPERATURE, JSON_TEMPERATURE, MAX_TOKENS
+from oya.config import ConfigError, load_settings
 from litellm.exceptions import (
     APIConnectionError,
     APIError,
@@ -196,8 +196,8 @@ class LLMClient:
         self,
         prompt: str,
         system_prompt: str | None = None,
-        temperature: float = DEFAULT_TEMPERATURE,
-        max_tokens: int = MAX_TOKENS,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Generate completion from prompt.
 
@@ -210,6 +210,20 @@ class LLMClient:
         Returns:
             Generated text response.
         """
+        if temperature is None or max_tokens is None:
+            try:
+                settings = load_settings()
+                if temperature is None:
+                    temperature = settings.llm.default_temperature
+                if max_tokens is None:
+                    max_tokens = settings.llm.max_tokens
+            except (ValueError, OSError, ConfigError):
+                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                if temperature is None:
+                    temperature = 0.7  # Default from CONFIG_SCHEMA
+                if max_tokens is None:
+                    max_tokens = 8192  # Default from CONFIG_SCHEMA
+
         messages = []
 
         if system_prompt:
@@ -302,8 +316,8 @@ class LLMClient:
         self,
         prompt: str,
         system_prompt: str | None = None,
-        temperature: float = DEFAULT_TEMPERATURE,
-        max_tokens: int = MAX_TOKENS,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> AsyncGenerator[str, None]:
         """Generate completion with streaming tokens.
 
@@ -316,6 +330,20 @@ class LLMClient:
         Yields:
             Individual tokens as they are generated.
         """
+        if temperature is None or max_tokens is None:
+            try:
+                settings = load_settings()
+                if temperature is None:
+                    temperature = settings.llm.default_temperature
+                if max_tokens is None:
+                    max_tokens = settings.llm.max_tokens
+            except (ValueError, OSError, ConfigError):
+                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                if temperature is None:
+                    temperature = 0.7  # Default from CONFIG_SCHEMA
+                if max_tokens is None:
+                    max_tokens = 8192  # Default from CONFIG_SCHEMA
+
         messages = []
 
         if system_prompt:
@@ -392,9 +420,15 @@ class LLMClient:
         Returns:
             Generated JSON string.
         """
+        try:
+            settings = load_settings()
+            json_temperature = settings.llm.json_temperature
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            json_temperature = 0.3  # Default from CONFIG_SCHEMA
         full_system = (system_prompt or "") + "\n\nRespond with valid JSON only."
         return await self.generate(
             prompt,
             system_prompt=full_system.strip(),
-            temperature=JSON_TEMPERATURE,
+            temperature=json_temperature,
         )

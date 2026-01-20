@@ -1,5 +1,22 @@
 # TODO
 
+* Generate Wiki
+    * Remove "Preview" button in top bar.
+    * Show modal with preview on Generate, but now all files/directories are
+      checked and "included." Unchecking one will exclude it. Also make it
+      clear which files are excluded via rules (those cannot be included) and
+      via .oyaignore (we should be able to include those, and make it clear
+      that .oyaignore will be rewritten).
+    * There will always be a button availabe in modal to regenerate wiki.
+      Generation does not start until that button is clicked, but now there's
+      going to be a confirmation dialog. Reuse confirmation logic already in
+      system.
+    * While regenerating, the "Ask" Q&A functionality must be disabled.
+* Investigate RLM (Recursive Language Models for "unlimited" context)
+    * https://arxiv.org/abs/2512.24601
+    * https://www.youtube.com/watch?v=huszaaJPjU8
+* CLI? "oya ask 'How does X work?'"
+* Need to start a proper ChangeLog.
 * We're using ChromaDB's default embeddings. That's OK for prototyping, but
   for prod, we need users to be able to specify the embedding model they want.
 * "Ask" should be disabled while generating wiki

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 
-from oya.constants.generation import CHUNK_OVERLAP_LINES, MAX_CHUNK_TOKENS
+from oya.config import ConfigError, load_settings
 from oya.parsing.models import ParsedSymbol
 
 
@@ -46,8 +46,8 @@ def estimate_tokens(text: str) -> int:
 def chunk_file_content(
     content: str,
     file_path: str,
-    max_tokens: int = MAX_CHUNK_TOKENS,
-    overlap_lines: int = CHUNK_OVERLAP_LINES,
+    max_tokens: int | None = None,
+    overlap_lines: int | None = None,
 ) -> list[Chunk]:
     """Split file content into chunks by line count.
 
@@ -60,6 +60,20 @@ def chunk_file_content(
     Returns:
         List of Chunk objects.
     """
+    if max_tokens is None or overlap_lines is None:
+        try:
+            settings = load_settings()
+            if max_tokens is None:
+                max_tokens = settings.generation.chunk_tokens
+            if overlap_lines is None:
+                overlap_lines = settings.generation.chunk_overlap_lines
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            if max_tokens is None:
+                max_tokens = 1000  # Default from CONFIG_SCHEMA
+            if overlap_lines is None:
+                overlap_lines = 5  # Default from CONFIG_SCHEMA
+
     if not content:
         return []
 
@@ -119,7 +133,7 @@ def chunk_by_symbols(
     content: str,
     file_path: str,
     symbols: list[ParsedSymbol],
-    max_tokens: int = MAX_CHUNK_TOKENS,
+    max_tokens: int | None = None,
 ) -> list[Chunk]:
     """Split file content by symbol boundaries.
 
@@ -135,6 +149,14 @@ def chunk_by_symbols(
     Returns:
         List of Chunk objects with associated symbols.
     """
+    if max_tokens is None:
+        try:
+            settings = load_settings()
+            max_tokens = settings.generation.chunk_tokens
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            max_tokens = 1000  # Default from CONFIG_SCHEMA
+
     if not content or not symbols:
         # If no symbols, fall back to line-based chunking
         if content and not symbols:
