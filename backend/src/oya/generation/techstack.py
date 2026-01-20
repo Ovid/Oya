@@ -22,7 +22,7 @@ def load_techstack_config() -> dict[str, Any]:
     Returns:
         Dictionary containing library mappings.
     """
-    config_path = Path(__file__).parent.parent / "constants" / "techstack.yaml"
+    config_path = Path(__file__).parent.parent / "data" / "techstack.yaml"
     with open(config_path) as f:
         result: dict[str, Any] = yaml.safe_load(f)
         return result

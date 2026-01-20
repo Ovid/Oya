@@ -4,8 +4,6 @@ import fnmatch
 from pathlib import Path
 from typing import Optional
 
-from oya.constants.files import MINIFIED_AVG_LINE_LENGTH
-
 
 def extract_directories_from_files(files: list[str]) -> list[str]:
     """Extract unique parent directories from a list of file paths.
@@ -209,7 +207,15 @@ class FileFilter:
             if not lines:
                 return False
             avg_length = sum(len(line) for line in lines) / len(lines)
-            return avg_length > MINIFIED_AVG_LINE_LENGTH
+            # Get minified threshold from settings if available
+            minified_threshold = 500  # Default
+            try:
+                from oya.config import load_settings
+                settings = load_settings()
+                minified_threshold = settings.files.minified_line_length
+            except (ValueError, OSError):
+                pass  # Settings not available, use default
+            return avg_length > minified_threshold
         except Exception:
             return False
 

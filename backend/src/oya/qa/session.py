@@ -7,7 +7,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from oya.constants.qa import CGRAG_SESSION_MAX_NODES, CGRAG_SESSION_TTL_MINUTES
+from oya.config import load_settings
 from oya.graph.models import Node, Subgraph
 
 
@@ -39,7 +39,13 @@ class CGRAGSession:
             self.cached_nodes[node.id] = node
 
         # Evict oldest nodes if over limit
-        while len(self.cached_nodes) > CGRAG_SESSION_MAX_NODES:
+        try:
+            settings = load_settings()
+            max_nodes = settings.ask.cgrag_session_max_nodes
+        except (ValueError, OSError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            max_nodes = 50  # Default from CONFIG_SCHEMA
+        while len(self.cached_nodes) > max_nodes:
             self.cached_nodes.popitem(last=False)
 
     def add_not_found(self, gap: str) -> None:
@@ -56,7 +62,13 @@ class CGRAGSession:
         Returns:
             True if session is older than TTL.
         """
-        expiry = self.last_accessed + timedelta(minutes=CGRAG_SESSION_TTL_MINUTES)
+        try:
+            settings = load_settings()
+            ttl_minutes = settings.ask.cgrag_session_ttl_minutes
+        except (ValueError, OSError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            ttl_minutes = 30  # Default from CONFIG_SCHEMA
+        expiry = self.last_accessed + timedelta(minutes=ttl_minutes)
         return datetime.now() > expiry
 
     def touch(self) -> None:

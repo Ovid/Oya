@@ -92,12 +92,13 @@ docker-compose up  # Runs both services
 
 Hard-coded values that control application behavior are extracted to config files for easier tuning and documentation.
 
-**Backend:** `backend/src/oya/constants/`
-- `qa.py` - Q&A token budgets, confidence thresholds
-- `generation.py` - LLM temperatures, chunking parameters
-- `llm.py` - Default LLM client settings
-- `search.py` - Result limits, prioritization, deduplication
-- `files.py` - File size limits, concurrency
+**Backend:** Configuration is centralized in `backend/src/oya/config.py` with the `CONFIG_SCHEMA` dictionary defining all settings with defaults and validation. Access via `load_settings().section.property`:
+- `settings.generation` - LLM temperatures, chunking parameters
+- `settings.ask` - Q&A token budgets, confidence thresholds, CGRAG settings
+- `settings.llm` - Default LLM client settings
+- `settings.search` - Result limits, deduplication
+- `settings.files` - File size limits, concurrency
+- `settings.paths` - Directory names
 
 **Frontend:** `frontend/src/config/`
 - `layout.ts` - Panel dimensions, z-index layers
