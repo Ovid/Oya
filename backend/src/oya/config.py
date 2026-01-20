@@ -180,16 +180,16 @@ def _load_section(
     """
     result = {}
 
-    for key, (typ, default, min_val, max_val, description) in schema.items():
+    for key, (typ, default, min_val, max_val, _) in schema.items():
         # Get value from parser or use default
         if parser.has_option(section, key):
             raw_value = parser.get(section, key)
             try:
-                if typ == bool:
+                if typ is bool:
                     value = raw_value.lower() in ("true", "1", "yes", "on")
-                elif typ == int:
+                elif typ is int:
                     value = int(raw_value)
-                elif typ == float:
+                elif typ is float:
                     value = float(raw_value)
                 else:
                     value = raw_value
