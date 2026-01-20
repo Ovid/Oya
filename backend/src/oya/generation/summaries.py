@@ -42,7 +42,7 @@ def path_to_slug(path: str, include_extension: bool = True) -> str:
     slug = path.replace("/", "-").replace("\\", "-")
     if include_extension:
         slug = slug.replace(".", "-")
-    slug = re.sub(r"[^a-z0-9-]", "", slug.lower())
+    slug = re.sub(r"[^a-zA-Z0-9-]", "", slug)
     slug = re.sub(r"-+", "-", slug)
     return slug.strip("-")
 
