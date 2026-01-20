@@ -1,7 +1,5 @@
 """Q&A API endpoints."""
 
-from pathlib import Path
-
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
@@ -28,8 +26,7 @@ def get_qa_service(
 ) -> QAService:
     """Get Q&A service instance."""
     # Load graph if available
-    workspace = Path(settings.workspace_path)
-    graph_dir = workspace / ".oyawiki" / "graph"
+    graph_dir = settings.oyawiki_path / "graph"
     graph = None
     if graph_dir.exists():
         try:

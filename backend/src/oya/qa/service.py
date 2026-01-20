@@ -9,18 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import networkx as nx
 
-from oya.constants.issues import ISSUE_QUERY_KEYWORDS
-from oya.constants.qa import (
-    GRAPH_EXPANSION_CONFIDENCE_THRESHOLD,
-    GRAPH_EXPANSION_HOPS,
-    HIGH_CONFIDENCE_THRESHOLD,
-    MAX_CONTEXT_TOKENS,
-    MAX_RESULT_TOKENS,
-    MEDIUM_CONFIDENCE_THRESHOLD,
-    MIN_STRONG_MATCHES_FOR_HIGH,
-    STRONG_MATCH_THRESHOLD,
-)
-from oya.constants.search import DEDUP_HASH_LENGTH, TYPE_PRIORITY
+from oya.config import ConfigError, load_settings
 from oya.db.connection import Database
 from oya.generation.chunking import estimate_tokens
 from oya.generation.prompts import format_graph_qa_context
@@ -47,6 +36,32 @@ from oya.vectorstore.store import VectorStore
 
 if TYPE_CHECKING:
     from oya.vectorstore.issues import IssuesStore
+
+# Keywords that trigger issue-aware Q&A responses (code logic, not configuration)
+ISSUE_QUERY_KEYWORDS: frozenset[str] = frozenset(
+    [
+        "bug",
+        "bugs",
+        "issue",
+        "issues",
+        "problem",
+        "problems",
+        "security",
+        "vulnerability",
+        "vulnerabilities",
+        "code quality",
+        "technical debt",
+        "tech debt",
+        "what's wrong",
+        "whats wrong",
+        "concerns",
+        "risks",
+        "flaws",
+    ]
+)
+
+# Result prioritization: lower number = higher priority (code logic, not configuration)
+TYPE_PRIORITY: dict[str, int] = {"note": 0, "code": 1, "wiki": 2}
 
 QA_SYSTEM_PROMPT = """You are a helpful assistant that answers questions about a codebase.
 You have access to documentation, code, and notes from the repository.
@@ -224,10 +239,17 @@ class QAService:
         seen_content_hashes: set[int] = set()
         deduplicated: list[dict[str, Any]] = []
 
+        try:
+            settings = load_settings()
+            dedup_hash_length = settings.search.dedup_hash_length
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            dedup_hash_length = 500  # Default from CONFIG_SCHEMA
+
         for r in results:
             content = r.get("content", "")
             # Hash first N chars (covers most duplicates)
-            content_hash = hash(content[:DEDUP_HASH_LENGTH].strip().lower())
+            content_hash = hash(content[:dedup_hash_length].strip().lower())
 
             if content_hash not in seen_content_hashes:
                 seen_content_hashes.add(content_hash)
@@ -249,18 +271,28 @@ class QAService:
         if not results:
             return ConfidenceLevel.LOW
 
+        try:
+            settings = load_settings()
+            strong_match_threshold = settings.ask.strong_match_threshold
+            min_strong_matches = settings.ask.min_strong_matches
+            high_confidence_threshold = settings.ask.high_confidence_threshold
+            medium_confidence_threshold = settings.ask.medium_confidence_threshold
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            strong_match_threshold = 0.5  # Default from CONFIG_SCHEMA
+            min_strong_matches = 3  # Default from CONFIG_SCHEMA
+            high_confidence_threshold = 0.3  # Default from CONFIG_SCHEMA
+            medium_confidence_threshold = 0.6  # Default from CONFIG_SCHEMA
+
         # Count results with good relevance
-        strong_matches = sum(1 for r in results if r.get("distance", 1.0) < STRONG_MATCH_THRESHOLD)
+        strong_matches = sum(1 for r in results if r.get("distance", 1.0) < strong_match_threshold)
 
         # Check best result quality
         best_distance = min(r.get("distance", 1.0) for r in results)
 
-        if (
-            strong_matches >= MIN_STRONG_MATCHES_FOR_HIGH
-            and best_distance < HIGH_CONFIDENCE_THRESHOLD
-        ):
+        if strong_matches >= min_strong_matches and best_distance < high_confidence_threshold:
             return ConfidenceLevel.HIGH
-        elif strong_matches >= 1 and best_distance < MEDIUM_CONFIDENCE_THRESHOLD:
+        elif strong_matches >= 1 and best_distance < medium_confidence_threshold:
             return ConfidenceLevel.MEDIUM
         else:
             return ConfidenceLevel.LOW
@@ -313,18 +345,27 @@ class QAService:
         total_tokens = 0
         results_used = 0
 
+        try:
+            settings = load_settings()
+            max_result_tokens = settings.ask.max_result_tokens
+            max_context_tokens = settings.ask.max_context_tokens
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            max_result_tokens = 1500  # Default from CONFIG_SCHEMA
+            max_context_tokens = 6000  # Default from CONFIG_SCHEMA
+
         for r in results:
             source_type = r.get("type", "unknown")
             path = r.get("path", "unknown")
             content = r.get("content", "")
 
             # Truncate individual result at sentence boundary
-            content = self._truncate_at_sentence(content, max_tokens=MAX_RESULT_TOKENS)
+            content = self._truncate_at_sentence(content, max_tokens=max_result_tokens)
 
             part = f"[{source_type.upper()}] {path}\n{content}"
             part_tokens = estimate_tokens(part)
 
-            if total_tokens + part_tokens > MAX_CONTEXT_TOKENS:
+            if total_tokens + part_tokens > max_context_tokens:
                 break
 
             context_parts.append(part)
@@ -362,12 +403,23 @@ Answer the question based only on the context provided. Include citations to spe
         if not node_ids:
             return ""
 
+        try:
+            settings = load_settings()
+            graph_expansion_hops = settings.ask.graph_expansion_hops
+            graph_expansion_confidence = settings.ask.graph_expansion_confidence_threshold
+            max_context_tokens = settings.ask.max_context_tokens
+        except (ValueError, OSError, ConfigError):
+            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            graph_expansion_hops = 2  # Default from CONFIG_SCHEMA
+            graph_expansion_confidence = 0.5  # Default from CONFIG_SCHEMA
+            max_context_tokens = 6000  # Default from CONFIG_SCHEMA
+
         # Expand via graph traversal
         subgraph = expand_with_graph(
             node_ids,
             self._graph,
-            hops=GRAPH_EXPANSION_HOPS,
-            min_confidence=GRAPH_EXPANSION_CONFIDENCE_THRESHOLD,
+            hops=graph_expansion_hops,
+            min_confidence=graph_expansion_confidence,
         )
 
         if not subgraph.nodes:
@@ -379,7 +431,7 @@ Answer the question based only on the context provided. Include citations to spe
 
         # Build context with budget
         # Reserve some budget for graph context (1/3 of total)
-        graph_budget = MAX_CONTEXT_TOKENS // 3
+        graph_budget = max_context_tokens // 3
         mermaid, code = build_graph_context(subgraph, token_budget=graph_budget)
 
         return format_graph_qa_context(mermaid, code)

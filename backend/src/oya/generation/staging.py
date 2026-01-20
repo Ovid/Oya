@@ -63,5 +63,17 @@ def has_incomplete_build(workspace_path: Path) -> bool:
     Returns:
         True if .oyawiki-building exists, indicating an incomplete build.
     """
-    staging_path = workspace_path / ".oyawiki-building"
+    # Get staging directory name from settings, fallback to default
+    staging_dir = ".oyawiki-building"  # Default
+    try:
+        from oya.config import ConfigError, load_settings
+
+        settings = load_settings()
+        staging_dir = settings.paths.staging_dir
+    except (ValueError, OSError, ConfigError):
+        # Settings not available, use default
+        pass
+
+    # Always compute path relative to workspace_path parameter
+    staging_path = workspace_path / staging_dir
     return staging_path.exists()

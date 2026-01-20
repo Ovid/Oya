@@ -39,7 +39,19 @@ def initialize_workspace(workspace_path: Path) -> bool:
     Returns:
         True if initialization succeeded, False otherwise.
     """
-    oyawiki_path = workspace_path / ".oyawiki"
+    # Get wiki directory name from settings, fallback to default
+    wiki_dir = ".oyawiki"  # Default
+    try:
+        from oya.config import ConfigError, load_settings
+
+        settings = load_settings()
+        wiki_dir = settings.paths.wiki_dir
+    except (ValueError, OSError, ConfigError):
+        # Settings not available, use default
+        pass
+
+    # Always compute path relative to workspace_path parameter
+    oyawiki_path = workspace_path / wiki_dir
 
     try:
         for subdir in OYAWIKI_SUBDIRS:

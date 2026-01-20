@@ -52,7 +52,9 @@ class TestCGRAGSession:
     def test_session_is_expired(self):
         """Session expiration is detected correctly."""
         from oya.qa.session import CGRAGSession
-        from oya.constants.qa import CGRAG_SESSION_TTL_MINUTES
+
+        # Default from CONFIG_SCHEMA: cgrag_session_ttl_minutes = 30
+        CGRAG_SESSION_TTL_MINUTES = 30
 
         session = CGRAGSession()
 
@@ -83,7 +85,9 @@ class TestCGRAGSession:
         """Session evicts oldest nodes when max reached."""
         from oya.qa.session import CGRAGSession
         from oya.graph.models import Node, NodeType
-        from oya.constants.qa import CGRAG_SESSION_MAX_NODES
+
+        # Default from CONFIG_SCHEMA: cgrag_session_max_nodes = 50
+        CGRAG_SESSION_MAX_NODES = 50
 
         session = CGRAGSession()
 
@@ -133,7 +137,9 @@ class TestSessionStore:
     def test_store_get_or_create_expired(self):
         """Get with expired session ID creates new session."""
         from oya.qa.session import SessionStore
-        from oya.constants.qa import CGRAG_SESSION_TTL_MINUTES
+
+        # Default from CONFIG_SCHEMA: cgrag_session_ttl_minutes = 30
+        CGRAG_SESSION_TTL_MINUTES = 30
 
         store = SessionStore()
         session1 = store.get_or_create(None)
@@ -148,7 +154,9 @@ class TestSessionStore:
     def test_store_cleanup_expired(self):
         """Cleanup removes expired sessions."""
         from oya.qa.session import SessionStore
-        from oya.constants.qa import CGRAG_SESSION_TTL_MINUTES
+
+        # Default from CONFIG_SCHEMA: cgrag_session_ttl_minutes = 30
+        CGRAG_SESSION_TTL_MINUTES = 30
 
         store = SessionStore()
         session1 = store.get_or_create(None)
