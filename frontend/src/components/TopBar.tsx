@@ -130,12 +130,15 @@ export function TopBar({
 
           <button
             onClick={onToggleAskPanel}
+            disabled={isGenerating}
             className={`px-3 py-1.5 text-sm font-medium rounded-md ${
-              askPanelOpen
-                ? 'text-white bg-indigo-600 hover:bg-indigo-700'
-                : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+              isGenerating
+                ? 'opacity-50 cursor-not-allowed'
+                : askPanelOpen
+                  ? 'text-white bg-indigo-600 hover:bg-indigo-700'
+                  : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
-            title="Ask about the codebase"
+            title={isGenerating ? 'Q&A unavailable during generation' : 'Ask about the codebase'}
           >
             Ask
           </button>

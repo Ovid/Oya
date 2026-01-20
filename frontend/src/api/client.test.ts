@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { switchWorkspace, ApiError } from './client'
 
+// Declare global for Node.js/Vitest environment
+declare const global: typeof globalThis
+
 /**
  * Tests for switchWorkspace API function.
  *
