@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import * as api from '../api/client'
 import type { IndexableItems } from '../types'
+import { ConfirmationDialog } from './ConfirmationDialog'
 
 interface IndexingPreviewModalProps {
   isOpen: boolean
   onClose: () => void
+  onGenerate: () => void
 }
 
 interface PendingExclusions {
@@ -21,7 +23,7 @@ interface PendingExclusions {
  * 2. Excluded via .oyaignore - Checkbox unchecked, "(from .oyaignore)" badge, can be re-included
  * 3. Excluded via rules - Checkbox disabled/grayed, "(excluded by rule)" badge, cannot change
  */
-export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalProps) {
+export function IndexingPreviewModal({ isOpen, onClose, onGenerate }: IndexingPreviewModalProps) {
   const [indexableItems, setIndexableItems] = useState<IndexableItems | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +35,8 @@ export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalPr
   })
   // Track patterns to re-include (checked from oyaignore list)
   const [pendingInclusions, setPendingInclusions] = useState<Set<string>>(new Set())
-  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false)
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // Fetch indexable items when modal opens
@@ -45,7 +48,8 @@ export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalPr
       setSearchQuery('')
       setPendingExclusions({ directories: new Set(), files: new Set() })
       setPendingInclusions(new Set())
-      setShowConfirmation(false)
+      setShowGenerateConfirm(false)
+      setShowUnsavedWarning(false)
       setIsSaving(false)
       return
     }
@@ -261,23 +265,33 @@ export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalPr
     pendingExclusions.files.size > 0 ||
     pendingInclusions.size > 0
 
-  // Handle save button click
-  const handleSaveClick = () => {
+  // Handle close with unsaved check
+  const handleClose = () => {
     if (hasChanges) {
-      setShowConfirmation(true)
+      setShowUnsavedWarning(true)
+    } else {
+      onClose()
     }
   }
 
-  // Handle confirmation
-  const handleConfirm = async () => {
+  // Handle generate button click
+  const handleGenerateClick = () => {
+    setShowGenerateConfirm(true)
+  }
+
+  // Handle generation confirm
+  const handleConfirmGenerate = async () => {
     setIsSaving(true)
     try {
-      await api.updateOyaignore({
-        directories: Array.from(pendingExclusions.directories),
-        files: Array.from(pendingExclusions.files),
-        removals: Array.from(pendingInclusions),
-      })
-      setShowConfirmation(false)
+      if (hasChanges) {
+        await api.updateOyaignore({
+          directories: Array.from(pendingExclusions.directories),
+          files: Array.from(pendingExclusions.files),
+          removals: Array.from(pendingInclusions),
+        })
+      }
+      setShowGenerateConfirm(false)
+      onGenerate()
       onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save changes'
@@ -287,9 +301,20 @@ export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalPr
     }
   }
 
-  // Handle cancel confirmation
-  const handleCancelConfirmation = () => {
-    setShowConfirmation(false)
+  // Handle cancel generate confirmation
+  const handleCancelGenerateConfirm = () => {
+    setShowGenerateConfirm(false)
+  }
+
+  // Handle discard changes
+  const handleDiscardChanges = () => {
+    setShowUnsavedWarning(false)
+    onClose()
+  }
+
+  // Handle keep editing
+  const handleKeepEditing = () => {
+    setShowUnsavedWarning(false)
   }
 
   if (!isOpen) {
@@ -298,7 +323,7 @@ export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalPr
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
-      onClose()
+      handleClose()
     }
   }
 
@@ -331,7 +356,7 @@ export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalPr
             Indexing Preview
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
             aria-label="Close"
           >
@@ -646,68 +671,44 @@ export function IndexingPreviewModal({ isOpen, onClose }: IndexingPreviewModalPr
         {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end space-x-2">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
           >
             Cancel
           </button>
           <button
-            onClick={handleSaveClick}
-            disabled={!hasChanges || isSaving}
-            className="px-3 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleGenerateClick}
+            className="px-3 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
           >
-            Save
+            Generate Wiki
           </button>
         </div>
 
-        {/* Confirmation Dialog */}
-        {showConfirmation && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 mx-4 max-w-md">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                Confirm Changes
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                You are about to make the following changes:
-              </p>
-              <ul className="text-sm text-gray-700 dark:text-gray-300 mb-6 space-y-1">
-                {pendingExclusions.directories.size > 0 && (
-                  <li>
-                    Exclude {pendingExclusions.directories.size}{' '}
-                    {pendingExclusions.directories.size === 1 ? 'directory' : 'directories'}
-                  </li>
-                )}
-                {pendingExclusions.files.size > 0 && (
-                  <li>
-                    Exclude {pendingExclusions.files.size}{' '}
-                    {pendingExclusions.files.size === 1 ? 'file' : 'files'}
-                  </li>
-                )}
-                {pendingInclusions.size > 0 && (
-                  <li>
-                    Re-include {pendingInclusions.size}{' '}
-                    {pendingInclusions.size === 1 ? 'item' : 'items'} from .oyaignore
-                  </li>
-                )}
-              </ul>
-              <div className="flex justify-end space-x-2">
-                <button
-                  onClick={handleCancelConfirmation}
-                  className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirm}
-                  disabled={isSaving}
-                  className="px-3 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSaving ? 'Saving...' : 'Confirm'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Generate Wiki Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={showGenerateConfirm}
+          title="Generate Wiki"
+          confirmLabel={isSaving ? 'Generating...' : 'Generate'}
+          onConfirm={handleConfirmGenerate}
+          onCancel={handleCancelGenerateConfirm}
+        >
+          <p className="mb-2">{effectiveCounts.files} files will be indexed</p>
+          {hasChanges && (
+            <p className="text-gray-500 dark:text-gray-400">.oyaignore will be updated</p>
+          )}
+        </ConfirmationDialog>
+
+        {/* Unsaved Changes Warning Dialog */}
+        <ConfirmationDialog
+          isOpen={showUnsavedWarning}
+          title="Unsaved Changes"
+          confirmLabel="Discard Changes"
+          cancelLabel="Keep Editing"
+          onConfirm={handleDiscardChanges}
+          onCancel={handleKeepEditing}
+        >
+          <p>You have exclusion changes that haven't been saved. Close anyway?</p>
+        </ConfirmationDialog>
       </div>
     </div>
   )
