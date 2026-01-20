@@ -14,6 +14,9 @@ import subprocess
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from hypothesis import given, settings as hypothesis_settings, HealthCheck
+from hypothesis import strategies as st
+
 from oya.main import app
 from oya.api.deps import get_settings, _reset_db_instance
 
@@ -383,7 +386,6 @@ async def test_oyaignore_removal_no_oyaignore_file(client, tmp_path, monkeypatch
     assert data["total_removed"] == 0
 
     # File should not be created if nothing to write
-    oyaignore_path = workspace / ".oyaignore"
     # File may or may not exist depending on implementation
     # If it exists, it should be empty or not contain the removal pattern
 
@@ -416,10 +418,6 @@ async def test_oyaignore_removal_all_patterns(client, temp_workspace_with_oyaign
 # ============================================================================
 # Property-Based Tests
 # ============================================================================
-
-
-from hypothesis import given, settings as hypothesis_settings, HealthCheck
-from hypothesis import strategies as st
 
 
 # Strategy for generating valid patterns
@@ -529,7 +527,11 @@ class TestOyaignoreRemovalsPropertyTests:
             was_removed = False
             for removal in patterns_to_remove:
                 removal_normalized = removal.rstrip("/")
-                if pattern == removal or pattern == removal_normalized or pattern == removal_normalized + "/":
+                if (
+                    pattern == removal
+                    or pattern == removal_normalized
+                    or pattern == removal_normalized + "/"
+                ):
                     was_removed = True
                     break
             if not was_removed:
