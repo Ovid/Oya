@@ -55,6 +55,7 @@ CONFIG_SCHEMA: dict[str, dict[str, tuple[type, Any, Any, Any, str]]] = {
         "strong_match_threshold": (float, 0.5, 0.0, 1.0, "Threshold for strong match"),
         "min_strong_matches": (int, 3, 1, 20, "Minimum strong matches for high confidence"),
         "graph_expansion_hops": (int, 2, 0, 5, "Graph traversal depth"),
+        "graph_expansion_confidence_threshold": (float, 0.5, 0.0, 1.0, "Confidence threshold for graph expansion"),
         "graph_mermaid_token_budget": (int, 500, 100, 2000, "Token budget for mermaid diagrams"),
         "cgrag_max_passes": (int, 3, 1, 10, "Maximum CGRAG retrieval passes"),
         "cgrag_session_ttl_minutes": (int, 30, 5, 120, "CGRAG session timeout"),
@@ -120,6 +121,7 @@ class AskConfig:
     strong_match_threshold: float
     min_strong_matches: int
     graph_expansion_hops: int
+    graph_expansion_confidence_threshold: float
     graph_mermaid_token_budget: int
     cgrag_max_passes: int
     cgrag_session_ttl_minutes: int
@@ -458,9 +460,13 @@ def load_settings() -> Config:
 
     workspace_path = Path(workspace_path_str)
 
-    # Load config from file if it exists
-    config_file = workspace_path / ".oyawiki" / "config.ini"
-    base_config = load_config(config_file if config_file.exists() else None)
+    # Load config from file if it exists (stored in workspace root, not .oyawiki)
+    config_file = workspace_path / "config.ini"
+    try:
+        config_exists = config_file.exists()
+    except PermissionError:
+        config_exists = False
+    base_config = load_config(config_file if config_exists else None)
 
     # Get provider and model, auto-detecting if not explicitly set
     active_provider = os.getenv("ACTIVE_PROVIDER")
@@ -516,3 +522,11 @@ def load_settings() -> Config:
         llm=base_config.llm,
         paths=base_config.paths,
     )
+
+
+# =============================================================================
+# Backward Compatibility
+# =============================================================================
+
+# Alias for legacy code that imports Settings instead of Config
+Settings = Config
