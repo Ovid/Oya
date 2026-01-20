@@ -296,13 +296,14 @@ class Config:
     parallel_file_limit: int = 10
     chunk_size: int = 4096
 
-    # Section configs
-    generation: GenerationConfig = None  # type: ignore
-    files: FilesConfig = None  # type: ignore
-    ask: AskConfig = None  # type: ignore
-    search: SearchConfig = None  # type: ignore
-    llm: LLMConfig = None  # type: ignore
-    paths: PathsConfig = None  # type: ignore
+    # Section configs - defaults set in __post_init__, type: ignore needed because
+    # frozen dataclass doesn't allow proper initialization pattern
+    generation: GenerationConfig = None  # type: ignore[assignment]
+    files: FilesConfig = None  # type: ignore[assignment]
+    ask: AskConfig = None  # type: ignore[assignment]
+    search: SearchConfig = None  # type: ignore[assignment]
+    llm: LLMConfig = None  # type: ignore[assignment]
+    paths: PathsConfig = None  # type: ignore[assignment]
 
     def __post_init__(self):
         """Initialize section configs with defaults if not provided."""
