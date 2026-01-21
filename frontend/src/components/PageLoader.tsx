@@ -110,7 +110,8 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
 
   if (notFound) {
     // If wiki hasn't been generated yet, show welcome message
-    if (!state.repoStatus?.initialized) {
+    // last_generation is null when no wiki exists
+    if (!state.repoStatus?.last_generation) {
       return (
         <div className="text-center py-12">
           <svg
