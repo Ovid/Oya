@@ -1,5 +1,9 @@
 # TODO
 
+* Q&A
+    * The text input should be a text area.
+    * Users should be able to use standard `@` functionality to provide exact
+      context. This implies we actually have a checkout. Should this use RLM?
 * Investigate RLM (Recursive Language Models for "unlimited" context)
     * https://arxiv.org/abs/2512.24601
     * https://www.youtube.com/watch?v=huszaaJPjU8
