@@ -78,6 +78,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   }, [loadPage, dispatch, refreshTree, refreshStatus])
 
   const handleGenerationError = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_errorMessage: string) => {
       // Clear the current job from global state
       dispatch({ type: 'SET_CURRENT_JOB', payload: null })
