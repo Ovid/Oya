@@ -12,6 +12,19 @@ from oya.parsing.base import BaseParser
 from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, SymbolType
 
 
+# Documentation file extensions - skip class detection for these
+# (English prose like "class you specify" gets misinterpreted as class declarations)
+DOCUMENTATION_EXTENSIONS = frozenset(
+    [
+        ".pod",  # Perl POD
+        ".md",  # Markdown
+        ".rst",  # reStructuredText
+        ".txt",  # Plain text
+        ".adoc",  # AsciiDoc
+        ".rdoc",  # Ruby documentation
+    ]
+)
+
 # Extension to language name mapping
 EXTENSION_LANGUAGES = {
     ".go": "go",
@@ -177,6 +190,9 @@ class FallbackParser(BaseParser):
         language = self._detect_language(file_path)
         symbols: list[ParsedSymbol] = []
 
+        # Check if this is a documentation file (skip class detection for these)
+        is_documentation = file_path.suffix.lower() in DOCUMENTATION_EXTENSIONS
+
         # Extract function-like patterns
         for pattern, symbol_type in FUNCTION_PATTERNS:
             for match in pattern.finditer(content):
@@ -195,23 +211,33 @@ class FallbackParser(BaseParser):
                     )
                 )
 
-        # Extract class-like patterns
-        for pattern, symbol_type in CLASS_PATTERNS:
-            for match in pattern.finditer(content):
-                name = match.group(1)
-                line_num = content[: match.start()].count("\n") + 1
+        # Extract class-like patterns (skip for documentation files to avoid
+        # misinterpreting English prose like "class you specify" as class declarations)
+        if not is_documentation:
+            # For Perl files, only search for classes in code section (before __END__)
+            # The __END__ marker separates code from embedded POD documentation
+            class_search_content = content
+            if language == "perl":
+                end_marker = re.search(r"^__END__\s*$", content, re.MULTILINE)
+                if end_marker:
+                    class_search_content = content[: end_marker.start()]
 
-                # Estimate end line
-                end_line = self._estimate_end_line(content, match.start(), line_num)
+            for pattern, symbol_type in CLASS_PATTERNS:
+                for match in pattern.finditer(class_search_content):
+                    name = match.group(1)
+                    line_num = content[: match.start()].count("\n") + 1
 
-                symbols.append(
-                    ParsedSymbol(
-                        name=name,
-                        symbol_type=symbol_type,
-                        start_line=line_num,
-                        end_line=end_line,
+                    # Estimate end line
+                    end_line = self._estimate_end_line(content, match.start(), line_num)
+
+                    symbols.append(
+                        ParsedSymbol(
+                            name=name,
+                            symbol_type=symbol_type,
+                            start_line=line_num,
+                            end_line=end_line,
+                        )
                     )
-                )
 
         # Remove duplicates (same name and line)
         symbols = self._deduplicate_symbols(symbols)

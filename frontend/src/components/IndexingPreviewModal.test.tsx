@@ -52,10 +52,15 @@ describe('IndexingPreviewModal', () => {
       expect(screen.queryByText('Indexing Preview')).not.toBeInTheDocument()
     })
 
-    it('renders modal content when isOpen is true', () => {
+    it('renders modal content when isOpen is true', async () => {
       render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
+
+      // Wait for async operations to complete to avoid act() warnings
+      await waitFor(() => {
+        expect(screen.getByText('src')).toBeInTheDocument()
+      })
     })
 
     it('calls onClose when close button is clicked with no changes', async () => {

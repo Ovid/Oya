@@ -66,6 +66,32 @@ class LayerDiagramGenerator:
 
         return "\n".join(lines)
 
+    @staticmethod
+    def is_useful(diagram: str) -> bool:
+        """Check if a layer diagram adds value.
+
+        Returns False if:
+        - Contains "NoLayers" placeholder
+        - Has only one subgraph (single layer)
+        - Has no edges between layers
+
+        Args:
+            diagram: The generated Mermaid diagram string.
+
+        Returns:
+            True if the diagram is worth including.
+        """
+        if "NoLayers" in diagram or "No layers" in diagram:
+            return False
+
+        # Count subgraphs - need multiple layers to be useful
+        subgraph_count = diagram.lower().count("subgraph ")
+        if subgraph_count <= 1:
+            return False
+
+        # Must have edges between layers
+        return "-->" in diagram
+
 
 class DependencyGraphGenerator:
     """Generates file dependency graphs from import analysis.
@@ -182,6 +208,26 @@ class DependencyGraphGenerator:
 
         return "\n".join(lines)
 
+    @staticmethod
+    def is_useful(diagram: str) -> bool:
+        """Check if a dependency diagram adds value.
+
+        Returns False if:
+        - Contains "NoFiles" placeholder
+        - Has no edges (just nodes, no relationships)
+
+        Args:
+            diagram: The generated Mermaid diagram string.
+
+        Returns:
+            True if the diagram is worth including.
+        """
+        if "NoFiles" in diagram or "No files" in diagram:
+            return False
+
+        # Must have at least one edge to show relationships
+        return "-->" in diagram
+
 
 class ClassDiagramGenerator:
     """Generates class diagrams from parsed symbols.
@@ -250,6 +296,41 @@ class ClassDiagramGenerator:
             lines.append("    }")
 
         return "\n".join(lines)
+
+    @staticmethod
+    def is_useful(diagram: str) -> bool:
+        """Check if a class diagram adds value.
+
+        Returns False if:
+        - Contains "NoClasses" placeholder
+        - All classes only have "..." as content (no real methods)
+
+        Args:
+            diagram: The generated Mermaid diagram string.
+
+        Returns:
+            True if the diagram is worth including.
+        """
+        if "NoClasses" in diagram:
+            return False
+
+        # Check if any class has real content (not just ...)
+        lines = diagram.split("\n")
+        in_class = False
+        has_real_content = False
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("class ") and "{" in stripped:
+                in_class = True
+            elif in_class and stripped == "}":
+                in_class = False
+            elif in_class and stripped and stripped != "..." and not stripped.startswith("class "):
+                # Found actual content (method signature, etc.)
+                has_real_content = True
+                break
+
+        return has_real_content
 
 
 class DiagramGenerator:

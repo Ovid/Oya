@@ -269,7 +269,7 @@ async def test_backward_compatible_with_key_symbols(generator, mock_llm_client):
 
 @pytest.mark.asyncio
 async def test_architecture_includes_generated_diagrams(tmp_path):
-    """Architecture page includes Python-generated diagrams."""
+    """Architecture page includes Python-generated diagrams when data is meaningful."""
     from unittest.mock import AsyncMock, MagicMock
 
     from oya.generation.architecture import ArchitectureGenerator
@@ -284,23 +284,28 @@ async def test_architecture_includes_generated_diagrams(tmp_path):
 
     generator = ArchitectureGenerator(mock_client, repo)
 
+    # Provide meaningful data that will generate useful diagrams:
+    # - Multiple layers with dependencies (useful layer diagram)
+    # - File imports with edges (useful dependency diagram)
     synthesis_map = SynthesisMap(
         layers={
             "api": LayerInfo(name="api", purpose="HTTP endpoints", directories=[], files=[]),
+            "domain": LayerInfo(name="domain", purpose="Business logic", directories=[], files=[]),
         },
         key_components=[
             ComponentInfo(name="Router", file="routes.py", role="Routing", layer="api"),
+            ComponentInfo(name="Service", file="service.py", role="Logic", layer="domain"),
         ],
-        dependency_graph={},
+        dependency_graph={"api": ["domain"]},  # api depends on domain
     )
 
     page = await generator.generate(
-        file_tree="src/\n  api/",
+        file_tree="src/\n  api/\n  domain/",
         synthesis_map=synthesis_map,
-        file_imports={"routes.py": []},
+        file_imports={"routes.py": ["service.py"]},  # actual import relationship
         symbols=[],
     )
 
-    # Should include mermaid code blocks
+    # Should include mermaid code blocks (layer diagram with 2 layers and edges)
     assert "```mermaid" in page.content
     assert "flowchart" in page.content.lower()
