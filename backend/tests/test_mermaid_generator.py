@@ -421,3 +421,110 @@ class TestDependencyGraphGeneratorForFile:
 
         # Should return empty string for unknown files
         assert diagram == ""
+
+
+class TestDiagramUsefulness:
+    """Tests for is_useful() methods on diagram generators."""
+
+    # === ClassDiagramGenerator.is_useful() ===
+
+    def test_class_diagram_useful_with_methods(self):
+        """Class diagram with real methods is useful."""
+        diagram = """classDiagram
+    class UserService {
+        +create_user()
+        +delete_user()
+    }"""
+        assert ClassDiagramGenerator.is_useful(diagram) is True
+
+    def test_class_diagram_useless_only_ellipsis(self):
+        """Class diagram with only ... content is useless."""
+        diagram = """classDiagram
+    class you {
+        ...
+    }
+    class name {
+        ...
+    }"""
+        assert ClassDiagramGenerator.is_useful(diagram) is False
+
+    def test_class_diagram_useless_no_classes(self):
+        """Class diagram with NoClasses placeholder is useless."""
+        diagram = """classDiagram
+    class NoClasses {
+        No classes found
+    }"""
+        assert ClassDiagramGenerator.is_useful(diagram) is False
+
+    def test_class_diagram_useful_mixed_content(self):
+        """Class diagram with at least one real method is useful."""
+        diagram = """classDiagram
+    class EmptyClass {
+        ...
+    }
+    class RealClass {
+        +do_something()
+    }"""
+        assert ClassDiagramGenerator.is_useful(diagram) is True
+
+    # === DependencyGraphGenerator.is_useful() ===
+
+    def test_dependency_diagram_useful_with_edges(self):
+        """Dependency diagram with edges is useful."""
+        diagram = """flowchart LR
+    main_py["main.py"]
+    config_py["config.py"]
+    main_py --> config_py"""
+        assert DependencyGraphGenerator.is_useful(diagram) is True
+
+    def test_dependency_diagram_useless_no_edges(self):
+        """Dependency diagram with no edges is useless."""
+        diagram = """flowchart LR
+    file1["file1.py"]
+    file2["file2.py"]"""
+        assert DependencyGraphGenerator.is_useful(diagram) is False
+
+    def test_dependency_diagram_useless_no_files(self):
+        """Dependency diagram with NoFiles placeholder is useless."""
+        diagram = """flowchart LR
+    NoFiles[No files analyzed]"""
+        assert DependencyGraphGenerator.is_useful(diagram) is False
+
+    # === LayerDiagramGenerator.is_useful() ===
+
+    def test_layer_diagram_useful_multiple_layers_with_edges(self):
+        """Layer diagram with multiple layers and edges is useful."""
+        diagram = """flowchart TB
+    subgraph api["API Layer"]
+        api_main["main.py"]
+    end
+    subgraph data["Data Layer"]
+        data_db["db.py"]
+    end
+    api --> data"""
+        assert LayerDiagramGenerator.is_useful(diagram) is True
+
+    def test_layer_diagram_useless_single_layer(self):
+        """Layer diagram with single layer is useless."""
+        diagram = """flowchart TB
+    subgraph utility["Utility"]
+        util_helper["helper.py"]
+    end"""
+        assert LayerDiagramGenerator.is_useful(diagram) is False
+
+    def test_layer_diagram_useless_no_layers(self):
+        """Layer diagram with NoLayers placeholder is useless."""
+        diagram = """flowchart TB
+    NoLayers[No layers detected]"""
+        assert LayerDiagramGenerator.is_useful(diagram) is False
+
+    def test_layer_diagram_useless_no_edges(self):
+        """Layer diagram with multiple layers but no edges is useless."""
+        diagram = """flowchart TB
+    subgraph api["API Layer"]
+        api_main["main.py"]
+    end
+    subgraph data["Data Layer"]
+        data_db["db.py"]
+    end"""
+        assert LayerDiagramGenerator.is_useful(diagram) is False

@@ -110,9 +110,9 @@ class TestBreadcrumbGeneration:
 
         result = generate_breadcrumb("src/api/routes", "my-project")
 
-        assert "[my-project](./root.md)" in result
-        assert "[src](./src.md)" in result
-        assert "[api](./src-api.md)" in result
+        assert "[my-project](./root)" in result
+        assert "[src](./src)" in result
+        assert "[api](./src-api)" in result
         assert "routes" in result
         assert "..." not in result
 
@@ -122,9 +122,9 @@ class TestBreadcrumbGeneration:
 
         result = generate_breadcrumb("src/components/ui/forms/inputs/validation", "my-project")
 
-        assert "[my-project](./root.md)" in result
+        assert "[my-project](./root)" in result
         assert "..." in result
-        assert "[inputs](./src-components-ui-forms-inputs.md)" in result
+        assert "[inputs](./src-components-ui-forms-inputs)" in result
         assert "validation" in result
         # Middle segments should be truncated
         assert "[ui]" not in result
@@ -144,7 +144,7 @@ class TestBreadcrumbGeneration:
 
         result = generate_breadcrumb("src", "my-project")
 
-        assert "[my-project](./root.md)" in result
+        assert "[my-project](./root)" in result
         assert "src" in result
         assert "..." not in result
 
@@ -175,9 +175,9 @@ class TestSubdirectorySummariesFormatter:
         result = format_subdirectory_summaries(summaries, "src/api")
 
         assert "| Directory | Purpose |" in result
-        assert "[routes](./src-api-routes.md)" in result
+        assert "[routes](./src-api-routes)" in result
         assert "HTTP route handlers" in result
-        assert "[middleware](./src-api-middleware.md)" in result
+        assert "[middleware](./src-api-middleware)" in result
         assert "Request/response middleware" in result
 
     def test_format_subdirectory_summaries_empty(self):
@@ -244,10 +244,10 @@ class TestFileLinksFormatter:
         result = format_file_links(summaries)
 
         assert "| File | Purpose |" in result
-        assert "[app.py](../files/src-api-app-py.md)" in result
+        assert "[app.py](../files/src-api-app-py)" in result
         assert "FastAPI application setup" in result
         # Canonical path_to_slug strips underscores: __init__.py -> init-py
-        assert "[__init__.py](../files/src-api-init-py.md)" in result
+        assert "[__init__.py](../files/src-api-init-py)" in result
 
     def test_format_file_links_empty(self):
         """Returns message when no files."""

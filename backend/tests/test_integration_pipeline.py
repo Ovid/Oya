@@ -17,9 +17,9 @@ class TestDirectoryPagesRedesign:
         # Test typical project structure
         breadcrumb = generate_breadcrumb("src/api/routes", "my-project")
 
-        assert "[my-project](./root.md)" in breadcrumb
-        assert "[src](./src.md)" in breadcrumb
-        assert "[api](./src-api.md)" in breadcrumb
+        assert "[my-project](./root)" in breadcrumb
+        assert "[src](./src)" in breadcrumb
+        assert "[api](./src-api)" in breadcrumb
         assert "routes" in breadcrumb  # Current dir not linked
 
     def test_root_directory_included_in_extraction(self):
@@ -45,7 +45,7 @@ class TestDirectoryPagesRedesign:
         result = format_subdirectory_summaries(summaries, "src")
 
         assert "| Directory | Purpose |" in result
-        assert "[api](./src-api.md)" in result
+        assert "[api](./src-api)" in result
         assert "API endpoints" in result
 
     def test_depth_first_processing_order(self):
@@ -129,7 +129,7 @@ class TestFileLinkFormatting:
         result = format_file_links(summaries)
 
         assert "| File | Purpose |" in result
-        assert "[main.py](../files/src-main-py.md)" in result
+        assert "[main.py](../files/src-main-py)" in result
         assert "Application entry point" in result
 
     def test_empty_file_list_message(self):
@@ -168,8 +168,8 @@ class TestSubdirectoryFiltering:
         result = format_subdirectory_summaries(summaries, "src")
 
         # Direct children should be included
-        assert "[api](./src-api.md)" in result
-        assert "[models](./src-models.md)" in result
+        assert "[api](./src-api)" in result
+        assert "[models](./src-models)" in result
         # Nested child should NOT be included
         assert "routes" not in result
 
@@ -205,8 +205,8 @@ class TestSubdirectoryFiltering:
         result = format_subdirectory_summaries(summaries, "")
 
         # Top-level directories should be included
-        assert "[src](./src.md)" in result
-        assert "[tests](./tests.md)" in result
+        assert "[src](./src)" in result
+        assert "[tests](./tests)" in result
         # Nested should NOT be included
         assert "api" not in result
 
@@ -219,10 +219,10 @@ class TestBreadcrumbTruncation:
         breadcrumb = generate_breadcrumb("a/b/c/d", "project")
 
         # Should show all parts
-        assert "[project](./root.md)" in breadcrumb
-        assert "[a](./a.md)" in breadcrumb
-        assert "[b](./a-b.md)" in breadcrumb
-        assert "[c](./a-b-c.md)" in breadcrumb
+        assert "[project](./root)" in breadcrumb
+        assert "[a](./a)" in breadcrumb
+        assert "[b](./a-b)" in breadcrumb
+        assert "[c](./a-b-c)" in breadcrumb
         assert "d" in breadcrumb
 
     def test_deep_path_truncates_middle(self):
@@ -230,9 +230,9 @@ class TestBreadcrumbTruncation:
         breadcrumb = generate_breadcrumb("a/b/c/d/e", "project")
 
         # Should show: project / ... / d / e
-        assert "[project](./root.md)" in breadcrumb
+        assert "[project](./root)" in breadcrumb
         assert "..." in breadcrumb
-        assert "[d](./a-b-c-d.md)" in breadcrumb
+        assert "[d](./a-b-c-d)" in breadcrumb
         assert "e" in breadcrumb
         # Middle parts should NOT appear
         assert "[b]" not in breadcrumb
