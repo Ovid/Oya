@@ -2,6 +2,8 @@
 
 A local-first, editable wiki generator for codebases. Ọya creates comprehensive documentation from your code and lets you correct it when the AI gets things wrong.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Ovid/Oya)
+
 ![Know Your Code](images/oya.png)
 
 # ALPHA CODE!
