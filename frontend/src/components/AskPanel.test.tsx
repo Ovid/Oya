@@ -116,7 +116,18 @@ const mockCompletedJob: JobStatus = {
   error_message: null,
 }
 
-function renderAskPanel(props = {}, contextOverrides: { currentJob?: JobStatus | null } = {}) {
+const emptyWikiTree: WikiTree = {
+  overview: false,
+  architecture: false,
+  workflows: [],
+  directories: [],
+  files: [],
+}
+
+function renderAskPanel(
+  props = {},
+  contextOverrides: { currentJob?: JobStatus | null; wikiTree?: WikiTree | null } = {}
+) {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -127,7 +138,7 @@ function renderAskPanel(props = {}, contextOverrides: { currentJob?: JobStatus |
   const mockContextValue = {
     state: {
       repoStatus: mockRepoStatus,
-      wikiTree: mockWikiTree,
+      wikiTree: contextOverrides.wikiTree !== undefined ? contextOverrides.wikiTree : mockWikiTree,
       currentPage: null,
       currentJob: contextOverrides.currentJob !== undefined ? contextOverrides.currentJob : null,
       isLoading: false,
@@ -260,6 +271,82 @@ describe('AskPanel', () => {
       await waitFor(() => {
         const input = screen.getByPlaceholderText('Ask a question...')
         expect(input).not.toBeDisabled()
+      })
+    })
+  })
+
+  describe('when no wiki exists', () => {
+    it('shows banner when wiki is empty', async () => {
+      renderAskPanel({ isOpen: true }, { wikiTree: emptyWikiTree })
+
+      await waitFor(() => {
+        expect(screen.getByText('Generate a wiki first to enable Q&A.')).toBeInTheDocument()
+      })
+    })
+
+    it('shows banner when wikiTree is null', async () => {
+      renderAskPanel({ isOpen: true }, { wikiTree: null })
+
+      await waitFor(() => {
+        expect(screen.getByText('Generate a wiki first to enable Q&A.')).toBeInTheDocument()
+      })
+    })
+
+    it('disables input field when no wiki exists', async () => {
+      renderAskPanel({ isOpen: true }, { wikiTree: emptyWikiTree })
+
+      await waitFor(() => {
+        const input = screen.getByPlaceholderText('Ask a question...')
+        expect(input).toBeDisabled()
+      })
+    })
+
+    it('disables submit button when no wiki exists', async () => {
+      renderAskPanel({ isOpen: true }, { wikiTree: emptyWikiTree })
+
+      await waitFor(() => {
+        const submitButton = screen.getByRole('button', { name: /ask/i })
+        expect(submitButton).toBeDisabled()
+      })
+    })
+
+    it('does not show no-wiki banner when wiki exists', async () => {
+      renderAskPanel({ isOpen: true }, { wikiTree: mockWikiTree })
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Generate a wiki first to enable Q&A.')
+        ).not.toBeInTheDocument()
+      })
+    })
+
+    it('enables input when wiki has only files', async () => {
+      const wikiWithFiles: WikiTree = {
+        overview: false,
+        architecture: false,
+        workflows: [],
+        directories: [],
+        files: ['src-main-ts'],
+      }
+      renderAskPanel({ isOpen: true }, { wikiTree: wikiWithFiles })
+
+      await waitFor(() => {
+        const input = screen.getByPlaceholderText('Ask a question...')
+        expect(input).not.toBeDisabled()
+      })
+    })
+
+    it('does not show no-wiki banner during generation', async () => {
+      renderAskPanel({ isOpen: true }, { wikiTree: emptyWikiTree, currentJob: mockRunningJob })
+
+      await waitFor(() => {
+        // Should show generation banner, not no-wiki banner
+        expect(
+          screen.getByText('Q&A is unavailable while the wiki is being generated.')
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByText('Generate a wiki first to enable Q&A.')
+        ).not.toBeInTheDocument()
       })
     })
   })
