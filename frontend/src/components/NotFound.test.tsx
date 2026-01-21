@@ -10,9 +10,7 @@ describe('NotFound', () => {
 
   it('renders explanatory message', () => {
     render(<NotFound />)
-    expect(
-      screen.getByText(/The page you're looking for doesn't exist/)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/The page you're looking for doesn't exist/)).toBeInTheDocument()
   })
 
   it('renders sad face icon', () => {

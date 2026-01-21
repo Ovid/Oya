@@ -14,14 +14,16 @@ from oya.parsing.models import ParsedFile, ParsedSymbol, ParseResult, SymbolType
 
 # Documentation file extensions - skip class detection for these
 # (English prose like "class you specify" gets misinterpreted as class declarations)
-DOCUMENTATION_EXTENSIONS = frozenset([
-    ".pod",   # Perl POD
-    ".md",    # Markdown
-    ".rst",   # reStructuredText
-    ".txt",   # Plain text
-    ".adoc",  # AsciiDoc
-    ".rdoc",  # Ruby documentation
-])
+DOCUMENTATION_EXTENSIONS = frozenset(
+    [
+        ".pod",  # Perl POD
+        ".md",  # Markdown
+        ".rst",  # reStructuredText
+        ".txt",  # Plain text
+        ".adoc",  # AsciiDoc
+        ".rdoc",  # Ruby documentation
+    ]
+)
 
 # Extension to language name mapping
 EXTENSION_LANGUAGES = {
