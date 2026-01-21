@@ -49,6 +49,13 @@ function saveSettings(settings: QASettings): void {
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   const { state } = useApp()
   const isGenerating = state.currentJob?.status === 'running'
+  const hasWiki = state.wikiTree && (
+    state.wikiTree.overview ||
+    state.wikiTree.architecture ||
+    state.wikiTree.workflows.length > 0 ||
+    state.wikiTree.directories.length > 0 ||
+    state.wikiTree.files.length > 0
+  )
 
   const [question, setQuestion] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -223,6 +230,13 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
         </div>
       )}
 
+      {/* No wiki banner */}
+      {!hasWiki && !isGenerating && (
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-sm border-b border-yellow-200 dark:border-yellow-800">
+          Generate a wiki first to enable Q&A.
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
         {messages.length === 0 && !currentStreamText && !currentStatus && (
@@ -322,12 +336,12 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Ask a question..."
             className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            disabled={isLoading || isGenerating}
+            disabled={isLoading || isGenerating || !hasWiki}
           />
           <QASettingsPopover settings={settings} onChange={handleSettingsChange} />
           <button
             type="submit"
-            disabled={isLoading || !question.trim() || isGenerating}
+            disabled={isLoading || !question.trim() || isGenerating || !hasWiki}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             {isLoading ? '...' : 'Ask'}
