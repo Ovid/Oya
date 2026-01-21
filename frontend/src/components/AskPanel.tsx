@@ -68,11 +68,24 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-scroll to bottom when messages or streaming text changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, currentStreamText])
+
+  // Auto-resize textarea as content changes
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.style.height = 'auto'
+    const maxHeight = 96 // ~4 rows
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight)
+    textarea.style.height = `${newHeight}px`
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [question])
 
   // Save settings when they change
   const handleSettingsChange = useCallback((newSettings: QASettings) => {
@@ -329,13 +342,14 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
         onSubmit={handleSubmit}
         className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0"
       >
-        <div className="flex gap-2 items-center">
-          <input
-            type="text"
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Ask a question..."
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            rows={1}
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
             disabled={isLoading || isGenerating || !hasWiki}
           />
           <QASettingsPopover settings={settings} onChange={handleSettingsChange} />
