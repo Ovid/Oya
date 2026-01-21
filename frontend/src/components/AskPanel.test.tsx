@@ -314,9 +314,7 @@ describe('AskPanel', () => {
       renderAskPanel({ isOpen: true }, { wikiTree: mockWikiTree })
 
       await waitFor(() => {
-        expect(
-          screen.queryByText('Generate a wiki first to enable Q&A.')
-        ).not.toBeInTheDocument()
+        expect(screen.queryByText('Generate a wiki first to enable Q&A.')).not.toBeInTheDocument()
       })
     })
 
@@ -344,9 +342,7 @@ describe('AskPanel', () => {
         expect(
           screen.getByText('Q&A is unavailable while the wiki is being generated.')
         ).toBeInTheDocument()
-        expect(
-          screen.queryByText('Generate a wiki first to enable Q&A.')
-        ).not.toBeInTheDocument()
+        expect(screen.queryByText('Generate a wiki first to enable Q&A.')).not.toBeInTheDocument()
       })
     })
   })

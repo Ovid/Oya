@@ -49,13 +49,13 @@ function saveSettings(settings: QASettings): void {
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   const { state } = useApp()
   const isGenerating = state.currentJob?.status === 'running'
-  const hasWiki = state.wikiTree && (
-    state.wikiTree.overview ||
-    state.wikiTree.architecture ||
-    state.wikiTree.workflows.length > 0 ||
-    state.wikiTree.directories.length > 0 ||
-    state.wikiTree.files.length > 0
-  )
+  const hasWiki =
+    state.wikiTree &&
+    (state.wikiTree.overview ||
+      state.wikiTree.architecture ||
+      state.wikiTree.workflows.length > 0 ||
+      state.wikiTree.directories.length > 0 ||
+      state.wikiTree.files.length > 0)
 
   const [question, setQuestion] = useState('')
   const [isLoading, setIsLoading] = useState(false)
