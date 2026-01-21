@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AppProvider } from './context/AppContext'
 import { Layout } from './components/Layout'
+import { NotFound } from './components/NotFound'
 import {
   OverviewPage,
   ArchitecturePage,
@@ -33,6 +34,7 @@ function App() {
             <Route path="/directories/:slug" element={<DirectoryPage />} />
             <Route path="/files/:slug" element={<FilePage />} />
             <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Layout>
       </AppProvider>

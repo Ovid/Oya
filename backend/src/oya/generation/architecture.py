@@ -5,7 +5,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from oya.generation.mermaid import DiagramGenerator
+from oya.generation.mermaid import (
+    ClassDiagramGenerator,
+    DependencyGraphGenerator,
+    DiagramGenerator,
+    LayerDiagramGenerator,
+)
 from oya.generation.mermaid_validator import validate_mermaid
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_architecture_prompt
@@ -96,32 +101,46 @@ class ArchitectureGenerator:
         )
 
     def _inject_diagrams(self, content: str, diagrams: dict[str, str]) -> str:
-        """Inject validated Mermaid diagrams into the architecture content.
+        """Inject validated and useful Mermaid diagrams into the architecture content.
 
         Adds a "## Generated Diagrams" section at the end with each
-        validated diagram in a mermaid code block.
+        validated diagram in a mermaid code block. Skips diagrams that
+        don't add value (e.g., empty dependency graphs, single-layer diagrams).
 
         Args:
             content: The LLM-generated architecture content.
             diagrams: Dict mapping diagram name to Mermaid content.
 
         Returns:
-            Content with diagrams appended.
+            Content with diagrams appended, or original content if no useful diagrams.
         """
         validated_diagrams = []
 
-        # Define diagram titles
+        # Define diagram titles and usefulness checkers
         diagram_titles = {
             "layer": "System Layers",
             "dependency": "File Dependencies",
             "class": "Class Structure",
         }
+        usefulness_checks = {
+            "layer": LayerDiagramGenerator.is_useful,
+            "dependency": DependencyGraphGenerator.is_useful,
+            "class": ClassDiagramGenerator.is_useful,
+        }
 
         for name, diagram_content in diagrams.items():
+            # Check syntax validity
             validation = validate_mermaid(diagram_content)
-            if validation.valid:
-                title = diagram_titles.get(name, name.title())
-                validated_diagrams.append((title, diagram_content))
+            if not validation.valid:
+                continue
+
+            # Check if diagram adds value
+            usefulness_check = usefulness_checks.get(name)
+            if usefulness_check and not usefulness_check(diagram_content):
+                continue
+
+            title = diagram_titles.get(name, name.title())
+            validated_diagrams.append((title, diagram_content))
 
         if not validated_diagrams:
             return content

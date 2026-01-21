@@ -154,22 +154,27 @@ class FileGenerator:
     ) -> str:
         """Generate Mermaid diagrams for the file.
 
+        Only includes diagrams that are both valid AND useful.
+        Skips diagrams that don't add value (e.g., classes with no methods,
+        dependencies with no edges).
+
         Args:
             file_path: Path to the file being documented.
             parsed_symbols: Optional list of ParsedSymbol objects.
             file_imports: Optional dict of all file imports.
 
         Returns:
-            Markdown string with diagrams, or empty string if no diagrams.
+            Markdown string with diagrams, or empty string if no useful diagrams.
         """
         diagrams = []
 
         # Class diagram if we have parsed symbols with classes
         if parsed_symbols:
             class_diagram = self._class_diagram_gen.generate(parsed_symbols)
-            if class_diagram and "NoClasses" not in class_diagram:
+            if class_diagram:
                 result = validate_mermaid(class_diagram)
-                if result.valid:
+                # Check both validity AND usefulness
+                if result.valid and ClassDiagramGenerator.is_useful(class_diagram):
                     diagrams.append(("Class Structure", class_diagram))
 
         # Dependency diagram if we have import data
@@ -177,7 +182,8 @@ class FileGenerator:
             dep_diagram = self._dep_diagram_gen.generate_for_file(file_path, file_imports)
             if dep_diagram:
                 result = validate_mermaid(dep_diagram)
-                if result.valid:
+                # Check both validity AND usefulness
+                if result.valid and DependencyGraphGenerator.is_useful(dep_diagram):
                     diagrams.append(("Dependencies", dep_diagram))
 
         if not diagrams:

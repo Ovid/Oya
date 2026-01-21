@@ -423,12 +423,12 @@ After the YAML block, create directory documentation with these sections IN ORDE
 2. **Subdirectories** (if any exist): Use this exact table format:
 | Directory | Purpose |
 |-----------|---------|
-| [name](./slug.md) | One-line description |
+| [name](./slug) | One-line description |
 
 3. **Files**: Use this exact table format:
 | File | Purpose |
 |------|---------|
-| [name.py](../files/slug.md) | One-line description |
+| [name.py](../files/slug) | One-line description |
 
 4. **Key Components**: Bullet list of important classes/functions
 
@@ -853,7 +853,7 @@ def format_subdirectory_summaries(summaries: list[Any], parent_directory: str) -
     for summary in sorted(direct_children, key=lambda s: s.directory_path):
         name = summary.directory_path.split("/")[-1]
         slug = path_to_slug(summary.directory_path, include_extension=False)
-        link = f"[{name}](./{slug}.md)"
+        link = f"[{name}](./{slug})"
         purpose = summary.purpose or "No description"
         lines.append(f"| {link} | {purpose} |")
 
@@ -876,7 +876,7 @@ def format_file_links(file_summaries: list[Any]) -> str:
     for summary in sorted(file_summaries, key=lambda s: s.file_path):
         filename = summary.file_path.split("/")[-1]
         slug = path_to_slug(summary.file_path)
-        link = f"[{filename}](../files/{slug}.md)"
+        link = f"[{filename}](../files/{slug})"
         purpose = summary.purpose or "No description"
         lines.append(f"| {link} | {purpose} |")
 
@@ -904,7 +904,7 @@ def generate_breadcrumb(directory_path: str, project_name: str) -> str:
     depth = len(parts)
 
     # Root link
-    root_link = f"[{project_name}](./root.md)"
+    root_link = f"[{project_name}](./root)"
 
     if depth <= 4:
         # Show full path
@@ -912,14 +912,14 @@ def generate_breadcrumb(directory_path: str, project_name: str) -> str:
         for i in range(len(parts) - 1):
             ancestor_path = "/".join(parts[: i + 1])
             slug = path_to_slug(ancestor_path, include_extension=False)
-            links.append(f"[{parts[i]}](./{slug}.md)")
+            links.append(f"[{parts[i]}](./{slug})")
         links.append(parts[-1])  # Current directory (no link)
         return " / ".join(links)
     else:
         # Truncate middle: root / ... / parent / current
         parent_path = "/".join(parts[:-1])
         parent_slug = path_to_slug(parent_path, include_extension=False)
-        parent_link = f"[{parts[-2]}](./{parent_slug}.md)"
+        parent_link = f"[{parts[-2]}](./{parent_slug})"
         return f"{root_link} / ... / {parent_link} / {parts[-1]}"
 
 
