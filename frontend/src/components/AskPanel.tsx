@@ -18,7 +18,6 @@ interface QAMessage {
   disclaimer: string
   searchQuality: SearchQuality
   durationSeconds: number
-  isStreaming?: boolean
 }
 
 interface AskPanelProps {
@@ -64,17 +63,16 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [settings, setSettings] = useState<QASettings>(loadSettings)
-  const [currentStreamText, setCurrentStreamText] = useState('')
   const [currentStatus, setCurrentStatus] = useState<string | null>(null)
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Auto-scroll to bottom when messages or streaming text changes
+  // Auto-scroll to bottom when messages or status changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, currentStreamText])
+  }, [messages, currentStatus])
 
   // Auto-resize textarea as content changes
   useEffect(() => {
@@ -99,13 +97,10 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
     setMessages([])
     setSessionId(null)
     setError(null)
-    setCurrentStreamText('')
     setCurrentStatus(null)
     setPendingQuestion(null)
   }, [])
 
-  // Ref to track accumulated stream text (needed because onDone callback captures stale state)
-  const streamTextRef = useRef('')
   // Ref to track start time for duration calculation
   const startTimeRef = useRef<number>(0)
 
@@ -118,8 +113,6 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
     setQuestion('')
     setIsLoading(true)
     setError(null)
-    setCurrentStreamText('')
-    streamTextRef.current = ''
     startTimeRef.current = Date.now()
     setCurrentStatus('Searching')
 
@@ -140,23 +133,19 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
           temperature: settings.temperature,
         },
         {
-          onToken: (text) => {
-            streamTextRef.current += text
-            setCurrentStreamText(streamTextRef.current)
-            setCurrentStatus(null)
+          onToken: () => {
+            // No longer used - answer comes in done event
           },
           onStatus: (stage, pass) => {
             setCurrentStatus(`${stage}${pass > 1 ? ` (pass ${pass})` : ''}`)
           },
           onDone: (data) => {
-            console.log('[AskPanel] onDone - streamTextRef length:', streamTextRef.current.length)
-            const finalAnswer = streamTextRef.current
             const durationSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000)
             setMessages((prev) => [
               ...prev,
               {
                 question: trimmedQuestion,
-                answer: finalAnswer,
+                answer: data.answer,
                 citations: data.citations,
                 confidence: data.confidence as ConfidenceLevel,
                 disclaimer: data.disclaimer,
@@ -167,15 +156,11 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             if (data.session_id) {
               setSessionId(data.session_id)
             }
-            setCurrentStreamText('')
-            streamTextRef.current = ''
             setCurrentStatus(null)
             setPendingQuestion(null)
           },
           onError: (message) => {
             setError(message)
-            setCurrentStreamText('')
-            streamTextRef.current = ''
             setCurrentStatus(null)
             setPendingQuestion(null)
           },
@@ -188,8 +173,6 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
       } else {
         setError(err instanceof Error ? err.message : 'Failed to get answer')
       }
-      setCurrentStreamText('')
-      streamTextRef.current = ''
       setCurrentStatus(null)
       setPendingQuestion(null)
     } finally {
@@ -254,7 +237,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
-        {messages.length === 0 && !currentStreamText && !currentStatus && (
+        {messages.length === 0 && !currentStatus && !pendingQuestion && (
           <div className="text-center text-gray-500 dark:text-gray-400 text-sm py-8">
             <p>Ask any question about the codebase.</p>
             <p className="mt-2 text-xs">Answers are based on the generated documentation.</p>
@@ -304,10 +287,10 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
           </div>
         ))}
 
-        {/* Streaming response */}
-        {(currentStreamText || currentStatus || pendingQuestion) && (
+        {/* Pending question and status indicator */}
+        {(currentStatus || pendingQuestion) && (
           <div className="space-y-2">
-            {/* Show current question while streaming */}
+            {/* Show current question while waiting */}
             {pendingQuestion && (
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
                 <p className="text-sm text-gray-900 dark:text-white">{pendingQuestion}</p>
@@ -317,14 +300,6 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             {/* Status indicator */}
             {currentStatus && (
               <ThinkingIndicator text={currentStatus === 'thinking' ? 'Thinking' : currentStatus} />
-            )}
-
-            {/* Streaming answer content */}
-            {currentStreamText && (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentStreamText}</ReactMarkdown>
-                <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1" />
-              </div>
             )}
           </div>
         )}
