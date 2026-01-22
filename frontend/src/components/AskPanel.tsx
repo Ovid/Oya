@@ -8,6 +8,7 @@ import { QASettingsPopover, type QASettings } from './QASettingsPopover'
 import { formatElapsedTime } from './generationConstants'
 import { useApp } from '../context/useApp'
 import type { Citation, SearchQuality, ConfidenceLevel } from '../types'
+import { ThinkingIndicator } from './ThinkingIndicator'
 
 interface QAMessage {
   question: string
@@ -314,7 +315,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
 
             {/* Status indicator */}
             {currentStatus && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 italic">{currentStatus}</div>
+              <ThinkingIndicator text={currentStatus === 'thinking' ? 'Thinking' : currentStatus} />
             )}
 
             {/* Streaming answer content */}
