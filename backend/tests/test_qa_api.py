@@ -283,11 +283,11 @@ class TestQARequestSchema:
 
 
 class TestCGRAGStreamingBatching:
-    """Tests for CGRAG streaming word batching to prevent truncation."""
+    """Tests for CGRAG streaming - answer delivered in done event (no token streaming)."""
 
     @pytest.mark.asyncio
-    async def test_cgrag_streaming_batches_words(self):
-        """CGRAG streaming batches multiple words per SSE event, not one word per event."""
+    async def test_cgrag_no_token_events(self):
+        """CGRAG mode does not emit token events - answer is in done event."""
         import json
         from oya.qa.schemas import QARequest
         from oya.qa.cgrag import CGRAGResult
@@ -324,39 +324,33 @@ class TestCGRAGStreamingBatching:
             async for event in service.ask_stream(request):
                 events.append(event)
 
-            # Parse token events
+            # No token events should be emitted
             token_events = [e for e in events if e.startswith("event: token")]
-
-            # With 100 words and batch_size=5, we should have ~20 token events, not 100
-            # Allow some margin for rounding
-            assert len(token_events) <= 25, (
-                f"Expected ~20 batched token events for 100 words, got {len(token_events)}. "
-                "Words should be batched, not sent one per event."
-            )
-            assert len(token_events) >= 10, (
-                f"Expected at least 10 token events, got {len(token_events)}"
+            assert len(token_events) == 0, (
+                f"Expected no token events, got {len(token_events)}. "
+                "Answer should be delivered in done event, not streamed."
             )
 
-            # Verify the full answer is preserved by concatenating all tokens
-            full_text = ""
-            for event in token_events:
-                # Parse SSE format: "event: token\ndata: {json}\n\n"
-                lines = event.strip().split("\n")
-                for line in lines:
-                    if line.startswith("data: "):
-                        data = json.loads(line[6:])
-                        full_text += data["text"]
+            # Verify done event contains the full answer
+            done_events = [e for e in events if e.startswith("event: done")]
+            assert len(done_events) == 1, "Expected exactly one 'done' event"
 
-            assert full_text.strip() == long_answer, (
-                f"Full answer not preserved. Expected {len(long_answer)} chars, "
-                f"got {len(full_text.strip())} chars"
-            )
+            # Parse done event and verify answer
+            done_event = done_events[0]
+            for line in done_event.strip().split("\n"):
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    assert "answer" in data, "Done event must contain 'answer' field"
+                    assert data["answer"] == long_answer, (
+                        f"Answer in done event doesn't match. "
+                        f"Expected {len(long_answer)} chars, got {len(data['answer'])} chars"
+                    )
         finally:
             service_module.run_cgrag_loop = original_run_cgrag_loop
 
     @pytest.mark.asyncio
-    async def test_cgrag_streaming_preserves_long_response(self):
-        """CGRAG streaming preserves the entire response without truncation."""
+    async def test_cgrag_preserves_long_response_in_done_event(self):
+        """CGRAG preserves the entire response in the done event without truncation."""
         import json
         from oya.qa.schemas import QARequest
         from oya.qa.cgrag import CGRAGResult
@@ -397,32 +391,28 @@ class TestCGRAGStreamingBatching:
             async for event in service.ask_stream(request):
                 events.append(event)
 
-            # Reconstruct the full response from token events
-            full_text = ""
-            for event in events:
-                if event.startswith("event: token"):
-                    lines = event.strip().split("\n")
-                    for line in lines:
-                        if line.startswith("data: "):
-                            data = json.loads(line[6:])
-                            full_text += data["text"]
-
-            # The full answer must be preserved exactly
-            assert full_text.strip() == long_answer, (
-                f"Response truncated! Expected {len(long_answer)} chars, "
-                f"got {len(full_text.strip())} chars. "
-                f"Missing: {long_answer[len(full_text.strip()) :][:100]}..."
-            )
-
-            # Verify done event is present
+            # Extract answer from done event
             done_events = [e for e in events if e.startswith("event: done")]
             assert len(done_events) == 1, "Expected exactly one 'done' event"
+
+            answer_from_done = None
+            for line in done_events[0].strip().split("\n"):
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    answer_from_done = data.get("answer")
+
+            # The full answer must be preserved exactly
+            assert answer_from_done == long_answer, (
+                f"Response truncated! Expected {len(long_answer)} chars, "
+                f"got {len(answer_from_done) if answer_from_done else 0} chars. "
+            )
         finally:
             service_module.run_cgrag_loop = original_run_cgrag_loop
 
     @pytest.mark.asyncio
-    async def test_cgrag_streaming_done_event_after_all_tokens(self):
-        """The 'done' event arrives after all token events."""
+    async def test_cgrag_done_event_structure(self):
+        """The 'done' event has proper structure with answer field."""
+        import json
         from oya.qa.schemas import QARequest
         from oya.qa.cgrag import CGRAGResult
 
@@ -449,24 +439,30 @@ class TestCGRAGStreamingBatching:
 
         try:
             request = QARequest(question="test", quick_mode=False)
-            event_types = []
+            events = []
             async for event in service.ask_stream(request):
+                events.append(event)
+
+            # Extract event types
+            event_types = []
+            for event in events:
                 if event.startswith("event: "):
                     event_type = event.split("\n")[0].replace("event: ", "")
                     event_types.append(event_type)
 
-            # Find last token event and done event positions
-            last_token_idx = -1
-            done_idx = -1
-            for i, t in enumerate(event_types):
-                if t == "token":
-                    last_token_idx = i
-                if t == "done":
-                    done_idx = i
+            # Verify no token events
+            assert "token" not in event_types, "No token events should be emitted"
 
-            assert done_idx > last_token_idx, (
-                f"'done' event (idx={done_idx}) must come after last 'token' event "
-                f"(idx={last_token_idx}). Event order: {event_types}"
-            )
+            # Verify done event is present and has required fields
+            assert "done" in event_types, "Done event must be present"
+
+            done_events = [e for e in events if e.startswith("event: done")]
+            for line in done_events[0].strip().split("\n"):
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    assert "answer" in data, "Done event must contain 'answer' field"
+                    assert "citations" in data, "Done event must contain 'citations' field"
+                    assert "confidence" in data, "Done event must contain 'confidence' field"
+                    assert data["answer"] == answer, "Answer must match expected value"
         finally:
             service_module.run_cgrag_loop = original_run_cgrag_loop
