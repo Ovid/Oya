@@ -163,6 +163,7 @@ export interface StreamCallbacks {
   onToken: (text: string) => void
   onStatus: (stage: string, pass: number) => void
   onDone: (data: {
+    answer: string
     citations: Citation[]
     confidence: string
     session_id: string | null
