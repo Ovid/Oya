@@ -22,7 +22,7 @@ from oya.qa.graph_retrieval import (
     map_search_results_to_node_ids,
     prioritize_nodes,
 )
-from oya.qa.cgrag import run_cgrag_loop, CGRAGResult
+from oya.qa.cgrag import run_cgrag_loop, CGRAGResult, parse_answer
 from oya.qa.ranking import RRFRanker
 from oya.qa.schemas import (
     CGRAGMetadata,
@@ -996,24 +996,23 @@ Answer the question based only on the context provided. Include citations to spe
 
         try:
             if request.quick_mode:
-                # Issue 5 fix: Match prompt format from _ask_quick()
                 prompt = f"""{initial_context}
 
 QUESTION: {request.question}
 
 Answer the question based only on the context provided. Include citations to specific files."""
 
-                # Single pass streaming
-                async for token in self._llm.generate_stream(
+                # Wait for complete response, then extract answer
+                raw_response = await self._llm.generate(
                     prompt=prompt,
                     system_prompt=QA_SYSTEM_PROMPT,
                     temperature=temperature,
-                ):
-                    accumulated_response += token
-                    yield f"event: token\ndata: {json.dumps({'text': token})}\n\n"
+                )
+                accumulated_response = raw_response
+                answer = parse_answer(raw_response)
             else:
-                # CGRAG mode - run iteration first, then send answer
-                assert session is not None  # Guaranteed by check at line 941
+                # CGRAG mode - run full iteration loop
+                assert session is not None
                 cgrag_result = await run_cgrag_loop(
                     question=request.question,
                     initial_context=initial_context,
@@ -1022,31 +1021,8 @@ Answer the question based only on the context provided. Include citations to spe
                     graph=self._graph,
                     vectorstore=self._vectorstore,
                 )
-                # Stream answer in batched word chunks with flush points to prevent
-                # network buffer truncation (all words yielded too fast otherwise)
-                words = cgrag_result.answer.split(" ")
-                batch_size = 5  # Words per SSE event (smaller batches = more flush points)
-                total_chars_sent = 0
-                import logging
-
-                logger = logging.getLogger(__name__)
-                logger.info(
-                    f"CGRAG streaming: {len(words)} words, {len(cgrag_result.answer)} chars"
-                )
-                for i in range(0, len(words), batch_size):
-                    batch = words[i : i + batch_size]
-                    # Reconstruct with spaces, add trailing space if not last batch
-                    text = " ".join(batch)
-                    if i + batch_size < len(words):
-                        text += " "
-                    total_chars_sent += len(text)
-                    yield f"event: token\ndata: {json.dumps({'text': text})}\n\n"
-                    # Small delay to force network buffer flush (sleep(0) is not enough)
-                    await asyncio.sleep(0.005)  # 5ms delay per batch
-                logger.info(
-                    f"CGRAG streaming complete: sent {total_chars_sent} chars in {(len(words) + batch_size - 1) // batch_size} batches"
-                )
-                accumulated_response = cgrag_result.answer
+                accumulated_response = cgrag_result.answer  # Already parsed by cgrag
+                answer = cgrag_result.answer
 
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
@@ -1069,6 +1045,7 @@ Answer the question based only on the context provided. Include citations to spe
         }
 
         done_data = {
+            "answer": answer,
             "citations": [c.model_dump() for c in citations],
             "confidence": confidence.value,
             "session_id": session_id,
