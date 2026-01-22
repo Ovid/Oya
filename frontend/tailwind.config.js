@@ -6,7 +6,17 @@ export default {
   ],
   darkMode: 'class',
   theme: {
-    extend: {},
+    extend: {
+      animation: {
+        'fade-in-dot': 'fadeInDot 1.2s ease-in-out infinite',
+      },
+      keyframes: {
+        fadeInDot: {
+          '0%, 20%': { opacity: '0' },
+          '40%, 100%': { opacity: '1' },
+        },
+      },
+    },
   },
   plugins: [
     require('@tailwindcss/typography'),
