@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections.abc import AsyncGenerator
@@ -1021,13 +1022,30 @@ Answer the question based only on the context provided. Include citations to spe
                     graph=self._graph,
                     vectorstore=self._vectorstore,
                 )
-                # Issue 2 fix: Stream in word chunks instead of character-by-character
-                # Split by spaces to yield words with trailing space, batching for efficiency
+                # Stream answer in batched word chunks with flush points to prevent
+                # network buffer truncation (all words yielded too fast otherwise)
                 words = cgrag_result.answer.split(" ")
-                for i, word in enumerate(words):
-                    # Add space back except for last word
-                    chunk = word + (" " if i < len(words) - 1 else "")
-                    yield f"event: token\ndata: {json.dumps({'text': chunk})}\n\n"
+                batch_size = 5  # Words per SSE event (smaller batches = more flush points)
+                total_chars_sent = 0
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    f"CGRAG streaming: {len(words)} words, {len(cgrag_result.answer)} chars"
+                )
+                for i in range(0, len(words), batch_size):
+                    batch = words[i : i + batch_size]
+                    # Reconstruct with spaces, add trailing space if not last batch
+                    text = " ".join(batch)
+                    if i + batch_size < len(words):
+                        text += " "
+                    total_chars_sent += len(text)
+                    yield f"event: token\ndata: {json.dumps({'text': text})}\n\n"
+                    # Small delay to force network buffer flush (sleep(0) is not enough)
+                    await asyncio.sleep(0.005)  # 5ms delay per batch
+                logger.info(
+                    f"CGRAG streaming complete: sent {total_chars_sent} chars in {(len(words) + batch_size - 1) // batch_size} batches"
+                )
                 accumulated_response = cgrag_result.answer
 
         except Exception as e:

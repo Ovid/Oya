@@ -1,6 +1,9 @@
 # TODO
 
 * Q&A
+    * Not scrolling down for successive answers.
+    * Tried a follow-up question and it looks like it's not chatting. It's
+      one-shot.
     * The text input should be a text area.
     * Users should be able to use standard `@` functionality to provide exact
       context. This implies we actually have a checkout. Should this use RLM?

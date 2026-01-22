@@ -64,7 +64,7 @@ def mock_qa_service():
 
     async def mock_stream(request):
         """Mock streaming response."""
-        yield 'data: {"type": "status", "message": "Searching..."}\n\n'
+        yield 'data: {"type": "status", "message": "Searching"}\n\n'
         yield 'data: {"type": "answer_chunk", "content": "Test answer"}\n\n'
         yield 'data: {"type": "done"}\n\n'
 
@@ -280,3 +280,194 @@ class TestQARequestSchema:
             assert response.status_code in (200, 500)  # 500 if no wiki, but not 422
         finally:
             app.dependency_overrides.clear()
+
+
+class TestCGRAGStreamingBatching:
+    """Tests for CGRAG streaming word batching to prevent truncation."""
+
+    @pytest.mark.asyncio
+    async def test_cgrag_streaming_batches_words(self):
+        """CGRAG streaming batches multiple words per SSE event, not one word per event."""
+        import json
+        from oya.qa.schemas import QARequest
+        from oya.qa.cgrag import CGRAGResult
+
+        # Create a long answer with many words
+        long_answer = " ".join([f"word{i}" for i in range(100)])  # 100 words
+
+        # Mock dependencies
+        vectorstore = MagicMock()
+        vectorstore.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]]}
+
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = []
+
+        llm = AsyncMock()
+
+        # Create service
+        service = QAService(vectorstore=vectorstore, db=db, llm=llm)
+
+        # Mock run_cgrag_loop to return our long answer
+        import oya.qa.service as service_module
+
+        original_run_cgrag_loop = service_module.run_cgrag_loop
+
+        async def mock_cgrag_loop(*args, **kwargs):
+            return CGRAGResult(answer=long_answer, passes_used=1)
+
+        service_module.run_cgrag_loop = mock_cgrag_loop
+
+        try:
+            # Collect all streamed events
+            request = QARequest(question="test", quick_mode=False)
+            events = []
+            async for event in service.ask_stream(request):
+                events.append(event)
+
+            # Parse token events
+            token_events = [e for e in events if e.startswith("event: token")]
+
+            # With 100 words and batch_size=5, we should have ~20 token events, not 100
+            # Allow some margin for rounding
+            assert len(token_events) <= 25, (
+                f"Expected ~20 batched token events for 100 words, got {len(token_events)}. "
+                "Words should be batched, not sent one per event."
+            )
+            assert len(token_events) >= 10, (
+                f"Expected at least 10 token events, got {len(token_events)}"
+            )
+
+            # Verify the full answer is preserved by concatenating all tokens
+            full_text = ""
+            for event in token_events:
+                # Parse SSE format: "event: token\ndata: {json}\n\n"
+                lines = event.strip().split("\n")
+                for line in lines:
+                    if line.startswith("data: "):
+                        data = json.loads(line[6:])
+                        full_text += data["text"]
+
+            assert full_text.strip() == long_answer, (
+                f"Full answer not preserved. Expected {len(long_answer)} chars, "
+                f"got {len(full_text.strip())} chars"
+            )
+        finally:
+            service_module.run_cgrag_loop = original_run_cgrag_loop
+
+    @pytest.mark.asyncio
+    async def test_cgrag_streaming_preserves_long_response(self):
+        """CGRAG streaming preserves the entire response without truncation."""
+        import json
+        from oya.qa.schemas import QARequest
+        from oya.qa.cgrag import CGRAGResult
+
+        # Create a very long answer (simulating the truncation bug scenario)
+        # ~800 words like the real architectural flaws response
+        paragraphs = []
+        for i in range(5):
+            paragraph = f"{i + 1}) Point number {i + 1}: " + " ".join(
+                [f"explanation{j}" for j in range(150)]
+            )
+            paragraphs.append(paragraph)
+        long_answer = "\n\n".join(paragraphs)
+
+        # Mock dependencies
+        vectorstore = MagicMock()
+        vectorstore.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]]}
+
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = []
+
+        llm = AsyncMock()
+
+        service = QAService(vectorstore=vectorstore, db=db, llm=llm)
+
+        import oya.qa.service as service_module
+
+        original_run_cgrag_loop = service_module.run_cgrag_loop
+
+        async def mock_cgrag_loop(*args, **kwargs):
+            return CGRAGResult(answer=long_answer, passes_used=1)
+
+        service_module.run_cgrag_loop = mock_cgrag_loop
+
+        try:
+            request = QARequest(question="test", quick_mode=False)
+            events = []
+            async for event in service.ask_stream(request):
+                events.append(event)
+
+            # Reconstruct the full response from token events
+            full_text = ""
+            for event in events:
+                if event.startswith("event: token"):
+                    lines = event.strip().split("\n")
+                    for line in lines:
+                        if line.startswith("data: "):
+                            data = json.loads(line[6:])
+                            full_text += data["text"]
+
+            # The full answer must be preserved exactly
+            assert full_text.strip() == long_answer, (
+                f"Response truncated! Expected {len(long_answer)} chars, "
+                f"got {len(full_text.strip())} chars. "
+                f"Missing: {long_answer[len(full_text.strip()) :][:100]}..."
+            )
+
+            # Verify done event is present
+            done_events = [e for e in events if e.startswith("event: done")]
+            assert len(done_events) == 1, "Expected exactly one 'done' event"
+        finally:
+            service_module.run_cgrag_loop = original_run_cgrag_loop
+
+    @pytest.mark.asyncio
+    async def test_cgrag_streaming_done_event_after_all_tokens(self):
+        """The 'done' event arrives after all token events."""
+        import json
+        from oya.qa.schemas import QARequest
+        from oya.qa.cgrag import CGRAGResult
+
+        answer = "This is a test answer with multiple words."
+
+        vectorstore = MagicMock()
+        vectorstore.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]]}
+
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = []
+
+        llm = AsyncMock()
+
+        service = QAService(vectorstore=vectorstore, db=db, llm=llm)
+
+        import oya.qa.service as service_module
+
+        original_run_cgrag_loop = service_module.run_cgrag_loop
+
+        async def mock_cgrag_loop(*args, **kwargs):
+            return CGRAGResult(answer=answer, passes_used=1)
+
+        service_module.run_cgrag_loop = mock_cgrag_loop
+
+        try:
+            request = QARequest(question="test", quick_mode=False)
+            event_types = []
+            async for event in service.ask_stream(request):
+                if event.startswith("event: "):
+                    event_type = event.split("\n")[0].replace("event: ", "")
+                    event_types.append(event_type)
+
+            # Find last token event and done event positions
+            last_token_idx = -1
+            done_idx = -1
+            for i, t in enumerate(event_types):
+                if t == "token":
+                    last_token_idx = i
+                if t == "done":
+                    done_idx = i
+
+            assert done_idx > last_token_idx, (
+                f"'done' event (idx={done_idx}) must come after last 'token' event "
+                f"(idx={last_token_idx}). Event order: {event_types}"
+            )
+        finally:
+            service_module.run_cgrag_loop = original_run_cgrag_loop
