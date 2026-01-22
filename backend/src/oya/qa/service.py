@@ -982,8 +982,8 @@ Answer the question based only on the context provided. Include citations to spe
             if graph_context:
                 initial_context = graph_context + "\n\n" + initial_context
 
-        # Issue 1 fix: Emit "generating" status AFTER search completes
-        yield f"event: status\ndata: {json.dumps({'stage': 'generating', 'pass': 1})}\n\n"
+        # Issue 1 fix: Emit "thinking" status AFTER search completes
+        yield f"event: status\ndata: {json.dumps({'stage': 'thinking', 'pass': 1})}\n\n"
 
         temperature = request.temperature if request.temperature is not None else 0.7
         accumulated_response = ""
