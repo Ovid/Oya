@@ -121,7 +121,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
     setCurrentStreamText('')
     streamTextRef.current = ''
     startTimeRef.current = Date.now()
-    setCurrentStatus('Searching...')
+    setCurrentStatus('Searching')
 
     // Create abort controller with timeout
     const abortController = new AbortController()
@@ -149,6 +149,7 @@ export function AskPanel({ isOpen, onClose }: AskPanelProps) {
             setCurrentStatus(`${stage}${pass > 1 ? ` (pass ${pass})` : ''}`)
           },
           onDone: (data) => {
+            console.log('[AskPanel] onDone - streamTextRef length:', streamTextRef.current.length)
             const finalAnswer = streamTextRef.current
             const durationSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000)
             setMessages((prev) => [

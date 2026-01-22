@@ -64,13 +64,17 @@ def parse_answer(response: str) -> str:
     Returns:
         The answer text.
     """
-    # Find ANSWER section
-    match = re.search(r"ANSWER:\s*(.+?)(?=MISSING|$)", response, re.DOTALL | re.IGNORECASE)
+    # Find ANSWER section - match until "MISSING" appears at start of line (section header)
+    # The section header format is: MISSING (or "NONE" if nothing needed):
+    # Use \n to ensure we only match "MISSING" as a section header, not within text
+    match = re.search(
+        r"ANSWER:\s*(.+?)(?=\nMISSING\s*[\(:]|$)", response, re.DOTALL | re.IGNORECASE
+    )
     if match:
         return match.group(1).strip()
 
-    # Fallback: return everything before MISSING
-    parts = re.split(r"MISSING", response, flags=re.IGNORECASE)
+    # Fallback: return everything before MISSING section header (at start of line)
+    parts = re.split(r"\nMISSING\s*[\(:]", response, flags=re.IGNORECASE)
     return parts[0].strip()
 
 

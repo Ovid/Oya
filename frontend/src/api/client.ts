@@ -205,20 +205,25 @@ export async function askQuestionStream(
       if (line.startsWith('event: ')) {
         event = line.slice(7)
       } else if (line.startsWith('data: ') && event) {
-        const data = JSON.parse(line.slice(6))
-        switch (event) {
-          case 'token':
-            callbacks.onToken(data.text)
-            break
-          case 'status':
-            callbacks.onStatus(data.stage, data.pass)
-            break
-          case 'done':
-            callbacks.onDone(data)
-            break
-          case 'error':
-            callbacks.onError(data.message)
-            break
+        try {
+          const data = JSON.parse(line.slice(6))
+          switch (event) {
+            case 'token':
+              callbacks.onToken(data.text)
+              break
+            case 'status':
+              callbacks.onStatus(data.stage, data.pass)
+              break
+            case 'done':
+              console.log('[SSE] Done event received')
+              callbacks.onDone(data)
+              break
+            case 'error':
+              callbacks.onError(data.message)
+              break
+          }
+        } catch (e) {
+          console.error('[SSE] Failed to parse SSE data:', line, e)
         }
         event = ''
       }

@@ -223,6 +223,33 @@ NONE"""
         assert "verifying tokens" in answer
         assert "MISSING" not in answer
 
+    def test_parse_answer_with_missing_word_in_text(self):
+        """Answer containing the word 'missing' is not truncated.
+
+        Regression test: the word 'missing' appearing naturally in the answer
+        text should not be confused with the MISSING section header.
+        """
+        from oya.qa.cgrag import parse_answer
+
+        response = """ANSWER:
+The dual-write pattern has consistency hazards:
+- DB row exists but file missing
+- File exists but DB row missing
+This leads to data divergence.
+
+MISSING (or "NONE" if nothing needed):
+- the actual transaction handling code"""
+
+        answer = parse_answer(response)
+
+        # The full answer should be preserved, including text after "missing"
+        assert "DB row exists but file missing" in answer
+        assert "File exists but DB row missing" in answer
+        assert "data divergence" in answer
+        # The MISSING section header should not be in the answer
+        assert "MISSING (or" not in answer
+        assert "transaction handling" not in answer
+
 
 class TestCGRAGLoop:
     """Tests for the CGRAG iteration loop."""
