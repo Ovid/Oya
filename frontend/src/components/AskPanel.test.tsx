@@ -358,4 +358,83 @@ describe('AskPanel', () => {
       })
     })
   })
+
+  describe('answer display', () => {
+    it('displays answer from done event', async () => {
+      const { userEvent } = await import('@testing-library/user-event')
+
+      vi.mocked(api.askQuestionStream).mockImplementation(async (_req, callbacks) => {
+        callbacks.onStatus('searching', 1)
+        callbacks.onStatus('thinking', 1)
+        callbacks.onDone({
+          answer: 'This is the parsed answer without XML tags.',
+          citations: [],
+          confidence: 'high',
+          disclaimer: 'Based on strong evidence.',
+          session_id: null,
+          search_quality: {
+            semantic_searched: true,
+            fts_searched: true,
+            results_found: 5,
+            results_used: 3,
+          },
+        })
+      })
+
+      renderAskPanel({ isOpen: true })
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Ask a question...')).toBeInTheDocument()
+      })
+
+      const input = screen.getByPlaceholderText('Ask a question...')
+      const user = userEvent.setup()
+      await user.type(input, 'What is this codebase?')
+      await user.click(screen.getByRole('button', { name: /ask/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('This is the parsed answer without XML tags.')).toBeInTheDocument()
+      })
+    })
+
+    it('does not display XML tags in answer', async () => {
+      const { userEvent } = await import('@testing-library/user-event')
+
+      vi.mocked(api.askQuestionStream).mockImplementation(async (_req, callbacks) => {
+        callbacks.onStatus('thinking', 1)
+        callbacks.onDone({
+          answer: 'Clean answer text',
+          citations: [],
+          confidence: 'medium',
+          disclaimer: 'Based on partial evidence.',
+          session_id: null,
+          search_quality: {
+            semantic_searched: true,
+            fts_searched: true,
+            results_found: 3,
+            results_used: 2,
+          },
+        })
+      })
+
+      renderAskPanel({ isOpen: true })
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Ask a question...')).toBeInTheDocument()
+      })
+
+      const input = screen.getByPlaceholderText('Ask a question...')
+      const user = userEvent.setup()
+      await user.type(input, 'Test question')
+      await user.click(screen.getByRole('button', { name: /ask/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Clean answer text')).toBeInTheDocument()
+      })
+
+      // Verify no XML tags are displayed
+      expect(screen.queryByText(/<answer>/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/<\/answer>/)).not.toBeInTheDocument()
+    })
+  })
 })
