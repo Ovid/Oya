@@ -2,17 +2,19 @@
 
 
 def test_cgrag_prompt_has_answer_section():
-    """CGRAG prompt template includes ANSWER section marker."""
+    """CGRAG prompt template includes <answer> section marker."""
     from oya.generation.prompts import CGRAG_QA_TEMPLATE
 
-    assert "ANSWER:" in CGRAG_QA_TEMPLATE
+    assert "<answer>" in CGRAG_QA_TEMPLATE
+    assert "</answer>" in CGRAG_QA_TEMPLATE
 
 
 def test_cgrag_prompt_has_missing_section():
-    """CGRAG prompt template includes MISSING section marker."""
+    """CGRAG prompt template includes <missing> section marker."""
     from oya.generation.prompts import CGRAG_QA_TEMPLATE
 
-    assert "MISSING" in CGRAG_QA_TEMPLATE
+    assert "<missing>" in CGRAG_QA_TEMPLATE
+    assert "</missing>" in CGRAG_QA_TEMPLATE
 
 
 def test_cgrag_prompt_has_placeholders():
@@ -34,5 +36,5 @@ def test_format_cgrag_prompt():
 
     assert "How does auth work?" in result
     assert "Some context here" in result
-    assert "ANSWER:" in result
-    assert "MISSING" in result
+    assert "<answer>" in result
+    assert "<missing>" in result

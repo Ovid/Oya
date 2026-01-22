@@ -1382,13 +1382,16 @@ CGRAG_QA_TEMPLATE = """You are answering a question about a codebase. You have b
 2. If your answer would be MORE COMPLETE with additional code, list what's missing
 3. Format your response as:
 
-ANSWER:
+<answer>
 [Your answer here]
+</answer>
 
-MISSING (or "NONE" if nothing needed):
+<missing>
+NONE (if nothing needed), or list what's missing:
 - function_name in path/to/file.py
 - ClassName in some/module.py
 - the file that handles X
+</missing>
 """
 
 

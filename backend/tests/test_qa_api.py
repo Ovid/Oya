@@ -423,7 +423,6 @@ class TestCGRAGStreamingBatching:
     @pytest.mark.asyncio
     async def test_cgrag_streaming_done_event_after_all_tokens(self):
         """The 'done' event arrives after all token events."""
-        import json
         from oya.qa.schemas import QARequest
         from oya.qa.cgrag import CGRAGResult
 
