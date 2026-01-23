@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { useApp } from '../context/useApp'
+import { useWikiStore } from '../stores'
 import { Disclosure } from '@headlessui/react'
 
 // Common file extensions - used to identify where the extension starts in a slug
@@ -97,8 +97,7 @@ function slugToPath(slug: string): string {
 }
 
 export function Sidebar() {
-  const { state } = useApp()
-  const { wikiTree } = state
+  const wikiTree = useWikiStore((s) => s.wikiTree)
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `block px-3 py-2 rounded-md text-sm ${
