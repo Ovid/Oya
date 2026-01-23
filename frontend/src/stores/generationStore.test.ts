@@ -1,16 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useGenerationStore } from './generationStore'
+import * as api from '../api/client'
 
 vi.mock('../api/client', () => ({
   initRepo: vi.fn(),
   getJob: vi.fn(),
 }))
 
-let api: typeof import('../api/client')
-
-beforeEach(async () => {
-  vi.resetModules()
-  api = await import('../api/client')
+beforeEach(() => {
   vi.clearAllMocks()
   useGenerationStore.setState(useGenerationStore.getInitialState())
 })

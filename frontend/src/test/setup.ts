@@ -26,11 +26,13 @@ const localStorageMock = (() => {
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
   writable: true,
+  configurable: true,
 })
 
 // Mock matchMedia for dark mode detection
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
+  configurable: true,
   value: vi.fn().mockImplementation((query: string) => ({
     matches: false,
     media: query,
