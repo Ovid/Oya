@@ -9,6 +9,7 @@ from oya.main import app
 from oya.api.deps import get_settings, _reset_db_instance
 from oya.api.routers.qa import get_qa_service
 from oya.qa.service import QAService
+import oya.qa.service as service_module
 
 
 @pytest.fixture
@@ -308,8 +309,6 @@ class TestCGRAGStreamingBatching:
         service = QAService(vectorstore=vectorstore, db=db, llm=llm)
 
         # Mock run_cgrag_loop to return our long answer
-        import oya.qa.service as service_module
-
         original_run_cgrag_loop = service_module.run_cgrag_loop
 
         async def mock_cgrag_loop(*args, **kwargs):
@@ -376,8 +375,6 @@ class TestCGRAGStreamingBatching:
 
         service = QAService(vectorstore=vectorstore, db=db, llm=llm)
 
-        import oya.qa.service as service_module
-
         original_run_cgrag_loop = service_module.run_cgrag_loop
 
         async def mock_cgrag_loop(*args, **kwargs):
@@ -427,8 +424,6 @@ class TestCGRAGStreamingBatching:
         llm = AsyncMock()
 
         service = QAService(vectorstore=vectorstore, db=db, llm=llm)
-
-        import oya.qa.service as service_module
 
         original_run_cgrag_loop = service_module.run_cgrag_loop
 
