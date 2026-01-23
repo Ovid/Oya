@@ -1,0 +1,38 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff (lint)
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        files: ^backend/
+
+      - id: ruff-format
+        name: ruff (format)
+        entry: ruff format --check
+        language: system
+        types: [python]
+        files: ^backend/
+
+      - id: pylint-design
+        name: pylint (design checks)
+        entry: bash -c 'cd backend && source .venv/bin/activate && pylint src/oya --exit-zero'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+
+      - id: jscpd
+        name: jscpd (duplicate detection)
+        entry: npx jscpd backend/src frontend/src --exitCode 0
+        language: system
+        pass_filenames: false
+        always_run: true
