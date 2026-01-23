@@ -25,11 +25,12 @@ export function NoteEditor({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Sync state when editor opens with new defaults
+  // Reset state when editor opens
   useEffect(() => {
     if (isOpen) {
       setScope(defaultScope)
       setTarget(defaultTarget)
+      setContent('')
       setError(null)
     }
   }, [isOpen, defaultScope, defaultTarget])
