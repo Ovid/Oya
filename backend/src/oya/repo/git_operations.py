@@ -1,0 +1,164 @@
+"""Git clone and pull operations with friendly error handling."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+
+class GitCloneError(Exception):
+    """Error during git clone operation."""
+
+    def __init__(self, message: str, original_error: Optional[str] = None):
+        self.message = message
+        self.original_error = original_error
+        super().__init__(message)
+
+
+class GitPullError(Exception):
+    """Error during git pull operation."""
+
+    def __init__(self, message: str, original_error: Optional[str] = None):
+        self.message = message
+        self.original_error = original_error
+        super().__init__(message)
+
+
+def clone_repo(url: str, dest: Path, timeout: int = 300) -> None:
+    """
+    Clone a git repository.
+
+    Args:
+        url: Git URL or local path to clone from
+        dest: Destination directory (will be created)
+        timeout: Timeout in seconds (default 5 minutes)
+
+    Raises:
+        GitCloneError: If clone fails, with user-friendly message
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        result = subprocess.run(
+            ["git", "clone", url, str(dest)],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        if result.returncode != 0:
+            raise GitCloneError(
+                _parse_clone_error(result.stderr),
+                original_error=result.stderr,
+            )
+
+    except subprocess.TimeoutExpired:
+        raise GitCloneError(
+            "Clone operation timed out. The repository may be very large "
+            "or your connection may be slow."
+        )
+    except FileNotFoundError:
+        raise GitCloneError("Git is not installed. Please install git and try again.")
+
+
+def pull_repo(repo_path: Path, timeout: int = 120) -> None:
+    """
+    Pull latest changes from origin.
+
+    Args:
+        repo_path: Path to the git repository
+        timeout: Timeout in seconds (default 2 minutes)
+
+    Raises:
+        GitPullError: If pull fails, with user-friendly message
+    """
+    try:
+        result = subprocess.run(
+            ["git", "pull"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        if result.returncode != 0:
+            raise GitPullError(
+                _parse_pull_error(result.stderr),
+                original_error=result.stderr,
+            )
+
+    except subprocess.TimeoutExpired:
+        raise GitPullError("Pull operation timed out. Check your network connection.")
+    except FileNotFoundError:
+        raise GitPullError("Git is not installed. Please install git and try again.")
+
+
+def get_remote_url(repo_path: Path) -> str:
+    """
+    Get the origin remote URL of a repository.
+
+    Args:
+        repo_path: Path to the git repository
+
+    Returns:
+        The origin remote URL
+
+    Raises:
+        ValueError: If no origin remote is configured
+    """
+    result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise ValueError(f"No origin remote configured: {result.stderr}")
+
+    return result.stdout.strip()
+
+
+def _parse_clone_error(stderr: str) -> str:
+    """Convert git clone error to user-friendly message."""
+    stderr_lower = stderr.lower()
+
+    if "repository not found" in stderr_lower or "does not exist" in stderr_lower:
+        return "Repository not found. Check the URL or ensure you have access."
+
+    if "authentication" in stderr_lower or "permission denied" in stderr_lower:
+        return (
+            "Authentication failed. For private repos, ensure your SSH keys "
+            "are configured or try an HTTPS URL with credentials."
+        )
+
+    if "could not resolve host" in stderr_lower or "network" in stderr_lower:
+        return "Network error. Check your internet connection and try again."
+
+    if "already exists" in stderr_lower:
+        return "Destination directory already exists."
+
+    return f"Clone failed: {stderr.strip()}"
+
+
+def _parse_pull_error(stderr: str) -> str:
+    """Convert git pull error to user-friendly message."""
+    stderr_lower = stderr.lower()
+
+    if "does not appear to be a git repository" in stderr_lower:
+        return (
+            "Original repository no longer exists at the configured location. "
+            "You may need to delete this repo and re-add from the new location."
+        )
+
+    if "authentication" in stderr_lower or "permission denied" in stderr_lower:
+        return "Authentication failed. Check your credentials and try again."
+
+    if "could not resolve host" in stderr_lower or "network" in stderr_lower:
+        return "Network error. Try again later."
+
+    if "merge conflict" in stderr_lower:
+        return "Merge conflict detected. This shouldn't happen - please report this bug."
+
+    return f"Pull failed: {stderr.strip()}"

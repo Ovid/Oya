@@ -247,3 +247,48 @@ def test_load_settings_requires_workspace_path(monkeypatch):
 
     with pytest.raises(ValueError, match="WORKSPACE_PATH"):
         load_settings()
+
+
+# =============================================================================
+# OYA_DATA_DIR Configuration Tests
+# =============================================================================
+
+
+def test_oya_data_dir_default(monkeypatch, temp_workspace):
+    """OYA_DATA_DIR defaults to ~/.oya when not set."""
+    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+    monkeypatch.delenv("OYA_DATA_DIR", raising=False)
+    load_settings.cache_clear()
+    settings = load_settings()
+    expected = Path.home() / ".oya"
+    assert settings.data_dir == expected
+
+
+def test_oya_data_dir_from_env(monkeypatch, temp_workspace):
+    """OYA_DATA_DIR can be set via environment variable."""
+    custom_dir = temp_workspace / "custom-oya"
+    monkeypatch.setenv("OYA_DATA_DIR", str(custom_dir))
+    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+    load_settings.cache_clear()
+    settings = load_settings()
+    assert settings.data_dir == custom_dir
+
+
+def test_repos_db_path(monkeypatch, temp_workspace):
+    """repos.db path is under data_dir."""
+    custom_dir = temp_workspace / "oya"
+    monkeypatch.setenv("OYA_DATA_DIR", str(custom_dir))
+    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+    load_settings.cache_clear()
+    settings = load_settings()
+    assert settings.repos_db_path == custom_dir / "repos.db"
+
+
+def test_wikis_dir_path(monkeypatch, temp_workspace):
+    """wikis directory path is under data_dir."""
+    custom_dir = temp_workspace / "oya"
+    monkeypatch.setenv("OYA_DATA_DIR", str(custom_dir))
+    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+    load_settings.cache_clear()
+    settings = load_settings()
+    assert settings.wikis_dir == custom_dir / "wikis"
