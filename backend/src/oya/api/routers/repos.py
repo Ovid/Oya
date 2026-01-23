@@ -31,10 +31,17 @@ from oya.api.schemas import (
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
 from oya.repo.git_repo import GitRepo
 from oya.db.connection import Database
+from oya.db.migrations import run_migrations
 from oya.config import Settings, load_settings
-from oya.generation.orchestrator import GenerationProgress
+from oya.generation.orchestrator import GenerationOrchestrator, GenerationProgress
+from oya.generation.staging import (
+    has_incomplete_build,
+    prepare_staging_directory,
+    promote_staging_to_production,
+)
 from oya.workspace import initialize_workspace
 from oya.indexing.service import IndexingService
+from oya.llm.client import LLMClient
 from oya.vectorstore.store import VectorStore
 from oya.vectorstore.issues import IssuesStore
 
@@ -111,9 +118,7 @@ def _build_repo_status(
         wiki_path = settings.wiki_path
     else:
         # Fallback for cases where settings isn't available yet
-        from oya.config import load_settings as _load_settings
-
-        _settings = _load_settings()
+        _settings = load_settings()
         meta_path = _settings.oyawiki_path / "meta"
         wiki_path = _settings.wiki_path
 
@@ -197,12 +202,13 @@ async def get_generation_status(
     Returns:
         Dict with incomplete build info, or None if no incomplete build.
     """
-    from oya.generation.staging import has_incomplete_build
-
     if has_incomplete_build(settings.workspace_path):
         return {
             "status": "incomplete",
-            "message": "A previous wiki generation did not complete. The wiki must be generated from scratch.",
+            "message": (
+                "A previous wiki generation did not complete. "
+                "The wiki must be generated from scratch."
+            ),
         }
     return None
 
@@ -423,7 +429,9 @@ async def init_repo(
     """Initialize repository and start wiki generation."""
     job_id = str(uuid.uuid4())
 
-    # Record job in database (8 phases: analysis, files, directories, synthesis, architecture, overview, workflows, indexing)
+    # Record job in database
+    # (8 phases: analysis, files, directories, synthesis, architecture,
+    # overview, workflows, indexing)
     db.execute(
         """
         INSERT INTO generations (id, type, status, started_at, total_phases)
@@ -450,18 +458,14 @@ async def _run_generation(
     Builds wiki in .oyawiki-building, then promotes to .oyawiki on success.
     If generation fails, staging directory is left for debugging.
     """
-    from oya.generation.orchestrator import GenerationOrchestrator
-    from oya.llm.client import LLMClient
-    from oya.indexing.service import IndexingService
-    from oya.generation.staging import prepare_staging_directory, promote_staging_to_production
-
     # Staging paths - build in .oyawiki-building
     staging_path = settings.staging_path
     staging_wiki_path = staging_path / "wiki"
     staging_meta_path = staging_path / "meta"
 
     # Phase number mapping for progress tracking (bottom-up approach)
-    # Order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
+    # Order: Analysis → Files → Directories → Synthesis → Architecture →
+    # Overview → Workflows → Indexing
     phase_numbers = {
         "analysis": 1,
         "files": 2,
@@ -508,8 +512,6 @@ async def _run_generation(
         staging_db_path = staging_meta_path / "oya.db"
         staging_db = Database(staging_db_path)
         # Run migrations on staging db to ensure schema is up to date
-        from oya.db.migrations import run_migrations
-
         run_migrations(staging_db)
 
         # Create orchestrator to build in staging directory
@@ -534,7 +536,9 @@ async def _run_generation(
 
         # Index wiki content for Q&A search (in staging)
         db.execute(
-            "UPDATE generations SET current_phase = '8:indexing', current_step = 0, total_steps = 0 WHERE id = ?",
+            """UPDATE generations
+            SET current_phase = '8:indexing', current_step = 0, total_steps = 0
+            WHERE id = ?""",
             (job_id,),
         )
         db.commit()

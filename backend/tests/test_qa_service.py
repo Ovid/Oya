@@ -1,5 +1,7 @@
 """Q&A service tests."""
 
+import json
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
@@ -841,3 +843,71 @@ NONE"""
         # Verify temperature was passed to LLM
         call_kwargs = mock_llm.generate.call_args.kwargs
         assert call_kwargs.get("temperature") == 0.7
+
+
+class TestQAServiceStreaming:
+    """Tests for streaming endpoint behavior."""
+
+    @pytest.mark.asyncio
+    async def test_done_event_includes_parsed_answer(self, mock_vectorstore, mock_db, mock_llm):
+        """Done event should include the parsed answer without XML tags."""
+        # Configure mock to return response with XML tags
+        mock_llm.generate.return_value = """<answer>
+The authentication system uses JWT tokens stored in cookies.
+</answer>
+
+<citations>
+[{"path": "auth.py", "relevant_text": "jwt.encode()"}]
+</citations>"""
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+        request = QARequest(question="How does auth work?", quick_mode=True)
+
+        events = []
+        async for event in service.ask_stream(request):
+            events.append(event)
+
+        # Find the done event
+        done_events = [e for e in events if e.startswith("event: done")]
+        assert len(done_events) == 1
+
+        # Parse the done event data
+        done_event = done_events[0]
+        data_line = [line for line in done_event.split("\n") if line.startswith("data: ")][0]
+        data = json.loads(data_line[6:])  # Skip "data: " prefix
+
+        # Verify answer is included and clean
+        assert "answer" in data
+        assert "JWT tokens" in data["answer"]
+        assert "<answer>" not in data["answer"]
+        assert "</answer>" not in data["answer"]
+
+    @pytest.mark.asyncio
+    async def test_no_token_events_in_quick_mode(self, mock_vectorstore, mock_db, mock_llm):
+        """Quick mode should not emit token events."""
+        mock_llm.generate.return_value = "<answer>Simple answer</answer>"
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+        request = QARequest(question="What is X?", quick_mode=True)
+
+        events = []
+        async for event in service.ask_stream(request):
+            events.append(event)
+
+        token_events = [e for e in events if e.startswith("event: token")]
+        assert len(token_events) == 0
+
+    @pytest.mark.asyncio
+    async def test_no_token_events_in_thorough_mode(self, mock_vectorstore, mock_db, mock_llm):
+        """Thorough mode should not emit token events."""
+        mock_llm.generate.return_value = "<answer>Thorough answer</answer><missing>NONE</missing>"
+
+        service = QAService(mock_vectorstore, mock_db, mock_llm)
+        request = QARequest(question="What is X?", quick_mode=False)
+
+        events = []
+        async for event in service.ask_stream(request):
+            events.append(event)
+
+        token_events = [e for e in events if e.startswith("event: token")]
+        assert len(token_events) == 0

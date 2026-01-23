@@ -151,11 +151,13 @@ class TestParseGaps:
         """NONE in response returns empty list."""
         from oya.qa.cgrag import parse_gaps
 
-        response = """ANSWER:
+        response = """<answer>
 The auth system works by...
+</answer>
 
-MISSING (or "NONE" if nothing needed):
-NONE"""
+<missing>
+NONE
+</missing>"""
 
         gaps = parse_gaps(response)
 
@@ -165,11 +167,13 @@ NONE"""
         """Single gap is parsed correctly."""
         from oya.qa.cgrag import parse_gaps
 
-        response = """ANSWER:
+        response = """<answer>
 The auth system works by...
+</answer>
 
-MISSING (or "NONE" if nothing needed):
-- verify_token in auth/verify.py"""
+<missing>
+- verify_token in auth/verify.py
+</missing>"""
 
         gaps = parse_gaps(response)
 
@@ -180,13 +184,15 @@ MISSING (or "NONE" if nothing needed):
         """Multiple gaps are parsed correctly."""
         from oya.qa.cgrag import parse_gaps
 
-        response = """ANSWER:
+        response = """<answer>
 The auth system works by...
+</answer>
 
-MISSING (or "NONE" if nothing needed):
+<missing>
 - verify_token in auth/verify.py
 - UserModel in models/user.py
-- the database connection handler"""
+- the database connection handler
+</missing>"""
 
         gaps = parse_gaps(response)
 
@@ -196,31 +202,78 @@ MISSING (or "NONE" if nothing needed):
         assert "database connection" in gaps[2]
 
     def test_parse_gaps_no_section(self):
-        """Missing MISSING section returns empty list."""
+        """Missing <missing> section returns empty list."""
         from oya.qa.cgrag import parse_gaps
 
-        response = """ANSWER:
-The auth system works by calling various functions."""
+        response = """<answer>
+The auth system works by calling various functions.
+</answer>"""
 
         gaps = parse_gaps(response)
 
         assert gaps == []
 
     def test_parse_answer(self):
-        """Answer is extracted correctly."""
+        """Answer is extracted correctly with XML tags."""
+        from oya.qa.cgrag import parse_answer
+
+        response = """<answer>
+The auth system works by verifying tokens
+and checking user permissions.
+</answer>
+
+<missing>
+NONE
+</missing>"""
+
+        answer = parse_answer(response)
+
+        assert "auth system works" in answer
+        assert "verifying tokens" in answer
+        assert "<missing>" not in answer
+
+    def test_parse_answer_with_missing_word_in_text(self):
+        """Answer containing the word 'missing' is not truncated.
+
+        Regression test: the word 'missing' appearing naturally in the answer
+        text should not be confused with the <missing> section.
+        """
+        from oya.qa.cgrag import parse_answer
+
+        response = """<answer>
+The dual-write pattern has consistency hazards:
+- DB row exists but file missing
+- File exists but DB row missing
+This leads to data divergence.
+</answer>
+
+<missing>
+- the actual transaction handling code
+</missing>"""
+
+        answer = parse_answer(response)
+
+        # The full answer should be preserved, including text after "missing"
+        assert "DB row exists but file missing" in answer
+        assert "File exists but DB row missing" in answer
+        assert "data divergence" in answer
+        # The <missing> section should not be in the answer
+        assert "<missing>" not in answer
+        assert "transaction handling" not in answer
+
+    def test_parse_answer_legacy_format(self):
+        """Parser still handles legacy ANSWER: format for backwards compatibility."""
         from oya.qa.cgrag import parse_answer
 
         response = """ANSWER:
-The auth system works by verifying tokens
-and checking user permissions.
+Legacy format answer.
 
 MISSING (or "NONE" if nothing needed):
 NONE"""
 
         answer = parse_answer(response)
 
-        assert "auth system works" in answer
-        assert "verifying tokens" in answer
+        assert "Legacy format answer" in answer
         assert "MISSING" not in answer
 
 

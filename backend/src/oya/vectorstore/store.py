@@ -1,5 +1,6 @@
 """ChromaDB vector store implementation."""
 
+import gc
 from pathlib import Path
 from typing import Any
 
@@ -101,8 +102,6 @@ class VectorStore:
         This should be called when the store is no longer needed to
         release file handles and other system resources.
         """
-        import gc
-
         # ChromaDB PersistentClient doesn't have an explicit close method,
         # but we can try to stop internal systems and clear references
         if self._client is not None:

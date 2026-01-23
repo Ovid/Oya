@@ -3,6 +3,7 @@
 
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from oya.generation.overview import GeneratedPage
 from oya.generation.prompts import SYSTEM_PROMPT, get_workflow_prompt
@@ -391,8 +392,6 @@ class WorkflowGrouper:
     def _file_to_name(self, file_path: str) -> str:
         """Convert file path to human-readable workflow name."""
         # Get filename without extension
-        from pathlib import Path
-
         name = Path(file_path).stem
         return self._humanize_name(name)
 

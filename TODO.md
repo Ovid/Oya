@@ -1,6 +1,16 @@
 # TODO
 
+* Architecture
+    * Claude often imports in functions instead of at the top. How can we
+      catch that?
+    * It's happy to duplicate code. It should search for similar functionality
+      to what it's building and reuse when in can.
+    * GOD OBJECTS!
+
 * Q&A
+    * Not scrolling down for successive answers.
+    * Tried a follow-up question and it looks like it's not chatting. It's
+      one-shot.
     * The text input should be a text area.
     * Users should be able to use standard `@` functionality to provide exact
       context. This implies we actually have a checkout. Should this use RLM?
