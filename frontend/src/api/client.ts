@@ -216,7 +216,6 @@ export async function askQuestionStream(
               callbacks.onStatus(data.stage, data.pass)
               break
             case 'done':
-              console.log('[SSE] Done event received')
               callbacks.onDone(data)
               break
             case 'error':
