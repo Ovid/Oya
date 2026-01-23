@@ -68,20 +68,15 @@ beforeEach(async () => {
     configurable: true,
   })
 
-  // Only reset if stores are loaded (they may not be in all tests)
-  try {
-    const { useWikiStore, initialState: wikiInitial } = await import('../stores/wikiStore')
-    const { useGenerationStore, initialState: genInitial } =
-      await import('../stores/generationStore')
-    const { useUIStore, initialState: uiInitial } = await import('../stores/uiStore')
-    const { useNoteEditorStore, initialState: noteInitial } =
-      await import('../stores/noteEditorStore')
+  // Reset all stores to initial state
+  const { useWikiStore, initialState: wikiInitial } = await import('../stores/wikiStore')
+  const { useGenerationStore, initialState: genInitial } = await import('../stores/generationStore')
+  const { useUIStore, initialState: uiInitial } = await import('../stores/uiStore')
+  const { useNoteEditorStore, initialState: noteInitial } =
+    await import('../stores/noteEditorStore')
 
-    useWikiStore.setState(wikiInitial)
-    useGenerationStore.setState(genInitial)
-    useUIStore.setState(uiInitial)
-    useNoteEditorStore.setState(noteInitial)
-  } catch {
-    // Stores not yet created or not imported in this test
-  }
+  useWikiStore.setState(wikiInitial)
+  useGenerationStore.setState(genInitial)
+  useUIStore.setState(uiInitial)
+  useNoteEditorStore.setState(noteInitial)
 })
