@@ -134,6 +134,27 @@ When about to write something that feels reusable:
 If found: reuse or extend existing code.
 If close but not quite: refactor existing rather than duplicate.
 
+### Code Review: Architectural Checks
+
+When reviewing code (your own or others'), check for these flaws:
+
+**Import Placement**: Flag imports inside functions/methods. These should be at module top unless avoiding a circular import.
+
+**God Object Detection**: If a class exceeds 10 attributes or 15 public methods, evaluate cohesion:
+- Do all attributes/methods serve ONE clear responsibility?
+- Would you struggle to describe the class's purpose in one sentence?
+- Are there subsets of methods that only use subsets of attributes?
+- Legitimate large classes: data containers, facades, protocol implementations, test fixtures
+- Flag as issue only if incoherent, not merely large
+
+**Duplication Review**: If similar code appears multiple times:
+- Is this test code? (Often acceptable)
+- Is this the second occurrence? (Wait for third before abstracting)
+- Would abstracting create a confusing helper with too many parameters?
+- Flag only if: 3+ occurrences AND abstraction would be cleaner
+
+**Missing Reuse**: Check if new helpers duplicate existing infrastructure in the codebase.
+
 ## Environment Variables
 
 Required: `WORKSPACE_PATH` - path to the repo being documented
