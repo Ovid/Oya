@@ -13,6 +13,7 @@ vi.mock('../api/client', () => ({
   getJob: vi.fn(),
   listJobs: vi.fn(),
   getGenerationStatus: vi.fn(),
+  streamJobProgress: vi.fn(() => vi.fn()), // Returns a cleanup function
   ApiError: class ApiError extends Error {
     status: number
     constructor(status: number, message: string) {
@@ -189,6 +190,83 @@ describe('PageLoader', () => {
       // The spinner should be visible (it's a div with animate-spin class)
       const spinner = document.querySelector('.animate-spin')
       expect(spinner).toBeInTheDocument()
+    })
+  })
+
+  describe('generation progress', () => {
+    it('does not show page content when job is running', async () => {
+      const loadPage = vi.fn().mockResolvedValue(mockWikiPage)
+
+      // Set up a running job in the generation store BEFORE rendering
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'running',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      renderPageLoader(loadPage)
+
+      // Page content should not be visible when generation is active
+      await waitFor(() => {
+        expect(screen.queryByText('Test Content')).not.toBeInTheDocument()
+      })
+    })
+
+    it('does not show page content when job is pending', async () => {
+      const loadPage = vi.fn().mockResolvedValue(mockWikiPage)
+
+      // Set up a pending job in the generation store BEFORE rendering
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'pending',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      renderPageLoader(loadPage)
+
+      // Page content should not be visible when generation is active
+      await waitFor(() => {
+        expect(screen.queryByText('Test Content')).not.toBeInTheDocument()
+      })
+    })
+
+    it('shows page content when job is completed', async () => {
+      const loadPage = vi.fn().mockResolvedValue(mockWikiPage)
+
+      // Set up a completed job in the generation store
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'completed',
+          started_at: '2024-01-01T00:00:00Z',
+          completed_at: '2024-01-01T00:05:00Z',
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      renderPageLoader(loadPage)
+
+      // Page content should be visible when job is completed
+      await waitFor(() => {
+        expect(screen.getByText('Test Content')).toBeInTheDocument()
+      })
     })
   })
 })
