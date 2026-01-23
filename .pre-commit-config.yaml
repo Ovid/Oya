@@ -16,6 +16,13 @@ repos:
         types: [python]
         files: ^backend/
 
+      - id: pylint-design
+        name: pylint (design checks)
+        entry: bash -c 'cd backend && source .venv/bin/activate && pylint src/oya --exit-zero'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
       - id: eslint
         name: eslint
         entry: bash -c 'cd frontend && npm run lint'
