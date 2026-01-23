@@ -1,6 +1,14 @@
 # TODO
 
+* Hit minimum code coverage standards and then enforce them.
+* Q&A should have an "arrow up" history
+* Quick fix:
+    * When regenerating a wiki and it shows what can be excluded, it shouldn't
+      show any files if a directory above it is already excluded. Makes the
+      lists must shorter.
 * Deep Research
+    * CGRAG should also be able to read files now. However, we need to be
+      concerned about blowing context
     * Extend CGRAG
         * "Thorough" Shouldn't mention additional files
         * "Deep Research" will
