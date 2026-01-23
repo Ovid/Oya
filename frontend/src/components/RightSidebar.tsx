@@ -1,4 +1,4 @@
-import { useApp } from '../context/useApp'
+import { useWikiStore, useNoteEditorStore } from '../stores'
 import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '../config'
 
 function formatLastBuilt(isoString: string): string {
@@ -20,8 +20,9 @@ function formatLastBuilt(isoString: string): string {
 }
 
 export function RightSidebar() {
-  const { state, openNoteEditor } = useApp()
-  const { currentPage, repoStatus } = state
+  const currentPage = useWikiStore((s) => s.currentPage)
+  const repoStatus = useWikiStore((s) => s.repoStatus)
+  const openNoteEditor = useNoteEditorStore((s) => s.open)
 
   // Determine scope and target based on current page
   const handleAddCorrection = () => {
