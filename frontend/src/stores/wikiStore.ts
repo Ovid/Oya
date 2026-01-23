@@ -69,4 +69,6 @@ export const useWikiStore = create<WikiState & WikiActions>()((set, get) => ({
 }))
 
 // For testing - allows reset to initial state
-useWikiStore.getInitialState = () => initialState
+// We only need to reset the state portion, not actions
+;(useWikiStore as unknown as { getInitialState: () => WikiState }).getInitialState = () =>
+  initialState

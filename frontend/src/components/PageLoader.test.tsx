@@ -111,9 +111,10 @@ const mockWikiTree: WikiTree = {
 }
 
 const mockWikiPage: WikiPage = {
-  title: 'Test Page',
   content: '# Test Content',
   page_type: 'overview',
+  path: '/overview',
+  word_count: 2,
   source_path: null,
 }
 
