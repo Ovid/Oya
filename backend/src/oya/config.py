@@ -287,6 +287,7 @@ class Config:
 
     # Core settings
     workspace_path: Path
+    data_dir: Path = None  # type: ignore[assignment]  # Set in __post_init__ if None
     workspace_display_path: Optional[str] = None
     active_provider: str = "ollama"
     active_model: str = "llama2"
@@ -312,6 +313,8 @@ class Config:
     def __post_init__(self):
         """Initialize section configs with defaults if not provided."""
         # Since frozen=True, we need to use object.__setattr__
+        if self.data_dir is None:
+            object.__setattr__(self, "data_dir", Path.home() / ".oya")
         if self.generation is None:
             generation_values = {
                 key: default for key, (_, default, _, _, _) in CONFIG_SCHEMA["generation"].items()
@@ -342,6 +345,16 @@ class Config:
                 key: default for key, (_, default, _, _, _) in CONFIG_SCHEMA["paths"].items()
             }
             object.__setattr__(self, "paths", PathsConfig(**paths_values))
+
+    @property
+    def repos_db_path(self) -> Path:
+        """Path to the multi-repo SQLite database."""
+        return self.data_dir / "repos.db"
+
+    @property
+    def wikis_dir(self) -> Path:
+        """Path to the directory containing all wiki data."""
+        return self.data_dir / "wikis"
 
     @property
     def display_path(self) -> str:
@@ -510,8 +523,13 @@ def load_settings() -> Config:
     # Get max_file_size_kb from env or config
     max_file_size_kb = int(os.getenv("MAX_FILE_SIZE_KB", str(base_config.files.max_file_size_kb)))
 
+    # Get OYA_DATA_DIR from env, defaulting to ~/.oya
+    data_dir_str = os.getenv("OYA_DATA_DIR")
+    data_dir = Path(data_dir_str) if data_dir_str else Path.home() / ".oya"
+
     return Config(
         workspace_path=workspace_path,
+        data_dir=data_dir,
         workspace_display_path=os.getenv("WORKSPACE_DISPLAY_PATH"),
         active_provider=active_provider,
         active_model=active_model,
