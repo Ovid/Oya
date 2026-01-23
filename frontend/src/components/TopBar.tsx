@@ -17,15 +17,17 @@ export function TopBar({
   askPanelOpen,
 }: TopBarProps) {
   const repoStatus = useWikiStore((s) => s.repoStatus)
-  const isLoading = useWikiStore((s) => s.isLoading)
+  const wikiIsLoading = useWikiStore((s) => s.isLoading)
   const switchWorkspace = useWikiStore((s) => s.switchWorkspace)
   const currentJob = useGenerationStore((s) => s.currentJob)
+  const generationIsLoading = useGenerationStore((s) => s.isLoading)
   const startGeneration = useGenerationStore((s) => s.startGeneration)
   const darkMode = useUIStore((s) => s.darkMode)
   const toggleDarkMode = useUIStore((s) => s.toggleDarkMode)
   const noteEditorIsDirty = useNoteEditorStore((s) => s.isDirty)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
 
+  const isLoading = wikiIsLoading || generationIsLoading
   const isGenerating = currentJob?.status === 'running'
   const hasUnsavedChanges = noteEditorIsDirty
 
