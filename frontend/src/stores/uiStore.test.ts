@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useUIStore, initialState } from './uiStore'
+import { STORAGE_KEY_DARK_MODE, STORAGE_KEY_ASK_PANEL_OPEN } from '../config'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -30,7 +31,7 @@ describe('uiStore', () => {
 
       useUIStore.getState().toggleDarkMode()
 
-      expect(localStorage.setItem).toHaveBeenCalledWith('oya-dark-mode', 'true')
+      expect(localStorage.setItem).toHaveBeenCalledWith(STORAGE_KEY_DARK_MODE, 'true')
     })
   })
 
@@ -44,7 +45,7 @@ describe('uiStore', () => {
     it('persists to localStorage', () => {
       useUIStore.getState().setAskPanelOpen(true)
 
-      expect(localStorage.setItem).toHaveBeenCalledWith('oya-ask-panel-open', 'true')
+      expect(localStorage.setItem).toHaveBeenCalledWith(STORAGE_KEY_ASK_PANEL_OPEN, 'true')
     })
   })
 })
