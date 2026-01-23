@@ -6,7 +6,7 @@ import { AskPanel } from './AskPanel'
 import { NoteEditor } from './NoteEditor'
 import { InterruptedGenerationBanner } from './InterruptedGenerationBanner'
 import { ResizeHandle } from './ResizeHandle'
-import { useApp } from '../context/useApp'
+import { useWikiStore, useUIStore, useNoteEditorStore } from '../stores'
 import { useResizablePanel } from '../hooks/useResizablePanel'
 import {
   SIDEBAR_WIDTH,
@@ -25,8 +25,12 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
-  const { state, closeNoteEditor, refreshTree, setAskPanelOpen } = useApp()
-  const { noteEditor, askPanelOpen } = state
+
+  const noteEditor = useNoteEditorStore((s) => ({ isOpen: s.isOpen, defaultScope: s.defaultScope, defaultTarget: s.defaultTarget }))
+  const closeNoteEditor = useNoteEditorStore((s) => s.close)
+  const refreshTree = useWikiStore((s) => s.refreshTree)
+  const askPanelOpen = useUIStore((s) => s.askPanelOpen)
+  const setAskPanelOpen = useUIStore((s) => s.setAskPanelOpen)
 
   const leftPanel = useResizablePanel({
     side: 'left',
