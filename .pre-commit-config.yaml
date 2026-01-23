@@ -29,3 +29,10 @@ repos:
         language: system
         pass_filenames: false
         files: ^frontend/.*\.(ts|tsx)$
+
+      - id: jscpd
+        name: jscpd (duplicate detection)
+        entry: npx jscpd backend/src frontend/src --exitCode 0
+        language: system
+        pass_filenames: false
+        always_run: true
