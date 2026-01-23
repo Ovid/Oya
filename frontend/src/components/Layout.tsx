@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { RightSidebar } from './RightSidebar'
@@ -26,11 +27,13 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
 
-  const noteEditor = useNoteEditorStore((s) => ({
-    isOpen: s.isOpen,
-    defaultScope: s.defaultScope,
-    defaultTarget: s.defaultTarget,
-  }))
+  const noteEditor = useNoteEditorStore(
+    useShallow((s) => ({
+      isOpen: s.isOpen,
+      defaultScope: s.defaultScope,
+      defaultTarget: s.defaultTarget,
+    }))
+  )
   const closeNoteEditor = useNoteEditorStore((s) => s.close)
   const refreshTree = useWikiStore((s) => s.refreshTree)
   const askPanelOpen = useUIStore((s) => s.askPanelOpen)
