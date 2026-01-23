@@ -1,0 +1,24 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff (lint)
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        files: ^backend/
+
+      - id: ruff-format
+        name: ruff (format)
+        entry: ruff format --check
+        language: system
+        types: [python]
+        files: ^backend/
+
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
