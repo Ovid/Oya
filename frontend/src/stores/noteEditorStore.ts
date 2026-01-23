@@ -37,6 +37,5 @@ export const useNoteEditorStore = create<NoteEditorState & NoteEditorActions>()(
 
 // For testing - allows reset to initial state
 // We only need to reset the state portion, not actions
-;(
-  useNoteEditorStore as unknown as { getInitialState: () => NoteEditorState }
-).getInitialState = () => initialState
+;(useNoteEditorStore as unknown as { getInitialState: () => NoteEditorState }).getInitialState =
+  () => initialState

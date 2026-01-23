@@ -124,7 +124,8 @@ function renderPageLoader(
 ) {
   // Set store state for overrides - ensure isLoading is false so component doesn't just show spinner
   useWikiStore.setState({
-    repoStatus: storeOverrides.repoStatus !== undefined ? storeOverrides.repoStatus : mockRepoStatusWithWiki,
+    repoStatus:
+      storeOverrides.repoStatus !== undefined ? storeOverrides.repoStatus : mockRepoStatusWithWiki,
     wikiTree: mockWikiTree,
     isLoading: false,
   })
