@@ -34,6 +34,14 @@ describe('noteEditorStore', () => {
       expect(state.defaultScope).toBe('file')
       expect(state.defaultTarget).toBe('/src/main.ts')
     })
+
+    it('resets isDirty when opening', () => {
+      useNoteEditorStore.setState({ isDirty: true })
+
+      useNoteEditorStore.getState().open()
+
+      expect(useNoteEditorStore.getState().isDirty).toBe(false)
+    })
   })
 
   describe('close', () => {

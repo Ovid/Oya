@@ -76,6 +76,35 @@ describe('generationStore', () => {
       expect(jobId).toBeNull()
       expect(useGenerationStore.getState().error).toBe('Failed to start generation')
     })
+
+    it('returns null without calling API if already loading', async () => {
+      useGenerationStore.setState({ isLoading: true })
+
+      const jobId = await useGenerationStore.getState().startGeneration()
+
+      expect(jobId).toBeNull()
+      expect(api.initRepo).not.toHaveBeenCalled()
+    })
+
+    it('returns null without calling API if job is already running', async () => {
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'existing',
+          type: 'generation',
+          status: 'running',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      const jobId = await useGenerationStore.getState().startGeneration()
+
+      expect(jobId).toBeNull()
+      expect(api.initRepo).not.toHaveBeenCalled()
+    })
   })
 
   describe('setCurrentJob', () => {

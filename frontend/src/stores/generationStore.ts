@@ -25,10 +25,16 @@ export const initialState: GenerationState = {
   error: null,
 }
 
-export const useGenerationStore = create<GenerationState & GenerationActions>()((set) => ({
+export const useGenerationStore = create<GenerationState & GenerationActions>()((set, get) => ({
   ...initialState,
 
   startGeneration: async () => {
+    // Guard against concurrent calls
+    const state = get()
+    if (state.isLoading || state.currentJob?.status === 'running') {
+      return null
+    }
+
     set({ isLoading: true, generationStatus: null, error: null })
     try {
       const result = await api.initRepo()
