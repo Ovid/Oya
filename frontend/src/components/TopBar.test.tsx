@@ -23,50 +23,31 @@ vi.mock('../api/client', () => ({
   },
 }))
 
-// Setup global mocks for browser APIs
-beforeEach(() => {
-  // Mock localStorage
-  const localStorageMock = {
-    getItem: vi.fn(() => null),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-    length: 0,
-    key: vi.fn(),
-  }
-  vi.stubGlobal('localStorage', localStorageMock)
-
-  // Mock matchMedia
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }))
-  )
-})
-
 // Dynamic import to ensure mocks are set up first
 let TopBar: typeof import('./TopBar').TopBar
-let AppProvider: typeof import('../context/AppContext').AppProvider
-let useApp: typeof import('../context/useApp').useApp
+let useWikiStore: typeof import('../stores').useWikiStore
+let useGenerationStore: typeof import('../stores').useGenerationStore
+let useUIStore: typeof import('../stores').useUIStore
+let useNoteEditorStore: typeof import('../stores').useNoteEditorStore
 let api: typeof import('../api/client')
 
 beforeEach(async () => {
   vi.resetModules()
   const topBarModule = await import('./TopBar')
   TopBar = topBarModule.TopBar
-  const appContextModule = await import('../context/AppContext')
-  AppProvider = appContextModule.AppProvider
-  const useAppModule = await import('../context/useApp')
-  useApp = useAppModule.useApp
+  const stores = await import('../stores')
+  useWikiStore = stores.useWikiStore
+  useGenerationStore = stores.useGenerationStore
+  useUIStore = stores.useUIStore
+  useNoteEditorStore = stores.useNoteEditorStore
   api = await import('../api/client')
+
+  // Reset stores to initial state
+  useWikiStore.setState(useWikiStore.getInitialState())
+  useGenerationStore.setState(useGenerationStore.getInitialState())
+  useUIStore.setState(useUIStore.getInitialState())
+  useNoteEditorStore.setState(useNoteEditorStore.getInitialState())
+
   vi.clearAllMocks()
 })
 
@@ -111,11 +92,7 @@ function renderTopBar(props = {}) {
     ...props,
   }
 
-  return render(
-    <AppProvider>
-      <TopBar {...defaultProps} />
-    </AppProvider>
-  )
+  return render(<TopBar {...defaultProps} />)
 }
 
 describe('TopBar with DirectoryPicker', () => {
@@ -124,16 +101,19 @@ describe('TopBar with DirectoryPicker', () => {
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
     vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
+
+    // Set up store state directly
+    useWikiStore.setState({
+      repoStatus: mockRepoStatus,
+      wikiTree: mockWikiTree,
+      isLoading: false,
+      error: null,
+    })
   })
 
   describe('DirectoryPicker rendering', () => {
     it('renders DirectoryPicker component', async () => {
       renderTopBar()
-
-      // Wait for initial load to complete
-      await waitFor(() => {
-        expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-      })
 
       // DirectoryPicker should be rendered showing the current path
       expect(screen.getByLabelText(/Current workspace/i)).toBeInTheDocument()
@@ -142,10 +122,6 @@ describe('TopBar with DirectoryPicker', () => {
     it('displays current workspace path from repoStatus', async () => {
       renderTopBar()
 
-      await waitFor(() => {
-        expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-      })
-
       // The path should be visible in the DirectoryPicker
       expect(screen.getByText('/home/user/project')).toBeInTheDocument()
     })
@@ -153,152 +129,46 @@ describe('TopBar with DirectoryPicker', () => {
 
   describe('disabled during generation', () => {
     it('disables DirectoryPicker when generation job is running', async () => {
-      vi.mocked(api.getRepoStatus).mockResolvedValue({
-        ...mockRepoStatus,
-        initialized: false,
-      })
-      vi.mocked(api.initRepo).mockResolvedValue({
-        job_id: 'job-123',
-        status: 'pending',
-        message: 'Job created',
-      })
-      vi.mocked(api.getJob).mockResolvedValue({
-        job_id: 'job-123',
-        type: 'generation',
-        status: 'running',
-        started_at: null,
-        completed_at: null,
-        current_phase: null,
-        total_phases: null,
-        error_message: null,
-      })
-      vi.mocked(api.getIndexableItems).mockResolvedValue({
-        included: {
-          directories: ['src'],
-          files: ['src/main.ts'],
+      // Set up store state with a running job
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'running',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
         },
-        excluded_by_oyaignore: {
-          directories: [],
-          files: [],
-        },
-        excluded_by_rule: {
-          directories: [],
-          files: [],
-        },
-      })
-      vi.mocked(api.updateOyaignore).mockResolvedValue({
-        added_directories: [],
-        added_files: [],
-        removed: [],
-        total_added: 0,
-        total_removed: 0,
       })
 
       renderTopBar()
 
-      await waitFor(() => {
-        expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-      })
-
-      // Click Generate Wiki button to open modal
-      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
-      await userEvent.click(generateButton)
-
-      // Wait for modal to open
-      await waitFor(() => {
-        expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
-      })
-
-      // Click Generate Wiki button in modal footer
-      const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
-      const modalFooterButton = footerButtons[footerButtons.length - 1]
-      await userEvent.click(modalFooterButton)
-
-      // Confirm the generation dialog
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
-      })
-      await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
-
       // DirectoryPicker should be disabled
-      await waitFor(() => {
-        const picker = screen.getByLabelText(/Current workspace/i)
-        expect(picker).toBeDisabled()
-      })
+      const picker = screen.getByLabelText(/Current workspace/i)
+      expect(picker).toBeDisabled()
     })
 
     it('shows disabled reason when generation is in progress', async () => {
-      vi.mocked(api.getRepoStatus).mockResolvedValue({
-        ...mockRepoStatus,
-        initialized: false,
-      })
-      vi.mocked(api.initRepo).mockResolvedValue({
-        job_id: 'job-123',
-        status: 'pending',
-        message: 'Job created',
-      })
-      vi.mocked(api.getJob).mockResolvedValue({
-        job_id: 'job-123',
-        type: 'generation',
-        status: 'running',
-        started_at: null,
-        completed_at: null,
-        current_phase: null,
-        total_phases: null,
-        error_message: null,
-      })
-      vi.mocked(api.getIndexableItems).mockResolvedValue({
-        included: {
-          directories: ['src'],
-          files: ['src/main.ts'],
+      // Set up store state with a running job
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'running',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
         },
-        excluded_by_oyaignore: {
-          directories: [],
-          files: [],
-        },
-        excluded_by_rule: {
-          directories: [],
-          files: [],
-        },
-      })
-      vi.mocked(api.updateOyaignore).mockResolvedValue({
-        added_directories: [],
-        added_files: [],
-        removed: [],
-        total_added: 0,
-        total_removed: 0,
       })
 
       renderTopBar()
 
-      await waitFor(() => {
-        expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-      })
-
-      // Click Generate Wiki button to open modal
-      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
-      await userEvent.click(generateButton)
-
-      // Wait for modal to open
-      await waitFor(() => {
-        expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
-      })
-
-      // Click Generate Wiki button in modal footer
-      const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
-      const modalFooterButton = footerButtons[footerButtons.length - 1]
-      await userEvent.click(modalFooterButton)
-
-      // Confirm the generation dialog
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
-      })
-      await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
-
       // Should show disabled reason
-      await waitFor(() => {
-        expect(screen.getByTitle(/Cannot switch during generation/i)).toBeInTheDocument()
-      })
+      expect(screen.getByTitle(/Cannot switch during generation/i)).toBeInTheDocument()
     })
   })
 
@@ -312,37 +182,10 @@ describe('TopBar with DirectoryPicker', () => {
         message: 'Workspace switched',
       })
 
-      // Create a test component that can set dirty state
-      function TestWrapper() {
-        const { setNoteEditorDirty } = useApp()
-        return (
-          <>
-            <button onClick={() => setNoteEditorDirty(true)} data-testid="set-dirty">
-              Set Dirty
-            </button>
-            <TopBar
-              onToggleSidebar={vi.fn()}
-              onToggleRightSidebar={vi.fn()}
-              onToggleAskPanel={vi.fn()}
-              askPanelOpen={false}
-            />
-          </>
-        )
-      }
+      // Set note editor as dirty directly in the store
+      useNoteEditorStore.setState({ isDirty: true })
 
-      render(
-        <AppProvider>
-          <TestWrapper />
-        </AppProvider>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-      })
-
-      // Set the note editor as dirty
-      const setDirtyButton = screen.getByTestId('set-dirty')
-      await userEvent.click(setDirtyButton)
+      renderTopBar()
 
       // Click on the DirectoryPicker to open modal
       const picker = screen.getByLabelText(/Current workspace/i)
@@ -384,37 +227,10 @@ describe('TopBar with DirectoryPicker', () => {
         message: 'Workspace switched',
       })
 
-      // Create a test component that can set dirty state
-      function TestWrapper() {
-        const { setNoteEditorDirty } = useApp()
-        return (
-          <>
-            <button onClick={() => setNoteEditorDirty(true)} data-testid="set-dirty">
-              Set Dirty
-            </button>
-            <TopBar
-              onToggleSidebar={vi.fn()}
-              onToggleRightSidebar={vi.fn()}
-              onToggleAskPanel={vi.fn()}
-              askPanelOpen={false}
-            />
-          </>
-        )
-      }
+      // Set note editor as dirty directly in the store
+      useNoteEditorStore.setState({ isDirty: true })
 
-      render(
-        <AppProvider>
-          <TestWrapper />
-        </AppProvider>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-      })
-
-      // Set the note editor as dirty
-      const setDirtyButton = screen.getByTestId('set-dirty')
-      await userEvent.click(setDirtyButton)
+      renderTopBar()
 
       // Click on the DirectoryPicker to open modal
       const picker = screen.getByLabelText(/Current workspace/i)
@@ -461,14 +277,18 @@ describe('Generate Wiki Button', () => {
         files: [],
       },
     })
+
+    // Set up store state directly
+    useWikiStore.setState({
+      repoStatus: mockRepoStatus,
+      wikiTree: mockWikiTree,
+      isLoading: false,
+      error: null,
+    })
   })
 
   it('renders Generate Wiki button when no generation is in progress', async () => {
     renderTopBar()
-
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
 
     // Generate Wiki button should be visible
     expect(screen.getByRole('button', { name: /generate wiki/i })).toBeInTheDocument()
@@ -477,10 +297,6 @@ describe('Generate Wiki Button', () => {
   it('does not render Preview button (consolidated into Generate Wiki)', async () => {
     renderTopBar()
 
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
-
     // Preview button should NOT exist
     expect(screen.queryByRole('button', { name: /^preview$/i })).not.toBeInTheDocument()
   })
@@ -488,20 +304,12 @@ describe('Generate Wiki Button', () => {
   it('does not render Regenerate button (consolidated into Generate Wiki)', async () => {
     renderTopBar()
 
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
-
     // Regenerate button should NOT exist
     expect(screen.queryByRole('button', { name: /regenerate/i })).not.toBeInTheDocument()
   })
 
   it('opens IndexingPreviewModal when Generate Wiki button is clicked', async () => {
     renderTopBar()
-
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
 
     // Click Generate Wiki button
     const generateButton = screen.getByRole('button', { name: /generate wiki/i })
@@ -514,72 +322,25 @@ describe('Generate Wiki Button', () => {
   })
 
   it('hides Generate Wiki button when generation job is running', async () => {
-    vi.mocked(api.getRepoStatus).mockResolvedValue({
-      ...mockRepoStatus,
-      initialized: false,
-    })
-    vi.mocked(api.initRepo).mockResolvedValue({
-      job_id: 'job-123',
-      status: 'pending',
-      message: 'Job created',
-    })
-    vi.mocked(api.getJob).mockResolvedValue({
-      job_id: 'job-123',
-      type: 'generation',
-      status: 'running',
-      started_at: null,
-      completed_at: null,
-      current_phase: null,
-      total_phases: null,
-      error_message: null,
-    })
-    vi.mocked(api.updateOyaignore).mockResolvedValue({
-      added_directories: [],
-      added_files: [],
-      removed: [],
-      total_added: 0,
-      total_removed: 0,
+    // Set up store state with a running job
+    useGenerationStore.setState({
+      currentJob: {
+        job_id: 'job-123',
+        type: 'generation',
+        status: 'running',
+        started_at: null,
+        completed_at: null,
+        current_phase: null,
+        total_phases: null,
+        error_message: null,
+      },
     })
 
     renderTopBar()
 
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
-
-    // Click Generate Wiki to open modal first
-    const generateButton = screen.getByRole('button', { name: /generate wiki/i })
-    await userEvent.click(generateButton)
-
-    // Wait for modal to open
-    await waitFor(() => {
-      expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
-    })
-
-    // Click Generate Wiki button in modal footer
-    const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
-    const modalFooterButton = footerButtons[footerButtons.length - 1]
-    await userEvent.click(modalFooterButton)
-
-    // Confirm the generation dialog
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
-    })
-    await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
-
-    // Modal should close and TopBar Generate Wiki button should be hidden (currentJob is set)
-    await waitFor(() => {
-      // The modal closes after generation starts
-      expect(screen.queryByText('Indexing Preview')).not.toBeInTheDocument()
-    })
-
-    // The TopBar Generate Wiki button should be hidden because currentJob is now set
-    await waitFor(() => {
-      // After generation starts, only the status badge should indicate generation in progress
-      // The Generate Wiki button in TopBar should be hidden (!currentJob condition)
-      const generateButtons = screen.queryAllByRole('button', { name: /generate wiki/i })
-      expect(generateButtons).toHaveLength(0)
-    })
+    // The TopBar Generate Wiki button should be hidden because currentJob is set
+    const generateButtons = screen.queryAllByRole('button', { name: /generate wiki/i })
+    expect(generateButtons).toHaveLength(0)
   })
 })
 
@@ -589,90 +350,41 @@ describe('Ask button during generation', () => {
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
     vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
-    vi.mocked(api.getIndexableItems).mockResolvedValue({
-      included: {
-        directories: ['src'],
-        files: ['src/main.ts'],
-      },
-      excluded_by_oyaignore: {
-        directories: [],
-        files: [],
-      },
-      excluded_by_rule: {
-        directories: [],
-        files: [],
-      },
-    })
-    vi.mocked(api.updateOyaignore).mockResolvedValue({
-      added_directories: [],
-      added_files: [],
-      removed: [],
-      total_added: 0,
-      total_removed: 0,
+
+    // Set up store state directly
+    useWikiStore.setState({
+      repoStatus: mockRepoStatus,
+      wikiTree: mockWikiTree,
+      isLoading: false,
+      error: null,
     })
   })
 
   it('disables Ask button when generation is running', async () => {
-    vi.mocked(api.getRepoStatus).mockResolvedValue({
-      ...mockRepoStatus,
-      initialized: false,
-    })
-    vi.mocked(api.initRepo).mockResolvedValue({
-      job_id: 'job-123',
-      status: 'pending',
-      message: 'Job created',
-    })
-    vi.mocked(api.getJob).mockResolvedValue({
-      job_id: 'job-123',
-      type: 'generation',
-      status: 'running',
-      started_at: null,
-      completed_at: null,
-      current_phase: null,
-      total_phases: null,
-      error_message: null,
+    // Set up store state with a running job
+    useGenerationStore.setState({
+      currentJob: {
+        job_id: 'job-123',
+        type: 'generation',
+        status: 'running',
+        started_at: null,
+        completed_at: null,
+        current_phase: null,
+        total_phases: null,
+        error_message: null,
+      },
     })
 
     renderTopBar()
 
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
-
-    // Click Generate Wiki to open modal first
-    const generateButton = screen.getByRole('button', { name: /generate wiki/i })
-    await userEvent.click(generateButton)
-
-    // Wait for modal to open
-    await waitFor(() => {
-      expect(screen.getByText('Indexing Preview')).toBeInTheDocument()
-    })
-
-    // Click Generate Wiki button in modal footer
-    const footerButtons = screen.getAllByRole('button', { name: /generate wiki/i })
-    const modalFooterButton = footerButtons[footerButtons.length - 1]
-    await userEvent.click(modalFooterButton)
-
-    // Confirm the generation dialog
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument()
-    })
-    await userEvent.click(screen.getByRole('button', { name: /^generate$/i }))
-
     // Ask button should be disabled
-    await waitFor(() => {
-      const askButton = screen.getByRole('button', { name: /ask/i })
-      expect(askButton).toBeDisabled()
-      expect(askButton).toHaveAttribute('title', 'Q&A unavailable during generation')
-    })
+    const askButton = screen.getByRole('button', { name: /ask/i })
+    expect(askButton).toBeDisabled()
+    expect(askButton).toHaveAttribute('title', 'Q&A unavailable during generation')
   })
 
   it('enables Ask button when no generation is running', async () => {
     renderTopBar()
-
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
-    })
 
     const askButton = screen.getByRole('button', { name: /ask/i })
     expect(askButton).not.toBeDisabled()
