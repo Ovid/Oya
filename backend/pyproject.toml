@@ -51,6 +51,17 @@ filterwarnings = [
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint]
+select = ["E", "F", "W", "PLC0415"]  # PLC0415: import should be at top-level
+
+[tool.ruff.lint.per-file-ignores]
+# Allow local imports in tests - common pattern for test isolation
+# Also allow long lines in test docstrings and assertions
+# TODO: Gradually clean up test files to use top-level imports
+"tests/*" = ["PLC0415", "E501"]
+# Prompt templates have intentionally long lines for readability
+"src/oya/generation/prompts.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true

@@ -1,5 +1,6 @@
 """ChromaDB collection for code issues."""
 
+import gc
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -125,8 +126,6 @@ class IssuesStore:
 
     def close(self) -> None:
         """Close the store and release resources."""
-        import gc
-
         if self._client is not None:
             try:
                 if hasattr(self._client, "_identifier_to_system"):

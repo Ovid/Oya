@@ -10,6 +10,8 @@ on successful completion. This ensures that:
 import shutil
 from pathlib import Path
 
+from oya.config import ConfigError, load_settings
+
 
 def prepare_staging_directory(staging_path: Path, production_path: Path) -> None:
     """Prepare the staging directory for a new build.
@@ -66,8 +68,6 @@ def has_incomplete_build(workspace_path: Path) -> bool:
     # Get staging directory name from settings, fallback to default
     staging_dir = ".oyawiki-building"  # Default
     try:
-        from oya.config import ConfigError, load_settings
-
         settings = load_settings()
         staging_dir = settings.paths.staging_dir
     except (ValueError, OSError, ConfigError):

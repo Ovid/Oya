@@ -156,8 +156,9 @@ class IndexingService:
         # Insert chunks into FTS
         for chunk in all_chunks:
             self._db.execute(
-                "INSERT INTO fts_content (content, title, path, type, section_header, chunk_id, chunk_index) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                """INSERT INTO fts_content
+                (content, title, path, type, section_header, chunk_id, chunk_index)
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (
                     chunk.content,
                     chunk.metadata.title,
