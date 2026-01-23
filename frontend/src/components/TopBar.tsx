@@ -28,7 +28,7 @@ export function TopBar({
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
 
   const isLoading = wikiIsLoading || generationIsLoading
-  const isGenerating = currentJob?.status === 'running'
+  const isGenerating = currentJob?.status === 'running' || currentJob?.status === 'pending'
   const hasUnsavedChanges = noteEditorIsDirty
 
   const handleWorkspaceSwitch = async (path: string) => {

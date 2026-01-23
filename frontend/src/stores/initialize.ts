@@ -36,12 +36,12 @@ export async function initializeApp(): Promise<void> {
     await wikiStore.refreshTree()
   }
 
-  // Check for any running jobs to restore generation progress after refresh
+  // Check for any active jobs (pending or running) to restore generation progress after refresh
   try {
     const jobs = await api.listJobs(1)
-    const runningJob = jobs.find((job) => job.status === 'running')
-    if (runningJob) {
-      generationStore.setCurrentJob(runningJob)
+    const activeJob = jobs.find((job) => job.status === 'running' || job.status === 'pending')
+    if (activeJob) {
+      generationStore.setCurrentJob(activeJob)
     }
   } catch {
     // Ignore errors when checking for running jobs

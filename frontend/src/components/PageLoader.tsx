@@ -93,8 +93,9 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     [setCurrentJob]
   )
 
-  // Show generation progress if a global job is running
-  const activeJobId = currentJob?.status === 'running' ? currentJob.job_id : null
+  // Show generation progress if a global job is active (pending or running)
+  const activeJobId =
+    currentJob?.status === 'running' || currentJob?.status === 'pending' ? currentJob.job_id : null
   if (activeJobId) {
     return (
       <GenerationProgress

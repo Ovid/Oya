@@ -105,6 +105,26 @@ describe('generationStore', () => {
       expect(jobId).toBeNull()
       expect(api.initRepo).not.toHaveBeenCalled()
     })
+
+    it('returns null without calling API if job is pending', async () => {
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'existing',
+          type: 'generation',
+          status: 'pending',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      const jobId = await useGenerationStore.getState().startGeneration()
+
+      expect(jobId).toBeNull()
+      expect(api.initRepo).not.toHaveBeenCalled()
+    })
   })
 
   describe('setCurrentJob', () => {

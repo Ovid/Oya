@@ -49,7 +49,7 @@ function saveSettings(settings: QASettings): void {
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
   const currentJob = useGenerationStore((s) => s.currentJob)
   const wikiTree = useWikiStore((s) => s.wikiTree)
-  const isGenerating = currentJob?.status === 'running'
+  const isGenerating = currentJob?.status === 'running' || currentJob?.status === 'pending'
   const hasWiki =
     wikiTree &&
     (wikiTree.overview ||
