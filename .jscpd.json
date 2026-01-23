@@ -1,0 +1,15 @@
+{
+  "threshold": 100,
+  "reporters": ["console"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/dist/**",
+    "**/__pycache__/**",
+    "**/htmlcov/**",
+    "**/.worktrees/**"
+  ],
+  "minLines": 5,
+  "minTokens": 50,
+  "absolute": true
+}
