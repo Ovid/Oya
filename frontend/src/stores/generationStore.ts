@@ -51,4 +51,7 @@ export const useGenerationStore = create<GenerationState & GenerationActions>()(
 }))
 
 // For testing - allows reset to initial state
-useGenerationStore.getInitialState = () => initialState
+// We only need to reset the state portion, not actions
+;(
+  useGenerationStore as unknown as { getInitialState: () => GenerationState }
+).getInitialState = () => initialState

@@ -62,7 +62,9 @@ useUIStore.subscribe(
   { fireImmediately: true }
 )
 
-useUIStore.getInitialState = () => ({
+// For testing - allows reset to initial state
+// We only need to reset the state portion, not actions
+;(useUIStore as unknown as { getInitialState: () => UIState }).getInitialState = () => ({
   darkMode: false,
   askPanelOpen: false,
 })
