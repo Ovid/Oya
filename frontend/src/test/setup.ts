@@ -1,9 +1,8 @@
 import '@testing-library/jest-dom'
 import { vi, beforeEach } from 'vitest'
 
-// jsdom's localStorage can be incomplete in some configurations.
-// Provide a complete mock to ensure consistent behavior.
-const localStorageMock = (() => {
+// Factory to create fresh localStorage mock
+function createLocalStorageMock() {
   let store: Record<string, string> = {}
   return {
     getItem: vi.fn((key: string) => store[key] ?? null),
@@ -21,19 +20,11 @@ const localStorageMock = (() => {
     },
     key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
   }
-})()
+}
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-  writable: true,
-  configurable: true,
-})
-
-// Mock matchMedia for dark mode detection
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  configurable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
+// Factory to create fresh matchMedia mock
+function createMatchMediaMock() {
+  return vi.fn().mockImplementation((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -42,13 +33,40 @@ Object.defineProperty(window, 'matchMedia', {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
-  })),
+  }))
+}
+
+// Install initial mocks at module load time (needed for store initialization)
+Object.defineProperty(window, 'localStorage', {
+  value: createLocalStorageMock(),
+  writable: true,
+  configurable: true,
 })
 
-// Reset stores between tests when they're imported
+Object.defineProperty(window, 'matchMedia', {
+  value: createMatchMediaMock(),
+  writable: true,
+  configurable: true,
+})
+
+// Reset browser API mocks and stores between tests
 beforeEach(async () => {
-  // Clear localStorage between tests to ensure isolation
-  localStorageMock.clear()
+  // Unstub any globals that tests may have stubbed
+  vi.unstubAllGlobals()
+
+  // Re-install fresh localStorage mock
+  Object.defineProperty(window, 'localStorage', {
+    value: createLocalStorageMock(),
+    writable: true,
+    configurable: true,
+  })
+
+  // Re-install fresh matchMedia mock
+  Object.defineProperty(window, 'matchMedia', {
+    value: createMatchMediaMock(),
+    writable: true,
+    configurable: true,
+  })
 
   // Only reset if stores are loaded (they may not be in all tests)
   try {
