@@ -8,6 +8,8 @@ import logging
 from pathlib import Path
 from typing import Final
 
+from oya.config import ConfigError, load_settings
+
 logger = logging.getLogger(__name__)
 
 # Required subdirectories within .oyawiki/
@@ -42,8 +44,6 @@ def initialize_workspace(workspace_path: Path) -> bool:
     # Get wiki directory name from settings, fallback to default
     wiki_dir = ".oyawiki"  # Default
     try:
-        from oya.config import ConfigError, load_settings
-
         settings = load_settings()
         wiki_dir = settings.paths.wiki_dir
     except (ValueError, OSError, ConfigError):

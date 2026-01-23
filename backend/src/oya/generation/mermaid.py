@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from oya.generation.mermaid_validator import sanitize_label, sanitize_node_id
+from oya.generation.summaries import SynthesisMap
 from oya.parsing.models import ParsedSymbol, SymbolType
-
-if TYPE_CHECKING:
-    from oya.generation.summaries import SynthesisMap
 
 
 class LayerDiagramGenerator:
@@ -362,15 +358,13 @@ class DiagramGenerator:
         Returns:
             Dict mapping diagram name to Mermaid content.
         """
-        from oya.generation.summaries import SynthesisMap as SynthesisMapClass
-
         diagrams = {}
 
         # Layer diagram
         if synthesis_map is not None:
             diagrams["layer"] = self.layer_generator.generate(synthesis_map)
         else:
-            diagrams["layer"] = self.layer_generator.generate(SynthesisMapClass())
+            diagrams["layer"] = self.layer_generator.generate(SynthesisMap())
 
         # Dependency diagram
         diagrams["dependency"] = self.dependency_generator.generate(file_imports or {})

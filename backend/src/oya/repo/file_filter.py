@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from oya.config import ConfigError, load_settings
+
 
 @dataclass
 class CategorizedFiles:
@@ -98,9 +100,11 @@ class FileFilter:
 
         Args:
             repo_path: Path to repository root.
-            max_file_size_kb: Maximum file size in KB. If None, uses settings or default (500).
+            max_file_size_kb: Maximum file size in KB. If None, uses settings
+                or default (500).
             extra_excludes: Additional exclude patterns.
-            ignore_path: Path to ignore file. If None, uses repo_path with ignore filename from settings.
+            ignore_path: Path to ignore file. If None, uses repo_path with
+                ignore filename from settings.
         """
         self.repo_path = repo_path
 
@@ -108,8 +112,6 @@ class FileFilter:
         ignore_filename = ".oyaignore"  # Default
         default_max_file_size_kb = 500  # Default from CONFIG_SCHEMA
         try:
-            from oya.config import ConfigError, load_settings
-
             settings = load_settings()
             ignore_filename = settings.paths.ignore_file
             default_max_file_size_kb = settings.files.max_file_size_kb
@@ -261,8 +263,6 @@ class FileFilter:
             # Get minified threshold from settings if available
             minified_threshold = 500  # Default
             try:
-                from oya.config import ConfigError, load_settings
-
                 settings = load_settings()
                 minified_threshold = settings.files.minified_line_length
             except (ValueError, OSError, ConfigError):

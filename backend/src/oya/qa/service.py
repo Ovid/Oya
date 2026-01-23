@@ -450,8 +450,6 @@ Answer the question based only on the context provided. Include citations to spe
         Returns:
             Validated citations with URLs.
         """
-        import json
-
         citations: list[Citation] = []
 
         # Parse JSON citations block
@@ -667,14 +665,16 @@ Answer the question based only on the context provided. Include citations to spe
 
         context_str = "\n\n---\n\n".join(context_parts)
 
-        prompt = f"""Based on the following code issues identified during analysis, answer the question.
+        prompt = f"""Based on the following code issues identified during analysis, \
+answer the question.
 
 IDENTIFIED ISSUES:
 {context_str}
 
 QUESTION: {request.question}
 
-Analyze these issues and identify any systemic patterns. Are there architectural or process problems causing multiple similar issues?
+Analyze these issues and identify any systemic patterns. Are there architectural \
+or process problems causing multiple similar issues?
 Format your response with:
 1. A summary of the issues found
 2. Any patterns across issues
@@ -965,7 +965,8 @@ Answer the question based only on the context provided. Include citations to spe
         Yields SSE-formatted event strings:
         - event: token, data: {"text": "..."}
         - event: status, data: {"stage": "...", "pass": N}
-        - event: done, data: {"citations": [...], "confidence": "...", "session_id": "...", "disclaimer": "..."}
+        - event: done, data: {"citations": [...], "confidence": "...",
+          "session_id": "...", "disclaimer": "..."}
         - event: error, data: {"message": "..."}
         """
         # Issue 1 fix: Emit "searching" status BEFORE performing search

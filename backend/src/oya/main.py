@@ -28,6 +28,7 @@ for uvicorn_logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
 
 from oya.api.routers import repos, wiki, jobs, search, qa, notes  # noqa: E402
 from oya.config import load_settings  # noqa: E402
+from oya.db.connection import Database  # noqa: E402
 from oya.workspace import initialize_workspace  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,6 @@ def _cleanup_stale_jobs(settings) -> None:
     interrupted by a server restart. Mark them as failed so the frontend
     doesn't try to resume them.
     """
-    from oya.db.connection import Database
-
     try:
         if not settings.db_path.exists():
             return
