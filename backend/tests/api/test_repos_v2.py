@@ -1,5 +1,8 @@
 """Tests for the repos v2 API endpoints (multi-repo management)."""
 
+import subprocess
+from pathlib import Path
+
 import pytest
 from httpx import AsyncClient, ASGITransport
 
@@ -59,3 +62,76 @@ async def test_list_repos_with_repos(data_dir):
     assert data["total"] == 2
     assert len(data["repos"]) == 2
     assert data["repos"][0]["display_name"] == "Repo A"
+
+
+@pytest.fixture
+def source_repo(tmp_path):
+    """Create a test git repository to clone from."""
+    repo_dir = tmp_path / "source-repo"
+    repo_dir.mkdir()
+    subprocess.run(["git", "init"], cwd=repo_dir, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=repo_dir,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=repo_dir,
+        capture_output=True,
+        check=True,
+    )
+    # Create a file and commit
+    (repo_dir / "README.md").write_text("# Test Repo")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=repo_dir,
+        capture_output=True,
+        check=True,
+    )
+    return repo_dir
+
+
+@pytest.mark.asyncio
+async def test_create_repo_from_local_path(data_dir, source_repo):
+    """POST /api/v2/repos with local path creates and clones repo."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "My Test Repo"},
+        )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["id"] is not None
+    assert data["origin_url"] == str(source_repo)
+    assert data["source_type"] == "local"
+    assert data["display_name"] == "My Test Repo"
+    assert data["status"] == "ready"
+    # Verify the repo was actually cloned
+    cloned_path = Path(data["local_path"])
+    assert cloned_path.exists()
+    assert (cloned_path / ".git").exists()
+    assert (cloned_path / "README.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_create_repo_duplicate_error(data_dir, source_repo):
+    """Adding same repo twice returns 409 Conflict."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # First creation should succeed
+        response1 = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "First Add"},
+        )
+        assert response1.status_code == 201
+
+        # Second creation with same URL should fail
+        response2 = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "Second Add"},
+        )
+        assert response2.status_code == 409
+        assert "already exists" in response2.json()["detail"].lower()
