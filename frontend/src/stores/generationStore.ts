@@ -31,7 +31,9 @@ export const useGenerationStore = create<GenerationState & GenerationActions>()(
   startGeneration: async () => {
     // Guard against concurrent calls
     const state = get()
-    if (state.isLoading || state.currentJob?.status === 'running') {
+    const jobIsActive =
+      state.currentJob?.status === 'running' || state.currentJob?.status === 'pending'
+    if (state.isLoading || jobIsActive) {
       return null
     }
 
