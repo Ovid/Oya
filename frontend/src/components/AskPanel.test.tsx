@@ -1,27 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { RepoStatus, WikiTree, JobStatus } from '../types'
+import type { WikiTree, JobStatus } from '../types'
 
 // Mock the API module - must be before imports that use it
 vi.mock('../api/client', () => ({
-  getRepoStatus: vi.fn(),
-  getWikiTree: vi.fn(),
-  switchWorkspace: vi.fn(),
-  listDirectories: vi.fn(),
-  initRepo: vi.fn(),
-  getJob: vi.fn(),
-  listJobs: vi.fn(),
-  getGenerationStatus: vi.fn(),
   askQuestionStream: vi.fn(),
-  ApiError: class ApiError extends Error {
-    status: number
-    constructor(status: number, message: string) {
-      super(message)
-      this.name = 'ApiError'
-      this.status = status
-    }
-  },
 }))
 
 // Setup global mocks for browser APIs
@@ -58,33 +42,23 @@ beforeEach(() => {
 
 // Dynamic import to ensure mocks are set up first
 let AskPanel: typeof import('./AskPanel').AskPanel
-let AppContext: typeof import('../context/AppContext').AppContext
+let useWikiStore: typeof import('../stores').useWikiStore
+let useGenerationStore: typeof import('../stores').useGenerationStore
 let api: typeof import('../api/client')
 
 beforeEach(async () => {
   vi.resetModules()
   const askPanelModule = await import('./AskPanel')
   AskPanel = askPanelModule.AskPanel
-  const appContextModule = await import('../context/AppContext')
-  AppContext = appContextModule.AppContext
+  const stores = await import('../stores')
+  useWikiStore = stores.useWikiStore
+  useGenerationStore = stores.useGenerationStore
   api = await import('../api/client')
   vi.clearAllMocks()
+  // Reset stores to initial state
+  useWikiStore.setState(useWikiStore.getInitialState())
+  useGenerationStore.setState(useGenerationStore.getInitialState())
 })
-
-const mockRepoStatus: RepoStatus = {
-  path: '/home/user/project',
-  head_commit: 'abc123',
-  head_message: 'Initial commit',
-  branch: 'main',
-  initialized: true,
-  is_docker: false,
-  last_generation: null,
-  generation_status: null,
-  embedding_metadata: null,
-  current_provider: null,
-  current_model: null,
-  embedding_mismatch: false,
-}
 
 const mockWikiTree: WikiTree = {
   overview: true,
@@ -126,7 +100,7 @@ const emptyWikiTree: WikiTree = {
 
 function renderAskPanel(
   props = {},
-  contextOverrides: { currentJob?: JobStatus | null; wikiTree?: WikiTree | null } = {}
+  storeOverrides: { currentJob?: JobStatus | null; wikiTree?: WikiTree | null } = {}
 ) {
   const defaultProps = {
     isOpen: true,
@@ -134,43 +108,20 @@ function renderAskPanel(
     ...props,
   }
 
-  // Create a wrapper that provides context with optional overrides
-  const mockContextValue = {
-    state: {
-      repoStatus: mockRepoStatus,
-      wikiTree: contextOverrides.wikiTree !== undefined ? contextOverrides.wikiTree : mockWikiTree,
-      currentPage: null,
-      currentJob: contextOverrides.currentJob !== undefined ? contextOverrides.currentJob : null,
-      isLoading: false,
-      error: null,
-      noteEditor: {
-        isOpen: false,
-        isDirty: false,
-        defaultScope: 'general' as const,
-        defaultTarget: '',
-      },
-      darkMode: false,
-      generationStatus: null,
-      askPanelOpen: true,
-    },
-    dispatch: vi.fn(),
-    refreshStatus: vi.fn(),
-    refreshTree: vi.fn(),
-    startGeneration: vi.fn(),
-    openNoteEditor: vi.fn(),
-    closeNoteEditor: vi.fn(),
-    toggleDarkMode: vi.fn(),
-    switchWorkspace: vi.fn(),
-    setNoteEditorDirty: vi.fn(),
-    dismissGenerationStatus: vi.fn(),
-    setAskPanelOpen: vi.fn(),
+  // Set store state for overrides
+  if (storeOverrides.wikiTree !== undefined) {
+    useWikiStore.setState({ wikiTree: storeOverrides.wikiTree })
+  } else {
+    useWikiStore.setState({ wikiTree: mockWikiTree })
+  }
+
+  if (storeOverrides.currentJob !== undefined) {
+    useGenerationStore.setState({ currentJob: storeOverrides.currentJob })
   }
 
   return render(
     <MemoryRouter>
-      <AppContext.Provider value={mockContextValue}>
-        <AskPanel {...defaultProps} />
-      </AppContext.Provider>
+      <AskPanel {...defaultProps} />
     </MemoryRouter>
   )
 }
@@ -178,10 +129,6 @@ function renderAskPanel(
 describe('AskPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
-    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
-    vi.mocked(api.listJobs).mockResolvedValue([])
-    vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
   })
 
   describe('basic rendering', () => {
