@@ -52,24 +52,17 @@ beforeEach(() => {
   )
 })
 
-// Dynamic import to ensure mocks are set up first
-let PageLoader: typeof import('./PageLoader').PageLoader
-let useWikiStore: typeof import('../stores').useWikiStore
-let useGenerationStore: typeof import('../stores').useGenerationStore
-let api: typeof import('../api/client')
+import { PageLoader } from './PageLoader'
+import { useWikiStore, useGenerationStore } from '../stores'
+import { initialState as wikiInitial } from '../stores/wikiStore'
+import { initialState as genInitial } from '../stores/generationStore'
+import * as api from '../api/client'
 
-beforeEach(async () => {
-  vi.resetModules()
-  const pageLoaderModule = await import('./PageLoader')
-  PageLoader = pageLoaderModule.PageLoader
-  const stores = await import('../stores')
-  useWikiStore = stores.useWikiStore
-  useGenerationStore = stores.useGenerationStore
-  api = await import('../api/client')
+beforeEach(() => {
   vi.clearAllMocks()
   // Reset stores to initial state
-  useWikiStore.setState(useWikiStore.getInitialState())
-  useGenerationStore.setState(useGenerationStore.getInitialState())
+  useWikiStore.setState(wikiInitial)
+  useGenerationStore.setState(genInitial)
 })
 
 const mockRepoStatusWithWiki: RepoStatus = {

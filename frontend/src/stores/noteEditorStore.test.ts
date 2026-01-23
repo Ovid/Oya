@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useNoteEditorStore } from './noteEditorStore'
+import { useNoteEditorStore, initialState } from './noteEditorStore'
 
 beforeEach(() => {
-  useNoteEditorStore.setState(useNoteEditorStore.getInitialState())
+  useNoteEditorStore.setState(initialState)
 })
 
 describe('noteEditorStore', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useWikiStore } from './wikiStore'
+import { useWikiStore, initialState } from './wikiStore'
 import * as api from '../api/client'
 
 // Mock the API module
@@ -20,7 +20,7 @@ vi.mock('../api/client', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   // Reset store to initial state
-  useWikiStore.setState(useWikiStore.getInitialState())
+  useWikiStore.setState(initialState)
 })
 
 const mockRepoStatus = {

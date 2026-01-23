@@ -18,7 +18,7 @@ interface GenerationActions {
   setError: (error: string | null) => void
 }
 
-const initialState: GenerationState = {
+export const initialState: GenerationState = {
   currentJob: null,
   generationStatus: null,
   isLoading: false,
@@ -49,8 +49,3 @@ export const useGenerationStore = create<GenerationState & GenerationActions>()(
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
 }))
-
-// For testing - allows reset to initial state
-// We only need to reset the state portion, not actions
-;(useGenerationStore as unknown as { getInitialState: () => GenerationState }).getInitialState =
-  () => initialState

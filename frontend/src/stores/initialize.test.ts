@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { initializeApp } from './initialize'
+import { useWikiStore, initialState as wikiInitial } from './wikiStore'
+import { useGenerationStore, initialState as genInitial } from './generationStore'
+import * as api from '../api/client'
 
 vi.mock('../api/client', () => ({
   getRepoStatus: vi.fn(),
@@ -6,11 +10,6 @@ vi.mock('../api/client', () => ({
   getGenerationStatus: vi.fn(),
   listJobs: vi.fn(),
 }))
-
-let api: typeof import('../api/client')
-let initializeApp: typeof import('./initialize').initializeApp
-let useWikiStore: typeof import('./wikiStore').useWikiStore
-let useGenerationStore: typeof import('./generationStore').useGenerationStore
 
 const mockRepoStatus = {
   path: '/test',
@@ -35,19 +34,10 @@ const mockWikiTree = {
   files: [],
 }
 
-beforeEach(async () => {
-  vi.resetModules()
-  api = await import('../api/client')
-  const initModule = await import('./initialize')
-  initializeApp = initModule.initializeApp
-  const wikiModule = await import('./wikiStore')
-  useWikiStore = wikiModule.useWikiStore
-  const genModule = await import('./generationStore')
-  useGenerationStore = genModule.useGenerationStore
-
+beforeEach(() => {
   vi.clearAllMocks()
-  useWikiStore.setState(useWikiStore.getInitialState())
-  useGenerationStore.setState(useGenerationStore.getInitialState())
+  useWikiStore.setState(wikiInitial)
+  useGenerationStore.setState(genInitial)
 })
 
 describe('initializeApp', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useGenerationStore } from './generationStore'
+import { useGenerationStore, initialState } from './generationStore'
 import * as api from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -9,7 +9,7 @@ vi.mock('../api/client', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useGenerationStore.setState(useGenerationStore.getInitialState())
+  useGenerationStore.setState(initialState)
 })
 
 describe('generationStore', () => {
