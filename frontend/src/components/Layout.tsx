@@ -26,7 +26,11 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
 
-  const noteEditor = useNoteEditorStore((s) => ({ isOpen: s.isOpen, defaultScope: s.defaultScope, defaultTarget: s.defaultTarget }))
+  const noteEditor = useNoteEditorStore((s) => ({
+    isOpen: s.isOpen,
+    defaultScope: s.defaultScope,
+    defaultTarget: s.defaultTarget,
+  }))
   const closeNoteEditor = useNoteEditorStore((s) => s.close)
   const refreshTree = useWikiStore((s) => s.refreshTree)
   const askPanelOpen = useUIStore((s) => s.askPanelOpen)
