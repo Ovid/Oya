@@ -1,5 +1,14 @@
 # TODO
 
+* Deep Research
+    * Extend CGRAG
+        * "Thorough" Shouldn't mention additional files
+        * "Deep Research" will
+    * Can't do it properly if I don't have the files
+        * Need "wikis" directory
+            * Handle github (including private repos)
+            * Handle local directoroes
+            * How to enforce distinction when repo names are the same?
 * Architecture
     * Claude often imports in functions instead of at the top. How can we
       catch that?
