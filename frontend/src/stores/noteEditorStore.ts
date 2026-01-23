@@ -25,7 +25,7 @@ export const useNoteEditorStore = create<NoteEditorState & NoteEditorActions>()(
   ...initialState,
 
   open: (scope = 'general', target = '') => {
-    set({ isOpen: true, defaultScope: scope, defaultTarget: target })
+    set({ isOpen: true, isDirty: false, defaultScope: scope, defaultTarget: target })
   },
 
   close: () => {
