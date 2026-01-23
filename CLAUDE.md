@@ -106,6 +106,34 @@ Hard-coded values that control application behavior are extracted to config file
 - `storage.ts` - localStorage keys
 - `timing.ts` - Polling intervals, relative time thresholds
 
+## Architectural Discipline
+
+Before implementing new functionality:
+1. Search for existing utilities/helpers that do similar things
+2. Check if the pattern exists elsewhere in the codebase
+3. If implementing something common (date formatting, error handling, API calls, validation), assume it already exists and search first
+
+When modifying files:
+- Imports go at module top, not inside functions
+- If a class exceeds ~10 attributes or ~15 methods, consider splitting
+
+### Before Writing "General Purpose" Code
+
+When about to write something that feels reusable:
+- Utility functions (formatting, parsing, validation)
+- API/HTTP helpers
+- Error handling patterns
+- Data transformation logic
+- UI components (buttons, modals, form elements)
+
+**Stop and search first:**
+1. Grep for similar function names or keywords
+2. Check obvious locations (utils/, helpers/, common/, shared/, lib/)
+3. Look at how similar features were implemented elsewhere in the codebase
+
+If found: reuse or extend existing code.
+If close but not quite: refactor existing rather than duplicate.
+
 ## Environment Variables
 
 Required: `WORKSPACE_PATH` - path to the repo being documented
