@@ -28,6 +28,7 @@ dev = [
     "mypy>=1.8.0",
     "pytest-cov>=4.1.0",
     "types-PyYAML>=6.0.0",
+    "pylint>=3.0.0",
 ]
 
 [build-system]
@@ -80,3 +81,12 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.pylint.main]
+# Only check design issues (god objects), not style (ruff handles that)
+disable = ["all"]
+enable = ["R0902", "R0904"]  # too-many-instance-attributes, too-many-public-methods
+
+[tool.pylint.design]
+max-attributes = 10
+max-public-methods = 15
