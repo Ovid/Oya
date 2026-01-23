@@ -1,7 +1,5 @@
 # AppContext Zustand Migration Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Replace the monolithic AppContext with four focused Zustand stores to improve testability, reduce coupling, and enable fine-grained subscriptions.
 
 **Architecture:** Four domain-specific stores (wiki, generation, ui, noteEditor) replace one context. Each store is self-contained with its own state and actions. An initialize.ts module handles app startup. Components subscribe only to the state slices they need.
