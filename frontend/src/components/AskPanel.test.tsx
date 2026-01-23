@@ -8,35 +8,8 @@ vi.mock('../api/client', () => ({
   askQuestionStream: vi.fn(),
 }))
 
-// Setup global mocks for browser APIs
+// Setup scrollIntoView mock (localStorage/matchMedia handled by test/setup.ts)
 beforeEach(() => {
-  // Mock localStorage
-  const localStorageMock = {
-    getItem: vi.fn(() => null),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-    length: 0,
-    key: vi.fn(),
-  }
-  vi.stubGlobal('localStorage', localStorageMock)
-
-  // Mock matchMedia
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }))
-  )
-
-  // Mock scrollIntoView
   Element.prototype.scrollIntoView = vi.fn()
 })
 
