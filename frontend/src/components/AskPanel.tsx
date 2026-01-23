@@ -6,7 +6,7 @@ import { askQuestionStream } from '../api/client'
 import { CONFIDENCE_COLORS, QA_DEFAULTS, QA_STORAGE_KEY } from '../config'
 import { QASettingsPopover, type QASettings } from './QASettingsPopover'
 import { formatElapsedTime } from './generationConstants'
-import { useApp } from '../context/useApp'
+import { useWikiStore, useGenerationStore } from '../stores'
 import type { Citation, SearchQuality, ConfidenceLevel } from '../types'
 import { ThinkingIndicator } from './ThinkingIndicator'
 
@@ -47,15 +47,16 @@ function saveSettings(settings: QASettings): void {
 }
 
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
-  const { state } = useApp()
-  const isGenerating = state.currentJob?.status === 'running'
+  const currentJob = useGenerationStore((s) => s.currentJob)
+  const wikiTree = useWikiStore((s) => s.wikiTree)
+  const isGenerating = currentJob?.status === 'running'
   const hasWiki =
-    state.wikiTree &&
-    (state.wikiTree.overview ||
-      state.wikiTree.architecture ||
-      state.wikiTree.workflows.length > 0 ||
-      state.wikiTree.directories.length > 0 ||
-      state.wikiTree.files.length > 0)
+    wikiTree &&
+    (wikiTree.overview ||
+      wikiTree.architecture ||
+      wikiTree.workflows.length > 0 ||
+      wikiTree.directories.length > 0 ||
+      wikiTree.files.length > 0)
 
   const [question, setQuestion] = useState('')
   const [isLoading, setIsLoading] = useState(false)
