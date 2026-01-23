@@ -9,6 +9,7 @@ from oya.main import app
 from oya.api.deps import get_settings, _reset_db_instance
 from oya.api.routers.qa import get_qa_service
 from oya.qa.service import QAService
+import oya.qa.service as service_module
 
 
 @pytest.fixture
@@ -64,7 +65,7 @@ def mock_qa_service():
 
     async def mock_stream(request):
         """Mock streaming response."""
-        yield 'data: {"type": "status", "message": "Searching..."}\n\n'
+        yield 'data: {"type": "status", "message": "Searching"}\n\n'
         yield 'data: {"type": "answer_chunk", "content": "Test answer"}\n\n'
         yield 'data: {"type": "done"}\n\n'
 
@@ -280,3 +281,183 @@ class TestQARequestSchema:
             assert response.status_code in (200, 500)  # 500 if no wiki, but not 422
         finally:
             app.dependency_overrides.clear()
+
+
+class TestCGRAGStreamingBatching:
+    """Tests for CGRAG streaming - answer delivered in done event (no token streaming)."""
+
+    @pytest.mark.asyncio
+    async def test_cgrag_no_token_events(self):
+        """CGRAG mode does not emit token events - answer is in done event."""
+        import json
+        from oya.qa.schemas import QARequest
+        from oya.qa.cgrag import CGRAGResult
+
+        # Create a long answer with many words
+        long_answer = " ".join([f"word{i}" for i in range(100)])  # 100 words
+
+        # Mock dependencies
+        vectorstore = MagicMock()
+        vectorstore.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]]}
+
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = []
+
+        llm = AsyncMock()
+
+        # Create service
+        service = QAService(vectorstore=vectorstore, db=db, llm=llm)
+
+        # Mock run_cgrag_loop to return our long answer
+        original_run_cgrag_loop = service_module.run_cgrag_loop
+
+        async def mock_cgrag_loop(*args, **kwargs):
+            return CGRAGResult(answer=long_answer, passes_used=1)
+
+        service_module.run_cgrag_loop = mock_cgrag_loop
+
+        try:
+            # Collect all streamed events
+            request = QARequest(question="test", quick_mode=False)
+            events = []
+            async for event in service.ask_stream(request):
+                events.append(event)
+
+            # No token events should be emitted
+            token_events = [e for e in events if e.startswith("event: token")]
+            assert len(token_events) == 0, (
+                f"Expected no token events, got {len(token_events)}. "
+                "Answer should be delivered in done event, not streamed."
+            )
+
+            # Verify done event contains the full answer
+            done_events = [e for e in events if e.startswith("event: done")]
+            assert len(done_events) == 1, "Expected exactly one 'done' event"
+
+            # Parse done event and verify answer
+            done_event = done_events[0]
+            for line in done_event.strip().split("\n"):
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    assert "answer" in data, "Done event must contain 'answer' field"
+                    assert data["answer"] == long_answer, (
+                        f"Answer in done event doesn't match. "
+                        f"Expected {len(long_answer)} chars, got {len(data['answer'])} chars"
+                    )
+        finally:
+            service_module.run_cgrag_loop = original_run_cgrag_loop
+
+    @pytest.mark.asyncio
+    async def test_cgrag_preserves_long_response_in_done_event(self):
+        """CGRAG preserves the entire response in the done event without truncation."""
+        import json
+        from oya.qa.schemas import QARequest
+        from oya.qa.cgrag import CGRAGResult
+
+        # Create a very long answer (simulating the truncation bug scenario)
+        # ~800 words like the real architectural flaws response
+        paragraphs = []
+        for i in range(5):
+            paragraph = f"{i + 1}) Point number {i + 1}: " + " ".join(
+                [f"explanation{j}" for j in range(150)]
+            )
+            paragraphs.append(paragraph)
+        long_answer = "\n\n".join(paragraphs)
+
+        # Mock dependencies
+        vectorstore = MagicMock()
+        vectorstore.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]]}
+
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = []
+
+        llm = AsyncMock()
+
+        service = QAService(vectorstore=vectorstore, db=db, llm=llm)
+
+        original_run_cgrag_loop = service_module.run_cgrag_loop
+
+        async def mock_cgrag_loop(*args, **kwargs):
+            return CGRAGResult(answer=long_answer, passes_used=1)
+
+        service_module.run_cgrag_loop = mock_cgrag_loop
+
+        try:
+            request = QARequest(question="test", quick_mode=False)
+            events = []
+            async for event in service.ask_stream(request):
+                events.append(event)
+
+            # Extract answer from done event
+            done_events = [e for e in events if e.startswith("event: done")]
+            assert len(done_events) == 1, "Expected exactly one 'done' event"
+
+            answer_from_done = None
+            for line in done_events[0].strip().split("\n"):
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    answer_from_done = data.get("answer")
+
+            # The full answer must be preserved exactly
+            assert answer_from_done == long_answer, (
+                f"Response truncated! Expected {len(long_answer)} chars, "
+                f"got {len(answer_from_done) if answer_from_done else 0} chars. "
+            )
+        finally:
+            service_module.run_cgrag_loop = original_run_cgrag_loop
+
+    @pytest.mark.asyncio
+    async def test_cgrag_done_event_structure(self):
+        """The 'done' event has proper structure with answer field."""
+        import json
+        from oya.qa.schemas import QARequest
+        from oya.qa.cgrag import CGRAGResult
+
+        answer = "This is a test answer with multiple words."
+
+        vectorstore = MagicMock()
+        vectorstore.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]]}
+
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = []
+
+        llm = AsyncMock()
+
+        service = QAService(vectorstore=vectorstore, db=db, llm=llm)
+
+        original_run_cgrag_loop = service_module.run_cgrag_loop
+
+        async def mock_cgrag_loop(*args, **kwargs):
+            return CGRAGResult(answer=answer, passes_used=1)
+
+        service_module.run_cgrag_loop = mock_cgrag_loop
+
+        try:
+            request = QARequest(question="test", quick_mode=False)
+            events = []
+            async for event in service.ask_stream(request):
+                events.append(event)
+
+            # Extract event types
+            event_types = []
+            for event in events:
+                if event.startswith("event: "):
+                    event_type = event.split("\n")[0].replace("event: ", "")
+                    event_types.append(event_type)
+
+            # Verify no token events
+            assert "token" not in event_types, "No token events should be emitted"
+
+            # Verify done event is present and has required fields
+            assert "done" in event_types, "Done event must be present"
+
+            done_events = [e for e in events if e.startswith("event: done")]
+            for line in done_events[0].strip().split("\n"):
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    assert "answer" in data, "Done event must contain 'answer' field"
+                    assert "citations" in data, "Done event must contain 'citations' field"
+                    assert "confidence" in data, "Done event must contain 'confidence' field"
+                    assert data["answer"] == answer, "Answer must match expected value"
+        finally:
+            service_module.run_cgrag_loop = original_run_cgrag_loop

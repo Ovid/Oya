@@ -26,18 +26,21 @@ if TYPE_CHECKING:
 def parse_gaps(response: str) -> list[str]:
     """Parse gap requests from LLM response.
 
-    Extracts the MISSING section and parses each line as a gap request.
+    Extracts the <missing> section and parses each line as a gap request.
 
     Args:
-        response: Raw LLM response with ANSWER and MISSING sections.
+        response: Raw LLM response with <answer> and <missing> sections.
 
     Returns:
         List of gap descriptions (empty if NONE or no section).
     """
-    # Find MISSING section
-    match = re.search(r"MISSING[^:]*:\s*(.+?)$", response, re.DOTALL | re.IGNORECASE)
+    # Find <missing> section (XML tags are unambiguous)
+    match = re.search(r"<missing>\s*(.+?)\s*</missing>", response, re.DOTALL | re.IGNORECASE)
     if not match:
-        return []
+        # Fallback: try legacy MISSING: format for backwards compatibility
+        match = re.search(r"MISSING[^:]*:\s*(.+?)$", response, re.DOTALL | re.IGNORECASE)
+        if not match:
+            return []
 
     missing_section = match.group(1).strip()
 
@@ -59,19 +62,25 @@ def parse_answer(response: str) -> str:
     """Extract answer from LLM response.
 
     Args:
-        response: Raw LLM response with ANSWER section.
+        response: Raw LLM response with <answer> section.
 
     Returns:
         The answer text.
     """
-    # Find ANSWER section
-    match = re.search(r"ANSWER:\s*(.+?)(?=MISSING|$)", response, re.DOTALL | re.IGNORECASE)
+    # Find <answer> section (XML tags are unambiguous)
+    match = re.search(r"<answer>\s*(.+?)\s*</answer>", response, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip()
 
-    # Fallback: return everything before MISSING
-    parts = re.split(r"MISSING", response, flags=re.IGNORECASE)
-    return parts[0].strip()
+    # Fallback: try legacy ANSWER: format for backwards compatibility
+    match = re.search(
+        r"ANSWER:\s*(.+?)(?=\n<missing>|\nMISSING\s*[\(:]|$)", response, re.DOTALL | re.IGNORECASE
+    )
+    if match:
+        return match.group(1).strip()
+
+    # Last resort: return the whole response
+    return response.strip()
 
 
 def is_specific_gap(gap: str) -> bool:

@@ -16,6 +16,7 @@ of wiki generation in a bottom-up approach:
 import asyncio
 import hashlib
 import json
+import tomllib
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -34,7 +35,7 @@ from oya.graph import load_graph
 from oya.generation.metrics import compute_code_metrics
 from oya.generation.overview import GeneratedPage, OverviewGenerator
 from oya.generation.summaries import DirectorySummary, EntryPointInfo, FileSummary, SynthesisMap
-from oya.generation.synthesis import SynthesisGenerator, save_synthesis_map
+from oya.generation.synthesis import SynthesisGenerator, load_synthesis_map, save_synthesis_map
 from oya.generation.techstack import detect_tech_stack
 from oya.generation.workflows import (
     WorkflowGenerator,
@@ -471,7 +472,8 @@ class GenerationOrchestrator:
     ) -> GenerationResult:
         """Run the complete generation pipeline.
 
-        Pipeline order: Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+        Pipeline order: Analysis → Files → Directories → Synthesis →
+        Architecture → Overview → Workflows
 
         This bottom-up approach ensures that:
         - File documentation is generated first, extracting structured summaries
@@ -506,7 +508,8 @@ class GenerationOrchestrator:
         # Track if any files were regenerated (for cascade)
         files_regenerated = len(file_pages) > 0
 
-        # Phase 3: Directories (uses file_hashes for signature computation and file_summaries for context)
+        # Phase 3: Directories
+        # (uses file_hashes for signature computation and file_summaries for context)
         directory_pages, directory_summaries = await self._run_directories(
             analysis, file_hashes, progress_callback, file_summaries=file_summaries
         )
@@ -550,8 +553,6 @@ class GenerationOrchestrator:
             )
         else:
             # Load existing synthesis map
-            from oya.generation.synthesis import load_synthesis_map
-
             synthesis_map, _ = load_synthesis_map(str(self.meta_path))
             if synthesis_map is None:
                 # Fallback: regenerate if loading fails
@@ -860,8 +861,6 @@ class GenerationOrchestrator:
         # Try pyproject.toml
         if "pyproject.toml" in file_contents:
             try:
-                import tomllib
-
                 data = tomllib.loads(file_contents["pyproject.toml"])
                 project = data.get("project", {})
                 package_info["name"] = project.get("name", "")
@@ -1224,7 +1223,10 @@ class GenerationOrchestrator:
                     phase=GenerationPhase.DIRECTORIES,
                     step=completed,
                     total_steps=total_dirs,
-                    message=f"Generated {generated_so_far}/{total_dirs - skipped_count} directories ({skipped_count} unchanged)...",
+                    message=(
+                        f"Generated {generated_so_far}/{total_dirs - skipped_count} "
+                        f"directories ({skipped_count} unchanged)..."
+                    ),
                 ),
             )
 
@@ -1242,7 +1244,8 @@ class GenerationOrchestrator:
             progress_callback: Optional async callback for progress updates.
 
         Returns:
-            Tuple of (list of generated file pages, dict of file_path to content_hash, list of FileSummaries).
+            Tuple of (list of generated file pages, dict of file_path to content_hash,
+            list of FileSummaries).
         """
         pages: list[GeneratedPage] = []
         file_hashes: dict[str, str] = {}
@@ -1364,7 +1367,10 @@ class GenerationOrchestrator:
                 phase=GenerationPhase.FILES,
                 step=skipped_count,
                 total_steps=total_files,
-                message=f"Generating file pages ({skipped_count} unchanged, 0/{len(files_to_generate)} generating)...",
+                message=(
+                    f"Generating file pages ({skipped_count} unchanged, "
+                    f"0/{len(files_to_generate)} generating)..."
+                ),
             ),
         )
 
@@ -1432,7 +1438,10 @@ class GenerationOrchestrator:
                         phase=GenerationPhase.FILES,
                         step=completed,
                         total_steps=total_files,
-                        message=f"Generated {generated_so_far}/{len(files_to_generate)} files ({skipped_count} unchanged)...",
+                        message=(
+                            f"Generated {generated_so_far}/{len(files_to_generate)} "
+                            f"files ({skipped_count} unchanged)..."
+                        ),
                     ),
                 )
 

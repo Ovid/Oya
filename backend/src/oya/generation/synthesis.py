@@ -4,8 +4,11 @@ This module provides the SynthesisGenerator class that synthesizes file and
 directory summaries into a coherent codebase understanding map (SynthesisMap).
 """
 
+import hashlib
 import json
 import logging
+from datetime import datetime, timezone
+from pathlib import Path
 
 from oya.config import ConfigError, load_settings
 from oya.generation.summaries import (
@@ -455,10 +458,6 @@ def save_synthesis_map(synthesis_map: SynthesisMap, meta_path: str) -> str:
     Returns:
         Path to the saved synthesis.json file.
     """
-    import hashlib
-    from datetime import datetime, timezone
-    from pathlib import Path
-
     meta_dir = Path(meta_path)
     meta_dir.mkdir(parents=True, exist_ok=True)
 
@@ -471,8 +470,6 @@ def save_synthesis_map(synthesis_map: SynthesisMap, meta_path: str) -> str:
     synthesis_hash = hashlib.sha256(json_content.encode()).hexdigest()[:16]
 
     # Parse the JSON to add metadata
-    import json
-
     data = json.loads(json_content)
     data["generated_at"] = datetime.now(timezone.utc).isoformat()
     data["synthesis_hash"] = synthesis_hash
@@ -493,9 +490,6 @@ def load_synthesis_map(meta_path: str) -> tuple[SynthesisMap | None, str | None]
     Returns:
         Tuple of (SynthesisMap, synthesis_hash) or (None, None) if not found.
     """
-    import json
-    from pathlib import Path
-
     synthesis_path = Path(meta_path) / "synthesis.json"
 
     if not synthesis_path.exists():

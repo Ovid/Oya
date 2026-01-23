@@ -1,5 +1,6 @@
 """Wiki page endpoints."""
 
+import re
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -127,8 +128,6 @@ def _get_page(
         for line in content.split("\n"):
             if line.startswith("# "):
                 # Extract path from backticks or quotes
-                import re
-
                 match = re.search(r'[`"\']([^`"\']+)[`"\']', line)
                 if match:
                     source_path = match.group(1)
