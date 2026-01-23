@@ -23,34 +23,7 @@ vi.mock('../api/client', () => ({
   },
 }))
 
-// Setup global mocks for browser APIs
-beforeEach(() => {
-  // Mock localStorage
-  const localStorageMock = {
-    getItem: vi.fn(() => null),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-    length: 0,
-    key: vi.fn(),
-  }
-  vi.stubGlobal('localStorage', localStorageMock)
-
-  // Mock matchMedia
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }))
-  )
-})
+// Note: localStorage/matchMedia mocks handled by test/setup.ts
 
 import { PageLoader } from './PageLoader'
 import { useWikiStore, useGenerationStore } from '../stores'

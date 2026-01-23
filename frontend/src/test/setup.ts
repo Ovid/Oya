@@ -37,36 +37,14 @@ function createMatchMediaMock() {
 }
 
 // Install initial mocks at module load time (needed for store initialization)
-Object.defineProperty(window, 'localStorage', {
-  value: createLocalStorageMock(),
-  writable: true,
-  configurable: true,
-})
-
-Object.defineProperty(window, 'matchMedia', {
-  value: createMatchMediaMock(),
-  writable: true,
-  configurable: true,
-})
+vi.stubGlobal('localStorage', createLocalStorageMock())
+vi.stubGlobal('matchMedia', createMatchMediaMock())
 
 // Reset browser API mocks and stores between tests
 beforeEach(async () => {
-  // Unstub any globals that tests may have stubbed
-  vi.unstubAllGlobals()
-
-  // Re-install fresh localStorage mock
-  Object.defineProperty(window, 'localStorage', {
-    value: createLocalStorageMock(),
-    writable: true,
-    configurable: true,
-  })
-
-  // Re-install fresh matchMedia mock
-  Object.defineProperty(window, 'matchMedia', {
-    value: createMatchMediaMock(),
-    writable: true,
-    configurable: true,
-  })
+  // Re-install fresh mocks (vi.stubGlobal overwrites previous stubs)
+  vi.stubGlobal('localStorage', createLocalStorageMock())
+  vi.stubGlobal('matchMedia', createMatchMediaMock())
 
   // Reset all stores to initial state
   const { useWikiStore, initialState: wikiInitial } = await import('../stores/wikiStore')
