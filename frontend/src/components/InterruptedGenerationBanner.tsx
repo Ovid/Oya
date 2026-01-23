@@ -1,8 +1,9 @@
-import { useApp } from '../context/useApp'
+import { useGenerationStore } from '../stores'
 
 export function InterruptedGenerationBanner() {
-  const { state, dismissGenerationStatus, startGeneration } = useApp()
-  const { generationStatus } = state
+  const generationStatus = useGenerationStore((s) => s.generationStatus)
+  const dismissGenerationStatus = useGenerationStore((s) => s.dismissGenerationStatus)
+  const startGeneration = useGenerationStore((s) => s.startGeneration)
 
   if (!generationStatus || generationStatus.status !== 'incomplete') {
     return null
