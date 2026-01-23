@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { vi } from 'vitest'
+import { vi, beforeEach } from 'vitest'
 
 // jsdom's localStorage can be incomplete in some configurations.
 // Provide a complete mock to ensure consistent behavior.
@@ -41,4 +41,22 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
+})
+
+// Reset stores between tests when they're imported
+beforeEach(async () => {
+  // Only reset if stores are loaded (they may not be in all tests)
+  try {
+    const { useWikiStore } = await import('../stores/wikiStore')
+    const { useGenerationStore } = await import('../stores/generationStore')
+    const { useUIStore } = await import('../stores/uiStore')
+    const { useNoteEditorStore } = await import('../stores/noteEditorStore')
+
+    useWikiStore.setState(useWikiStore.getInitialState())
+    useGenerationStore.setState(useGenerationStore.getInitialState())
+    useUIStore.setState(useUIStore.getInitialState())
+    useNoteEditorStore.setState(useNoteEditorStore.getInitialState())
+  } catch {
+    // Stores not yet created or not imported in this test
+  }
 })
