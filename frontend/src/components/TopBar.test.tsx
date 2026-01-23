@@ -23,32 +23,22 @@ vi.mock('../api/client', () => ({
   },
 }))
 
-// Dynamic import to ensure mocks are set up first
-let TopBar: typeof import('./TopBar').TopBar
-let useWikiStore: typeof import('../stores').useWikiStore
-let useGenerationStore: typeof import('../stores').useGenerationStore
-let useUIStore: typeof import('../stores').useUIStore
-let useNoteEditorStore: typeof import('../stores').useNoteEditorStore
-let api: typeof import('../api/client')
+import { TopBar } from './TopBar'
+import { useWikiStore, useGenerationStore, useUIStore, useNoteEditorStore } from '../stores'
+import { initialState as wikiInitial } from '../stores/wikiStore'
+import { initialState as genInitial } from '../stores/generationStore'
+import { initialState as uiInitial } from '../stores/uiStore'
+import { initialState as noteInitial } from '../stores/noteEditorStore'
+import * as api from '../api/client'
 
-beforeEach(async () => {
-  vi.resetModules()
-  const topBarModule = await import('./TopBar')
-  TopBar = topBarModule.TopBar
-  const stores = await import('../stores')
-  useWikiStore = stores.useWikiStore
-  useGenerationStore = stores.useGenerationStore
-  useUIStore = stores.useUIStore
-  useNoteEditorStore = stores.useNoteEditorStore
-  api = await import('../api/client')
+beforeEach(() => {
+  vi.clearAllMocks()
 
   // Reset stores to initial state
-  useWikiStore.setState(useWikiStore.getInitialState())
-  useGenerationStore.setState(useGenerationStore.getInitialState())
-  useUIStore.setState(useUIStore.getInitialState())
-  useNoteEditorStore.setState(useNoteEditorStore.getInitialState())
-
-  vi.clearAllMocks()
+  useWikiStore.setState(wikiInitial)
+  useGenerationStore.setState(genInitial)
+  useUIStore.setState(uiInitial)
+  useNoteEditorStore.setState(noteInitial)
 })
 
 const mockRepoStatus: RepoStatus = {

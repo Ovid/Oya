@@ -14,7 +14,7 @@ interface NoteEditorActions {
   setDirty: (isDirty: boolean) => void
 }
 
-const initialState: NoteEditorState = {
+export const initialState: NoteEditorState = {
   isOpen: false,
   isDirty: false,
   defaultScope: 'general',
@@ -34,8 +34,3 @@ export const useNoteEditorStore = create<NoteEditorState & NoteEditorActions>()(
 
   setDirty: (isDirty) => set({ isDirty }),
 }))
-
-// For testing - allows reset to initial state
-// We only need to reset the state portion, not actions
-;(useNoteEditorStore as unknown as { getInitialState: () => NoteEditorState }).getInitialState =
-  () => initialState

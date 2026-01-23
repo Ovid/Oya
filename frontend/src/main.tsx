@@ -5,7 +5,7 @@ import App from './App.tsx'
 import { initializeApp } from './stores'
 
 // Initialize app state (fire and forget)
-initializeApp()
+void initializeApp().catch(console.error)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

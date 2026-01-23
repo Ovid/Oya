@@ -47,17 +47,22 @@ Object.defineProperty(window, 'matchMedia', {
 
 // Reset stores between tests when they're imported
 beforeEach(async () => {
+  // Clear localStorage between tests to ensure isolation
+  localStorageMock.clear()
+
   // Only reset if stores are loaded (they may not be in all tests)
   try {
-    const { useWikiStore } = await import('../stores/wikiStore')
-    const { useGenerationStore } = await import('../stores/generationStore')
-    const { useUIStore } = await import('../stores/uiStore')
-    const { useNoteEditorStore } = await import('../stores/noteEditorStore')
+    const { useWikiStore, initialState: wikiInitial } = await import('../stores/wikiStore')
+    const { useGenerationStore, initialState: genInitial } =
+      await import('../stores/generationStore')
+    const { useUIStore, initialState: uiInitial } = await import('../stores/uiStore')
+    const { useNoteEditorStore, initialState: noteInitial } =
+      await import('../stores/noteEditorStore')
 
-    useWikiStore.setState(useWikiStore.getInitialState())
-    useGenerationStore.setState(useGenerationStore.getInitialState())
-    useUIStore.setState(useUIStore.getInitialState())
-    useNoteEditorStore.setState(useNoteEditorStore.getInitialState())
+    useWikiStore.setState(wikiInitial)
+    useGenerationStore.setState(genInitial)
+    useUIStore.setState(uiInitial)
+    useNoteEditorStore.setState(noteInitial)
   } catch {
     // Stores not yet created or not imported in this test
   }

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useUIStore } from './uiStore'
+import { useUIStore, initialState } from './uiStore'
 
 beforeEach(() => {
   vi.clearAllMocks()
   // Reset store to initial state
-  useUIStore.setState(useUIStore.getInitialState())
+  useUIStore.setState(initialState)
 })
 
 describe('uiStore', () => {

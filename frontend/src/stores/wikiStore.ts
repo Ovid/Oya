@@ -19,7 +19,7 @@ interface WikiActions {
   setError: (error: string | null) => void
 }
 
-const initialState: WikiState = {
+export const initialState: WikiState = {
   repoStatus: null,
   wikiTree: null,
   currentPage: null,
@@ -67,8 +67,3 @@ export const useWikiStore = create<WikiState & WikiActions>()((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error, isLoading: false }),
 }))
-
-// For testing - allows reset to initial state
-// We only need to reset the state portion, not actions
-;(useWikiStore as unknown as { getInitialState: () => WikiState }).getInitialState = () =>
-  initialState

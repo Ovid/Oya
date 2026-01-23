@@ -25,14 +25,21 @@ interface UIActions {
   setAskPanelOpen: (open: boolean) => void
 }
 
-const initialState: UIState = {
+// For production: reads from localStorage/matchMedia
+const runtimeInitialState: UIState = {
   darkMode: getInitialDarkMode(),
   askPanelOpen: getInitialAskPanelOpen(),
 }
 
+// For testing: fixed default values
+export const initialState: UIState = {
+  darkMode: false,
+  askPanelOpen: false,
+}
+
 export const useUIStore = create<UIState & UIActions>()(
   subscribeWithSelector((set, get) => ({
-    ...initialState,
+    ...runtimeInitialState,
 
     toggleDarkMode: () => {
       const newValue = !get().darkMode
@@ -61,10 +68,3 @@ useUIStore.subscribe(
   },
   { fireImmediately: true }
 )
-
-// For testing - allows reset to initial state
-// We only need to reset the state portion, not actions
-;(useUIStore as unknown as { getInitialState: () => UIState }).getInitialState = () => ({
-  darkMode: false,
-  askPanelOpen: false,
-})
