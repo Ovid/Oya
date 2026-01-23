@@ -13,6 +13,7 @@ vi.mock('../api/client', () => ({
   getJob: vi.fn(),
   listJobs: vi.fn(),
   getGenerationStatus: vi.fn(),
+  streamJobProgress: vi.fn(() => vi.fn()), // Returns a cleanup function
   ApiError: class ApiError extends Error {
     status: number
     constructor(status: number, message: string) {
@@ -23,48 +24,19 @@ vi.mock('../api/client', () => ({
   },
 }))
 
-// Setup global mocks for browser APIs
+// Note: localStorage/matchMedia mocks handled by test/setup.ts
+
+import { PageLoader } from './PageLoader'
+import { useWikiStore, useGenerationStore } from '../stores'
+import { initialState as wikiInitial } from '../stores/wikiStore'
+import { initialState as genInitial } from '../stores/generationStore'
+import * as api from '../api/client'
+
 beforeEach(() => {
-  // Mock localStorage
-  const localStorageMock = {
-    getItem: vi.fn(() => null),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-    length: 0,
-    key: vi.fn(),
-  }
-  vi.stubGlobal('localStorage', localStorageMock)
-
-  // Mock matchMedia
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }))
-  )
-})
-
-// Dynamic import to ensure mocks are set up first
-let PageLoader: typeof import('./PageLoader').PageLoader
-let AppContext: typeof import('../context/AppContext').AppContext
-let api: typeof import('../api/client')
-
-beforeEach(async () => {
-  vi.resetModules()
-  const pageLoaderModule = await import('./PageLoader')
-  PageLoader = pageLoaderModule.PageLoader
-  const appContextModule = await import('../context/AppContext')
-  AppContext = appContextModule.AppContext
-  api = await import('../api/client')
   vi.clearAllMocks()
+  // Reset stores to initial state
+  useWikiStore.setState(wikiInitial)
+  useGenerationStore.setState(genInitial)
 })
 
 const mockRepoStatusWithWiki: RepoStatus = {
@@ -106,57 +78,28 @@ const mockWikiTree: WikiTree = {
 }
 
 const mockWikiPage: WikiPage = {
-  title: 'Test Page',
   content: '# Test Content',
   page_type: 'overview',
+  path: '/overview',
+  word_count: 2,
   source_path: null,
-}
-
-function createMockContextValue(overrides: { repoStatus?: RepoStatus | null } = {}) {
-  return {
-    state: {
-      repoStatus:
-        overrides.repoStatus !== undefined ? overrides.repoStatus : mockRepoStatusWithWiki,
-      wikiTree: mockWikiTree,
-      currentPage: null,
-      currentJob: null,
-      isLoading: false,
-      error: null,
-      noteEditor: {
-        isOpen: false,
-        isDirty: false,
-        defaultScope: 'general' as const,
-        defaultTarget: '',
-      },
-      darkMode: false,
-      generationStatus: null,
-      askPanelOpen: false,
-    },
-    dispatch: vi.fn(),
-    refreshStatus: vi.fn(),
-    refreshTree: vi.fn(),
-    startGeneration: vi.fn(),
-    openNoteEditor: vi.fn(),
-    closeNoteEditor: vi.fn(),
-    toggleDarkMode: vi.fn(),
-    switchWorkspace: vi.fn(),
-    setNoteEditorDirty: vi.fn(),
-    dismissGenerationStatus: vi.fn(),
-    setAskPanelOpen: vi.fn(),
-  }
 }
 
 function renderPageLoader(
   loadPage: () => Promise<WikiPage>,
-  contextOverrides: { repoStatus?: RepoStatus | null } = {}
+  storeOverrides: { repoStatus?: RepoStatus | null } = {}
 ) {
-  const mockContextValue = createMockContextValue(contextOverrides)
+  // Set store state for overrides - ensure isLoading is false so component doesn't just show spinner
+  useWikiStore.setState({
+    repoStatus:
+      storeOverrides.repoStatus !== undefined ? storeOverrides.repoStatus : mockRepoStatusWithWiki,
+    wikiTree: mockWikiTree,
+    isLoading: false,
+  })
 
   return render(
     <MemoryRouter>
-      <AppContext.Provider value={mockContextValue}>
-        <PageLoader loadPage={loadPage} />
-      </AppContext.Provider>
+      <PageLoader loadPage={loadPage} />
     </MemoryRouter>
   )
 }
@@ -247,6 +190,83 @@ describe('PageLoader', () => {
       // The spinner should be visible (it's a div with animate-spin class)
       const spinner = document.querySelector('.animate-spin')
       expect(spinner).toBeInTheDocument()
+    })
+  })
+
+  describe('generation progress', () => {
+    it('does not show page content when job is running', async () => {
+      const loadPage = vi.fn().mockResolvedValue(mockWikiPage)
+
+      // Set up a running job in the generation store BEFORE rendering
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'running',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      renderPageLoader(loadPage)
+
+      // Page content should not be visible when generation is active
+      await waitFor(() => {
+        expect(screen.queryByText('Test Content')).not.toBeInTheDocument()
+      })
+    })
+
+    it('does not show page content when job is pending', async () => {
+      const loadPage = vi.fn().mockResolvedValue(mockWikiPage)
+
+      // Set up a pending job in the generation store BEFORE rendering
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'pending',
+          started_at: null,
+          completed_at: null,
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      renderPageLoader(loadPage)
+
+      // Page content should not be visible when generation is active
+      await waitFor(() => {
+        expect(screen.queryByText('Test Content')).not.toBeInTheDocument()
+      })
+    })
+
+    it('shows page content when job is completed', async () => {
+      const loadPage = vi.fn().mockResolvedValue(mockWikiPage)
+
+      // Set up a completed job in the generation store
+      useGenerationStore.setState({
+        currentJob: {
+          job_id: 'job-123',
+          type: 'generation',
+          status: 'completed',
+          started_at: '2024-01-01T00:00:00Z',
+          completed_at: '2024-01-01T00:05:00Z',
+          current_phase: null,
+          total_phases: null,
+          error_message: null,
+        },
+      })
+
+      renderPageLoader(loadPage)
+
+      // Page content should be visible when job is completed
+      await waitFor(() => {
+        expect(screen.getByText('Test Content')).toBeInTheDocument()
+      })
     })
   })
 })

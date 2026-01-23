@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { AppProvider } from './context/AppContext'
 import { Layout } from './components/Layout'
 import { NotFound } from './components/NotFound'
 import {
@@ -25,19 +24,17 @@ function WelcomePage() {
 function App() {
   return (
     <BrowserRouter>
-      <AppProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<OverviewPage />} />
-            <Route path="/architecture" element={<ArchitecturePage />} />
-            <Route path="/workflows/:slug" element={<WorkflowPage />} />
-            <Route path="/directories/:slug" element={<DirectoryPage />} />
-            <Route path="/files/:slug" element={<FilePage />} />
-            <Route path="/welcome" element={<WelcomePage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
-      </AppProvider>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<OverviewPage />} />
+          <Route path="/architecture" element={<ArchitecturePage />} />
+          <Route path="/workflows/:slug" element={<WorkflowPage />} />
+          <Route path="/directories/:slug" element={<DirectoryPage />} />
+          <Route path="/files/:slug" element={<FilePage />} />
+          <Route path="/welcome" element={<WelcomePage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Layout>
     </BrowserRouter>
   )
 }

@@ -35,5 +35,5 @@ frontend/coverage/
 .oya*
 logs
 
-# UAT
 test_repos
+scratch

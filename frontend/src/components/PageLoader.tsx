@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import type { WikiPage } from '../types'
 import { WikiContent } from './WikiContent'
 import { NotFound } from './NotFound'
-import { useApp } from '../context/useApp'
+import { useWikiStore, useGenerationStore } from '../stores'
 import { ApiError } from '../api/client'
 import { GenerationProgress } from './GenerationProgress'
 
@@ -11,7 +11,13 @@ interface PageLoaderProps {
 }
 
 export function PageLoader({ loadPage }: PageLoaderProps) {
-  const { dispatch, refreshTree, refreshStatus, state } = useApp()
+  const repoStatus = useWikiStore((s) => s.repoStatus)
+  const isLoading = useWikiStore((s) => s.isLoading)
+  const setCurrentPage = useWikiStore((s) => s.setCurrentPage)
+  const refreshTree = useWikiStore((s) => s.refreshTree)
+  const refreshStatus = useWikiStore((s) => s.refreshStatus)
+  const currentJob = useGenerationStore((s) => s.currentJob)
+  const setCurrentJob = useGenerationStore((s) => s.setCurrentJob)
   const [page, setPage] = useState<WikiPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +35,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
         const data = await loadPage()
         if (!cancelled) {
           setPage(data)
-          dispatch({ type: 'SET_CURRENT_PAGE', payload: data })
+          setCurrentPage(data)
         }
       } catch (err) {
         if (!cancelled) {
@@ -38,7 +44,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
           } else {
             setError(err instanceof Error ? err.message : 'Failed to load page')
           }
-          dispatch({ type: 'SET_CURRENT_PAGE', payload: null })
+          setCurrentPage(null)
         }
       } finally {
         if (!cancelled) {
@@ -52,11 +58,11 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     return () => {
       cancelled = true
     }
-  }, [loadPage, dispatch])
+  }, [loadPage, setCurrentPage])
 
   const handleGenerationComplete = useCallback(async () => {
     // Clear the current job from global state
-    dispatch({ type: 'SET_CURRENT_JOB', payload: null })
+    setCurrentJob(null)
     // Refresh the wiki tree, repo status, and reload the page
     await refreshTree()
     await refreshStatus()
@@ -66,7 +72,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     try {
       const data = await loadPage()
       setPage(data)
-      dispatch({ type: 'SET_CURRENT_PAGE', payload: data })
+      setCurrentPage(data)
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setNotFound(true)
@@ -76,19 +82,20 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     } finally {
       setLoading(false)
     }
-  }, [loadPage, dispatch, refreshTree, refreshStatus])
+  }, [loadPage, setCurrentJob, setCurrentPage, refreshTree, refreshStatus])
 
   const handleGenerationError = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_errorMessage: string) => {
       // Clear the current job from global state
-      dispatch({ type: 'SET_CURRENT_JOB', payload: null })
+      setCurrentJob(null)
     },
-    [dispatch]
+    [setCurrentJob]
   )
 
-  // Show generation progress if a global job is running
-  const activeJobId = state.currentJob?.status === 'running' ? state.currentJob.job_id : null
+  // Show generation progress if a global job is active (pending or running)
+  const activeJobId =
+    currentJob?.status === 'running' || currentJob?.status === 'pending' ? currentJob.job_id : null
   if (activeJobId) {
     return (
       <GenerationProgress
@@ -99,9 +106,9 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     )
   }
 
-  // Show loading spinner while page is loading OR while AppContext is still initializing
+  // Show loading spinner while page is loading OR while stores are still initializing
   // This prevents showing "not found" before we've checked for running jobs
-  if (loading || state.isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -112,7 +119,7 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   if (notFound) {
     // If wiki hasn't been generated yet, show welcome message
     // last_generation is null when no wiki exists
-    if (!state.repoStatus?.last_generation) {
+    if (!repoStatus?.last_generation) {
       return (
         <div className="text-center py-12">
           <svg

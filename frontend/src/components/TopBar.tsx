@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useApp } from '../context/useApp'
+import { useWikiStore, useGenerationStore, useUIStore, useNoteEditorStore } from '../stores'
 import { DirectoryPicker } from './DirectoryPicker'
 import { IndexingPreviewModal } from './IndexingPreviewModal'
 
@@ -16,12 +16,20 @@ export function TopBar({
   onToggleAskPanel,
   askPanelOpen,
 }: TopBarProps) {
-  const { state, startGeneration, toggleDarkMode, switchWorkspace } = useApp()
-  const { repoStatus, currentJob, isLoading, darkMode, noteEditor } = state
+  const repoStatus = useWikiStore((s) => s.repoStatus)
+  const wikiIsLoading = useWikiStore((s) => s.isLoading)
+  const switchWorkspace = useWikiStore((s) => s.switchWorkspace)
+  const currentJob = useGenerationStore((s) => s.currentJob)
+  const generationIsLoading = useGenerationStore((s) => s.isLoading)
+  const startGeneration = useGenerationStore((s) => s.startGeneration)
+  const darkMode = useUIStore((s) => s.darkMode)
+  const toggleDarkMode = useUIStore((s) => s.toggleDarkMode)
+  const noteEditorIsDirty = useNoteEditorStore((s) => s.isDirty)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
 
-  const isGenerating = currentJob?.status === 'running'
-  const hasUnsavedChanges = noteEditor.isDirty
+  const isLoading = wikiIsLoading || generationIsLoading
+  const isGenerating = currentJob?.status === 'running' || currentJob?.status === 'pending'
+  const hasUnsavedChanges = noteEditorIsDirty
 
   const handleWorkspaceSwitch = async (path: string) => {
     if (hasUnsavedChanges) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createNote } from '../api/client'
+import { useNoteEditorStore } from '../stores'
 import type { NoteScope, Note } from '../types'
 
 interface NoteEditorProps {
@@ -17,17 +18,19 @@ export function NoteEditor({
   defaultScope = 'general',
   defaultTarget = '',
 }: NoteEditorProps) {
+  const setDirty = useNoteEditorStore((s) => s.setDirty)
   const [scope, setScope] = useState<NoteScope>(defaultScope)
   const [target, setTarget] = useState(defaultTarget)
   const [content, setContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Sync state when editor opens with new defaults
+  // Reset state when editor opens
   useEffect(() => {
     if (isOpen) {
       setScope(defaultScope)
       setTarget(defaultTarget)
+      setContent('')
       setError(null)
     }
   }, [isOpen, defaultScope, defaultTarget])
@@ -139,7 +142,10 @@ export function NoteEditor({
               </label>
               <textarea
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => {
+                  setContent(e.target.value)
+                  setDirty(!!e.target.value.trim())
+                }}
                 placeholder="Describe the correction or additional information..."
                 rows={10}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
