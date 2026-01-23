@@ -135,3 +135,91 @@ async def test_create_repo_duplicate_error(data_dir, source_repo):
         )
         assert response2.status_code == 409
         assert "already exists" in response2.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_get_repo_by_id(data_dir, source_repo):
+    """GET /api/v2/repos/{repo_id} returns the repo."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Create a repo first
+        create_response = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "Get Test Repo"},
+        )
+        assert create_response.status_code == 201
+        repo_id = create_response.json()["id"]
+
+        # Now get the repo by ID
+        response = await client.get(f"/api/v2/repos/{repo_id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == repo_id
+    assert data["display_name"] == "Get Test Repo"
+    assert data["origin_url"] == str(source_repo)
+    assert data["status"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_get_repo_not_found(data_dir):
+    """GET /api/v2/repos/{repo_id} returns 404 for non-existent repo."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v2/repos/999")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_repo(data_dir, source_repo):
+    """DELETE /api/v2/repos/{repo_id} deletes the repo and its files."""
+    from pathlib import Path
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Create a repo first
+        create_response = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "Delete Test Repo"},
+        )
+        assert create_response.status_code == 201
+        repo_id = create_response.json()["id"]
+        local_path = create_response.json()["local_path"]
+
+        # Verify files exist
+        assert Path(local_path).exists()
+
+        # Delete the repo
+        delete_response = await client.delete(f"/api/v2/repos/{repo_id}")
+        assert delete_response.status_code == 204
+
+        # Verify repo is gone from registry
+        get_response = await client.get(f"/api/v2/repos/{repo_id}")
+        assert get_response.status_code == 404
+
+        # Verify files are deleted
+        assert not Path(local_path).exists()
+
+
+@pytest.mark.asyncio
+async def test_delete_repo_not_found(data_dir):
+    """DELETE /api/v2/repos/{repo_id} returns 404 for non-existent repo."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.delete("/api/v2/repos/999")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_repo_generating_conflict(data_dir):
+    """DELETE /api/v2/repos/{repo_id} returns 409 if repo is generating."""
+    # Add a repo directly to registry with 'generating' status
+    registry = RepoRegistry(data_dir / "repos.db")
+    repo_id = registry.add("https://github.com/x/y", "github", "github.com/x/y", "Generating Repo")
+    registry.update(repo_id, status="generating")
+    registry.close()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.delete(f"/api/v2/repos/{repo_id}")
+
+    assert response.status_code == 409
+    assert "generating" in response.json()["detail"].lower()

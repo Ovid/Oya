@@ -104,6 +104,77 @@ async def list_repos() -> RepoListResponse:
         registry.close()
 
 
+@router.get("/{repo_id}", response_model=RepoResponse)
+async def get_repo(repo_id: int) -> RepoResponse:
+    """
+    Get a repository by ID.
+
+    Returns 404 if not found.
+    """
+    registry = get_registry()
+    try:
+        repo = registry.get(repo_id)
+        if not repo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Repository {repo_id} not found",
+            )
+        return RepoResponse(
+            id=repo.id,
+            origin_url=repo.origin_url,
+            source_type=repo.source_type,
+            local_path=repo.local_path,
+            display_name=repo.display_name,
+            head_commit=repo.head_commit,
+            branch=repo.branch,
+            created_at=repo.created_at,
+            last_pulled=repo.last_pulled,
+            last_generated=repo.last_generated,
+            generation_duration_secs=repo.generation_duration_secs,
+            files_processed=repo.files_processed,
+            pages_generated=repo.pages_generated,
+            status=repo.status,
+            error_message=repo.error_message,
+        )
+    finally:
+        registry.close()
+
+
+@router.delete("/{repo_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_repo(repo_id: int) -> None:
+    """
+    Delete a repository by ID.
+
+    Deletes both the registry entry and all files on disk.
+
+    Returns 204 on success, 404 if not found, 409 if repo is generating.
+    """
+    settings = load_settings()
+    registry = get_registry()
+    try:
+        repo = registry.get(repo_id)
+        if not repo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Repository {repo_id} not found",
+            )
+
+        if repo.status == "generating":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot delete repository while generating",
+            )
+
+        # Delete files on disk
+        repo_paths = RepoPaths(settings.data_dir, repo.local_path)
+        repo_paths.delete_all()
+
+        # Delete from registry
+        registry.delete(repo_id)
+    finally:
+        registry.close()
+
+
 @router.post("", response_model=CreateRepoResponse, status_code=status.HTTP_201_CREATED)
 async def create_repo(request: CreateRepoRequest) -> CreateRepoResponse:
     """
