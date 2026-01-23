@@ -381,3 +381,79 @@ describe('Ask button during generation', () => {
     expect(askButton).toHaveAttribute('title', 'Ask about the codebase')
   })
 })
+
+describe('pending job status handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
+
+    useWikiStore.setState({
+      repoStatus: mockRepoStatus,
+      wikiTree: mockWikiTree,
+      isLoading: false,
+      error: null,
+    })
+  })
+
+  it('disables DirectoryPicker when job is pending', async () => {
+    useGenerationStore.setState({
+      currentJob: {
+        job_id: 'job-123',
+        type: 'generation',
+        status: 'pending',
+        started_at: null,
+        completed_at: null,
+        current_phase: null,
+        total_phases: null,
+        error_message: null,
+      },
+    })
+
+    renderTopBar()
+
+    const picker = screen.getByLabelText(/Current workspace/i)
+    expect(picker).toBeDisabled()
+  })
+
+  it('disables Ask button when job is pending', async () => {
+    useGenerationStore.setState({
+      currentJob: {
+        job_id: 'job-123',
+        type: 'generation',
+        status: 'pending',
+        started_at: null,
+        completed_at: null,
+        current_phase: null,
+        total_phases: null,
+        error_message: null,
+      },
+    })
+
+    renderTopBar()
+
+    const askButton = screen.getByRole('button', { name: /ask/i })
+    expect(askButton).toBeDisabled()
+  })
+
+  it('hides Generate Wiki button when job is pending', async () => {
+    useGenerationStore.setState({
+      currentJob: {
+        job_id: 'job-123',
+        type: 'generation',
+        status: 'pending',
+        started_at: null,
+        completed_at: null,
+        current_phase: null,
+        total_phases: null,
+        error_message: null,
+      },
+    })
+
+    renderTopBar()
+
+    const generateButtons = screen.queryAllByRole('button', { name: /generate wiki/i })
+    expect(generateButtons).toHaveLength(0)
+  })
+})

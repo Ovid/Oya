@@ -56,6 +56,17 @@ const mockCompletedJob: JobStatus = {
   error_message: null,
 }
 
+const mockPendingJob: JobStatus = {
+  job_id: 'job-123',
+  type: 'generation',
+  status: 'pending',
+  started_at: null,
+  completed_at: null,
+  current_phase: null,
+  total_phases: null,
+  error_message: null,
+}
+
 const emptyWikiTree: WikiTree = {
   overview: false,
   architecture: false,
@@ -184,6 +195,34 @@ describe('AskPanel', () => {
       await waitFor(() => {
         const input = screen.getByPlaceholderText('Ask a question...')
         expect(input).not.toBeDisabled()
+      })
+    })
+
+    it('shows disabled banner when job is pending', async () => {
+      renderAskPanel({ isOpen: true }, { currentJob: mockPendingJob })
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Q&A is unavailable while the wiki is being generated.')
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('disables input field when job is pending', async () => {
+      renderAskPanel({ isOpen: true }, { currentJob: mockPendingJob })
+
+      await waitFor(() => {
+        const input = screen.getByPlaceholderText('Ask a question...')
+        expect(input).toBeDisabled()
+      })
+    })
+
+    it('disables submit button when job is pending', async () => {
+      renderAskPanel({ isOpen: true }, { currentJob: mockPendingJob })
+
+      await waitFor(() => {
+        const submitButton = screen.getByRole('button', { name: /ask/i })
+        expect(submitButton).toBeDisabled()
       })
     })
   })
