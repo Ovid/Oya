@@ -54,17 +54,22 @@ beforeEach(() => {
 
 // Dynamic import to ensure mocks are set up first
 let PageLoader: typeof import('./PageLoader').PageLoader
-let AppContext: typeof import('../context/AppContext').AppContext
+let useWikiStore: typeof import('../stores').useWikiStore
+let useGenerationStore: typeof import('../stores').useGenerationStore
 let api: typeof import('../api/client')
 
 beforeEach(async () => {
   vi.resetModules()
   const pageLoaderModule = await import('./PageLoader')
   PageLoader = pageLoaderModule.PageLoader
-  const appContextModule = await import('../context/AppContext')
-  AppContext = appContextModule.AppContext
+  const stores = await import('../stores')
+  useWikiStore = stores.useWikiStore
+  useGenerationStore = stores.useGenerationStore
   api = await import('../api/client')
   vi.clearAllMocks()
+  // Reset stores to initial state
+  useWikiStore.setState(useWikiStore.getInitialState())
+  useGenerationStore.setState(useGenerationStore.getInitialState())
 })
 
 const mockRepoStatusWithWiki: RepoStatus = {
@@ -112,51 +117,20 @@ const mockWikiPage: WikiPage = {
   source_path: null,
 }
 
-function createMockContextValue(overrides: { repoStatus?: RepoStatus | null } = {}) {
-  return {
-    state: {
-      repoStatus:
-        overrides.repoStatus !== undefined ? overrides.repoStatus : mockRepoStatusWithWiki,
-      wikiTree: mockWikiTree,
-      currentPage: null,
-      currentJob: null,
-      isLoading: false,
-      error: null,
-      noteEditor: {
-        isOpen: false,
-        isDirty: false,
-        defaultScope: 'general' as const,
-        defaultTarget: '',
-      },
-      darkMode: false,
-      generationStatus: null,
-      askPanelOpen: false,
-    },
-    dispatch: vi.fn(),
-    refreshStatus: vi.fn(),
-    refreshTree: vi.fn(),
-    startGeneration: vi.fn(),
-    openNoteEditor: vi.fn(),
-    closeNoteEditor: vi.fn(),
-    toggleDarkMode: vi.fn(),
-    switchWorkspace: vi.fn(),
-    setNoteEditorDirty: vi.fn(),
-    dismissGenerationStatus: vi.fn(),
-    setAskPanelOpen: vi.fn(),
-  }
-}
-
 function renderPageLoader(
   loadPage: () => Promise<WikiPage>,
-  contextOverrides: { repoStatus?: RepoStatus | null } = {}
+  storeOverrides: { repoStatus?: RepoStatus | null } = {}
 ) {
-  const mockContextValue = createMockContextValue(contextOverrides)
+  // Set store state for overrides - ensure isLoading is false so component doesn't just show spinner
+  useWikiStore.setState({
+    repoStatus: storeOverrides.repoStatus !== undefined ? storeOverrides.repoStatus : mockRepoStatusWithWiki,
+    wikiTree: mockWikiTree,
+    isLoading: false,
+  })
 
   return render(
     <MemoryRouter>
-      <AppContext.Provider value={mockContextValue}>
-        <PageLoader loadPage={loadPage} />
-      </AppContext.Provider>
+      <PageLoader loadPage={loadPage} />
     </MemoryRouter>
   )
 }
