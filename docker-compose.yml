@@ -4,8 +4,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Data directory (persistent across restarts)
-      - oya-data:/root/.oya
+      # Data directory (bind mount to host for easy access)
+      - ~/.oya:/root/.oya
       # Uncomment to enable SSH key access for cloning private repositories:
       # - ~/.ssh:/root/.ssh:ro
     extra_hosts:
@@ -25,6 +25,4 @@ services:
     environment:
       - VITE_API_URL=http://localhost:8000
 
-volumes:
-  oya-data:
-    name: oya-data
+# Named volume removed - using bind mount to ~/.oya instead
