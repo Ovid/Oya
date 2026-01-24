@@ -156,7 +156,10 @@ def get_db() -> Database:
     """Get database connection with migrations applied.
 
     If a repo is active, returns the database for that repo.
-    Falls back to legacy WORKSPACE_PATH-based database if no repo is active.
+    Falls back to legacy WORKSPACE_PATH-based database if no repo is active and set.
+
+    Raises:
+        HTTPException: 400 if no active repo and WORKSPACE_PATH not set.
     """
     global _legacy_db_instance
 
@@ -174,6 +177,11 @@ def get_db() -> Database:
 
     # Fall back to legacy behavior for backward compatibility
     settings = get_settings()
+    if settings.workspace_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No repository is active. Please select a repository first.",
+        )
 
     # Check if cached connection is stale (db file was deleted)
     if _legacy_db_instance is not None and not settings.db_path.exists():
@@ -201,7 +209,10 @@ def get_repo() -> GitRepo:
     """Get repository wrapper for active repo or workspace.
 
     If a repo is active, returns GitRepo for that repo's source directory.
-    Falls back to legacy WORKSPACE_PATH if no repo is active.
+    Falls back to legacy WORKSPACE_PATH if no repo is active and set.
+
+    Raises:
+        HTTPException: 400 if no active repo and WORKSPACE_PATH not set.
     """
     repo = get_active_repo()
     if repo is not None:
@@ -209,8 +220,13 @@ def get_repo() -> GitRepo:
         paths = RepoPaths(settings.data_dir, repo.local_path)
         return GitRepo(paths.source)
 
-    # Legacy fallback
+    # Legacy fallback - requires WORKSPACE_PATH
     settings = get_settings()
+    if settings.workspace_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No repository is active. Please select a repository first.",
+        )
     return GitRepo(settings.workspace_path)
 
 
@@ -218,7 +234,10 @@ def get_vectorstore() -> VectorStore:
     """Get vector store instance for active repo.
 
     If a repo is active, returns the vectorstore for that repo.
-    Falls back to legacy WORKSPACE_PATH-based vectorstore if no repo is active.
+    Falls back to legacy WORKSPACE_PATH-based vectorstore if no repo is active and set.
+
+    Raises:
+        HTTPException: 400 if no active repo and WORKSPACE_PATH not set.
     """
     repo = get_active_repo()
     if repo is not None:
@@ -229,8 +248,13 @@ def get_vectorstore() -> VectorStore:
             _vectorstore_instances[repo.id] = VectorStore(paths.chroma_dir)
         return _vectorstore_instances[repo.id]
 
-    # Legacy fallback
+    # Legacy fallback - requires WORKSPACE_PATH
     settings = get_settings()
+    if settings.workspace_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No repository is active. Please select a repository first.",
+        )
     return VectorStore(settings.chroma_path)
 
 
@@ -244,16 +268,26 @@ _llm_instance: LLMClient | None = None
 
 
 def get_llm() -> LLMClient:
-    """Get LLM client instance."""
+    """Get LLM client instance.
+
+    The LLM client is repo-agnostic. In multi-repo mode without an active repo,
+    logging is disabled (log_path=None).
+    """
     global _llm_instance
     if _llm_instance is None:
         settings = get_settings()
+
+        # Log path requires workspace_path; skip logging if not available
+        log_path = None
+        if settings.workspace_path is not None:
+            log_path = settings.llm_log_path
+
         _llm_instance = LLMClient(
             provider=settings.llm_provider,
             model=settings.llm_model,
             api_key=settings.llm_api_key,
             endpoint=settings.llm_endpoint,
-            log_path=settings.llm_log_path,
+            log_path=log_path,
         )
     return _llm_instance
 
@@ -271,7 +305,10 @@ def get_issues_store() -> IssuesStore:
     """Get or create the issues vector store instance.
 
     If a repo is active, returns the issues store for that repo.
-    Falls back to legacy WORKSPACE_PATH-based store if no repo is active.
+    Falls back to legacy WORKSPACE_PATH-based store if no repo is active and set.
+
+    Raises:
+        HTTPException: 400 if no active repo and WORKSPACE_PATH not set.
     """
     global _legacy_issues_store
 
@@ -285,8 +322,13 @@ def get_issues_store() -> IssuesStore:
             _issues_store_instances[repo.id] = IssuesStore(persist_path)
         return _issues_store_instances[repo.id]
 
-    # Legacy fallback
+    # Legacy fallback - requires WORKSPACE_PATH
     settings = get_settings()
+    if settings.workspace_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No repository is active. Please select a repository first.",
+        )
     if _legacy_issues_store is None:
         persist_path = settings.oyawiki_path / "vectorstore"
         _legacy_issues_store = IssuesStore(persist_path)

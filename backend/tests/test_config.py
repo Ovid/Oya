@@ -241,12 +241,18 @@ def test_load_settings_auto_detects_provider(temp_workspace: Path, monkeypatch):
     assert settings.active_provider == "ollama"
 
 
-def test_load_settings_requires_workspace_path(monkeypatch):
-    """load_settings raises ValueError without WORKSPACE_PATH."""
+def test_load_settings_without_workspace_path(monkeypatch):
+    """load_settings succeeds without WORKSPACE_PATH (multi-repo mode)."""
     monkeypatch.delenv("WORKSPACE_PATH", raising=False)
+    load_settings.cache_clear()
 
-    with pytest.raises(ValueError, match="WORKSPACE_PATH"):
-        load_settings()
+    settings = load_settings()
+
+    # workspace_path should be None in multi-repo mode
+    assert settings.workspace_path is None
+    # Other settings should still work
+    assert settings.active_provider in ("ollama", "openai", "anthropic", "google")
+    assert settings.data_dir is not None
 
 
 # =============================================================================
