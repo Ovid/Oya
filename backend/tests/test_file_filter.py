@@ -7,7 +7,11 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from oya.repo.file_filter import FileFilter, extract_directories_from_files
+from oya.repo.file_filter import (
+    FileFilter,
+    _has_excluded_ancestor,
+    extract_directories_from_files,
+)
 
 
 @pytest.fixture
@@ -445,3 +449,148 @@ class TestExtractDirectoriesIncludesRoot:
         result = extract_directories_from_files(files)
 
         assert result[0] == ""  # Root is first
+
+
+# Tests for _has_excluded_ancestor helper function
+
+
+def test_has_excluded_ancestor_returns_true_for_direct_parent():
+    """File in excluded directory should return True."""
+    excluded_dirs = {".git"}
+    assert _has_excluded_ancestor(".git/config", excluded_dirs) is True
+
+
+def test_has_excluded_ancestor_returns_true_for_nested_path():
+    """File nested deeply in excluded directory should return True."""
+    excluded_dirs = {".git"}
+    assert _has_excluded_ancestor(".git/objects/ab/1234", excluded_dirs) is True
+
+
+def test_has_excluded_ancestor_returns_false_for_unrelated_path():
+    """File not in excluded directory should return False."""
+    excluded_dirs = {".git"}
+    assert _has_excluded_ancestor("src/main.py", excluded_dirs) is False
+
+
+def test_has_excluded_ancestor_returns_false_for_empty_set():
+    """Empty excluded set should return False for any path."""
+    excluded_dirs = set()
+    assert _has_excluded_ancestor(".git/config", excluded_dirs) is False
+
+
+def test_has_excluded_ancestor_handles_multiple_excluded_dirs():
+    """Should check against all excluded directories."""
+    excluded_dirs = {".git", "node_modules", "build"}
+    assert _has_excluded_ancestor("node_modules/lodash/index.js", excluded_dirs) is True
+    assert _has_excluded_ancestor("build/output.js", excluded_dirs) is True
+    assert _has_excluded_ancestor("src/app.py", excluded_dirs) is False
+
+
+# Tests for directory exclusion check methods
+
+
+def test_is_directory_excluded_by_default_rules(tmp_path):
+    """Directory matching DEFAULT_EXCLUDES should be detected."""
+    ff = FileFilter(tmp_path)
+
+    # .git matches ".*" pattern
+    assert ff._is_directory_excluded_by_default_rules(".git") is True
+    # node_modules matches "node_modules" pattern
+    assert ff._is_directory_excluded_by_default_rules("node_modules") is True
+    # Regular directory should not be excluded
+    assert ff._is_directory_excluded_by_default_rules("src") is False
+
+
+def test_is_directory_excluded_by_oyaignore(tmp_path):
+    """Directory matching .oyaignore patterns should be detected."""
+    # Create .oyaignore with directory pattern
+    (tmp_path / ".oyaignore").write_text("build/\ndocs\n")
+    ff = FileFilter(tmp_path)
+
+    # build/ explicitly targets directory
+    assert ff._is_directory_excluded_by_oyaignore("build") is True
+    # docs matches as directory too
+    assert ff._is_directory_excluded_by_oyaignore("docs") is True
+    # src not in oyaignore
+    assert ff._is_directory_excluded_by_oyaignore("src") is False
+
+
+def test_get_files_categorized_collects_excluded_directories(tmp_path):
+    """get_files_categorized should identify explicitly excluded directories."""
+    # Create directory structure
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text("git config")
+    (tmp_path / ".git" / "objects").mkdir()
+    (tmp_path / ".git" / "objects" / "ab").mkdir()
+    (tmp_path / ".git" / "objects" / "ab" / "1234").write_text("blob")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text("print('hello')")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # .git should be in excluded_by_rule (directory only)
+    # but individual files inside .git should NOT be listed
+    assert ".git" in result.excluded_dirs_by_rule
+    assert ".git/config" not in result.excluded_by_rule
+    assert ".git/objects/ab/1234" not in result.excluded_by_rule
+
+    # src/main.py should still be included
+    assert "src/main.py" in result.included
+
+
+# Edge case tests for directory collapsing
+
+
+def test_nested_excluded_dirs_only_show_outermost(tmp_path):
+    """When both parent and child match patterns, only parent appears."""
+    # .git matches ".*", .git/hooks also matches but shouldn't appear
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "hooks").mkdir()
+    (tmp_path / ".git" / "hooks" / "pre-commit").write_text("#!/bin/bash")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # Only .git should appear, not .git/hooks
+    assert ".git" in result.excluded_dirs_by_rule
+    assert ".git/hooks" not in result.excluded_dirs_by_rule
+
+
+def test_file_pattern_does_not_collapse_directory(tmp_path):
+    """File patterns like *.log should not collapse directories."""
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "app.log").write_text("log content")
+    (tmp_path / "logs" / "error.log").write_text("error content")
+    (tmp_path / "logs" / "readme.txt").write_text("log readme")
+
+    # Add *.log to oyaignore (file pattern, not directory)
+    (tmp_path / ".oyaignore").write_text("*.log\n")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # logs directory should NOT be collapsed
+    assert "logs" not in result.excluded_dirs_by_oyaignore
+
+    # Individual .log files should be listed
+    assert "logs/app.log" in result.excluded_by_oyaignore
+    assert "logs/error.log" in result.excluded_by_oyaignore
+
+    # readme.txt should be included
+    assert "logs/readme.txt" in result.included
+
+
+def test_root_directory_never_collapsed(tmp_path):
+    """Root directory should never be collapsed even if it somehow matches."""
+    (tmp_path / "main.py").write_text("print('hello')")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # Root should not appear in excluded dirs
+    assert "" not in result.excluded_dirs_by_rule
+    assert "" not in result.excluded_dirs_by_oyaignore
+
+    # Files should still be processed
+    assert "main.py" in result.included

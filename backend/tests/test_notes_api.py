@@ -7,42 +7,30 @@ from datetime import datetime, UTC
 from httpx import ASGITransport, AsyncClient
 
 from oya.main import app
-from oya.api.deps import get_settings, _reset_db_instance
 from oya.notes.schemas import Note, NoteScope
 
 
 @pytest.fixture
-def workspace(tmp_path, monkeypatch):
-    """Create workspace with git repo and notes directory."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+def workspace(setup_active_repo):
+    """Create workspace with notes directory using active repo fixture."""
+    wiki_path = setup_active_repo["wiki_path"]
+    source_path = setup_active_repo["source_path"]
+
+    # Initialize git in source directory
+    source_path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=source_path, capture_output=True)
     subprocess.run(
-        ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
+        ["git", "config", "user.email", "test@test.com"], cwd=source_path, capture_output=True
     )
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=source_path, capture_output=True)
+    (source_path / "README.md").write_text("# Test Repo")
+    subprocess.run(["git", "add", "."], cwd=source_path, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=source_path, capture_output=True)
 
-    (workspace / "README.md").write_text("# Test Repo")
-    subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=workspace, capture_output=True)
+    # Create notes directory in wiki
+    (wiki_path.parent / "notes").mkdir(exist_ok=True)
 
-    # Create .oyawiki structure
-    oyawiki = workspace / ".oyawiki"
-    oyawiki.mkdir()
-    (oyawiki / "notes").mkdir()
-    (oyawiki / "meta").mkdir()
-
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
-
-    yield workspace
-
-    _reset_db_instance()
+    return setup_active_repo
 
 
 @pytest.fixture

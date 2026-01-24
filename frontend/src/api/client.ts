@@ -13,11 +13,17 @@ import type {
   NoteCreate,
   Note,
   WorkspaceSwitchResponse,
-  DirectoryListing,
   GenerationStatus,
   IndexableItems,
   OyaignoreUpdateRequest,
   OyaignoreUpdateResponse,
+  // Multi-repo types
+  Repo,
+  RepoListResponse,
+  CreateRepoRequest,
+  CreateRepoResponse,
+  ActivateRepoResponse,
+  ActiveRepoResponse,
 } from '../types'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -43,7 +49,17 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text()
-    throw new ApiError(response.status, text || response.statusText)
+    // Try to extract 'detail' from FastAPI error responses
+    let message = text || response.statusText
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.detail) {
+        message = parsed.detail
+      }
+    } catch {
+      // Not JSON, use raw text
+    }
+    throw new ApiError(response.status, message)
   }
 
   return response.json()
@@ -63,11 +79,6 @@ export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResp
     method: 'POST',
     body: JSON.stringify({ path }),
   })
-}
-
-export async function listDirectories(path?: string): Promise<DirectoryListing> {
-  const params = path ? `?path=${encodeURIComponent(path)}` : ''
-  return fetchJson<DirectoryListing>(`/api/repos/directories${params}`)
 }
 
 export async function getIndexableItems(): Promise<IndexableItems> {
@@ -96,6 +107,45 @@ export async function getGenerationStatus(): Promise<GenerationStatus | null> {
     return null
   }
   return JSON.parse(text) as GenerationStatus
+}
+
+// =============================================================================
+// Multi-Repo Endpoints (v2 API)
+// =============================================================================
+
+export async function listRepos(): Promise<RepoListResponse> {
+  return fetchJson<RepoListResponse>('/api/v2/repos')
+}
+
+export async function createRepo(request: CreateRepoRequest): Promise<CreateRepoResponse> {
+  return fetchJson<CreateRepoResponse>('/api/v2/repos', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}
+
+export async function getRepo(repoId: number): Promise<Repo> {
+  return fetchJson<Repo>(`/api/v2/repos/${repoId}`)
+}
+
+export async function deleteRepo(repoId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/v2/repos/${repoId}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new ApiError(response.status, text || response.statusText)
+  }
+}
+
+export async function activateRepo(repoId: number): Promise<ActivateRepoResponse> {
+  return fetchJson<ActivateRepoResponse>(`/api/v2/repos/${repoId}/activate`, {
+    method: 'POST',
+  })
+}
+
+export async function getActiveRepo(): Promise<ActiveRepoResponse> {
+  return fetchJson<ActiveRepoResponse>('/api/v2/repos/active')
 }
 
 // Wiki endpoints

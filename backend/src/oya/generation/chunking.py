@@ -68,7 +68,7 @@ def chunk_file_content(
             if overlap_lines is None:
                 overlap_lines = settings.generation.chunk_overlap_lines
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             if max_tokens is None:
                 max_tokens = 1000  # Default from CONFIG_SCHEMA
             if overlap_lines is None:
@@ -154,7 +154,7 @@ def chunk_by_symbols(
             settings = load_settings()
             max_tokens = settings.generation.chunk_tokens
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             max_tokens = 1000  # Default from CONFIG_SCHEMA
 
     if not content or not symbols:

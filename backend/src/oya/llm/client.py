@@ -218,7 +218,7 @@ class LLMClient:
                 if max_tokens is None:
                     max_tokens = settings.llm.max_tokens
             except (ValueError, OSError, ConfigError):
-                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                # Settings not available
                 if temperature is None:
                     temperature = 0.7  # Default from CONFIG_SCHEMA
                 if max_tokens is None:
@@ -338,7 +338,7 @@ class LLMClient:
                 if max_tokens is None:
                     max_tokens = settings.llm.max_tokens
             except (ValueError, OSError, ConfigError):
-                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                # Settings not available
                 if temperature is None:
                     temperature = 0.7  # Default from CONFIG_SCHEMA
                 if max_tokens is None:
@@ -424,7 +424,7 @@ class LLMClient:
             settings = load_settings()
             json_temperature = settings.llm.json_temperature
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             json_temperature = 0.3  # Default from CONFIG_SCHEMA
         full_system = (system_prompt or "") + "\n\nRespond with valid JSON only."
         return await self.generate(

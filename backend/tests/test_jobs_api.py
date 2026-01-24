@@ -1,28 +1,15 @@
 """Job management API tests."""
 
-import subprocess
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from oya.main import app
-from oya.api.deps import get_settings, _reset_db_instance, get_db
+from oya.api.deps import get_db
 
 
 @pytest.fixture
-def workspace_with_db(tmp_path, monkeypatch):
-    """Create workspace with database and job."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
-
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
-
+def workspace_with_db(setup_active_repo):
+    """Create workspace with database and job using the active repo fixture."""
     # Initialize database with a test job
     db = get_db()
     db.execute(
@@ -33,9 +20,7 @@ def workspace_with_db(tmp_path, monkeypatch):
     )
     db.commit()
 
-    yield workspace
-
-    _reset_db_instance()
+    return setup_active_repo
 
 
 @pytest.fixture

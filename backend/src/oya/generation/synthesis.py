@@ -51,7 +51,7 @@ class SynthesisGenerator:
                 settings = load_settings()
                 context_limit = settings.generation.context_limit
             except (ValueError, OSError, ConfigError):
-                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                # Settings not available
                 context_limit = 100_000  # Default from CONFIG_SCHEMA
         self.context_limit = context_limit
 
@@ -135,7 +135,7 @@ class SynthesisGenerator:
                 settings = load_settings()
                 temperature = settings.generation.temperature
             except (ValueError, OSError, ConfigError):
-                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                # Settings not available
                 temperature = 0.3  # Default from CONFIG_SCHEMA
             response = await self.llm_client.generate(
                 prompt=prompt,
@@ -245,7 +245,7 @@ class SynthesisGenerator:
             settings = load_settings()
             tokens_per_char = settings.generation.tokens_per_char
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             tokens_per_char = 0.25  # Default from CONFIG_SCHEMA
         return int(total_chars * tokens_per_char)
 

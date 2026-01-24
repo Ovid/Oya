@@ -753,7 +753,7 @@ class GenerationOrchestrator:
                 settings = load_settings()
                 progress_interval = settings.generation.progress_report_interval
             except (ValueError, OSError, ConfigError):
-                # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+                # Settings not available
                 progress_interval = 1  # Default from CONFIG_SCHEMA
             if (idx + 1) % progress_interval == 0 or idx == total_files - 1:
                 await self._emit_progress(

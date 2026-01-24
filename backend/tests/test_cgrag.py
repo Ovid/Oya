@@ -1,5 +1,6 @@
 """Tests for CGRAG core functionality."""
 
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import networkx as nx
@@ -420,3 +421,202 @@ MISSING (or "NONE" if nothing needed):
         # Should stop after 2 passes: first identifies gap, second sees it's still not found
         assert result.passes_used == 2
         assert "missing_function" in result.gaps_unresolved
+
+
+class TestReadSourceForNodes:
+    """Tests for _read_source_for_nodes function."""
+
+    def test_reads_source_file_content(self, tmp_path: Path):
+        """Reads actual source file content for nodes."""
+        from dataclasses import dataclass
+
+        from oya.qa.cgrag import _read_source_for_nodes
+
+        # Create a test source file
+        source_file = tmp_path / "auth" / "handler.py"
+        source_file.parent.mkdir(parents=True, exist_ok=True)
+        source_file.write_text(
+            """# Auth handler module
+
+def login(username: str, password: str) -> dict:
+    '''Log in a user.'''
+    user = get_user(username)
+    if verify_password(user, password):
+        return create_token(user)
+    raise AuthError("Invalid credentials")
+
+def logout(token: str) -> None:
+    '''Log out a user.'''
+    invalidate_token(token)
+"""
+        )
+
+        @dataclass
+        class MockNode:
+            id: str
+            name: str
+            file_path: str
+            line_start: int
+            line_end: int
+
+        nodes = [
+            MockNode(
+                id="auth/handler.py::login",
+                name="login",
+                file_path="auth/handler.py",
+                line_start=3,
+                line_end=9,
+            )
+        ]
+
+        result = _read_source_for_nodes(nodes, tmp_path)
+
+        assert result is not None
+        assert "auth/handler.py" in result
+        assert "login" in result
+        assert "def login" in result
+        assert "username: str" in result
+        # Should include syntax highlighting hint
+        assert "```python" in result
+
+    def test_returns_none_when_file_not_found(self, tmp_path: Path):
+        """Returns None when source file doesn't exist."""
+        from dataclasses import dataclass
+
+        from oya.qa.cgrag import _read_source_for_nodes
+
+        @dataclass
+        class MockNode:
+            id: str
+            name: str
+            file_path: str
+            line_start: int
+            line_end: int
+
+        nodes = [
+            MockNode(
+                id="nonexistent/file.py::func",
+                name="func",
+                file_path="nonexistent/file.py",
+                line_start=1,
+                line_end=10,
+            )
+        ]
+
+        result = _read_source_for_nodes(nodes, tmp_path)
+
+        assert result is None
+
+    def test_deduplicates_files(self, tmp_path: Path):
+        """Only reads each file once even with multiple nodes."""
+        from dataclasses import dataclass
+
+        from oya.qa.cgrag import _read_source_for_nodes
+
+        # Create a test source file
+        source_file = tmp_path / "utils.py"
+        source_file.write_text(
+            """def func1():
+    pass
+
+def func2():
+    pass
+"""
+        )
+
+        @dataclass
+        class MockNode:
+            id: str
+            name: str
+            file_path: str
+            line_start: int
+            line_end: int
+
+        nodes = [
+            MockNode(
+                id="utils.py::func1",
+                name="func1",
+                file_path="utils.py",
+                line_start=1,
+                line_end=2,
+            ),
+            MockNode(
+                id="utils.py::func2",
+                name="func2",
+                file_path="utils.py",
+                line_start=4,
+                line_end=5,
+            ),
+        ]
+
+        result = _read_source_for_nodes(nodes, tmp_path)
+
+        # Should only have one occurrence of the file header
+        assert result.count("utils.py") == 1
+
+
+class TestCGRAGWithSourcePath:
+    """Tests for CGRAG loop with source_path parameter."""
+
+    @pytest.mark.asyncio
+    async def test_cgrag_uses_source_path_for_gap_retrieval(self, tmp_path: Path):
+        """CGRAG reads actual source files when source_path is provided."""
+        from oya.qa.cgrag import run_cgrag_loop
+        from oya.qa.session import CGRAGSession
+
+        # Create a test source file that matches the graph node
+        auth_file = tmp_path / "auth" / "verify.py"
+        auth_file.parent.mkdir(parents=True, exist_ok=True)
+        auth_file.write_text(
+            """# Token verification module
+
+def verify_token(token: str) -> dict:
+    '''Verify JWT token and return payload.'''
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return payload
+    except jwt.InvalidTokenError:
+        raise AuthError("Invalid token")
+"""
+        )
+
+        mock_llm = AsyncMock()
+        # First call: identifies gap about verify_token
+        # Second call: answers with the retrieved source context
+        mock_llm.generate.side_effect = [
+            """<answer>
+The auth system verifies tokens but I need more details.
+</answer>
+
+<missing>
+- verify_token in auth/verify.py
+</missing>""",
+            """<answer>
+The auth system verifies tokens using JWT. The verify_token function decodes
+JWT tokens using HS256 algorithm and returns the payload.
+</answer>
+
+<missing>
+NONE
+</missing>""",
+        ]
+
+        # Create graph with verify_token node
+        mock_graph = _make_test_graph()
+
+        session = CGRAGSession()
+
+        result = await run_cgrag_loop(
+            question="How does token verification work?",
+            initial_context="Initial context about auth",
+            session=session,
+            llm=mock_llm,
+            graph=mock_graph,
+            vectorstore=None,
+            source_path=tmp_path,  # Provide source path
+        )
+
+        assert result.passes_used == 2
+        assert "JWT" in result.answer or "verify" in result.answer
+        # The gap should have been resolved
+        assert any("verify_token" in gap for gap in result.gaps_resolved)

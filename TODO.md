@@ -1,6 +1,33 @@
 # TODO
 
+* Need to add windows support (paths)
+* Fix this issue which slows us down and eats tokens when we start a worktree:
+    ⏺ Bash(cd
+  /Users/poecurt/projects/oya/.worktrees/collapse-excluded-dirs/backend &&
+  python3 -m venv .venv && source .venv/bin/activate && pip install -e
+  ".[dev]" -q 2>&…)
+    ⎿  ERROR: Cannot install oya because these package versions have
+    conflicting dependencies.
+         ERROR: ResolutionImpossible: for help visit
+         https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts
+* backend/src/oya/qa/cgrag.py def \_read_source_for_nodes(
+    * This could blow our context window
+
+* Why wasn't my code quality reviewer chosen?
+
+> Review the code quality of the implementation for Task 1: Add
+> app\_settings table to repo\_registry.py
+
+* The logs can get quite long. Need something like logrotate
+* Hit minimum code coverage standards and then enforce them.
+* Q&A should have an "arrow up" history
+* Quick fix:
+    * When regenerating a wiki and it shows what can be excluded, it shouldn't
+      show any files if a directory above it is already excluded. Makes the
+      lists must shorter.
 * Deep Research
+    * CGRAG should also be able to read files now. However, we need to be
+      concerned about blowing context
     * Extend CGRAG
         * "Thorough" Shouldn't mention additional files
         * "Deep Research" will
