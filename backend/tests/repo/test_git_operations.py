@@ -54,7 +54,7 @@ def test_clone_repo_invalid_url(tmp_path):
     """Clone raises GitCloneError for invalid URL."""
     dest = tmp_path / "dest"
     with pytest.raises(GitCloneError) as exc_info:
-        clone_repo("https://github.com/nonexistent/repo-that-does-not-exist-12345", dest)
+        clone_repo("/nonexistent/path/that/does/not/exist", dest)
     assert "not found" in str(exc_info.value).lower() or "clone" in str(exc_info.value).lower()
 
 
