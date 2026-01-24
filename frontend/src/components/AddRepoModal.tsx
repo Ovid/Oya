@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useReposStore } from '../stores'
+import type { Repo } from '../types'
 
 interface AddRepoModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess?: () => void
+  onRepoAdded?: (repo: Repo) => void
 }
 
-export function AddRepoModal({ isOpen, onClose, onSuccess }: AddRepoModalProps) {
+export function AddRepoModal({ isOpen, onClose, onSuccess, onRepoAdded }: AddRepoModalProps) {
   const [url, setUrl] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
@@ -41,6 +43,7 @@ export function AddRepoModal({ isOpen, onClose, onSuccess }: AddRepoModalProps) 
       setDisplayName('')
       onClose()
       onSuccess?.()
+      onRepoAdded?.(repo)
     } catch {
       // Error is handled by store or localError
     }
