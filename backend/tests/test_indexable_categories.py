@@ -90,32 +90,33 @@ async def test_included_files_are_correct(client, temp_workspace):
 
 
 async def test_oyaignore_excluded_files_are_correct(client, temp_workspace):
-    """Test that excluded_by_oyaignore category contains files excluded via .oyaignore."""
+    """Test that excluded_by_oyaignore category contains directories excluded via .oyaignore."""
     response = await client.get("/api/repos/indexable")
 
     assert response.status_code == 200
     data = response.json()
 
-    # Files in .oyaignore should be in excluded_by_oyaignore
+    # Files excluded by file pattern (not directory) are still listed
     assert "excluded_file.txt" in data["excluded_by_oyaignore"]["files"]
-    assert "excluded_dir/file.py" in data["excluded_by_oyaignore"]["files"]
 
-    # Directories excluded by oyaignore
+    # Directory excluded by pattern - directory listed, not individual files
     assert "excluded_dir" in data["excluded_by_oyaignore"]["directories"]
+    assert "excluded_dir/file.py" not in data["excluded_by_oyaignore"]["files"]
 
 
 async def test_rule_excluded_files_are_correct(client, temp_workspace):
-    """Test that excluded_by_rule category contains files excluded via DEFAULT_EXCLUDES."""
+    """Test that excluded_by_rule category contains directories excluded via DEFAULT_EXCLUDES."""
     response = await client.get("/api/repos/indexable")
 
     assert response.status_code == 200
     data = response.json()
 
-    # Files excluded by DEFAULT_EXCLUDES (node_modules) should be in excluded_by_rule
-    assert "node_modules/dep.js" in data["excluded_by_rule"]["files"]
-
-    # The node_modules directory should be in excluded_by_rule directories
+    # node_modules directory should be in excluded_by_rule directories
+    # (files inside are no longer listed individually)
     assert "node_modules" in data["excluded_by_rule"]["directories"]
+
+    # Individual files inside excluded directories are NOT listed
+    assert "node_modules/dep.js" not in data["excluded_by_rule"]["files"]
 
 
 async def test_included_directories_are_derived_from_files(client, temp_workspace):
@@ -200,7 +201,10 @@ async def test_dotfiles_excluded_by_rule(client, temp_workspace):
 
     # Dotfiles should be excluded by rule
     assert ".env" in data["excluded_by_rule"]["files"]
-    assert ".config/settings.json" in data["excluded_by_rule"]["files"]
+
+    # Dotdirs should be in directories, not individual files
+    assert ".config" in data["excluded_by_rule"]["directories"]
+    assert ".config/settings.json" not in data["excluded_by_rule"]["files"]
 
 
 async def test_empty_oyaignore_returns_empty_oyaignore_category(client, temp_workspace):
