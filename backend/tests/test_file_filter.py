@@ -7,7 +7,11 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from oya.repo.file_filter import FileFilter, extract_directories_from_files
+from oya.repo.file_filter import (
+    FileFilter,
+    _has_excluded_ancestor,
+    extract_directories_from_files,
+)
 
 
 @pytest.fixture
@@ -445,3 +449,38 @@ class TestExtractDirectoriesIncludesRoot:
         result = extract_directories_from_files(files)
 
         assert result[0] == ""  # Root is first
+
+
+# Tests for _has_excluded_ancestor helper function
+
+
+def test_has_excluded_ancestor_returns_true_for_direct_parent():
+    """File in excluded directory should return True."""
+    excluded_dirs = {".git"}
+    assert _has_excluded_ancestor(".git/config", excluded_dirs) is True
+
+
+def test_has_excluded_ancestor_returns_true_for_nested_path():
+    """File nested deeply in excluded directory should return True."""
+    excluded_dirs = {".git"}
+    assert _has_excluded_ancestor(".git/objects/ab/1234", excluded_dirs) is True
+
+
+def test_has_excluded_ancestor_returns_false_for_unrelated_path():
+    """File not in excluded directory should return False."""
+    excluded_dirs = {".git"}
+    assert _has_excluded_ancestor("src/main.py", excluded_dirs) is False
+
+
+def test_has_excluded_ancestor_returns_false_for_empty_set():
+    """Empty excluded set should return False for any path."""
+    excluded_dirs = set()
+    assert _has_excluded_ancestor(".git/config", excluded_dirs) is False
+
+
+def test_has_excluded_ancestor_handles_multiple_excluded_dirs():
+    """Should check against all excluded directories."""
+    excluded_dirs = {".git", "node_modules", "build"}
+    assert _has_excluded_ancestor("node_modules/lodash/index.js", excluded_dirs) is True
+    assert _has_excluded_ancestor("build/output.js", excluded_dirs) is True
+    assert _has_excluded_ancestor("src/app.py", excluded_dirs) is False

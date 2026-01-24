@@ -8,6 +8,25 @@ from typing import Optional
 from oya.config import ConfigError, load_settings
 
 
+def _has_excluded_ancestor(file_path: str, excluded_dirs: set[str]) -> bool:
+    """Check if any ancestor directory of file_path is in excluded_dirs.
+
+    Args:
+        file_path: Relative file path (e.g., ".git/objects/ab/1234").
+        excluded_dirs: Set of directory paths that are excluded.
+
+    Returns:
+        True if any ancestor directory is in excluded_dirs.
+    """
+    parts = file_path.split("/")
+    # Check each ancestor (not including the file itself)
+    for i in range(1, len(parts)):
+        ancestor = "/".join(parts[:i])
+        if ancestor in excluded_dirs:
+            return True
+    return False
+
+
 @dataclass
 class CategorizedFiles:
     """Files categorized by exclusion reason."""
