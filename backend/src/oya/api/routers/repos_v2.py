@@ -9,10 +9,11 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 
 from oya.config import load_settings
-from oya.db.repo_registry import RepoRegistry
+from oya.db.repo_registry import RepoRegistry, RepoRecord
 from oya.repo.url_parser import parse_repo_url
 from oya.repo.git_operations import clone_repo, GitCloneError
 from oya.repo.repo_paths import RepoPaths
+from oya.state import get_app_state
 
 
 router = APIRouter(prefix="/api/v2/repos", tags=["repos-v2"])
@@ -65,10 +66,43 @@ class CreateRepoResponse(BaseModel):
     status: str
 
 
+class ActivateRepoResponse(BaseModel):
+    """Response after activating a repository."""
+
+    active_repo_id: int
+
+
+class ActiveRepoResponse(BaseModel):
+    """Response for getting the active repository."""
+
+    active_repo: Optional[RepoResponse]
+
+
 def get_registry() -> RepoRegistry:
     """Get the repo registry."""
     settings = load_settings()
     return RepoRegistry(settings.repos_db_path)
+
+
+def _repo_to_response(repo: RepoRecord) -> RepoResponse:
+    """Convert a RepoRecord to RepoResponse."""
+    return RepoResponse(
+        id=repo.id,
+        origin_url=repo.origin_url,
+        source_type=repo.source_type,
+        local_path=repo.local_path,
+        display_name=repo.display_name,
+        head_commit=repo.head_commit,
+        branch=repo.branch,
+        created_at=repo.created_at,
+        last_pulled=repo.last_pulled,
+        last_generated=repo.last_generated,
+        generation_duration_secs=repo.generation_duration_secs,
+        files_processed=repo.files_processed,
+        pages_generated=repo.pages_generated,
+        status=repo.status,
+        error_message=repo.error_message,
+    )
 
 
 @router.get("", response_model=RepoListResponse)
@@ -78,28 +112,35 @@ async def list_repos() -> RepoListResponse:
     try:
         repos = registry.list_all()
         return RepoListResponse(
-            repos=[
-                RepoResponse(
-                    id=r.id,
-                    origin_url=r.origin_url,
-                    source_type=r.source_type,
-                    local_path=r.local_path,
-                    display_name=r.display_name,
-                    head_commit=r.head_commit,
-                    branch=r.branch,
-                    created_at=r.created_at,
-                    last_pulled=r.last_pulled,
-                    last_generated=r.last_generated,
-                    generation_duration_secs=r.generation_duration_secs,
-                    files_processed=r.files_processed,
-                    pages_generated=r.pages_generated,
-                    status=r.status,
-                    error_message=r.error_message,
-                )
-                for r in repos
-            ],
+            repos=[_repo_to_response(r) for r in repos],
             total=len(repos),
         )
+    finally:
+        registry.close()
+
+
+@router.get("/active", response_model=ActiveRepoResponse)
+async def get_active_repo() -> ActiveRepoResponse:
+    """
+    Get the currently active repository.
+
+    Returns None if no repository is active.
+    """
+    app_state = get_app_state()
+    active_id = app_state.active_repo_id
+
+    if active_id is None:
+        return ActiveRepoResponse(active_repo=None)
+
+    registry = get_registry()
+    try:
+        repo = registry.get(active_id)
+        if not repo:
+            # Active repo was deleted, clear the state
+            app_state.active_repo_id = None
+            return ActiveRepoResponse(active_repo=None)
+
+        return ActiveRepoResponse(active_repo=_repo_to_response(repo))
     finally:
         registry.close()
 
@@ -119,23 +160,7 @@ async def get_repo(repo_id: int) -> RepoResponse:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Repository {repo_id} not found",
             )
-        return RepoResponse(
-            id=repo.id,
-            origin_url=repo.origin_url,
-            source_type=repo.source_type,
-            local_path=repo.local_path,
-            display_name=repo.display_name,
-            head_commit=repo.head_commit,
-            branch=repo.branch,
-            created_at=repo.created_at,
-            last_pulled=repo.last_pulled,
-            last_generated=repo.last_generated,
-            generation_duration_secs=repo.generation_duration_secs,
-            files_processed=repo.files_processed,
-            pages_generated=repo.pages_generated,
-            status=repo.status,
-            error_message=repo.error_message,
-        )
+        return _repo_to_response(repo)
     finally:
         registry.close()
 
@@ -171,6 +196,32 @@ async def delete_repo(repo_id: int) -> None:
 
         # Delete from registry
         registry.delete(repo_id)
+    finally:
+        registry.close()
+
+
+@router.post("/{repo_id}/activate", response_model=ActivateRepoResponse)
+async def activate_repo(repo_id: int) -> ActivateRepoResponse:
+    """
+    Activate a repository by ID.
+
+    Sets the repository as the currently active one for the application.
+
+    Returns 404 if the repository is not found.
+    """
+    registry = get_registry()
+    try:
+        repo = registry.get(repo_id)
+        if not repo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Repository {repo_id} not found",
+            )
+
+        app_state = get_app_state()
+        app_state.active_repo_id = repo_id
+
+        return ActivateRepoResponse(active_repo_id=repo_id)
     finally:
         registry.close()
 

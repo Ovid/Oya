@@ -10,6 +10,15 @@ from oya.main import app
 from oya.db.repo_registry import RepoRegistry
 from oya.config import load_settings
 from oya.api.deps import get_settings, _reset_db_instance
+from oya.state import reset_app_state, get_app_state
+
+
+@pytest.fixture(autouse=True)
+def reset_state():
+    """Reset application state before and after each test."""
+    reset_app_state()
+    yield
+    reset_app_state()
 
 
 @pytest.fixture
@@ -223,3 +232,126 @@ async def test_delete_repo_generating_conflict(data_dir):
 
     assert response.status_code == 409
     assert "generating" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_activate_repo(data_dir, source_repo):
+    """POST /api/v2/repos/{repo_id}/activate sets the active repo."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Create a repo first
+        create_response = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "Activate Test Repo"},
+        )
+        assert create_response.status_code == 201
+        repo_id = create_response.json()["id"]
+
+        # Activate the repo
+        activate_response = await client.post(f"/api/v2/repos/{repo_id}/activate")
+
+    assert activate_response.status_code == 200
+    data = activate_response.json()
+    assert data["active_repo_id"] == repo_id
+
+    # Verify state was set
+    assert get_app_state().active_repo_id == repo_id
+
+
+@pytest.mark.asyncio
+async def test_activate_repo_not_found(data_dir):
+    """POST /api/v2/repos/{repo_id}/activate returns 404 for non-existent repo."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v2/repos/999/activate")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_get_active_repo_none(data_dir):
+    """GET /api/v2/repos/active returns None when no repo is active."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v2/repos/active")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["active_repo"] is None
+
+
+@pytest.mark.asyncio
+async def test_activate_switches_active_repo(data_dir, source_repo, tmp_path):
+    """Activating a different repo switches the active repo."""
+    # Create a second source repo
+    second_repo = tmp_path / "second-repo"
+    second_repo.mkdir()
+    subprocess.run(["git", "init"], cwd=second_repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=second_repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=second_repo,
+        capture_output=True,
+        check=True,
+    )
+    (second_repo / "README.md").write_text("# Second Repo")
+    subprocess.run(["git", "add", "."], cwd=second_repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=second_repo,
+        capture_output=True,
+        check=True,
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Create first repo and activate it
+        resp1 = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "First Repo"},
+        )
+        repo1_id = resp1.json()["id"]
+        await client.post(f"/api/v2/repos/{repo1_id}/activate")
+
+        # Create second repo and activate it
+        resp2 = await client.post(
+            "/api/v2/repos",
+            json={"url": str(second_repo), "display_name": "Second Repo"},
+        )
+        repo2_id = resp2.json()["id"]
+        await client.post(f"/api/v2/repos/{repo2_id}/activate")
+
+        # Verify active repo switched to second
+        active_resp = await client.get("/api/v2/repos/active")
+
+    assert active_resp.status_code == 200
+    assert active_resp.json()["active_repo"]["id"] == repo2_id
+    assert active_resp.json()["active_repo"]["display_name"] == "Second Repo"
+
+
+@pytest.mark.asyncio
+async def test_get_active_repo(data_dir, source_repo):
+    """GET /api/v2/repos/active returns the active repo after activation."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Create a repo
+        create_response = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "Active Repo Test"},
+        )
+        assert create_response.status_code == 201
+        repo_id = create_response.json()["id"]
+
+        # Activate it
+        activate_response = await client.post(f"/api/v2/repos/{repo_id}/activate")
+        assert activate_response.status_code == 200
+
+        # Get active repo
+        response = await client.get("/api/v2/repos/active")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["active_repo"] is not None
+    assert data["active_repo"]["id"] == repo_id
+    assert data["active_repo"]["display_name"] == "Active Repo Test"
