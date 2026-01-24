@@ -10,15 +10,15 @@ from oya.main import app
 from oya.db.repo_registry import RepoRegistry
 from oya.config import load_settings
 from oya.api.deps import get_settings, _reset_db_instance
-from oya.state import reset_app_state
 
 
-@pytest.fixture(autouse=True)
-def reset_state():
-    """Reset application state before and after each test."""
-    reset_app_state()
-    yield
-    reset_app_state()
+def _clear_active_repo(oya_dir):
+    """Helper to clear the active repo setting from the registry."""
+    registry = RepoRegistry(oya_dir / "repos.db")
+    try:
+        registry.delete_setting("active_repo_id")
+    finally:
+        registry.close()
 
 
 @pytest.fixture

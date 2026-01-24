@@ -6,7 +6,16 @@ from httpx import ASGITransport, AsyncClient
 
 from oya.main import app
 from oya.api.deps import get_settings, _reset_db_instance
-from oya.state import reset_app_state
+from oya.db.repo_registry import RepoRegistry
+
+
+def _clear_active_repo(oya_dir):
+    """Helper to clear the active repo setting from the registry."""
+    registry = RepoRegistry(oya_dir / "repos.db")
+    try:
+        registry.delete_setting("active_repo_id")
+    finally:
+        registry.close()
 
 
 @pytest.fixture
@@ -27,6 +36,8 @@ def data_dir(tmp_path, monkeypatch):
 
     yield oya_dir
 
+    # Cleanup active repo setting
+    _clear_active_repo(oya_dir)
     _reset_db_instance()
 
 
@@ -61,14 +72,6 @@ def source_repo(tmp_path):
         ["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True, capture_output=True
     )
     return repo_path
-
-
-@pytest.fixture(autouse=True)
-def reset_state():
-    """Reset app state before each test."""
-    reset_app_state()
-    yield
-    reset_app_state()
 
 
 @pytest.fixture

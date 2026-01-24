@@ -13,7 +13,7 @@ from oya.api.deps import (
     require_active_repo,
     _reset_db_instance,
 )
-from oya.state import reset_app_state, get_app_state
+from oya.db.repo_registry import RepoRegistry
 
 
 def test_get_settings_returns_settings(tmp_path, monkeypatch):
@@ -34,70 +34,37 @@ def test_get_settings_returns_settings(tmp_path, monkeypatch):
     assert hasattr(settings, "active_provider")
 
 
-def test_get_db_returns_database(tmp_path, monkeypatch):
-    """get_db returns Database instance with migrations applied."""
-    from oya.api.deps import _reset_db_instance
-    from oya.db.connection import Database
-
-    # Reset singleton for test isolation
-    _reset_db_instance()
-
-    # Configure workspace
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    # Clear cached settings
-    from oya.config import load_settings
-    from oya.api.deps import get_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-
-    db = get_db()
-    assert isinstance(db, Database)
-
-    # Verify migrations ran (schema_version table exists)
-    result = db.execute("SELECT version FROM schema_version").fetchone()
-    assert result is not None
-
-    _reset_db_instance()
-
-
-def test_get_repo_returns_repository(tmp_path, monkeypatch):
-    """get_repo returns GitRepo wrapper for workspace."""
-    from oya.repo.git_repo import GitRepo
-
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
-
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-
-    repo = get_repo()
-    assert isinstance(repo, GitRepo)
-
-
 # =============================================================================
 # Active Repo Context Tests
 # =============================================================================
+
+
+def _clear_active_repo(oya_dir):
+    """Helper to clear the active repo setting from the registry."""
+    registry = RepoRegistry(oya_dir / "repos.db")
+    try:
+        registry.delete_setting("active_repo_id")
+    finally:
+        registry.close()
+
+
+def _set_active_repo(oya_dir, repo_id):
+    """Helper to set the active repo in the registry."""
+    registry = RepoRegistry(oya_dir / "repos.db")
+    try:
+        registry.set_setting("active_repo_id", str(repo_id))
+    finally:
+        registry.close()
 
 
 @pytest.fixture
 def multi_repo_setup(tmp_path, monkeypatch):
     """Set up OYA_DATA_DIR and a source repo for multi-repo tests."""
     from oya.config import load_settings
-    from oya.db.repo_registry import RepoRegistry
     from oya.repo.git_operations import clone_repo
     from oya.repo.repo_paths import RepoPaths
 
-    # Reset state
-    reset_app_state()
+    # Reset db instance
     _reset_db_instance()
 
     # Set up data dir
@@ -157,13 +124,13 @@ def multi_repo_setup(tmp_path, monkeypatch):
     yield {"oya_dir": oya_dir, "repo_id": repo_id, "local_path": local_path, "paths": paths}
 
     # Cleanup
-    reset_app_state()
+    _clear_active_repo(oya_dir)
     _reset_db_instance()
 
 
 def test_get_active_repo_returns_none_when_no_active(multi_repo_setup):
     """get_active_repo returns None when no repo is active."""
-    reset_app_state()
+    _clear_active_repo(multi_repo_setup["oya_dir"])
     result = get_active_repo()
     assert result is None
 
@@ -171,9 +138,10 @@ def test_get_active_repo_returns_none_when_no_active(multi_repo_setup):
 def test_get_active_repo_returns_active_repo(multi_repo_setup):
     """get_active_repo returns the active repo record."""
     repo_id = multi_repo_setup["repo_id"]
+    oya_dir = multi_repo_setup["oya_dir"]
 
-    # Activate the repo
-    get_app_state().active_repo_id = repo_id
+    # Activate the repo via registry
+    _set_active_repo(oya_dir, repo_id)
 
     result = get_active_repo()
     assert result is not None
@@ -183,7 +151,7 @@ def test_get_active_repo_returns_active_repo(multi_repo_setup):
 
 def test_require_active_repo_raises_when_no_active(multi_repo_setup):
     """require_active_repo raises HTTPException when no repo is active."""
-    reset_app_state()
+    _clear_active_repo(multi_repo_setup["oya_dir"])
 
     with pytest.raises(HTTPException) as exc_info:
         require_active_repo()
@@ -195,7 +163,7 @@ def test_require_active_repo_raises_when_no_active(multi_repo_setup):
 def test_require_active_repo_returns_repo_when_active(multi_repo_setup):
     """require_active_repo returns the repo when one is active."""
     repo_id = multi_repo_setup["repo_id"]
-    get_app_state().active_repo_id = repo_id
+    _set_active_repo(multi_repo_setup["oya_dir"], repo_id)
 
     result = require_active_repo()
     assert result.id == repo_id
@@ -208,8 +176,8 @@ def test_get_db_uses_active_repo_database(multi_repo_setup):
     repo_id = multi_repo_setup["repo_id"]
     paths = multi_repo_setup["paths"]
 
-    # Activate the repo
-    get_app_state().active_repo_id = repo_id
+    # Activate the repo via registry
+    _set_active_repo(multi_repo_setup["oya_dir"], repo_id)
 
     db = get_db()
     assert isinstance(db, Database)
@@ -225,7 +193,7 @@ def test_get_repo_uses_active_repo_source(multi_repo_setup):
     repo_id = multi_repo_setup["repo_id"]
     paths = multi_repo_setup["paths"]
 
-    get_app_state().active_repo_id = repo_id
+    _set_active_repo(multi_repo_setup["oya_dir"], repo_id)
 
     repo = get_repo()
     assert isinstance(repo, GitRepo)

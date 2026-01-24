@@ -12,7 +12,6 @@ from oya.db.repo_registry import RepoRegistry, RepoRecord
 from oya.llm.client import LLMClient
 from oya.repo.git_repo import GitRepo
 from oya.repo.repo_paths import RepoPaths
-from oya.state import get_app_state
 from oya.vectorstore.issues import IssuesStore
 from oya.vectorstore.store import VectorStore
 
@@ -25,17 +24,24 @@ from oya.vectorstore.store import VectorStore
 def get_active_repo() -> Optional[RepoRecord]:
     """Get the currently active repository record.
 
+    Reads from persisted storage in the repo registry.
+
     Returns:
         RepoRecord if a repo is active, None otherwise.
     """
-    app_state = get_app_state()
-    if app_state.active_repo_id is None:
-        return None
-
     settings = load_settings()
     registry = RepoRegistry(settings.repos_db_path)
     try:
-        return registry.get(app_state.active_repo_id)
+        stored_id = registry.get_setting("active_repo_id")
+        if stored_id is None:
+            return None
+
+        try:
+            repo_id = int(stored_id)
+        except ValueError:
+            return None
+
+        return registry.get(repo_id)
     finally:
         registry.close()
 
