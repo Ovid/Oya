@@ -4,12 +4,17 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ${REPO_PATH:-.}:/workspace
+      # Multi-repo data directory (persistent across restarts)
+      - oya-data:/root/.oya
+      # Optional: mount a specific repo for legacy single-repo mode
+      # - ${REPO_PATH:-.}:/workspace
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      - WORKSPACE_PATH=/workspace
-      - WORKSPACE_DISPLAY_PATH=${REPO_PATH:-.}
+      - OYA_DATA_DIR=/root/.oya
+      # Legacy single-repo mode (optional):
+      # - WORKSPACE_PATH=/workspace
+      # - WORKSPACE_DISPLAY_PATH=${REPO_PATH:-.}
       - PYTHONUNBUFFERED=1
     env_file:
       - .env
@@ -22,3 +27,7 @@ services:
       - backend
     environment:
       - VITE_API_URL=http://localhost:8000
+
+volumes:
+  oya-data:
+    name: oya-data
