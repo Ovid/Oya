@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { useWikiStore, useGenerationStore, useUIStore, useNoteEditorStore } from '../stores'
+import { useWikiStore, useGenerationStore, useUIStore, useNoteEditorStore, useReposStore } from '../stores'
 import { DirectoryPicker } from './DirectoryPicker'
 import { IndexingPreviewModal } from './IndexingPreviewModal'
+import { RepoDropdown } from './RepoDropdown'
+import { AddRepoModal } from './AddRepoModal'
 
 interface TopBarProps {
   onToggleSidebar: () => void
@@ -25,7 +27,9 @@ export function TopBar({
   const darkMode = useUIStore((s) => s.darkMode)
   const toggleDarkMode = useUIStore((s) => s.toggleDarkMode)
   const noteEditorIsDirty = useNoteEditorStore((s) => s.isDirty)
+  const activeRepo = useReposStore((s) => s.activeRepo)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+  const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false)
 
   const isLoading = wikiIsLoading || generationIsLoading
   const isGenerating = currentJob?.status === 'running' || currentJob?.status === 'pending'
@@ -40,6 +44,9 @@ export function TopBar({
     }
     await switchWorkspace(path)
   }
+
+  // Check if we're in multi-repo mode (has repos in store)
+  const isMultiRepoMode = activeRepo !== null
 
   const getStatusBadge = () => {
     if (isLoading) {
@@ -102,14 +109,21 @@ export function TopBar({
 
           <div className="flex items-center space-x-2">
             <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Ọya</span>
-            {repoStatus && (
-              <DirectoryPicker
-                currentPath={repoStatus.path}
-                isDocker={repoStatus.is_docker}
-                onSwitch={handleWorkspaceSwitch}
+            {isMultiRepoMode ? (
+              <RepoDropdown
+                onAddRepo={() => setIsAddRepoModalOpen(true)}
                 disabled={isGenerating}
-                disabledReason={isGenerating ? 'Cannot switch during generation' : undefined}
               />
+            ) : (
+              repoStatus && (
+                <DirectoryPicker
+                  currentPath={repoStatus.path}
+                  isDocker={repoStatus.is_docker}
+                  onSwitch={handleWorkspaceSwitch}
+                  disabled={isGenerating}
+                  disabledReason={isGenerating ? 'Cannot switch during generation' : undefined}
+                />
+              )
             )}
           </div>
         </div>
@@ -214,6 +228,12 @@ export function TopBar({
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         onGenerate={() => startGeneration()}
+      />
+
+      {/* Add Repo Modal */}
+      <AddRepoModal
+        isOpen={isAddRepoModalOpen}
+        onClose={() => setIsAddRepoModalOpen(false)}
       />
     </header>
   )
