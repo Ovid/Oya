@@ -30,6 +30,10 @@ for uvicorn_logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
     uvicorn_logger.addHandler(handler)
 
 from oya.api.routers import repos, wiki, jobs, search, qa, notes, repos_v2  # noqa: E402
+from oya.config import load_settings  # noqa: E402
+from oya.db.repo_registry import RepoRegistry  # noqa: E402
+from oya.db.connection import Database  # noqa: E402
+from oya.repo.repo_paths import RepoPaths  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +50,53 @@ def _check_git_available() -> bool:
         return False
     logger.info(f"Git found at: {git_path}")
     return True
+
+
+def _cleanup_orphaned_jobs() -> int:
+    """Mark any running/pending jobs as failed on startup.
+
+    Jobs can be left in running/pending state if the server was restarted
+    during generation. This function cleans them up.
+
+    Returns:
+        Number of jobs cleaned up.
+    """
+    try:
+        settings = load_settings()
+        registry = RepoRegistry(settings.repos_db_path)
+        repos = registry.list_all()
+        registry.close()
+
+        total_cleaned = 0
+        for repo in repos:
+            try:
+                paths = RepoPaths(settings.data_dir, repo.local_path)
+                if not paths.db_path.exists():
+                    continue
+
+                db = Database(paths.db_path)
+                result = db.execute(
+                    """
+                    UPDATE generations
+                    SET status = 'failed',
+                        error_message = 'Interrupted by server restart',
+                        completed_at = datetime('now')
+                    WHERE status IN ('running', 'pending')
+                    """
+                )
+                cleaned = result.rowcount if result.rowcount else 0
+                if cleaned > 0:
+                    db.commit()
+                    total_cleaned += cleaned
+                    logger.info(f"Cleaned up {cleaned} orphaned job(s) for {repo.display_name}")
+                db.close()
+            except Exception as e:
+                logger.warning(f"Failed to cleanup jobs for repo {repo.local_path}: {e}")
+
+        return total_cleaned
+    except Exception as e:
+        logger.warning(f"Failed to cleanup orphaned jobs: {e}")
+        return 0
 
 
 def _ensure_data_dir() -> Path:
@@ -91,6 +142,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Ensure data directory exists
     _ensure_data_dir()
+
+    # Cleanup any orphaned jobs from previous runs
+    cleaned = _cleanup_orphaned_jobs()
+    if cleaned > 0:
+        logger.info(f"Cleaned up {cleaned} orphaned job(s) from previous run")
 
     logger.info("Oya started")
 
