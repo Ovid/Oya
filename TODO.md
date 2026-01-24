@@ -1,5 +1,6 @@
 # TODO
 
+* Need to add windows support (paths)
 * Fix this issue which slows us down and eats tokens when we start a worktree:
     ⏺ Bash(cd
   /Users/poecurt/projects/oya/.worktrees/collapse-excluded-dirs/backend &&
