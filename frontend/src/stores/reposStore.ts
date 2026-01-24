@@ -7,6 +7,7 @@ interface ReposState {
   repos: Repo[]
   activeRepo: Repo | null
   isLoading: boolean
+  isInitialized: boolean
   error: string | null
 }
 
@@ -16,6 +17,7 @@ interface ReposActions {
   addRepo: (url: string, displayName?: string) => Promise<Repo>
   removeRepo: (repoId: number) => Promise<void>
   setActiveRepo: (repoId: number) => Promise<void>
+  setInitialized: (initialized: boolean) => void
   clearError: () => void
 }
 
@@ -23,6 +25,7 @@ export const initialState: ReposState = {
   repos: [],
   activeRepo: null,
   isLoading: false,
+  isInitialized: false,
   error: null,
 }
 
@@ -109,6 +112,10 @@ export const useReposStore = create<ReposState & ReposActions>()(
         })
         throw e
       }
+    },
+
+    setInitialized: (initialized) => {
+      set({ isInitialized: initialized })
     },
 
     clearError: () => {

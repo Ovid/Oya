@@ -26,11 +26,12 @@ function WelcomePage() {
 function App() {
   const repos = useReposStore((s) => s.repos)
   const activeRepo = useReposStore((s) => s.activeRepo)
+  const isInitialized = useReposStore((s) => s.isInitialized)
   const fetchRepos = useReposStore((s) => s.fetchRepos)
   const fetchActiveRepo = useReposStore((s) => s.fetchActiveRepo)
 
-  // Show first-run wizard if no repos in the registry
-  const showFirstRunWizard = repos.length === 0 && activeRepo === null
+  // Show first-run wizard if no repos in the registry (only after initialization completes)
+  const showFirstRunWizard = isInitialized && repos.length === 0 && activeRepo === null
 
   const handleFirstRunComplete = async () => {
     // Refresh repos after adding first one
@@ -44,7 +45,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Layout>
+      <Layout key={activeRepo?.id ?? 'no-repo'}>
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/architecture" element={<ArchitecturePage />} />
