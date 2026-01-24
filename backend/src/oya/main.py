@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Check git is available (required for cloning repos)
     if not _check_git_available():
-        logger.warning("Git not available - some features may not work")
+        raise RuntimeError("Git is required but not found. Please install git and try again.")
 
     # Ensure data directory exists
     _ensure_data_dir()
