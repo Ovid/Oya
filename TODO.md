@@ -1,5 +1,13 @@
 # TODO
 
+* backend/src/oya/qa/cgrag.py def \_read_source_for_nodes(
+    * This could blow our context window
+
+* Why wasn't my code quality reviewer chosen?
+
+> Review the code quality of the implementation for Task 1: Add
+> app\_settings table to repo\_registry.py
+
 * The logs can get quite long. Need something like logrotate
 * Hit minimum code coverage standards and then enforce them.
 * Q&A should have an "arrow up" history
