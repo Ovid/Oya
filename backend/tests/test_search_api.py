@@ -1,35 +1,22 @@
 """Search API tests."""
 
-import subprocess
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from oya.main import app
-from oya.api.deps import get_settings, _reset_db_instance, get_db
+from oya.api.deps import get_db
 
 
 @pytest.fixture
-def workspace_with_content(tmp_path, monkeypatch):
-    """Create workspace with searchable content."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+def workspace_with_content(setup_active_repo):
+    """Create workspace with searchable content using the active repo fixture."""
+    wiki_path = setup_active_repo["wiki_path"]
 
     # Create wiki with content
-    wiki = workspace / ".oyawiki" / "wiki"
-    wiki.mkdir(parents=True)
-    (wiki / "overview.md").write_text(
+    (wiki_path / "overview.md").write_text(
         "# Authentication System\n\nThis handles user login and OAuth."
     )
-    (wiki / "architecture.md").write_text("# Architecture\n\nThe system uses FastAPI.")
-
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
+    (wiki_path / "architecture.md").write_text("# Architecture\n\nThe system uses FastAPI.")
 
     # Index content in FTS
     db = get_db()
@@ -43,9 +30,7 @@ def workspace_with_content(tmp_path, monkeypatch):
     )
     db.commit()
 
-    yield workspace
-
-    _reset_db_instance()
+    return setup_active_repo
 
 
 @pytest.fixture
