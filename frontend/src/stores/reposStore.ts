@@ -1,13 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { Repo } from '../types'
-import {
-  listRepos,
-  createRepo,
-  deleteRepo,
-  activateRepo,
-  getActiveRepo,
-} from '../api/client'
+import { listRepos, createRepo, deleteRepo, activateRepo, getActiveRepo } from '../api/client'
 
 interface ReposState {
   repos: Repo[]

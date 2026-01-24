@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { useWikiStore, useGenerationStore, useUIStore, useNoteEditorStore, useReposStore } from '../stores'
+import {
+  useWikiStore,
+  useGenerationStore,
+  useUIStore,
+  useNoteEditorStore,
+  useReposStore,
+} from '../stores'
 import { DirectoryPicker } from './DirectoryPicker'
 import { IndexingPreviewModal } from './IndexingPreviewModal'
 import { RepoDropdown } from './RepoDropdown'
@@ -110,10 +116,7 @@ export function TopBar({
           <div className="flex items-center space-x-2">
             <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Ọya</span>
             {isMultiRepoMode ? (
-              <RepoDropdown
-                onAddRepo={() => setIsAddRepoModalOpen(true)}
-                disabled={isGenerating}
-              />
+              <RepoDropdown onAddRepo={() => setIsAddRepoModalOpen(true)} disabled={isGenerating} />
             ) : (
               repoStatus && (
                 <DirectoryPicker
@@ -231,10 +234,7 @@ export function TopBar({
       />
 
       {/* Add Repo Modal */}
-      <AddRepoModal
-        isOpen={isAddRepoModalOpen}
-        onClose={() => setIsAddRepoModalOpen(false)}
-      />
+      <AddRepoModal isOpen={isAddRepoModalOpen} onClose={() => setIsAddRepoModalOpen(false)} />
     </header>
   )
 }
