@@ -394,4 +394,92 @@ describe('LogViewerModal', () => {
       expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
     })
   })
+
+  describe('keyboard shortcuts', () => {
+    it('navigates to next entry with ArrowRight key', async () => {
+      vi.mocked(api.getLogs).mockResolvedValue(mockLogsResponse)
+      render(<LogViewerModal isOpen={true} onClose={vi.fn()} repoId={1} repoName="Test Repo" />)
+      await waitFor(() => {
+        expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+      })
+      await userEvent.keyboard('{ArrowRight}')
+      expect(screen.getByText(/Entry 2 of 2/)).toBeInTheDocument()
+    })
+
+    it('navigates to previous entry with ArrowLeft key', async () => {
+      vi.mocked(api.getLogs).mockResolvedValue(mockLogsResponse)
+      render(<LogViewerModal isOpen={true} onClose={vi.fn()} repoId={1} repoName="Test Repo" />)
+      await waitFor(() => {
+        expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+      })
+      // First go to entry 2
+      await userEvent.keyboard('{ArrowRight}')
+      expect(screen.getByText(/Entry 2 of 2/)).toBeInTheDocument()
+      // Then go back
+      await userEvent.keyboard('{ArrowLeft}')
+      expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+    })
+
+    it('navigates with j/k keys', async () => {
+      vi.mocked(api.getLogs).mockResolvedValue(mockLogsResponse)
+      render(<LogViewerModal isOpen={true} onClose={vi.fn()} repoId={1} repoName="Test Repo" />)
+      await waitFor(() => {
+        expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+      })
+      await userEvent.keyboard('j') // next
+      expect(screen.getByText(/Entry 2 of 2/)).toBeInTheDocument()
+      await userEvent.keyboard('k') // previous
+      expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+    })
+
+    it('navigates to first entry with Home key', async () => {
+      vi.mocked(api.getLogs).mockResolvedValue(mockLogsResponse)
+      render(<LogViewerModal isOpen={true} onClose={vi.fn()} repoId={1} repoName="Test Repo" />)
+      await waitFor(() => {
+        expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+      })
+      // First go to last entry
+      await userEvent.keyboard('{ArrowRight}')
+      expect(screen.getByText(/Entry 2 of 2/)).toBeInTheDocument()
+      // Then go to first with Home
+      await userEvent.keyboard('{Home}')
+      expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+    })
+
+    it('navigates to last entry with End key', async () => {
+      vi.mocked(api.getLogs).mockResolvedValue(mockLogsResponse)
+      render(<LogViewerModal isOpen={true} onClose={vi.fn()} repoId={1} repoName="Test Repo" />)
+      await waitFor(() => {
+        expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+      })
+      await userEvent.keyboard('{End}')
+      expect(screen.getByText(/Entry 2 of 2/)).toBeInTheDocument()
+    })
+
+    it('closes modal with Escape key', async () => {
+      vi.mocked(api.getLogs).mockResolvedValue(mockLogsResponse)
+      const onClose = vi.fn()
+      render(<LogViewerModal isOpen={true} onClose={onClose} repoId={1} repoName="Test Repo" />)
+      await waitFor(() => {
+        expect(screen.getByText(/LLM Logs/)).toBeInTheDocument()
+      })
+      await userEvent.keyboard('{Escape}')
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it('does not trigger shortcuts when typing in search input', async () => {
+      vi.mocked(api.getLogs).mockResolvedValue(mockLogsResponse)
+      render(<LogViewerModal isOpen={true} onClose={vi.fn()} repoId={1} repoName="Test Repo" />)
+      await waitFor(() => {
+        expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+      })
+
+      // Focus search input and type 'j' - should not navigate
+      const searchInput = screen.getByPlaceholderText(/search/i)
+      await userEvent.type(searchInput, 'j')
+
+      // Should still be on entry 1, not navigated to entry 2
+      expect(screen.getByText(/Entry 1 of 2/)).toBeInTheDocument()
+    })
+  })
 })
