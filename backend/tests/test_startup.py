@@ -39,56 +39,99 @@ class TestStartupInitialization:
 
         Requirements: 2.1
         """
+        import os
+
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace_path = Path(tmpdir)
 
             # Mock the settings to return our temp directory
             mock_settings = MagicMock()
             mock_settings.workspace_path = workspace_path
+            mock_settings.db_path = workspace_path / ".oyawiki" / "meta" / "oya.db"
 
-            # We need to reload the module to pick up our patches
-            with patch("oya.config.load_settings", return_value=mock_settings):
-                with patch("oya.workspace.initialize_workspace") as mock_init:
-                    mock_init.return_value = True
+            # Set WORKSPACE_PATH env var so lifespan triggers legacy mode
+            with patch.dict(os.environ, {"WORKSPACE_PATH": str(workspace_path)}):
+                # We need to reload the module to pick up our patches
+                with patch("oya.config.load_settings", return_value=mock_settings):
+                    with patch("oya.workspace.initialize_workspace") as mock_init:
+                        mock_init.return_value = True
 
-                    # Force reimport to pick up patches
-                    if "oya.main" in sys.modules:
-                        del sys.modules["oya.main"]
+                        # Force reimport to pick up patches
+                        if "oya.main" in sys.modules:
+                            del sys.modules["oya.main"]
 
-                    from oya.main import app
+                        from oya.main import app
 
-                    # Create test client - this triggers the lifespan
-                    with TestClient(app) as client:
-                        # Verify initialize_workspace was called with the workspace path
-                        mock_init.assert_called_once_with(workspace_path)
+                        # Create test client - this triggers the lifespan
+                        with TestClient(app) as client:
+                            # Verify initialize_workspace was called with the workspace path
+                            mock_init.assert_called_once_with(workspace_path)
 
-                        # App should still be healthy
-                        response = client.get("/health")
-                        assert response.status_code == 200
+                            # App should still be healthy
+                            response = client.get("/health")
+                            assert response.status_code == 200
 
     def test_lifespan_logs_warning_on_failed_initialization(self):
         """Verify that failed initialization logs a warning but app still starts.
 
         Requirements: 2.1, 2.3 (graceful handling)
         """
+        import os
+
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace_path = Path(tmpdir)
 
             mock_settings = MagicMock()
             mock_settings.workspace_path = workspace_path
+            mock_settings.db_path = workspace_path / ".oyawiki" / "meta" / "oya.db"
 
-            with patch("oya.config.load_settings", return_value=mock_settings):
-                with patch("oya.workspace.initialize_workspace", return_value=False):
-                    # Force reimport
-                    if "oya.main" in sys.modules:
-                        del sys.modules["oya.main"]
+            # Set WORKSPACE_PATH env var so lifespan triggers legacy mode
+            with patch.dict(os.environ, {"WORKSPACE_PATH": str(workspace_path)}):
+                with patch("oya.config.load_settings", return_value=mock_settings):
+                    with patch("oya.workspace.initialize_workspace", return_value=False):
+                        # Force reimport
+                        if "oya.main" in sys.modules:
+                            del sys.modules["oya.main"]
 
-                    from oya.main import app
+                        from oya.main import app
 
-                    # App should still start and be healthy (graceful degradation)
-                    with TestClient(app) as client:
-                        response = client.get("/health")
-                        assert response.status_code == 200
+                        # App should still start and be healthy (graceful degradation)
+                        with TestClient(app) as client:
+                            response = client.get("/health")
+                            assert response.status_code == 200
+
+    def test_lifespan_works_without_workspace_path(self):
+        """Verify that the app starts in multi-repo mode without WORKSPACE_PATH.
+
+        In multi-repo mode, WORKSPACE_PATH is not required - repos are managed
+        via the repos_v2 API instead.
+        """
+        import os
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir) / ".oya"
+
+            # Remove WORKSPACE_PATH, set OYA_DATA_DIR
+            env_patch = {"OYA_DATA_DIR": str(data_dir)}
+            with patch.dict(os.environ, env_patch, clear=False):
+                # Remove WORKSPACE_PATH if it exists
+                if "WORKSPACE_PATH" in os.environ:
+                    del os.environ["WORKSPACE_PATH"]
+
+                # Force reimport
+                if "oya.main" in sys.modules:
+                    del sys.modules["oya.main"]
+
+                from oya.main import app
+
+                # App should start and be healthy
+                with TestClient(app) as client:
+                    response = client.get("/health")
+                    assert response.status_code == 200
+
+                    # Data dir should have been created
+                    assert data_dir.exists()
+                    assert (data_dir / "wikis").exists()
 
 
 def test_logging_format_includes_timestamp():
