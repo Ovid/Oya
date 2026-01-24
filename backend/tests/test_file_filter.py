@@ -537,3 +537,60 @@ def test_get_files_categorized_collects_excluded_directories(tmp_path):
 
     # src/main.py should still be included
     assert "src/main.py" in result.included
+
+
+# Edge case tests for directory collapsing
+
+
+def test_nested_excluded_dirs_only_show_outermost(tmp_path):
+    """When both parent and child match patterns, only parent appears."""
+    # .git matches ".*", .git/hooks also matches but shouldn't appear
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "hooks").mkdir()
+    (tmp_path / ".git" / "hooks" / "pre-commit").write_text("#!/bin/bash")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # Only .git should appear, not .git/hooks
+    assert ".git" in result.excluded_dirs_by_rule
+    assert ".git/hooks" not in result.excluded_dirs_by_rule
+
+
+def test_file_pattern_does_not_collapse_directory(tmp_path):
+    """File patterns like *.log should not collapse directories."""
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "app.log").write_text("log content")
+    (tmp_path / "logs" / "error.log").write_text("error content")
+    (tmp_path / "logs" / "readme.txt").write_text("log readme")
+
+    # Add *.log to oyaignore (file pattern, not directory)
+    (tmp_path / ".oyaignore").write_text("*.log\n")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # logs directory should NOT be collapsed
+    assert "logs" not in result.excluded_dirs_by_oyaignore
+
+    # Individual .log files should be listed
+    assert "logs/app.log" in result.excluded_by_oyaignore
+    assert "logs/error.log" in result.excluded_by_oyaignore
+
+    # readme.txt should be included
+    assert "logs/readme.txt" in result.included
+
+
+def test_root_directory_never_collapsed(tmp_path):
+    """Root directory should never be collapsed even if it somehow matches."""
+    (tmp_path / "main.py").write_text("print('hello')")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # Root should not appear in excluded dirs
+    assert "" not in result.excluded_dirs_by_rule
+    assert "" not in result.excluded_dirs_by_oyaignore
+
+    # Files should still be processed
+    assert "main.py" in result.included
