@@ -57,6 +57,11 @@ CREATE TABLE IF NOT EXISTS repos (
     error_message TEXT
 );
 
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_repos_origin_url ON repos(origin_url);
 CREATE INDEX IF NOT EXISTS idx_repos_status ON repos(status);
 """
@@ -176,3 +181,22 @@ class RepoRegistry:
     def close(self) -> None:
         """Close the database connection."""
         self._conn.close()
+
+    def get_setting(self, key: str) -> Optional[str]:
+        """Get an app setting by key. Returns None if not found."""
+        cursor = self._conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Set an app setting. Creates or updates."""
+        self._conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        self._conn.commit()
+
+    def delete_setting(self, key: str) -> None:
+        """Delete an app setting."""
+        self._conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+        self._conn.commit()
