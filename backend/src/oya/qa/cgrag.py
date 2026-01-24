@@ -386,6 +386,7 @@ def _read_source_for_nodes(
     nodes: list,
     source_path: Path,
     max_lines_per_file: int = 200,
+    max_total_lines: int = 1000,
 ) -> str | None:
     """Read actual source code for graph nodes.
 
@@ -393,14 +394,20 @@ def _read_source_for_nodes(
         nodes: List of Node objects with file_path, line_start, line_end.
         source_path: Path to source code directory.
         max_lines_per_file: Maximum lines to read per file.
+        max_total_lines: Maximum total lines across all files to prevent context overflow.
 
     Returns:
         Formatted source code context, or None if no files could be read.
     """
     context_parts: list[str] = []
     seen_files: set[str] = set()
+    total_lines = 0
 
     for node in nodes:
+        # Stop if we've hit the total line limit
+        if total_lines >= max_total_lines:
+            break
+
         file_path = getattr(node, "file_path", None)
         if not file_path or file_path in seen_files:
             continue
@@ -430,10 +437,21 @@ def _read_source_for_nodes(
             start_idx = max(0, start_idx - context_before)
             end_idx = min(len(lines), end_idx + context_after)
 
+            # Limit to remaining budget
+            remaining_lines = max_total_lines - total_lines
+            if remaining_lines <= 0:
+                break
+
             snippet_lines = lines[start_idx:end_idx]
             if not snippet_lines:
                 continue
 
+            # Truncate if exceeds remaining budget
+            if len(snippet_lines) > remaining_lines:
+                snippet_lines = snippet_lines[:remaining_lines]
+                end_idx = start_idx + len(snippet_lines)
+
+            total_lines += len(snippet_lines)
             snippet = "".join(snippet_lines)
 
             # Determine language for syntax highlighting hint

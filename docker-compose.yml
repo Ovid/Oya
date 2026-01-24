@@ -6,6 +6,8 @@ services:
     volumes:
       # Data directory (persistent across restarts)
       - oya-data:/root/.oya
+      # Uncomment to enable SSH key access for cloning private repositories:
+      # - ~/.ssh:/root/.ssh:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
