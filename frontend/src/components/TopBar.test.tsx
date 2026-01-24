@@ -7,28 +7,15 @@ import type { RepoStatus, WikiTree } from '../types'
 vi.mock('../api/client', () => ({
   getRepoStatus: vi.fn(),
   getWikiTree: vi.fn(),
-  switchWorkspace: vi.fn(),
-  listDirectories: vi.fn(),
-  initRepo: vi.fn(),
-  getJob: vi.fn(),
   getIndexableItems: vi.fn(),
   updateOyaignore: vi.fn(),
-  ApiError: class ApiError extends Error {
-    status: number
-    constructor(status: number, message: string) {
-      super(message)
-      this.name = 'ApiError'
-      this.status = status
-    }
-  },
 }))
 
 import { TopBar } from './TopBar'
-import { useWikiStore, useGenerationStore, useUIStore, useNoteEditorStore } from '../stores'
+import { useWikiStore, useGenerationStore, useUIStore } from '../stores'
 import { initialState as wikiInitial } from '../stores/wikiStore'
 import { initialState as genInitial } from '../stores/generationStore'
 import { initialState as uiInitial } from '../stores/uiStore'
-import { initialState as noteInitial } from '../stores/noteEditorStore'
 import * as api from '../api/client'
 
 beforeEach(() => {
@@ -38,7 +25,6 @@ beforeEach(() => {
   useWikiStore.setState(wikiInitial)
   useGenerationStore.setState(genInitial)
   useUIStore.setState(uiInitial)
-  useNoteEditorStore.setState(noteInitial)
 })
 
 const mockRepoStatus: RepoStatus = {
@@ -64,14 +50,6 @@ const mockWikiTree: WikiTree = {
   files: [],
 }
 
-const mockDirectoryListing = {
-  path: '/home/user',
-  parent: '/home',
-  entries: [
-    { name: 'project', path: '/home/user/project', is_dir: true },
-    { name: 'other', path: '/home/user/other', is_dir: true },
-  ],
-}
 
 function renderTopBar(props = {}) {
   const defaultProps = {
@@ -85,174 +63,11 @@ function renderTopBar(props = {}) {
   return render(<TopBar {...defaultProps} />)
 }
 
-describe('TopBar with DirectoryPicker', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
-    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
-    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
-
-    // Set up store state directly
-    useWikiStore.setState({
-      repoStatus: mockRepoStatus,
-      wikiTree: mockWikiTree,
-      isLoading: false,
-      error: null,
-    })
-  })
-
-  describe('DirectoryPicker rendering', () => {
-    it('renders DirectoryPicker component', async () => {
-      renderTopBar()
-
-      // DirectoryPicker should be rendered showing the current path
-      expect(screen.getByLabelText(/Current workspace/i)).toBeInTheDocument()
-    })
-
-    it('displays current workspace path from repoStatus', async () => {
-      renderTopBar()
-
-      // The path should be visible in the DirectoryPicker
-      expect(screen.getByText('/home/user/project')).toBeInTheDocument()
-    })
-  })
-
-  describe('disabled during generation', () => {
-    it('disables DirectoryPicker when generation job is running', async () => {
-      // Set up store state with a running job
-      useGenerationStore.setState({
-        currentJob: {
-          job_id: 'job-123',
-          type: 'generation',
-          status: 'running',
-          started_at: null,
-          completed_at: null,
-          current_phase: null,
-          total_phases: null,
-          error_message: null,
-        },
-      })
-
-      renderTopBar()
-
-      // DirectoryPicker should be disabled
-      const picker = screen.getByLabelText(/Current workspace/i)
-      expect(picker).toBeDisabled()
-    })
-
-    it('shows disabled reason when generation is in progress', async () => {
-      // Set up store state with a running job
-      useGenerationStore.setState({
-        currentJob: {
-          job_id: 'job-123',
-          type: 'generation',
-          status: 'running',
-          started_at: null,
-          completed_at: null,
-          current_phase: null,
-          total_phases: null,
-          error_message: null,
-        },
-      })
-
-      renderTopBar()
-
-      // Should show disabled reason
-      expect(screen.getByTitle(/Cannot switch during generation/i)).toBeInTheDocument()
-    })
-  })
-
-  describe('unsaved changes confirmation', () => {
-    it('prompts for confirmation when noteEditor.isDirty is true and switching workspace', async () => {
-      // Mock window.confirm
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-
-      vi.mocked(api.switchWorkspace).mockResolvedValue({
-        status: { ...mockRepoStatus, path: '/home/user/other' },
-        message: 'Workspace switched',
-      })
-
-      // Set note editor as dirty directly in the store
-      useNoteEditorStore.setState({ isDirty: true })
-
-      renderTopBar()
-
-      // Click on the DirectoryPicker to open modal
-      const picker = screen.getByLabelText(/Current workspace/i)
-      await userEvent.click(picker)
-
-      // Wait for modal to open and directories to load
-      await waitFor(() => {
-        expect(screen.getByText('Select Workspace')).toBeInTheDocument()
-      })
-
-      // Navigate to a different directory
-      await userEvent.click(screen.getByText('other'))
-
-      // Wait for navigation
-      await waitFor(() => {
-        expect(api.listDirectories).toHaveBeenCalledWith('/home/user/other')
-      })
-
-      // Click Select to switch
-      await userEvent.click(screen.getByText('Select'))
-
-      // Confirmation dialog should have been shown
-      expect(confirmSpy).toHaveBeenCalledWith(
-        'You have unsaved changes. Are you sure you want to switch workspaces?'
-      )
-
-      // Since we returned false, the switch should not have happened
-      expect(api.switchWorkspace).not.toHaveBeenCalled()
-
-      confirmSpy.mockRestore()
-    })
-
-    it('proceeds with switch when user confirms', async () => {
-      // Mock window.confirm to return true
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-
-      vi.mocked(api.switchWorkspace).mockResolvedValue({
-        status: { ...mockRepoStatus, path: '/home/user/other' },
-        message: 'Workspace switched',
-      })
-
-      // Set note editor as dirty directly in the store
-      useNoteEditorStore.setState({ isDirty: true })
-
-      renderTopBar()
-
-      // Click on the DirectoryPicker to open modal
-      const picker = screen.getByLabelText(/Current workspace/i)
-      await userEvent.click(picker)
-
-      // Wait for modal to open
-      await waitFor(() => {
-        expect(screen.getByText('Select Workspace')).toBeInTheDocument()
-      })
-
-      // Click Select to switch (using current browsed path)
-      await userEvent.click(screen.getByText('Select'))
-
-      // Confirmation dialog should have been shown
-      expect(confirmSpy).toHaveBeenCalled()
-
-      // Since we returned true, the switch should have happened
-      await waitFor(() => {
-        expect(api.switchWorkspace).toHaveBeenCalled()
-      })
-
-      confirmSpy.mockRestore()
-    })
-  })
-})
-
 describe('Generate Wiki Button', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
-    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
     vi.mocked(api.getIndexableItems).mockResolvedValue({
       included: {
         directories: ['src', 'tests'],
@@ -339,7 +154,6 @@ describe('Ask button during generation', () => {
     vi.clearAllMocks()
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
-    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
 
     // Set up store state directly
     useWikiStore.setState({
@@ -387,7 +201,6 @@ describe('pending job status handling', () => {
     vi.clearAllMocks()
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
-    vi.mocked(api.listDirectories).mockResolvedValue(mockDirectoryListing)
 
     useWikiStore.setState({
       repoStatus: mockRepoStatus,
@@ -395,26 +208,6 @@ describe('pending job status handling', () => {
       isLoading: false,
       error: null,
     })
-  })
-
-  it('disables DirectoryPicker when job is pending', async () => {
-    useGenerationStore.setState({
-      currentJob: {
-        job_id: 'job-123',
-        type: 'generation',
-        status: 'pending',
-        started_at: null,
-        completed_at: null,
-        current_phase: null,
-        total_phases: null,
-        error_message: null,
-      },
-    })
-
-    renderTopBar()
-
-    const picker = screen.getByLabelText(/Current workspace/i)
-    expect(picker).toBeDisabled()
   })
 
   it('disables Ask button when job is pending', async () => {

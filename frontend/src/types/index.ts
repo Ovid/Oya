@@ -151,19 +151,6 @@ export interface WorkspaceSwitchResponse {
   message: string
 }
 
-// Directory Browser Types
-export interface DirectoryEntry {
-  name: string
-  path: string
-  is_dir: boolean
-}
-
-export interface DirectoryListing {
-  path: string
-  parent: string | null
-  entries: DirectoryEntry[]
-}
-
 // Generation Status Types
 export interface GenerationStatus {
   status: 'incomplete'

@@ -13,7 +13,6 @@ import type {
   NoteCreate,
   Note,
   WorkspaceSwitchResponse,
-  DirectoryListing,
   GenerationStatus,
   IndexableItems,
   OyaignoreUpdateRequest,
@@ -70,11 +69,6 @@ export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResp
     method: 'POST',
     body: JSON.stringify({ path }),
   })
-}
-
-export async function listDirectories(path?: string): Promise<DirectoryListing> {
-  const params = path ? `?path=${encodeURIComponent(path)}` : ''
-  return fetchJson<DirectoryListing>(`/api/repos/directories${params}`)
 }
 
 export async function getIndexableItems(): Promise<IndexableItems> {

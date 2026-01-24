@@ -1,12 +1,5 @@
 import { useState } from 'react'
-import {
-  useWikiStore,
-  useGenerationStore,
-  useUIStore,
-  useNoteEditorStore,
-  useReposStore,
-} from '../stores'
-import { DirectoryPicker } from './DirectoryPicker'
+import { useWikiStore, useGenerationStore, useUIStore } from '../stores'
 import { IndexingPreviewModal } from './IndexingPreviewModal'
 import { RepoDropdown } from './RepoDropdown'
 import { AddRepoModal } from './AddRepoModal'
@@ -26,33 +19,16 @@ export function TopBar({
 }: TopBarProps) {
   const repoStatus = useWikiStore((s) => s.repoStatus)
   const wikiIsLoading = useWikiStore((s) => s.isLoading)
-  const switchWorkspace = useWikiStore((s) => s.switchWorkspace)
   const currentJob = useGenerationStore((s) => s.currentJob)
   const generationIsLoading = useGenerationStore((s) => s.isLoading)
   const startGeneration = useGenerationStore((s) => s.startGeneration)
   const darkMode = useUIStore((s) => s.darkMode)
   const toggleDarkMode = useUIStore((s) => s.toggleDarkMode)
-  const noteEditorIsDirty = useNoteEditorStore((s) => s.isDirty)
-  const activeRepo = useReposStore((s) => s.activeRepo)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false)
 
   const isLoading = wikiIsLoading || generationIsLoading
   const isGenerating = currentJob?.status === 'running' || currentJob?.status === 'pending'
-  const hasUnsavedChanges = noteEditorIsDirty
-
-  const handleWorkspaceSwitch = async (path: string) => {
-    if (hasUnsavedChanges) {
-      const confirmed = window.confirm(
-        'You have unsaved changes. Are you sure you want to switch workspaces?'
-      )
-      if (!confirmed) return
-    }
-    await switchWorkspace(path)
-  }
-
-  // Check if we're in multi-repo mode (has repos in store)
-  const isMultiRepoMode = activeRepo !== null
 
   const getStatusBadge = () => {
     if (isLoading) {
@@ -115,19 +91,7 @@ export function TopBar({
 
           <div className="flex items-center space-x-2">
             <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Ọya</span>
-            {isMultiRepoMode ? (
-              <RepoDropdown onAddRepo={() => setIsAddRepoModalOpen(true)} disabled={isGenerating} />
-            ) : (
-              repoStatus && (
-                <DirectoryPicker
-                  currentPath={repoStatus.path}
-                  isDocker={repoStatus.is_docker}
-                  onSwitch={handleWorkspaceSwitch}
-                  disabled={isGenerating}
-                  disabledReason={isGenerating ? 'Cannot switch during generation' : undefined}
-                />
-              )
-            )}
+            <RepoDropdown onAddRepo={() => setIsAddRepoModalOpen(true)} disabled={isGenerating} />
           </div>
         </div>
 
