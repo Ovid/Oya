@@ -4,6 +4,7 @@ import { useWikiStore, initialState as wikiInitial } from './wikiStore'
 import { useGenerationStore, initialState as genInitial } from './generationStore'
 import { useReposStore, initialState as reposInitial } from './reposStore'
 import * as api from '../api/client'
+import type { Repo } from '../types'
 
 vi.mock('../api/client', () => ({
   getRepoStatus: vi.fn(),
@@ -38,14 +39,22 @@ const mockWikiTree = {
   files: [],
 }
 
-const mockRepo = {
+const mockRepo: Repo = {
   id: 1,
-  url: 'https://github.com/test/repo',
-  display_name: 'Test Repo',
+  origin_url: 'https://github.com/test/repo',
+  source_type: 'github',
   local_path: '/test/repo',
-  source_type: 'github' as const,
+  display_name: 'Test Repo',
+  head_commit: null,
+  branch: null,
   created_at: '2024-01-01T00:00:00Z',
-  last_accessed_at: null,
+  last_pulled: null,
+  last_generated: null,
+  generation_duration_secs: null,
+  files_processed: null,
+  pages_generated: null,
+  status: 'ready',
+  error_message: null,
 }
 
 beforeEach(() => {
@@ -57,7 +66,7 @@ beforeEach(() => {
 
 describe('initializeApp', () => {
   it('loads repo status and wiki tree', async () => {
-    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [], total: 0 })
     vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
@@ -72,7 +81,7 @@ describe('initializeApp', () => {
   })
 
   it('detects incomplete build and clears wiki tree', async () => {
-    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [], total: 0 })
     vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
@@ -89,7 +98,7 @@ describe('initializeApp', () => {
   })
 
   it('restores running job', async () => {
-    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [], total: 0 })
     vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
@@ -113,9 +122,9 @@ describe('initializeApp', () => {
   })
 
   it('auto-selects first repo when repos exist but none is active', async () => {
-    vi.mocked(api.listRepos).mockResolvedValue({ repos: [mockRepo] })
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [mockRepo], total: 1 })
     vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
-    vi.mocked(api.activateRepo).mockResolvedValue({ success: true })
+    vi.mocked(api.activateRepo).mockResolvedValue({ active_repo_id: mockRepo.id })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
     vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
@@ -127,7 +136,7 @@ describe('initializeApp', () => {
   })
 
   it('does not auto-select when an active repo already exists', async () => {
-    vi.mocked(api.listRepos).mockResolvedValue({ repos: [mockRepo] })
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [mockRepo], total: 1 })
     vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: mockRepo })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
@@ -140,7 +149,7 @@ describe('initializeApp', () => {
   })
 
   it('does not auto-select when no repos exist', async () => {
-    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [], total: 0 })
     vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
