@@ -230,3 +230,14 @@ export interface ActivateRepoResponse {
 export interface ActiveRepoResponse {
   active_repo: Repo | null
 }
+
+// Logs Types
+export interface LogsResponse {
+  content: string
+  size_bytes: number
+  entry_count: number
+}
+
+export interface DeleteLogsResponse {
+  message: string
+}
