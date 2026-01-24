@@ -47,6 +47,9 @@ export function RepoDropdown({ onAddRepo, disabled }: RepoDropdownProps) {
       setIsOpen(false)
 
       // Refresh wiki data for the new repo
+      // Note: We clear the job tracker here because the job belongs to the previous repo.
+      // Any ongoing generation continues server-side; refreshStatus() will pick it up
+      // if the user switches back to that repo.
       setCurrentJob(null)
       await refreshStatus()
       await refreshTree()
