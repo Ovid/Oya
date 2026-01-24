@@ -246,3 +246,43 @@ async def test_workspace_without_oyaignore(client, setup_active_repo):
 
     # excluded_by_oyaignore should be empty
     assert len(data["excluded_by_oyaignore"]["files"]) == 0
+
+
+async def test_excluded_directory_children_not_listed(client, temp_workspace):
+    """Files inside explicitly excluded directories should not appear individually."""
+    # Create a deeply nested structure in node_modules
+    (temp_workspace / "node_modules" / "lodash").mkdir(parents=True)
+    (temp_workspace / "node_modules" / "lodash" / "index.js").write_text("module.exports = {}")
+    (temp_workspace / "node_modules" / "lodash" / "fp.js").write_text("module.exports = {}")
+
+    response = await client.get("/api/repos/indexable")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # node_modules directory should be in excluded_by_rule directories
+    assert "node_modules" in data["excluded_by_rule"]["directories"]
+
+    # Individual files inside should NOT be listed
+    assert "node_modules/dep.js" not in data["excluded_by_rule"]["files"]
+    assert "node_modules/lodash/index.js" not in data["excluded_by_rule"]["files"]
+    assert "node_modules/lodash/fp.js" not in data["excluded_by_rule"]["files"]
+
+
+async def test_oyaignore_directory_children_not_listed(client, temp_workspace):
+    """Files inside directories excluded by .oyaignore should not appear individually."""
+    # Create nested files in excluded_dir (already excluded by .oyaignore in fixture)
+    (temp_workspace / "excluded_dir" / "subdir").mkdir()
+    (temp_workspace / "excluded_dir" / "subdir" / "deep.py").write_text("# deep file")
+
+    response = await client.get("/api/repos/indexable")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # excluded_dir should be in directories
+    assert "excluded_dir" in data["excluded_by_oyaignore"]["directories"]
+
+    # Individual files should NOT be listed
+    assert "excluded_dir/file.py" not in data["excluded_by_oyaignore"]["files"]
+    assert "excluded_dir/subdir/deep.py" not in data["excluded_by_oyaignore"]["files"]

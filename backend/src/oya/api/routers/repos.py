@@ -58,10 +58,21 @@ async def get_indexable_items(
         file_filter = FileFilter(source_path)
         categorized = file_filter.get_files_categorized()
 
-        # Derive directories from file paths for each category
+        # For included, derive directories from files
         included_dirs = extract_directories_from_files(categorized.included)
-        oyaignore_dirs = extract_directories_from_files(categorized.excluded_by_oyaignore)
-        rule_dirs = extract_directories_from_files(categorized.excluded_by_rule)
+
+        # Combine file-derived directories with explicitly excluded directories
+        rule_dirs = list(
+            set(extract_directories_from_files(categorized.excluded_by_rule))
+            | set(categorized.excluded_dirs_by_rule)
+        )
+        rule_dirs.sort()
+
+        oyaignore_dirs = list(
+            set(extract_directories_from_files(categorized.excluded_by_oyaignore))
+            | set(categorized.excluded_dirs_by_oyaignore)
+        )
+        oyaignore_dirs.sort()
 
         # Remove root directory ("") from oyaignore and rule dirs since it's always in included
         oyaignore_dirs = [d for d in oyaignore_dirs if d != ""]
