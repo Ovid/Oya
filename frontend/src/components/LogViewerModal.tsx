@@ -381,9 +381,7 @@ export function LogViewerModal({ isOpen, onClose, repoId, repoName }: LogViewerM
                 )}
                 {'provider' in currentEntry && currentEntry.provider != null && (
                   <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                      Provider:{' '}
-                    </span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">Provider: </span>
                     <span className="text-gray-600 dark:text-gray-400">
                       {String(currentEntry.provider)}
                     </span>
