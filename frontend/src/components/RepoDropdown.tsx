@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useReposStore } from '../stores'
+import { useReposStore, useWikiStore, useGenerationStore } from '../stores'
 import type { Repo } from '../types'
 
 interface RepoDropdownProps {
@@ -15,6 +15,9 @@ export function RepoDropdown({ onAddRepo, disabled }: RepoDropdownProps) {
   const activeRepo = useReposStore((s) => s.activeRepo)
   const setActiveRepo = useReposStore((s) => s.setActiveRepo)
   const isLoading = useReposStore((s) => s.isLoading)
+  const refreshStatus = useWikiStore((s) => s.refreshStatus)
+  const refreshTree = useWikiStore((s) => s.refreshTree)
+  const setCurrentJob = useGenerationStore((s) => s.setCurrentJob)
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -42,6 +45,11 @@ export function RepoDropdown({ onAddRepo, disabled }: RepoDropdownProps) {
     try {
       await setActiveRepo(repo.id)
       setIsOpen(false)
+
+      // Refresh wiki data for the new repo
+      setCurrentJob(null)
+      await refreshStatus()
+      await refreshTree()
     } catch {
       // Error is handled in store
     }

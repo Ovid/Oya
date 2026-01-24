@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { NotFound } from './components/NotFound'
+import { FirstRunWizard } from './components/FirstRunWizard'
+import { useReposStore, useWikiStore } from './stores'
 import {
   OverviewPage,
   ArchitecturePage,
@@ -22,6 +24,32 @@ function WelcomePage() {
 }
 
 function App() {
+  const repos = useReposStore((s) => s.repos)
+  const activeRepo = useReposStore((s) => s.activeRepo)
+  const repoStatus = useWikiStore((s) => s.repoStatus)
+  const fetchRepos = useReposStore((s) => s.fetchRepos)
+  const fetchActiveRepo = useReposStore((s) => s.fetchActiveRepo)
+
+  // Determine if we're in legacy mode (WORKSPACE_PATH set, no multi-repo)
+  // or multi-repo mode (repos loaded from registry)
+  const isLegacyMode = repoStatus !== null && repos.length === 0
+
+  // Show first-run wizard if:
+  // - Not in legacy mode (WORKSPACE_PATH not set)
+  // - No repos in the registry
+  // - No active repo
+  const showFirstRunWizard = !isLegacyMode && repos.length === 0 && activeRepo === null
+
+  const handleFirstRunComplete = async () => {
+    // Refresh repos after adding first one
+    await fetchRepos()
+    await fetchActiveRepo()
+  }
+
+  if (showFirstRunWizard) {
+    return <FirstRunWizard onComplete={handleFirstRunComplete} />
+  }
+
   return (
     <BrowserRouter>
       <Layout>
