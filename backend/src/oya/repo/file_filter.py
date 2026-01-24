@@ -116,7 +116,7 @@ class FileFilter:
             ignore_filename = settings.paths.ignore_file
             default_max_file_size_kb = settings.files.max_file_size_kb
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             pass
 
         # Get max_file_size_kb from settings if not provided

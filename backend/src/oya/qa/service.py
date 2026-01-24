@@ -247,7 +247,7 @@ class QAService:
             settings = load_settings()
             dedup_hash_length = settings.search.dedup_hash_length
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             dedup_hash_length = 500  # Default from CONFIG_SCHEMA
 
         for r in results:
@@ -282,7 +282,7 @@ class QAService:
             high_confidence_threshold = settings.ask.high_confidence_threshold
             medium_confidence_threshold = settings.ask.medium_confidence_threshold
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             strong_match_threshold = 0.5  # Default from CONFIG_SCHEMA
             min_strong_matches = 3  # Default from CONFIG_SCHEMA
             high_confidence_threshold = 0.3  # Default from CONFIG_SCHEMA
@@ -354,7 +354,7 @@ class QAService:
             max_result_tokens = settings.ask.max_result_tokens
             max_context_tokens = settings.ask.max_context_tokens
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             max_result_tokens = 1500  # Default from CONFIG_SCHEMA
             max_context_tokens = 6000  # Default from CONFIG_SCHEMA
 
@@ -413,7 +413,7 @@ Answer the question based only on the context provided. Include citations to spe
             graph_expansion_confidence = settings.ask.graph_expansion_confidence_threshold
             max_context_tokens = settings.ask.max_context_tokens
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             graph_expansion_hops = 2  # Default from CONFIG_SCHEMA
             graph_expansion_confidence = 0.5  # Default from CONFIG_SCHEMA
             max_context_tokens = 6000  # Default from CONFIG_SCHEMA

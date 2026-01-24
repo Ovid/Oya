@@ -89,7 +89,7 @@ def _create_snippet(content: str, query: str, max_length: int | None = None) -> 
             settings = load_settings()
             max_length = settings.search.snippet_max_length
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             max_length = 200  # Default from CONFIG_SCHEMA
     lower_content = content.lower()
     lower_query = query.lower()

@@ -18,14 +18,14 @@ from hypothesis import given, settings as hypothesis_settings, HealthCheck
 from hypothesis import strategies as st
 
 from oya.main import app
-from oya.api.deps import get_settings, _reset_db_instance
 
 
 @pytest.fixture
-def temp_workspace_with_oyaignore(tmp_path, monkeypatch):
-    """Create workspace with existing .oyaignore."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
+def temp_workspace_with_oyaignore(setup_active_repo):
+    """Create workspace with existing .oyaignore using active repo fixture."""
+    workspace = setup_active_repo["source_path"]
+    paths = setup_active_repo["paths"]
+    workspace.mkdir(parents=True, exist_ok=True)
 
     # Initialize git repo
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
@@ -46,21 +46,11 @@ def temp_workspace_with_oyaignore(tmp_path, monkeypatch):
     subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=workspace, capture_output=True)
 
-    # Create existing .oyaignore
-    (workspace / ".oyaignore").write_text("excluded_dir/\nexcluded_file.txt\nold_pattern/\n")
+    # Create existing .oyaignore in meta directory (where API expects it)
+    paths.oyaignore.write_text("excluded_dir/\nexcluded_file.txt\nold_pattern/\n")
 
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    # Clear caches
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
-
-    yield workspace
-
-    _reset_db_instance()
+    # Return both workspace and paths for tests that need to check .oyaignore
+    return {"workspace": workspace, "paths": paths}
 
 
 @pytest.fixture
@@ -101,7 +91,7 @@ async def test_oyaignore_removal_basic(client, temp_workspace_with_oyaignore):
     assert "old_pattern/" in data["removed"]
 
     # Verify file content
-    oyaignore_content = (temp_workspace_with_oyaignore / ".oyaignore").read_text()
+    oyaignore_content = temp_workspace_with_oyaignore["paths"].oyaignore.read_text()
     assert "excluded_file.txt" in oyaignore_content
     assert "excluded_dir" not in oyaignore_content
     assert "old_pattern" not in oyaignore_content
@@ -127,7 +117,7 @@ async def test_oyaignore_removal_normalizes_trailing_slash(client, temp_workspac
     assert "excluded_dir/" in data["removed"]
 
     # Verify file content
-    oyaignore_content = (temp_workspace_with_oyaignore / ".oyaignore").read_text()
+    oyaignore_content = temp_workspace_with_oyaignore["paths"].oyaignore.read_text()
     assert "excluded_dir" not in oyaignore_content
     assert "excluded_file.txt" in oyaignore_content
 
@@ -151,7 +141,7 @@ async def test_oyaignore_removal_file_pattern(client, temp_workspace_with_oyaign
     assert "excluded_file.txt" in data["removed"]
 
     # Verify file content
-    oyaignore_content = (temp_workspace_with_oyaignore / ".oyaignore").read_text()
+    oyaignore_content = temp_workspace_with_oyaignore["paths"].oyaignore.read_text()
     assert "excluded_file.txt" not in oyaignore_content
     assert "excluded_dir/" in oyaignore_content
 
@@ -175,7 +165,7 @@ async def test_oyaignore_removal_nonexistent_pattern(client, temp_workspace_with
     assert data["total_removed"] == 0
 
     # Verify file content unchanged (except possibly whitespace)
-    oyaignore_content = (temp_workspace_with_oyaignore / ".oyaignore").read_text()
+    oyaignore_content = temp_workspace_with_oyaignore["paths"].oyaignore.read_text()
     assert "excluded_dir/" in oyaignore_content
     assert "excluded_file.txt" in oyaignore_content
     assert "old_pattern/" in oyaignore_content
@@ -208,7 +198,7 @@ async def test_oyaignore_removal_then_addition(client, temp_workspace_with_oyaig
     assert data["total_added"] == 2
 
     # Verify file content
-    oyaignore_content = (temp_workspace_with_oyaignore / ".oyaignore").read_text()
+    oyaignore_content = temp_workspace_with_oyaignore["paths"].oyaignore.read_text()
     assert "excluded_dir" not in oyaignore_content
     assert "old_pattern" not in oyaignore_content
     assert "excluded_file.txt" in oyaignore_content  # Not removed
@@ -236,7 +226,7 @@ async def test_oyaignore_removal_and_readd_same_pattern(client, temp_workspace_w
     assert "excluded_dir/" in data["added_directories"]
 
     # Verify file content - pattern should be present
-    oyaignore_content = (temp_workspace_with_oyaignore / ".oyaignore").read_text()
+    oyaignore_content = temp_workspace_with_oyaignore["paths"].oyaignore.read_text()
     assert "excluded_dir/" in oyaignore_content
 
 
@@ -323,7 +313,7 @@ async def test_oyaignore_default_removals_field(client, temp_workspace_with_oyai
 async def test_oyaignore_removal_preserves_comments(client, temp_workspace_with_oyaignore):
     """Test that removals preserve comments in .oyaignore."""
     # Add comments to the file
-    oyaignore_path = temp_workspace_with_oyaignore / ".oyaignore"
+    oyaignore_path = temp_workspace_with_oyaignore["paths"].oyaignore
     oyaignore_path.write_text(
         "# Header comment\nexcluded_dir/\n# Another comment\nexcluded_file.txt\nold_pattern/\n"
     )
@@ -346,10 +336,10 @@ async def test_oyaignore_removal_preserves_comments(client, temp_workspace_with_
     assert "excluded_dir" not in content
 
 
-async def test_oyaignore_removal_no_oyaignore_file(client, tmp_path, monkeypatch):
+async def test_oyaignore_removal_no_oyaignore_file(client, setup_active_repo):
     """Test removals when .oyaignore doesn't exist."""
-    workspace = tmp_path / "workspace_no_oyaignore"
-    workspace.mkdir()
+    workspace = setup_active_repo["source_path"]
+    workspace.mkdir(parents=True, exist_ok=True)
 
     # Initialize git repo
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
@@ -361,13 +351,7 @@ async def test_oyaignore_removal_no_oyaignore_file(client, tmp_path, monkeypatch
     subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Initial"], cwd=workspace, capture_output=True)
 
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
+    # No .oyaignore file
 
     response = await client.post(
         "/api/repos/oyaignore",
@@ -409,7 +393,7 @@ async def test_oyaignore_removal_all_patterns(client, temp_workspace_with_oyaign
     assert data["total_removed"] == 3
 
     # File should be empty (or contain only whitespace/newlines)
-    oyaignore_path = temp_workspace_with_oyaignore / ".oyaignore"
+    oyaignore_path = temp_workspace_with_oyaignore["paths"].oyaignore
     content = oyaignore_path.read_text()
     # Only whitespace should remain
     assert content.strip() == ""
@@ -432,10 +416,12 @@ class TestOyaignoreRemovalsPropertyTests:
     """Property-based tests for oyaignore removals."""
 
     @pytest.fixture
-    def temp_workspace_property(self, tmp_path, monkeypatch):
-        """Create a temporary workspace for property tests."""
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
+    def temp_workspace_property(self, setup_active_repo):
+        """Create a temporary workspace for property tests using active repo fixture."""
+        workspace = setup_active_repo["source_path"]
+        paths = setup_active_repo["paths"]
+        workspace.mkdir(parents=True, exist_ok=True)
+
         subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
@@ -446,17 +432,7 @@ class TestOyaignoreRemovalsPropertyTests:
         subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
         subprocess.run(["git", "commit", "-m", "Initial"], cwd=workspace, capture_output=True)
 
-        monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-        from oya.config import load_settings
-
-        load_settings.cache_clear()
-        get_settings.cache_clear()
-        _reset_db_instance()
-
-        yield workspace
-
-        _reset_db_instance()
+        return {"workspace": workspace, "paths": paths}
 
     @given(
         existing_patterns=st.lists(pattern_strategy, min_size=1, max_size=10, unique=True),
@@ -474,7 +450,7 @@ class TestOyaignoreRemovalsPropertyTests:
         from httpx import ASGITransport, AsyncClient
         from oya.main import app
 
-        oyaignore_path = temp_workspace_property / ".oyaignore"
+        oyaignore_path = temp_workspace_property["paths"].oyaignore
 
         # Normalize existing patterns (directories get trailing slash)
         normalized_existing = []

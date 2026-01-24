@@ -1,5 +1,7 @@
 """Tests for RepoPaths utility class."""
 
+import pytest
+
 from oya.repo.repo_paths import RepoPaths
 
 
@@ -128,3 +130,45 @@ def test_repo_paths_delete_all_nonexistent(tmp_path):
     paths.delete_all()
 
     assert not paths.root.exists()
+
+
+# =============================================================================
+# Path Traversal Security Tests
+# =============================================================================
+
+
+def test_repo_paths_rejects_dotdot_in_local_path(tmp_path):
+    """RepoPaths rejects local_path containing '..' (path traversal)."""
+    data_dir = tmp_path / ".oya"
+
+    with pytest.raises(ValueError, match="Invalid local_path"):
+        RepoPaths(data_dir, "github.com/user/../../../etc")
+
+
+def test_repo_paths_rejects_leading_slash(tmp_path):
+    """RepoPaths rejects local_path starting with '/'."""
+    data_dir = tmp_path / ".oya"
+
+    with pytest.raises(ValueError, match="Invalid local_path"):
+        RepoPaths(data_dir, "/etc/passwd")
+
+
+def test_repo_paths_rejects_dotdot_in_repo_name(tmp_path):
+    """RepoPaths rejects '..' embedded in repo name."""
+    data_dir = tmp_path / ".oya"
+
+    with pytest.raises(ValueError, match="Invalid local_path"):
+        RepoPaths(data_dir, "github.com/owner/repo..name")
+
+
+def test_repo_paths_allows_dots_in_valid_names(tmp_path):
+    """RepoPaths allows single dots in valid path components."""
+    data_dir = tmp_path / ".oya"
+
+    # Valid: single dots are fine (like file.txt)
+    paths = RepoPaths(data_dir, "github.com/owner/repo.name")
+    assert paths.root == data_dir / "wikis" / "github.com" / "owner" / "repo.name"
+
+    # Valid: .dotfile style names
+    paths = RepoPaths(data_dir, "github.com/owner/.dotfiles")
+    assert paths.root == data_dir / "wikis" / "github.com" / "owner" / ".dotfiles"

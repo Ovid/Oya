@@ -4,6 +4,7 @@
 import logging
 from pathlib import Path
 
+from oya.config import EXTENSION_LANGUAGES
 from oya.generation.mermaid import ClassDiagramGenerator, DependencyGraphGenerator
 from oya.generation.mermaid_validator import validate_mermaid
 from oya.generation.overview import GeneratedPage
@@ -12,32 +13,6 @@ from oya.generation.summaries import FileSummary, SummaryParser, path_to_slug
 from oya.parsing.models import ParsedSymbol
 
 logger = logging.getLogger(__name__)
-
-
-# Extension to language mapping for syntax highlighting
-EXTENSION_LANGUAGES = {
-    ".py": "python",
-    ".js": "javascript",
-    ".ts": "typescript",
-    ".tsx": "tsx",
-    ".jsx": "jsx",
-    ".java": "java",
-    ".go": "go",
-    ".rs": "rust",
-    ".rb": "ruby",
-    ".php": "php",
-    ".c": "c",
-    ".cpp": "cpp",
-    ".cs": "csharp",
-    ".swift": "swift",
-    ".kt": "kotlin",
-    ".sh": "bash",
-    ".sql": "sql",
-    ".json": "json",
-    ".yaml": "yaml",
-    ".yml": "yaml",
-    ".md": "markdown",
-}
 
 
 class FileGenerator:

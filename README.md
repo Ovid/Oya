@@ -25,7 +25,7 @@ Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
 - **Evidence-Gated Q&A** - Ask questions about your code with answers backed by citations
 - **Human Corrections** - Add notes to fix AI mistakes; corrections are treated as ground truth in regeneration
 - **Multi-Repository Support** - Manage wikis for multiple repositories from a single instance
-- **Local-First** - All data stays local under `~/.oya/` (multi-repo) or `.oyawiki/` (legacy)
+- **Local-First** - All data stays local under `~/.oya/`
 - **Multi-Provider LLM Support** - Works with OpenAI, Anthropic, Google, or local Ollama
 
 ![Analyzing Codebase](images/analyzing-codebase.png)
@@ -67,12 +67,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run the API server (multi-repo mode - no env vars needed)
+# Run the API server
 uvicorn oya.main:app --reload
-
-# Or for legacy single-repo mode:
-# export WORKSPACE_PATH=/path/to/your/repo
-# uvicorn oya.main:app --reload
 ```
 
 **Frontend:**
@@ -89,19 +85,13 @@ npm run dev
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OYA_DATA_DIR` | Directory for multi-repo data storage | `~/.oya` |
-| `WORKSPACE_PATH` | Path to repository (legacy single-repo mode) | *Optional* |
+| `OYA_DATA_DIR` | Directory for data storage | `~/.oya` |
 | `ACTIVE_PROVIDER` | LLM provider (`openai`, `anthropic`, `google`, `ollama`) | Auto-detected |
 | `ACTIVE_MODEL` | Model name | Provider default |
 | `OPENAI_API_KEY` | OpenAI API key | - |
 | `ANTHROPIC_API_KEY` | Anthropic API key | - |
 | `GOOGLE_API_KEY` | Google AI API key | - |
 | `OLLAMA_ENDPOINT` | Ollama server URL | `http://localhost:11434` |
-
-### Multi-Repo vs Legacy Mode
-
-- **Multi-repo mode** (default): Repositories are added via the UI and stored under `~/.oya/wikis/`. Each repo has its own `source/` (git clone) and `meta/` (wiki artifacts) directories.
-- **Legacy mode**: Set `WORKSPACE_PATH` to use the old single-repo behavior where wiki is stored in `.oyawiki/` within the target repo.
 
 ## Project Structure
 
