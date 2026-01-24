@@ -1,5 +1,14 @@
 # TODO
 
+* Fix this issue which slows us down and eats tokens when we start a worktree:
+    ⏺ Bash(cd
+  /Users/poecurt/projects/oya/.worktrees/collapse-excluded-dirs/backend &&
+  python3 -m venv .venv && source .venv/bin/activate && pip install -e
+  ".[dev]" -q 2>&…)
+    ⎿  ERROR: Cannot install oya because these package versions have
+    conflicting dependencies.
+         ERROR: ResolutionImpossible: for help visit
+         https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts
 * backend/src/oya/qa/cgrag.py def \_read_source_for_nodes(
     * This could blow our context window
 
