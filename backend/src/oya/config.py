@@ -226,15 +226,11 @@ def _load_section(
 def _load_config(config_path: Optional[Path] = None) -> "Config":
     """Load configuration from an INI file (internal use only).
 
-    This is an internal function called by load_settings(). It returns a Config
-    with a placeholder workspace_path that load_settings() will replace with
-    the actual workspace path from WORKSPACE_PATH environment variable.
-
     Args:
         config_path: Path to config file. If None, uses defaults from schema.
 
     Returns:
-        Config object with all sections populated (workspace_path is placeholder)
+        Config object with all sections populated
 
     Raises:
         ConfigError: If validation fails
@@ -260,9 +256,8 @@ def _load_config(config_path: Optional[Path] = None) -> "Config":
     llm = LLMConfig(**llm_values)
     paths = PathsConfig(**paths_values)
 
-    # Create Config with placeholder workspace_path (will be set by load_settings)
     return Config(
-        workspace_path=Path("."),  # Placeholder, will be overwritten
+        workspace_path=None,
         generation=generation,
         files=files,
         ask=ask,
@@ -284,14 +279,13 @@ class Config:
     This replaces the old Settings class while maintaining backward compatibility
     with existing code that accesses settings properties.
 
-    In multi-repo mode, workspace_path may be None. Use the active repo context
-    from deps.py instead of workspace_path-derived properties in that case.
+    workspace_path is always None. Use the active repo context from deps.py
+    for workspace-relative paths.
     """
 
-    # Core settings - workspace_path is optional for multi-repo mode
-    workspace_path: Optional[Path] = None
+    # Core settings
+    workspace_path: Optional[Path] = None  # Always None, kept for compatibility
     data_dir: Path = None  # type: ignore[assignment]  # Set in __post_init__ if None
-    workspace_display_path: Optional[str] = None
     active_provider: str = "ollama"
     active_model: str = "llama2"
     openai_api_key: Optional[str] = None
@@ -363,21 +357,15 @@ class Config:
         """Get workspace_path, raising an error if not set.
 
         Raises:
-            ConfigError: If workspace_path is None (multi-repo mode without active repo).
+            ConfigError: If workspace_path is None. Use the active repo context
+                from deps.py instead.
         """
         if self.workspace_path is None:
             raise ConfigError(
-                "workspace_path is not set. In multi-repo mode, use the active repo "
-                "context from deps.py instead of settings properties."
+                "workspace_path is not set. Use the active repo context from "
+                "deps.py instead of settings properties."
             )
         return self.workspace_path
-
-    @property
-    def display_path(self) -> str:
-        """Path to display to users (uses workspace_display_path if set)."""
-        if self.workspace_path is None:
-            return self.workspace_display_path or "(no workspace)"
-        return self.workspace_display_path or str(self.workspace_path)
 
     @property
     def oyawiki_path(self) -> Path:
@@ -488,27 +476,13 @@ def load_settings() -> Config:
     Settings are cached for the lifetime of the application.
     Use load_settings.cache_clear() to reload settings.
 
-    In multi-repo mode (WORKSPACE_PATH not set), workspace_path will be None.
-    Use the active repo context from deps.py for workspace-relative paths.
+    workspace_path is always None. Use the active repo context from deps.py
+    for workspace-relative paths.
 
     Returns:
         Config object populated from environment variables and config file.
     """
-    workspace_path_str = os.getenv("WORKSPACE_PATH")
-    workspace_path: Optional[Path] = None
-
-    if workspace_path_str:
-        workspace_path = Path(workspace_path_str)
-        # Load config from file if it exists (stored in workspace root, not .oyawiki)
-        config_file = workspace_path / "config.ini"
-        try:
-            config_exists = config_file.exists()
-        except PermissionError:
-            config_exists = False
-        base_config = _load_config(config_file if config_exists else None)
-    else:
-        # Multi-repo mode: no workspace-specific config file
-        base_config = _load_config(None)
+    base_config = _load_config(None)
 
     # Get provider and model, auto-detecting if not explicitly set
     active_provider = os.getenv("ACTIVE_PROVIDER")
@@ -548,9 +522,8 @@ def load_settings() -> Config:
     data_dir = Path(data_dir_str) if data_dir_str else Path.home() / ".oya"
 
     return Config(
-        workspace_path=workspace_path,
+        workspace_path=None,
         data_dir=data_dir,
-        workspace_display_path=os.getenv("WORKSPACE_DISPLAY_PATH"),
         active_provider=active_provider,
         active_model=active_model,
         openai_api_key=os.getenv("OPENAI_API_KEY"),
