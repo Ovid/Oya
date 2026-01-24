@@ -9,13 +9,16 @@ vi.mock('../api/client', () => ({
   getWikiTree: vi.fn(),
   getIndexableItems: vi.fn(),
   updateOyaignore: vi.fn(),
+  getLogs: vi.fn(),
+  deleteLogs: vi.fn(),
 }))
 
 import { TopBar } from './TopBar'
-import { useWikiStore, useGenerationStore, useUIStore } from '../stores'
+import { useWikiStore, useGenerationStore, useUIStore, useReposStore } from '../stores'
 import { initialState as wikiInitial } from '../stores/wikiStore'
 import { initialState as genInitial } from '../stores/generationStore'
 import { initialState as uiInitial } from '../stores/uiStore'
+import { initialState as reposInitial } from '../stores/reposStore'
 import * as api from '../api/client'
 
 beforeEach(() => {
@@ -25,6 +28,7 @@ beforeEach(() => {
   useWikiStore.setState(wikiInitial)
   useGenerationStore.setState(genInitial)
   useUIStore.setState(uiInitial)
+  useReposStore.setState(reposInitial)
 })
 
 const mockRepoStatus: RepoStatus = {
@@ -247,5 +251,92 @@ describe('pending job status handling', () => {
 
     const generateButtons = screen.queryAllByRole('button', { name: /generate wiki/i })
     expect(generateButtons).toHaveLength(0)
+  })
+})
+
+describe('Log Viewer Button', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+
+    useWikiStore.setState({
+      repoStatus: mockRepoStatus,
+      wikiTree: mockWikiTree,
+      isLoading: false,
+      error: null,
+    })
+  })
+
+  it('shows log viewer button when a repo is active', async () => {
+    useReposStore.setState({
+      activeRepo: {
+        id: 1,
+        origin_url: 'https://github.com/test/repo',
+        source_type: 'github',
+        local_path: 'github.com/test/repo',
+        display_name: 'Test Repo',
+        head_commit: 'abc123',
+        branch: 'main',
+        created_at: null,
+        last_pulled: null,
+        last_generated: null,
+        generation_duration_secs: null,
+        files_processed: null,
+        pages_generated: null,
+        status: 'ready',
+        error_message: null,
+      },
+    })
+
+    renderTopBar()
+
+    expect(screen.getByRole('button', { name: /view logs/i })).toBeInTheDocument()
+  })
+
+  it('hides log viewer button when no repo is active', async () => {
+    useReposStore.setState({
+      activeRepo: null,
+    })
+
+    renderTopBar()
+
+    expect(screen.queryByRole('button', { name: /view logs/i })).not.toBeInTheDocument()
+  })
+
+  it('opens LogViewerModal when log button is clicked', async () => {
+    vi.mocked(api.getLogs).mockResolvedValue({
+      content: '{"test": true}\n',
+      size_bytes: 15,
+      entry_count: 1,
+    })
+
+    useReposStore.setState({
+      activeRepo: {
+        id: 1,
+        origin_url: 'https://github.com/test/repo',
+        source_type: 'github',
+        local_path: 'github.com/test/repo',
+        display_name: 'Test Repo',
+        head_commit: 'abc123',
+        branch: 'main',
+        created_at: null,
+        last_pulled: null,
+        last_generated: null,
+        generation_duration_secs: null,
+        files_processed: null,
+        pages_generated: null,
+        status: 'ready',
+        error_message: null,
+      },
+    })
+
+    renderTopBar()
+
+    await userEvent.click(screen.getByRole('button', { name: /view logs/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/LLM Logs/)).toBeInTheDocument()
+    })
   })
 })

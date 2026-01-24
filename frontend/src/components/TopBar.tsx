@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useWikiStore, useGenerationStore, useUIStore } from '../stores'
+import { useWikiStore, useGenerationStore, useUIStore, useReposStore } from '../stores'
 import { IndexingPreviewModal } from './IndexingPreviewModal'
 import { RepoDropdown } from './RepoDropdown'
 import { AddRepoModal } from './AddRepoModal'
+import { LogViewerModal } from './LogViewerModal'
 
 interface TopBarProps {
   onToggleSidebar: () => void
@@ -27,6 +28,8 @@ export function TopBar({
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false)
   const [showGeneratePrompt, setShowGeneratePrompt] = useState(false)
+  const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
+  const activeRepo = useReposStore((s) => s.activeRepo)
 
   const isLoading = wikiIsLoading || generationIsLoading
   const isGenerating = currentJob?.status === 'running' || currentJob?.status === 'pending'
@@ -137,6 +140,29 @@ export function TopBar({
             Ask
           </button>
 
+          {activeRepo && (
+            <button
+              onClick={() => setIsLogViewerOpen(true)}
+              className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="View LLM logs"
+              aria-label="view logs"
+            >
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </button>
+          )}
+
           <button
             onClick={toggleDarkMode}
             className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -242,6 +268,16 @@ export function TopBar({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Log Viewer Modal */}
+      {activeRepo && (
+        <LogViewerModal
+          isOpen={isLogViewerOpen}
+          onClose={() => setIsLogViewerOpen(false)}
+          repoId={activeRepo.id}
+          repoName={activeRepo.display_name}
+        />
       )}
     </header>
   )
