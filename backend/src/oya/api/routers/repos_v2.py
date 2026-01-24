@@ -178,6 +178,7 @@ async def delete_repo(repo_id: int) -> None:
     Delete a repository by ID.
 
     Deletes both the registry entry and all files on disk.
+    If deleting the active repository, clears the active selection.
 
     Returns 204 on success, 404 if not found, 409 if repo is generating.
     """
@@ -196,6 +197,11 @@ async def delete_repo(repo_id: int) -> None:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot delete repository while generating",
             )
+
+        # Clear active repo if we're deleting it
+        stored_active_id = registry.get_setting("active_repo_id")
+        if stored_active_id is not None and int(stored_active_id) == repo_id:
+            registry.delete_setting("active_repo_id")
 
         # Delete files on disk
         repo_paths = RepoPaths(settings.data_dir, repo.local_path)

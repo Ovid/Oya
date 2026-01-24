@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from oya.config import ConfigError, load_settings
+from oya.config import ConfigError, EXTENSION_LANGUAGES, load_settings
 from oya.generation.prompts import format_cgrag_prompt
 from oya.graph.models import Subgraph
 from oya.graph.query import get_neighborhood
@@ -237,7 +237,7 @@ async def run_cgrag_loop(
         settings = load_settings()
         max_passes = settings.ask.cgrag_max_passes
     except (ValueError, OSError, ConfigError):
-        # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+        # Settings not available
         max_passes = 3  # Default from CONFIG_SCHEMA
 
     context = initial_context
@@ -355,7 +355,7 @@ async def _retrieve_for_gap(
             settings = load_settings()
             top_k = settings.ask.cgrag_targeted_top_k
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             top_k = 3  # Default from CONFIG_SCHEMA
         raw_results = vectorstore.query(query_text=gap, n_results=top_k)
         documents = raw_results.get("documents", [[]])[0]
@@ -438,22 +438,7 @@ def _read_source_for_nodes(
 
             # Determine language for syntax highlighting hint
             ext = full_path.suffix.lower()
-            lang_map = {
-                ".py": "python",
-                ".ts": "typescript",
-                ".tsx": "typescript",
-                ".js": "javascript",
-                ".jsx": "javascript",
-                ".java": "java",
-                ".go": "go",
-                ".rs": "rust",
-                ".rb": "ruby",
-                ".c": "c",
-                ".cpp": "cpp",
-                ".h": "c",
-                ".hpp": "cpp",
-            }
-            lang = lang_map.get(ext, "")
+            lang = EXTENSION_LANGUAGES.get(ext, "")
 
             node_name = getattr(node, "name", "")
             header = f"### {file_path}"

@@ -34,12 +34,26 @@ class RepoPaths:
         Args:
             data_dir: The OYA_DATA_DIR (e.g., ~/.oya)
             local_path: Path within wikis/ (e.g., "github.com/Ovid/Oya")
+
+        Raises:
+            ValueError: If local_path contains path traversal sequences.
         """
+        # Security: Reject path traversal attempts
+        if ".." in local_path or local_path.startswith("/"):
+            raise ValueError(f"Invalid local_path: {local_path}")
+
         self.data_dir = data_dir
         self.local_path = local_path
 
         # Root of this repo's storage
-        self.root = data_dir / "wikis" / local_path
+        wikis_dir = data_dir / "wikis"
+        self.root = wikis_dir / local_path
+
+        # Security: Verify resolved path stays within wikis directory
+        resolved_root = self.root.resolve()
+        resolved_wikis = wikis_dir.resolve()
+        if not str(resolved_root).startswith(str(resolved_wikis) + "/"):
+            raise ValueError(f"Invalid local_path escapes wikis directory: {local_path}")
 
         # Top-level directories
         self.source = self.root / "source"

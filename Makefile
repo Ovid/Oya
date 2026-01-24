@@ -104,7 +104,7 @@ install-backend:
 	cd backend && source .venv/bin/activate && pip install -e ".[dev]"
 
 dev-backend:
-	cd backend && source .venv/bin/activate && WORKSPACE_PATH=.. uvicorn oya.main:app --reload --port 8000
+	cd backend && source .venv/bin/activate && uvicorn oya.main:app --reload --port 8000
 
 # =============================================================================
 # Frontend Targets

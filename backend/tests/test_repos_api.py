@@ -24,8 +24,6 @@ def data_dir(tmp_path, monkeypatch):
     oya_dir = tmp_path / ".oya"
     oya_dir.mkdir()
     monkeypatch.setenv("OYA_DATA_DIR", str(oya_dir))
-    # Ensure WORKSPACE_PATH is not set (multi-repo mode)
-    monkeypatch.delenv("WORKSPACE_PATH", raising=False)
 
     # Clear caches
     from oya.config import load_settings

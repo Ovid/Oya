@@ -228,6 +228,24 @@ async def update_oyaignore(
         raise HTTPException(status_code=500, detail=f"Failed to update .oyaignore: {e}")
 
 
+@router.get("/generation-status")
+async def get_generation_status(
+    paths: RepoPaths = Depends(get_active_repo_paths),
+) -> dict | None:
+    """Get the current generation status.
+
+    Returns information about any incomplete build in the staging directory.
+    Returns null if no incomplete build exists.
+    """
+    staging_path = paths.meta_dir / ".oyawiki-building"
+    if staging_path.exists():
+        return {
+            "status": "incomplete",
+            "message": "An incomplete build was found in the staging directory.",
+        }
+    return None
+
+
 @router.post("/init", response_model=JobCreated, status_code=202)
 async def init_repo(
     background_tasks: BackgroundTasks,

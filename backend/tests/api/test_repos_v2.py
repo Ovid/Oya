@@ -27,10 +27,6 @@ def data_dir(tmp_path, monkeypatch):
     oya_dir = tmp_path / ".oya"
     oya_dir.mkdir()
     monkeypatch.setenv("OYA_DATA_DIR", str(oya_dir))
-    # Still need WORKSPACE_PATH for load_settings to work
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     # Clear caches
     load_settings.cache_clear()
@@ -232,6 +228,41 @@ async def test_delete_repo_generating_conflict(data_dir):
 
     assert response.status_code == 409
     assert "generating" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_active_repo_clears_active_selection(data_dir, source_repo):
+    """DELETE /api/v2/repos/{repo_id} clears active selection if deleting active repo."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Create and activate a repo
+        create_response = await client.post(
+            "/api/v2/repos",
+            json={"url": str(source_repo), "display_name": "Delete Active Test"},
+        )
+        assert create_response.status_code == 201
+        repo_id = create_response.json()["id"]
+
+        await client.post(f"/api/v2/repos/{repo_id}/activate")
+
+        # Verify it's active
+        active_response = await client.get("/api/v2/repos/active")
+        assert active_response.json()["active_repo"]["id"] == repo_id
+
+        # Delete the active repo
+        delete_response = await client.delete(f"/api/v2/repos/{repo_id}")
+        assert delete_response.status_code == 204
+
+        # Verify active selection is cleared
+        active_response = await client.get("/api/v2/repos/active")
+        assert active_response.json()["active_repo"] is None
+
+    # Also verify it's cleared in the database
+    registry = RepoRegistry(data_dir / "repos.db")
+    try:
+        stored_id = registry.get_setting("active_repo_id")
+        assert stored_id is None
+    finally:
+        registry.close()
 
 
 @pytest.mark.asyncio

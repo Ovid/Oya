@@ -18,10 +18,10 @@ from oya.db.repo_registry import RepoRegistry
 
 def test_get_settings_returns_settings(tmp_path, monkeypatch):
     """get_settings returns Settings instance."""
-    # Setup workspace path
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
+    # Setup OYA_DATA_DIR
+    oya_dir = tmp_path / ".oya"
+    oya_dir.mkdir()
+    monkeypatch.setenv("OYA_DATA_DIR", str(oya_dir))
 
     # Clear any cached settings
     from oya.config import load_settings
@@ -30,7 +30,7 @@ def test_get_settings_returns_settings(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
     settings = get_settings()
-    assert hasattr(settings, "workspace_path")
+    assert hasattr(settings, "data_dir")
     assert hasattr(settings, "active_provider")
 
 
@@ -71,11 +71,6 @@ def multi_repo_setup(tmp_path, monkeypatch):
     oya_dir = tmp_path / ".oya"
     oya_dir.mkdir()
     monkeypatch.setenv("OYA_DATA_DIR", str(oya_dir))
-
-    # Still need WORKSPACE_PATH for load_settings
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
 
     load_settings.cache_clear()
     get_settings.cache_clear()

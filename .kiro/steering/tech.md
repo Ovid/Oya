@@ -45,7 +45,6 @@ source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e ".[dev]"
 
 # Run development server
-export WORKSPACE_PATH=/path/to/your/repo
 uvicorn oya.main:app --reload
 
 # Run tests
@@ -76,7 +75,7 @@ npm run preview
 
 ## Environment Configuration
 - Use `.env` file for configuration (see `.env.example`)
-- Required: `WORKSPACE_PATH` for the repository to document
+- Optional: `OYA_DATA_DIR` to override default data directory (~/.oya)
 - Optional: LLM provider API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.)
 - Secrets are gitignored and never committed
 

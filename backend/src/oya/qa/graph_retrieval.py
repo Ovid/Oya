@@ -40,7 +40,7 @@ def expand_with_graph(
             if min_confidence is None:
                 min_confidence = settings.ask.graph_expansion_confidence_threshold
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             if hops is None:
                 hops = 2  # Default from CONFIG_SCHEMA
             if min_confidence is None:
@@ -128,7 +128,7 @@ def build_graph_context(
         settings = load_settings()
         mermaid_token_budget = settings.ask.graph_mermaid_token_budget
     except (ValueError, OSError, ConfigError):
-        # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+        # Settings not available
         mermaid_token_budget = 500  # Default from CONFIG_SCHEMA
 
     mermaid_budget = min(mermaid_tokens, mermaid_token_budget)

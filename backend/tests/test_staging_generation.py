@@ -147,53 +147,27 @@ class TestStagingDirectory:
 class TestGenerationStatusAPI:
     """Tests for the generation status API endpoint."""
 
-    def test_get_generation_status_returns_none_when_no_staging(self, tmp_path: Path):
+    def test_get_generation_status_returns_none_when_no_staging(self, setup_active_repo):
         """API returns null when no staging directory exists."""
         from fastapi.testclient import TestClient
         from oya.main import app
-        import os
 
-        # Set up workspace path without staging
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        oyawiki = workspace / ".oyawiki"
-        oyawiki.mkdir()
-
-        os.environ["WORKSPACE_PATH"] = str(workspace)
-
-        # Clear caches
-        from oya.config import load_settings
-        from oya.api.deps import get_settings
-
-        load_settings.cache_clear()
-        get_settings.cache_clear()
-
+        # Wiki directory exists but no staging (setup_active_repo creates the structure)
         client = TestClient(app)
         response = client.get("/api/repos/generation-status")
 
         assert response.status_code == 200
         assert response.json() is None
 
-    def test_get_generation_status_returns_incomplete_when_staging_exists(self, tmp_path: Path):
+    def test_get_generation_status_returns_incomplete_when_staging_exists(self, setup_active_repo):
         """API returns incomplete status when staging directory exists."""
         from fastapi.testclient import TestClient
         from oya.main import app
-        import os
 
-        # Set up workspace path with staging directory
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        staging = workspace / ".oyawiki-building"
-        staging.mkdir()
-
-        os.environ["WORKSPACE_PATH"] = str(workspace)
-
-        # Clear caches
-        from oya.config import load_settings
-        from oya.api.deps import get_settings
-
-        load_settings.cache_clear()
-        get_settings.cache_clear()
+        # Create staging directory
+        paths = setup_active_repo["paths"]
+        staging = paths.meta_dir / ".oyawiki-building"
+        staging.mkdir(parents=True)
 
         client = TestClient(app)
         response = client.get("/api/repos/generation-status")
