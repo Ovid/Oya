@@ -89,10 +89,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if not _check_git_available():
         logger.warning("Git not available - some features may not work")
 
-    # Ensure data directory exists for multi-repo mode
+    # Ensure data directory exists
     _ensure_data_dir()
 
-    logger.info("Running in multi-repo mode")
+    logger.info("Oya started")
 
     yield
 
