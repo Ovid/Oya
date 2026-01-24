@@ -513,3 +513,27 @@ def test_is_directory_excluded_by_oyaignore(tmp_path):
     assert ff._is_directory_excluded_by_oyaignore("docs") is True
     # src not in oyaignore
     assert ff._is_directory_excluded_by_oyaignore("src") is False
+
+
+def test_get_files_categorized_collects_excluded_directories(tmp_path):
+    """get_files_categorized should identify explicitly excluded directories."""
+    # Create directory structure
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text("git config")
+    (tmp_path / ".git" / "objects").mkdir()
+    (tmp_path / ".git" / "objects" / "ab").mkdir()
+    (tmp_path / ".git" / "objects" / "ab" / "1234").write_text("blob")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text("print('hello')")
+
+    ff = FileFilter(tmp_path)
+    result = ff.get_files_categorized()
+
+    # .git should be in excluded_by_rule (directory only)
+    # but individual files inside .git should NOT be listed
+    assert ".git" in result.excluded_dirs_by_rule
+    assert ".git/config" not in result.excluded_by_rule
+    assert ".git/objects/ab/1234" not in result.excluded_by_rule
+
+    # src/main.py should still be included
+    assert "src/main.py" in result.included
