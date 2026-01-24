@@ -30,9 +30,6 @@ for uvicorn_logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
     uvicorn_logger.addHandler(handler)
 
 from oya.api.routers import repos, wiki, jobs, search, qa, notes, repos_v2  # noqa: E402
-from oya.config import load_settings  # noqa: E402
-from oya.db.connection import Database  # noqa: E402
-from oya.workspace import initialize_workspace  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -75,35 +72,6 @@ def _ensure_data_dir() -> Path:
     return data_dir
 
 
-def _cleanup_stale_jobs(settings) -> None:
-    """Mark any running/pending jobs as failed on startup.
-
-    If the server is starting, any previously "running" jobs must have been
-    interrupted by a server restart. Mark them as failed so the frontend
-    doesn't try to resume them.
-    """
-    try:
-        if not settings.db_path.exists():
-            return
-
-        db = Database(settings.db_path)
-        cursor = db.execute(
-            """
-            UPDATE generations
-            SET status = 'failed',
-                error_message = 'Interrupted by server restart',
-                completed_at = datetime('now')
-            WHERE status IN ('running', 'pending')
-            """
-        )
-        if cursor.rowcount > 0:
-            logger.info(f"Marked {cursor.rowcount} stale job(s) as failed")
-        db.commit()
-        db.close()
-    except Exception as e:
-        logger.warning(f"Failed to cleanup stale jobs: {e}")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan handler for startup and shutdown events.
@@ -111,8 +79,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     On startup:
     - Checks that git is installed
     - Ensures OYA_DATA_DIR exists
-    - Marks any stale running jobs as failed
-    - Initializes the workspace directory structure (if WORKSPACE_PATH is set)
 
     On shutdown:
     - Cleanup if needed (currently none)
@@ -126,23 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure data directory exists for multi-repo mode
     _ensure_data_dir()
 
-    # Legacy workspace initialization (for backward compatibility)
-    workspace_path_env = os.getenv("WORKSPACE_PATH")
-    if workspace_path_env:
-        settings = load_settings()
-        workspace_path = settings.workspace_path
-        assert workspace_path is not None  # Guaranteed when WORKSPACE_PATH is set
-
-        # Cleanup any jobs that were interrupted by a previous shutdown
-        _cleanup_stale_jobs(settings)
-
-        success = initialize_workspace(workspace_path)
-        if success:
-            logger.info(f"Workspace initialized at {workspace_path}")
-        else:
-            logger.warning(f"Failed to initialize workspace at {workspace_path}")
-    else:
-        logger.info("No WORKSPACE_PATH set - running in multi-repo mode")
+    logger.info("Running in multi-repo mode")
 
     yield
 

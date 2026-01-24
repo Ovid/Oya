@@ -5,8 +5,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from oya.api.deps import get_settings
-from oya.config import Settings
+from oya.api.deps import get_active_repo_paths
+from oya.repo.repo_paths import RepoPaths
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 
@@ -33,53 +33,53 @@ class WikiTree(BaseModel):
 
 @router.get("/overview", response_model=WikiPage)
 async def get_overview(
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> WikiPage:
     """Get the overview page."""
-    return _get_page(settings.wiki_path, "overview.md", "overview", None)
+    return _get_page(paths.wiki_dir, "overview.md", "overview", None)
 
 
 @router.get("/architecture", response_model=WikiPage)
 async def get_architecture(
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> WikiPage:
     """Get the architecture page."""
-    return _get_page(settings.wiki_path, "architecture.md", "architecture", None)
+    return _get_page(paths.wiki_dir, "architecture.md", "architecture", None)
 
 
 @router.get("/workflows/{slug}", response_model=WikiPage)
 async def get_workflow(
     slug: str,
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> WikiPage:
     """Get a workflow page."""
-    return _get_page(settings.wiki_path, f"workflows/{slug}.md", "workflow", slug)
+    return _get_page(paths.wiki_dir, f"workflows/{slug}.md", "workflow", slug)
 
 
 @router.get("/directories/{slug}", response_model=WikiPage)
 async def get_directory(
     slug: str,
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> WikiPage:
     """Get a directory page."""
-    return _get_page(settings.wiki_path, f"directories/{slug}.md", "directory", slug)
+    return _get_page(paths.wiki_dir, f"directories/{slug}.md", "directory", slug)
 
 
 @router.get("/files/{slug}", response_model=WikiPage)
 async def get_file(
     slug: str,
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> WikiPage:
     """Get a file page."""
-    return _get_page(settings.wiki_path, f"files/{slug}.md", "file", slug)
+    return _get_page(paths.wiki_dir, f"files/{slug}.md", "file", slug)
 
 
 @router.get("/tree", response_model=WikiTree)
 async def get_wiki_tree(
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> WikiTree:
     """Get the wiki tree structure."""
-    wiki_path = settings.wiki_path
+    wiki_path = paths.wiki_dir
 
     workflows = []
     directories = []
