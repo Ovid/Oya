@@ -1,23 +1,15 @@
 """Wiki page API tests."""
 
-import subprocess
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from oya.main import app
-from oya.api.deps import get_settings, _reset_db_instance
 
 
 @pytest.fixture
-def workspace_with_wiki(tmp_path, monkeypatch):
-    """Create workspace with wiki pages."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
-
-    # Create wiki structure
-    wiki_path = workspace / ".oyawiki" / "wiki"
-    wiki_path.mkdir(parents=True)
+def workspace_with_wiki(setup_active_repo):
+    """Create workspace with wiki pages using the active repo fixture."""
+    wiki_path = setup_active_repo["wiki_path"]
 
     # Create overview
     (wiki_path / "overview.md").write_text("# Project Overview\n\nThis is the overview.")
@@ -40,17 +32,7 @@ def workspace_with_wiki(tmp_path, monkeypatch):
     files.mkdir()
     (files / "src-main-py.md").write_text("# src/main.py")
 
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
-
-    yield workspace
-
-    _reset_db_instance()
+    return setup_active_repo
 
 
 @pytest.fixture
@@ -135,8 +117,9 @@ class TestSourcePathExtraction:
 
     async def test_file_page_extracts_source_path_from_backticks(self, client, workspace_with_wiki):
         """File page extracts source_path from backtick-quoted title."""
-        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
-        (wiki_path / "lib-utils-py.md").write_text("# `lib/utils.py`\n\nUtility functions.")
+        wiki_path = workspace_with_wiki["wiki_path"]
+        files_path = wiki_path / "files"
+        (files_path / "lib-utils-py.md").write_text("# `lib/utils.py`\n\nUtility functions.")
 
         response = await client.get("/api/wiki/files/lib-utils-py")
 
@@ -148,8 +131,9 @@ class TestSourcePathExtraction:
         self, client, workspace_with_wiki
     ):
         """File page extracts source_path from double-quoted title."""
-        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
-        (wiki_path / "src-app-ts.md").write_text('# "src/app.ts"\n\nMain app.')
+        wiki_path = workspace_with_wiki["wiki_path"]
+        files_path = wiki_path / "files"
+        (files_path / "src-app-ts.md").write_text('# "src/app.ts"\n\nMain app.')
 
         response = await client.get("/api/wiki/files/src-app-ts")
 
@@ -161,8 +145,9 @@ class TestSourcePathExtraction:
         self, client, workspace_with_wiki
     ):
         """File page extracts source_path from single-quoted title."""
-        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "files"
-        (wiki_path / "config-json.md").write_text("# 'config.json'\n\nConfiguration.")
+        wiki_path = workspace_with_wiki["wiki_path"]
+        files_path = wiki_path / "files"
+        (files_path / "config-json.md").write_text("# 'config.json'\n\nConfiguration.")
 
         response = await client.get("/api/wiki/files/config-json")
 
@@ -172,8 +157,9 @@ class TestSourcePathExtraction:
 
     async def test_directory_page_extracts_source_path(self, client, workspace_with_wiki):
         """Directory page extracts source_path from title."""
-        wiki_path = workspace_with_wiki / ".oyawiki" / "wiki" / "directories"
-        (wiki_path / "src-components.md").write_text("# `src/components`\n\nReact components.")
+        wiki_path = workspace_with_wiki["wiki_path"]
+        dirs_path = wiki_path / "directories"
+        (dirs_path / "src-components.md").write_text("# `src/components`\n\nReact components.")
 
         response = await client.get("/api/wiki/directories/src-components")
 
