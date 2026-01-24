@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -69,8 +70,8 @@ class TestStartupInitialization:
                         # Git check should have been called
                         mock_git.assert_called_once()
 
-    def test_app_starts_without_git(self):
-        """Verify that app starts even if git is not available (graceful degradation)."""
+    def test_app_fails_without_git(self):
+        """Verify that app fails to start when git is not available."""
         import os
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -84,10 +85,10 @@ class TestStartupInitialization:
                 with patch("oya.main._check_git_available", return_value=False):
                     from oya.main import app
 
-                    # App should still start and be healthy (graceful degradation)
-                    with TestClient(app) as client:
-                        response = client.get("/health")
-                        assert response.status_code == 200
+                    # App should fail to start without git (required dependency)
+                    with pytest.raises(RuntimeError, match="Git is required"):
+                        with TestClient(app):
+                            pass
 
     def test_lifespan_uses_default_data_dir(self):
         """Verify that app uses default data directory when OYA_DATA_DIR not set."""
