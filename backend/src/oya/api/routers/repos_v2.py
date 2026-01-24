@@ -13,7 +13,6 @@ from oya.db.repo_registry import RepoRegistry, RepoRecord
 from oya.repo.url_parser import parse_repo_url
 from oya.repo.git_operations import clone_repo, GitCloneError
 from oya.repo.repo_paths import RepoPaths
-from oya.state import get_app_state
 
 
 router = APIRouter(prefix="/api/v2/repos", tags=["repos-v2"])
@@ -124,20 +123,28 @@ async def get_active_repo() -> ActiveRepoResponse:
     """
     Get the currently active repository.
 
-    Returns None if no repository is active.
+    Reads from persisted storage, falling back to None if not set
+    or if the stored repo no longer exists.
     """
-    app_state = get_app_state()
-    active_id = app_state.active_repo_id
-
-    if active_id is None:
-        return ActiveRepoResponse(active_repo=None)
-
     registry = get_registry()
     try:
+        # Read from persistent storage
+        stored_id = registry.get_setting("active_repo_id")
+
+        if stored_id is None:
+            return ActiveRepoResponse(active_repo=None)
+
+        try:
+            active_id = int(stored_id)
+        except ValueError:
+            # Invalid stored value, clear it
+            registry.delete_setting("active_repo_id")
+            return ActiveRepoResponse(active_repo=None)
+
         repo = registry.get(active_id)
         if not repo:
-            # Active repo was deleted, clear the state
-            app_state.active_repo_id = None
+            # Repo was deleted, clear the stored ID
+            registry.delete_setting("active_repo_id")
             return ActiveRepoResponse(active_repo=None)
 
         return ActiveRepoResponse(active_repo=_repo_to_response(repo))
@@ -205,7 +212,7 @@ async def activate_repo(repo_id: int) -> ActivateRepoResponse:
     """
     Activate a repository by ID.
 
-    Sets the repository as the currently active one for the application.
+    Sets the repository as the currently active one and persists the selection.
 
     Returns 404 if the repository is not found.
     """
@@ -218,8 +225,8 @@ async def activate_repo(repo_id: int) -> ActivateRepoResponse:
                 detail=f"Repository {repo_id} not found",
             )
 
-        app_state = get_app_state()
-        app_state.active_repo_id = repo_id
+        # Persist to database
+        registry.set_setting("active_repo_id", str(repo_id))
 
         return ActivateRepoResponse(active_repo_id=repo_id)
     finally:

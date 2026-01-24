@@ -10,7 +10,7 @@ from oya.main import app
 from oya.db.repo_registry import RepoRegistry
 from oya.config import load_settings
 from oya.api.deps import get_settings, _reset_db_instance
-from oya.state import reset_app_state, get_app_state
+from oya.state import reset_app_state
 
 
 @pytest.fixture(autouse=True)
@@ -253,8 +253,13 @@ async def test_activate_repo(data_dir, source_repo):
     data = activate_response.json()
     assert data["active_repo_id"] == repo_id
 
-    # Verify state was set
-    assert get_app_state().active_repo_id == repo_id
+    # Verify active repo was persisted to database
+    registry = RepoRegistry(data_dir / "repos.db")
+    try:
+        stored_id = registry.get_setting("active_repo_id")
+        assert stored_id == str(repo_id)
+    finally:
+        registry.close()
 
 
 @pytest.mark.asyncio
@@ -355,3 +360,83 @@ async def test_get_active_repo(data_dir, source_repo):
     assert data["active_repo"] is not None
     assert data["active_repo"]["id"] == repo_id
     assert data["active_repo"]["display_name"] == "Active Repo Test"
+
+
+class TestActiveRepoPersistence:
+    """Tests for active repo persistence across restarts."""
+
+    @pytest.mark.asyncio
+    async def test_activate_repo_persists_to_db(self, data_dir, source_repo):
+        """Activating a repo persists the ID to the database."""
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            # Create a repo first
+            create_response = await client.post(
+                "/api/v2/repos",
+                json={"url": str(source_repo), "display_name": "Persist Test Repo"},
+            )
+            assert create_response.status_code == 201
+            repo_id = create_response.json()["id"]
+
+            # Activate the repo
+            response = await client.post(f"/api/v2/repos/{repo_id}/activate")
+            assert response.status_code == 200
+
+        # Verify it's persisted by checking the registry directly
+        registry = RepoRegistry(data_dir / "repos.db")
+        try:
+            stored_id = registry.get_setting("active_repo_id")
+            assert stored_id == str(repo_id)
+        finally:
+            registry.close()
+
+    @pytest.mark.asyncio
+    async def test_get_active_repo_reads_from_db(self, data_dir, source_repo):
+        """Getting active repo reads from database, not just memory."""
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            # Create a repo first
+            create_response = await client.post(
+                "/api/v2/repos",
+                json={"url": str(source_repo), "display_name": "DB Read Test Repo"},
+            )
+            assert create_response.status_code == 201
+            repo_id = create_response.json()["id"]
+
+        # Set the active repo directly in database (simulating restart)
+        registry = RepoRegistry(data_dir / "repos.db")
+        try:
+            registry.set_setting("active_repo_id", str(repo_id))
+        finally:
+            registry.close()
+
+        # Get active repo through API - should read from DB
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v2/repos/active")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["active_repo"] is not None
+            assert data["active_repo"]["id"] == repo_id
+
+    @pytest.mark.asyncio
+    async def test_get_active_repo_clears_invalid_id(self, data_dir):
+        """Getting active repo clears persisted ID if repo was deleted."""
+        # Set a nonexistent repo ID directly in database
+        registry = RepoRegistry(data_dir / "repos.db")
+        try:
+            registry.set_setting("active_repo_id", "99999")
+        finally:
+            registry.close()
+
+        # Get active repo should return None and clear the invalid ID
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v2/repos/active")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["active_repo"] is None
+
+        # Verify the setting was cleared
+        registry = RepoRegistry(data_dir / "repos.db")
+        try:
+            stored_id = registry.get_setting("active_repo_id")
+            assert stored_id is None
+        finally:
+            registry.close()
