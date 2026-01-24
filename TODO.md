@@ -1,5 +1,6 @@
 # TODO
 
+* The logs can get quite long. Need something like logrotate
 * Hit minimum code coverage standards and then enforce them.
 * Q&A should have an "arrow up" history
 * Quick fix:
