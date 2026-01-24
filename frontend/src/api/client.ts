@@ -24,6 +24,9 @@ import type {
   CreateRepoResponse,
   ActivateRepoResponse,
   ActiveRepoResponse,
+  // Logs types
+  LogsResponse,
+  DeleteLogsResponse,
 } from '../types'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -146,6 +149,20 @@ export async function activateRepo(repoId: number): Promise<ActivateRepoResponse
 
 export async function getActiveRepo(): Promise<ActiveRepoResponse> {
   return fetchJson<ActiveRepoResponse>('/api/v2/repos/active')
+}
+
+// =============================================================================
+// Logs Endpoints
+// =============================================================================
+
+export async function getLogs(repoId: number): Promise<LogsResponse> {
+  return fetchJson<LogsResponse>(`/api/v2/repos/${repoId}/logs/llm-queries`)
+}
+
+export async function deleteLogs(repoId: number): Promise<DeleteLogsResponse> {
+  return fetchJson<DeleteLogsResponse>(`/api/v2/repos/${repoId}/logs/llm-queries`, {
+    method: 'DELETE',
+  })
 }
 
 // Wiki endpoints
