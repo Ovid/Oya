@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import networkx as nx
@@ -100,6 +101,7 @@ class QAService:
         llm: LLMClient,
         issues_store: IssuesStore | None = None,
         graph: nx.DiGraph | None = None,
+        source_path: Path | None = None,
     ) -> None:
         """Initialize Q&A service.
 
@@ -109,12 +111,14 @@ class QAService:
             llm: LLM client for answer generation.
             issues_store: Optional IssuesStore for issue-aware Q&A.
             graph: Optional code graph for graph-augmented retrieval.
+            source_path: Optional path to source code directory for CGRAG.
         """
         self._vectorstore = vectorstore
         self._db = db
         self._llm = llm
         self._issues_store = issues_store
         self._graph = graph
+        self._source_path = source_path
         self._ranker = RRFRanker(k=60)
 
     async def search(
@@ -899,6 +903,7 @@ Answer the question based only on the context provided. Include citations to spe
                 llm=self._llm,
                 graph=self._graph,
                 vectorstore=self._vectorstore,
+                source_path=self._source_path,
             )
         except Exception as e:
             return QAResponse(
@@ -1020,6 +1025,7 @@ Answer the question based only on the context provided. Include citations to spe
                     llm=self._llm,
                     graph=self._graph,
                     vectorstore=self._vectorstore,
+                    source_path=self._source_path,
                 )
                 accumulated_response = cgrag_result.answer  # Already parsed by cgrag
                 answer = cgrag_result.answer

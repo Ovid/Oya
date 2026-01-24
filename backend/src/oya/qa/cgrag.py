@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import networkx as nx
@@ -213,6 +214,7 @@ async def run_cgrag_loop(
     llm: LLMClient,
     graph: nx.DiGraph | None,
     vectorstore: VectorStore | None,
+    source_path: Path | None = None,
 ) -> CGRAGResult:
     """Run the CGRAG iterative retrieval loop.
 
@@ -226,6 +228,7 @@ async def run_cgrag_loop(
         llm: LLM client for generating answers.
         graph: Optional code graph for targeted retrieval.
         vectorstore: Optional vector store for fuzzy retrieval.
+        source_path: Optional path to source code for reading actual files.
 
     Returns:
         CGRAGResult with final answer and iteration metadata.
@@ -285,7 +288,7 @@ async def run_cgrag_loop(
         # Try to retrieve context for each gap
         new_context_parts: list[str] = []
         for gap in new_gaps:
-            retrieved = await _retrieve_for_gap(gap, graph, vectorstore, session)
+            retrieved = await _retrieve_for_gap(gap, graph, vectorstore, session, source_path)
             if retrieved:
                 new_context_parts.append(retrieved)
                 if gap not in gaps_resolved:
@@ -314,16 +317,19 @@ async def _retrieve_for_gap(
     graph: nx.DiGraph | None,
     vectorstore: VectorStore | None,
     session: CGRAGSession,
+    source_path: Path | None = None,
 ) -> str | None:
     """Retrieve context for a single gap.
 
     Tries graph lookup first for specific gaps, then falls back to vector search.
+    When source_path is available, also reads actual source file content.
 
     Args:
         gap: The gap description from LLM.
         graph: Optional code graph for targeted retrieval.
         vectorstore: Optional vector store for fuzzy retrieval.
         session: CGRAG session for caching nodes.
+        source_path: Optional path to source code directory.
 
     Returns:
         Retrieved context as a string, or None if not found.
@@ -334,6 +340,13 @@ async def _retrieve_for_gap(
         if subgraph and subgraph.nodes:
             # Cache nodes in session
             session.add_nodes(subgraph.nodes)
+
+            # If source_path is available, try to read actual source code
+            if source_path is not None:
+                source_context = _read_source_for_nodes(subgraph.nodes, source_path)
+                if source_context:
+                    return source_context
+
             return _format_subgraph_context(subgraph)
 
     # Try vector search for fuzzy gaps
@@ -367,3 +380,94 @@ def _format_subgraph_context(subgraph: Subgraph) -> str:
         Formatted context string.
     """
     return subgraph.to_context()
+
+
+def _read_source_for_nodes(
+    nodes: list,
+    source_path: Path,
+    max_lines_per_file: int = 200,
+) -> str | None:
+    """Read actual source code for graph nodes.
+
+    Args:
+        nodes: List of Node objects with file_path, line_start, line_end.
+        source_path: Path to source code directory.
+        max_lines_per_file: Maximum lines to read per file.
+
+    Returns:
+        Formatted source code context, or None if no files could be read.
+    """
+    context_parts: list[str] = []
+    seen_files: set[str] = set()
+
+    for node in nodes:
+        file_path = getattr(node, "file_path", None)
+        if not file_path or file_path in seen_files:
+            continue
+
+        full_path = source_path / file_path
+        if not full_path.exists() or not full_path.is_file():
+            continue
+
+        seen_files.add(file_path)
+        line_start = getattr(node, "line_start", 1)
+        line_end = getattr(node, "line_end", None)
+
+        try:
+            with open(full_path, encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+
+            # Extract relevant lines (1-indexed to 0-indexed)
+            start_idx = max(0, line_start - 1)
+            if line_end is not None:
+                end_idx = min(len(lines), line_end)
+            else:
+                end_idx = min(len(lines), start_idx + max_lines_per_file)
+
+            # Add some context lines before and after
+            context_before = 5
+            context_after = 5
+            start_idx = max(0, start_idx - context_before)
+            end_idx = min(len(lines), end_idx + context_after)
+
+            snippet_lines = lines[start_idx:end_idx]
+            if not snippet_lines:
+                continue
+
+            snippet = "".join(snippet_lines)
+
+            # Determine language for syntax highlighting hint
+            ext = full_path.suffix.lower()
+            lang_map = {
+                ".py": "python",
+                ".ts": "typescript",
+                ".tsx": "typescript",
+                ".js": "javascript",
+                ".jsx": "javascript",
+                ".java": "java",
+                ".go": "go",
+                ".rs": "rust",
+                ".rb": "ruby",
+                ".c": "c",
+                ".cpp": "cpp",
+                ".h": "c",
+                ".hpp": "cpp",
+            }
+            lang = lang_map.get(ext, "")
+
+            node_name = getattr(node, "name", "")
+            header = f"### {file_path}"
+            if node_name:
+                header += f" :: {node_name}"
+            header += f" (lines {start_idx + 1}-{end_idx})"
+
+            context_parts.append(f"{header}\n```{lang}\n{snippet.rstrip()}\n```")
+
+        except (OSError, UnicodeDecodeError):
+            # Skip files that can't be read
+            continue
+
+    if not context_parts:
+        return None
+
+    return "\n\n".join(context_parts)
