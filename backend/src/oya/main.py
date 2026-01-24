@@ -29,7 +29,7 @@ for uvicorn_logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
     handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
     uvicorn_logger.addHandler(handler)
 
-from oya.api.routers import repos, wiki, jobs, search, qa, notes, repos_v2  # noqa: E402
+from oya.api.routers import repos, wiki, jobs, search, qa, notes, repos_v2, logs  # noqa: E402
 from oya.config import load_settings  # noqa: E402
 from oya.db.repo_registry import RepoRegistry  # noqa: E402
 from oya.db.connection import Database  # noqa: E402
@@ -186,3 +186,4 @@ app.include_router(search.router)
 app.include_router(qa.router)
 app.include_router(notes.router)
 app.include_router(repos_v2.router)
+app.include_router(logs.router)
