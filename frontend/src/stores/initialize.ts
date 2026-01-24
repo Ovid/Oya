@@ -10,15 +10,21 @@ export async function initializeApp(): Promise<void> {
 
   wikiStore.setLoading(true)
 
-  // Fetch repos and active repo for multi-repo mode
+  // Fetch repos and active repo
   try {
     await reposStore.fetchRepos()
     await reposStore.fetchActiveRepo()
+
+    // Auto-select first repo if repos exist but none is active
+    const { repos, activeRepo } = useReposStore.getState()
+    if (repos.length > 0 && !activeRepo) {
+      await reposStore.setActiveRepo(repos[0].id)
+    }
   } catch {
-    // Ignore errors - may not be in multi-repo mode
+    // Ignore errors during repo initialization
   }
 
-  // Refresh repo status (works in both legacy and multi-repo mode)
+  // Refresh repo status for the active repo
   await wikiStore.refreshStatus()
 
   // Check for incomplete build FIRST
