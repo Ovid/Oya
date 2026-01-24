@@ -89,6 +89,8 @@ class RepoRegistry:
             (origin_url, source_type, local_path, display_name),
         )
         self._conn.commit()
+        # lastrowid is guaranteed non-None after INSERT
+        assert cursor.lastrowid is not None
         return cursor.lastrowid
 
     def _row_to_record(self, row: sqlite3.Row) -> RepoRecord:

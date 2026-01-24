@@ -187,6 +187,11 @@ async def get_repo_status(
     db: Database = Depends(get_db),
 ) -> RepoStatus:
     """Get current repository status."""
+    if settings.workspace_path is None:
+        raise HTTPException(
+            status_code=400,
+            detail="WORKSPACE_PATH not configured. Use /api/v2/repos for multi-repo mode.",
+        )
     return _build_repo_status(settings.workspace_path, settings.display_path, settings, db)
 
 
@@ -202,6 +207,8 @@ async def get_generation_status(
     Returns:
         Dict with incomplete build info, or None if no incomplete build.
     """
+    if settings.workspace_path is None:
+        return None
     if has_incomplete_build(settings.workspace_path):
         return {
             "status": "incomplete",
@@ -231,6 +238,11 @@ async def get_indexable_items(
     """
     # Validate workspace path exists and is accessible
     workspace_path = settings.workspace_path
+    if workspace_path is None:
+        raise HTTPException(
+            status_code=400,
+            detail="WORKSPACE_PATH not configured. Use /api/v2/repos for multi-repo mode.",
+        )
     if not workspace_path.exists():
         raise HTTPException(
             status_code=400, detail=f"Repository path is invalid or inaccessible: {workspace_path}"
@@ -243,7 +255,7 @@ async def get_indexable_items(
 
     try:
         # Use the same FileFilter class as GenerationOrchestrator._run_analysis()
-        file_filter = FileFilter(settings.workspace_path)
+        file_filter = FileFilter(workspace_path)
         categorized = file_filter.get_files_categorized()
 
         # Derive directories from file paths for each category

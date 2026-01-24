@@ -127,18 +127,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _ensure_data_dir()
 
     # Legacy workspace initialization (for backward compatibility)
-    workspace_path = os.getenv("WORKSPACE_PATH")
-    if workspace_path:
+    workspace_path_env = os.getenv("WORKSPACE_PATH")
+    if workspace_path_env:
         settings = load_settings()
+        workspace_path = settings.workspace_path
+        assert workspace_path is not None  # Guaranteed when WORKSPACE_PATH is set
 
         # Cleanup any jobs that were interrupted by a previous shutdown
         _cleanup_stale_jobs(settings)
 
-        success = initialize_workspace(settings.workspace_path)
+        success = initialize_workspace(workspace_path)
         if success:
-            logger.info(f"Workspace initialized at {settings.workspace_path}")
+            logger.info(f"Workspace initialized at {workspace_path}")
         else:
-            logger.warning(f"Failed to initialize workspace at {settings.workspace_path}")
+            logger.warning(f"Failed to initialize workspace at {workspace_path}")
     else:
         logger.info("No WORKSPACE_PATH set - running in multi-repo mode")
 
