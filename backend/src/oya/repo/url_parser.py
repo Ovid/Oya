@@ -71,6 +71,7 @@ def _parse_local_path(path: str) -> ParsedRepoUrl:
     expanded = Path(path).expanduser().resolve()
 
     # Strip leading slash for local_path
+    # TODO: Windows path handling - drive letters (C:) could conflict with Unix paths
     path_str = str(expanded).lstrip("/")
 
     return ParsedRepoUrl(
