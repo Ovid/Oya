@@ -114,3 +114,65 @@ def test_find_by_origin_url(tmp_path):
     not_found = registry.find_by_origin_url("https://github.com/x/y")
     assert not_found is None
     registry.close()
+
+
+# App settings tests
+
+
+def test_get_setting_returns_none_for_missing_key(tmp_path):
+    """get_setting returns None when key doesn't exist."""
+    db_path = tmp_path / "repos.db"
+    registry = RepoRegistry(db_path)
+    try:
+        result = registry.get_setting("nonexistent")
+        assert result is None
+    finally:
+        registry.close()
+
+
+def test_set_and_get_setting(tmp_path):
+    """Can store and retrieve a setting."""
+    db_path = tmp_path / "repos.db"
+    registry = RepoRegistry(db_path)
+    try:
+        registry.set_setting("active_repo_id", "42")
+        result = registry.get_setting("active_repo_id")
+        assert result == "42"
+    finally:
+        registry.close()
+
+
+def test_set_setting_overwrites_existing(tmp_path):
+    """Setting a key twice overwrites the value."""
+    db_path = tmp_path / "repos.db"
+    registry = RepoRegistry(db_path)
+    try:
+        registry.set_setting("active_repo_id", "1")
+        registry.set_setting("active_repo_id", "2")
+        result = registry.get_setting("active_repo_id")
+        assert result == "2"
+    finally:
+        registry.close()
+
+
+def test_delete_setting(tmp_path):
+    """Can delete a setting."""
+    db_path = tmp_path / "repos.db"
+    registry = RepoRegistry(db_path)
+    try:
+        registry.set_setting("active_repo_id", "42")
+        registry.delete_setting("active_repo_id")
+        result = registry.get_setting("active_repo_id")
+        assert result is None
+    finally:
+        registry.close()
+
+
+def test_delete_nonexistent_setting_is_noop(tmp_path):
+    """Deleting a nonexistent setting doesn't raise."""
+    db_path = tmp_path / "repos.db"
+    registry = RepoRegistry(db_path)
+    try:
+        registry.delete_setting("nonexistent")  # Should not raise
+    finally:
+        registry.close()
