@@ -43,9 +43,7 @@ export function FirstRunWizard({ onComplete }: FirstRunWizardProps) {
         {/* Logo and welcome */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">Ọya</h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400">
-            Welcome to your codebase wiki
-          </p>
+          <p className="text-xl text-gray-600 dark:text-gray-400">Welcome to your codebase wiki</p>
         </div>
 
         {/* Card */}
@@ -55,8 +53,8 @@ export function FirstRunWizard({ onComplete }: FirstRunWizardProps) {
           </h2>
 
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Enter a Git URL or local path to get started. Oya will clone the repository and
-            generate documentation for it.
+            Enter a Git URL or local path to get started. Oya will clone the repository and generate
+            documentation for it.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">

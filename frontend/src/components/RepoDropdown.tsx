@@ -111,7 +111,9 @@ export function RepoDropdown({ onAddRepo, disabled }: RepoDropdownProps) {
                     repo.id === activeRepo?.id ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''
                   }`}
                 >
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(repo.status)}`} />
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(repo.status)}`}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                       {repo.display_name}
