@@ -1,5 +1,6 @@
 # TODO
 
+* Need to be able to delete a repo from Oya
 * Need to add windows support (paths)
 * Fix this issue which slows us down and eats tokens when we start a worktree:
     ⏺ Bash(cd
