@@ -50,7 +50,6 @@ const mockWikiTree: WikiTree = {
   files: [],
 }
 
-
 function renderTopBar(props = {}) {
   const defaultProps = {
     onToggleSidebar: vi.fn(),
