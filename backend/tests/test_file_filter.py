@@ -484,3 +484,32 @@ def test_has_excluded_ancestor_handles_multiple_excluded_dirs():
     assert _has_excluded_ancestor("node_modules/lodash/index.js", excluded_dirs) is True
     assert _has_excluded_ancestor("build/output.js", excluded_dirs) is True
     assert _has_excluded_ancestor("src/app.py", excluded_dirs) is False
+
+
+# Tests for directory exclusion check methods
+
+
+def test_is_directory_excluded_by_default_rules(tmp_path):
+    """Directory matching DEFAULT_EXCLUDES should be detected."""
+    ff = FileFilter(tmp_path)
+
+    # .git matches ".*" pattern
+    assert ff._is_directory_excluded_by_default_rules(".git") is True
+    # node_modules matches "node_modules" pattern
+    assert ff._is_directory_excluded_by_default_rules("node_modules") is True
+    # Regular directory should not be excluded
+    assert ff._is_directory_excluded_by_default_rules("src") is False
+
+
+def test_is_directory_excluded_by_oyaignore(tmp_path):
+    """Directory matching .oyaignore patterns should be detected."""
+    # Create .oyaignore with directory pattern
+    (tmp_path / ".oyaignore").write_text("build/\ndocs\n")
+    ff = FileFilter(tmp_path)
+
+    # build/ explicitly targets directory
+    assert ff._is_directory_excluded_by_oyaignore("build") is True
+    # docs matches as directory too
+    assert ff._is_directory_excluded_by_oyaignore("docs") is True
+    # src not in oyaignore
+    assert ff._is_directory_excluded_by_oyaignore("src") is False
