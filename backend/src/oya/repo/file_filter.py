@@ -34,6 +34,9 @@ class CategorizedFiles:
     included: list[str] = field(default_factory=list)
     excluded_by_oyaignore: list[str] = field(default_factory=list)
     excluded_by_rule: list[str] = field(default_factory=list)
+    # Directories explicitly excluded (shown instead of their children)
+    excluded_dirs_by_rule: list[str] = field(default_factory=list)
+    excluded_dirs_by_oyaignore: list[str] = field(default_factory=list)
 
 
 def extract_directories_from_files(files: list[str]) -> list[str]:
@@ -360,6 +363,9 @@ class FileFilter:
         - excluded_by_oyaignore: Files excluded via .oyaignore (user can re-include)
         - excluded_by_rule: Files excluded via built-in rules (cannot be changed)
 
+        When a directory is explicitly excluded by a pattern, only the directory
+        is listed (not its children). This reduces noise in the indexing preview.
+
         Note: Files excluded by rule take precedence. A file excluded by both
         default rules AND oyaignore will appear only in excluded_by_rule.
 
@@ -368,11 +374,40 @@ class FileFilter:
         """
         result = CategorizedFiles()
 
+        # First pass: collect directories that are explicitly excluded by patterns
+        excluded_dirs_by_rule: set[str] = set()
+        excluded_dirs_by_oyaignore: set[str] = set()
+
+        for dir_path in self.repo_path.rglob("*"):
+            if not dir_path.is_dir():
+                continue
+
+            relative = str(dir_path.relative_to(self.repo_path))
+
+            # Check if this directory is explicitly excluded by default rules
+            if self._is_directory_excluded_by_default_rules(relative):
+                # Only add if no ancestor is already excluded
+                if not _has_excluded_ancestor(relative, excluded_dirs_by_rule):
+                    excluded_dirs_by_rule.add(relative)
+            # Check if excluded by oyaignore (only if not already by rules)
+            elif self._is_directory_excluded_by_oyaignore(relative):
+                if not _has_excluded_ancestor(relative, excluded_dirs_by_oyaignore):
+                    excluded_dirs_by_oyaignore.add(relative)
+
+        # Second pass: categorize files, skipping those in excluded directories
         for file_path in self.repo_path.rglob("*"):
             if not file_path.is_file():
                 continue
 
             relative = str(file_path.relative_to(self.repo_path))
+
+            # Skip files in directories excluded by rule
+            if _has_excluded_ancestor(relative, excluded_dirs_by_rule):
+                continue
+
+            # Skip files in directories excluded by oyaignore
+            if _has_excluded_ancestor(relative, excluded_dirs_by_oyaignore):
+                continue
 
             # Check if excluded by default rules first (takes precedence)
             if self._is_excluded_by_default_rules(relative):
@@ -406,6 +441,10 @@ class FileFilter:
 
             # File is included
             result.included.append(relative)
+
+        # Store excluded directories
+        result.excluded_dirs_by_rule = sorted(excluded_dirs_by_rule)
+        result.excluded_dirs_by_oyaignore = sorted(excluded_dirs_by_oyaignore)
 
         # Sort all lists
         result.included.sort()
