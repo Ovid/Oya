@@ -1,47 +1,31 @@
-"""Tests for database reconnection when .oyawiki is deleted."""
+"""Tests for database reconnection when meta directory is deleted."""
 
-import pytest
-from pathlib import Path
+import shutil
 
-from oya.api.deps import get_db, _reset_db_instance, get_settings
+
+from oya.api.deps import get_db, _reset_db_instance
 
 
 class TestDatabaseReconnect:
-    """Test database reconnection after .oyawiki deletion."""
+    """Test database reconnection after meta directory deletion."""
 
-    def test_get_db_recreates_connection_when_file_deleted(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_db_recreates_connection_when_file_deleted(self, setup_active_repo) -> None:
         """get_db should recreate connection if database file was deleted."""
-        # Setup: create a workspace with .oyawiki structure
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        oyawiki = workspace / ".oyawiki"
-        oyawiki.mkdir()
-        meta = oyawiki / "meta"
-        meta.mkdir()
-
-        # Configure settings to use this workspace
-        monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-        # Clear any cached settings/db
-        get_settings.cache_clear()
-        _reset_db_instance()
+        paths = setup_active_repo["paths"]
+        meta_dir = paths.meta_dir
 
         # First call creates the database
         get_db()
-        db_path = workspace / ".oyawiki" / "meta" / "oya.db"
+        db_path = paths.db_path
         assert db_path.exists(), "Database file should be created"
 
-        # Simulate user deleting .oyawiki directory
-        import shutil
-
-        shutil.rmtree(oyawiki)
+        # Simulate user deleting meta directory
+        _reset_db_instance()  # Close existing connection before deleting
+        shutil.rmtree(meta_dir)
         assert not db_path.exists(), "Database file should be deleted"
 
-        # Recreate the directory structure (as initialize_workspace would)
-        oyawiki.mkdir()
-        meta.mkdir()
+        # Recreate the directory structure
+        meta_dir.mkdir(parents=True)
 
         # Second call should detect missing file and recreate connection
         db2 = get_db()
@@ -54,4 +38,3 @@ class TestDatabaseReconnect:
 
         # Cleanup
         _reset_db_instance()
-        get_settings.cache_clear()

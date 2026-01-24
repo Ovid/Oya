@@ -5,16 +5,15 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from oya.main import app
-from oya.api.deps import get_settings, _reset_db_instance
 
 
 @pytest.fixture
-def temp_workspace(tmp_path, monkeypatch):
-    """Create a temporary workspace with test files."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
+def temp_workspace(setup_active_repo):
+    """Create a temporary workspace with test files using active repo fixture."""
+    workspace = setup_active_repo["source_path"]
 
-    # Initialize git repo
+    # Ensure workspace exists and init git
+    workspace.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
@@ -29,8 +28,6 @@ def temp_workspace(tmp_path, monkeypatch):
     # Create files that will be excluded by rules (DEFAULT_EXCLUDES)
     (workspace / "node_modules").mkdir()
     (workspace / "node_modules" / "dep.js").write_text("module.exports = {}")
-    (workspace / ".git").mkdir(exist_ok=True)  # Already exists from git init
-    # Don't overwrite .git/config as it's needed by git
 
     # Create .oyaignore file to exclude specific files
     (workspace / ".oyaignore").write_text("excluded_dir/\nexcluded_file.txt\n")
@@ -42,17 +39,7 @@ def temp_workspace(tmp_path, monkeypatch):
     subprocess.run(["git", "add", "-f", "."], cwd=workspace, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=workspace, capture_output=True)
 
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
-
-    yield workspace
-
-    _reset_db_instance()
+    return workspace
 
 
 @pytest.fixture
@@ -103,32 +90,33 @@ async def test_included_files_are_correct(client, temp_workspace):
 
 
 async def test_oyaignore_excluded_files_are_correct(client, temp_workspace):
-    """Test that excluded_by_oyaignore category contains files excluded via .oyaignore."""
+    """Test that excluded_by_oyaignore category contains directories excluded via .oyaignore."""
     response = await client.get("/api/repos/indexable")
 
     assert response.status_code == 200
     data = response.json()
 
-    # Files in .oyaignore should be in excluded_by_oyaignore
+    # Files excluded by file pattern (not directory) are still listed
     assert "excluded_file.txt" in data["excluded_by_oyaignore"]["files"]
-    assert "excluded_dir/file.py" in data["excluded_by_oyaignore"]["files"]
 
-    # Directories excluded by oyaignore
+    # Directory excluded by pattern - directory listed, not individual files
     assert "excluded_dir" in data["excluded_by_oyaignore"]["directories"]
+    assert "excluded_dir/file.py" not in data["excluded_by_oyaignore"]["files"]
 
 
 async def test_rule_excluded_files_are_correct(client, temp_workspace):
-    """Test that excluded_by_rule category contains files excluded via DEFAULT_EXCLUDES."""
+    """Test that excluded_by_rule category contains directories excluded via DEFAULT_EXCLUDES."""
     response = await client.get("/api/repos/indexable")
 
     assert response.status_code == 200
     data = response.json()
 
-    # Files excluded by DEFAULT_EXCLUDES (node_modules) should be in excluded_by_rule
-    assert "node_modules/dep.js" in data["excluded_by_rule"]["files"]
-
-    # The node_modules directory should be in excluded_by_rule directories
+    # node_modules directory should be in excluded_by_rule directories
+    # (files inside are no longer listed individually)
     assert "node_modules" in data["excluded_by_rule"]["directories"]
+
+    # Individual files inside excluded directories are NOT listed
+    assert "node_modules/dep.js" not in data["excluded_by_rule"]["files"]
 
 
 async def test_included_directories_are_derived_from_files(client, temp_workspace):
@@ -213,7 +201,10 @@ async def test_dotfiles_excluded_by_rule(client, temp_workspace):
 
     # Dotfiles should be excluded by rule
     assert ".env" in data["excluded_by_rule"]["files"]
-    assert ".config/settings.json" in data["excluded_by_rule"]["files"]
+
+    # Dotdirs should be in directories, not individual files
+    assert ".config" in data["excluded_by_rule"]["directories"]
+    assert ".config/settings.json" not in data["excluded_by_rule"]["files"]
 
 
 async def test_empty_oyaignore_returns_empty_oyaignore_category(client, temp_workspace):
@@ -230,10 +221,11 @@ async def test_empty_oyaignore_returns_empty_oyaignore_category(client, temp_wor
     assert len(data["excluded_by_oyaignore"]["files"]) == 0
 
 
-async def test_workspace_without_oyaignore(client, tmp_path, monkeypatch):
+async def test_workspace_without_oyaignore(client, setup_active_repo):
     """Test response when .oyaignore doesn't exist."""
-    workspace = tmp_path / "workspace2"
-    workspace.mkdir()
+    workspace = setup_active_repo["source_path"]
+    workspace.mkdir(parents=True, exist_ok=True)
+
     subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
@@ -244,13 +236,7 @@ async def test_workspace_without_oyaignore(client, tmp_path, monkeypatch):
     subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Initial"], cwd=workspace, capture_output=True)
 
-    monkeypatch.setenv("WORKSPACE_PATH", str(workspace))
-
-    from oya.config import load_settings
-
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-    _reset_db_instance()
+    # No .oyaignore file
 
     response = await client.get("/api/repos/indexable")
 
@@ -265,4 +251,42 @@ async def test_workspace_without_oyaignore(client, tmp_path, monkeypatch):
     # excluded_by_oyaignore should be empty
     assert len(data["excluded_by_oyaignore"]["files"]) == 0
 
-    _reset_db_instance()
+
+async def test_excluded_directory_children_not_listed(client, temp_workspace):
+    """Files inside explicitly excluded directories should not appear individually."""
+    # Create a deeply nested structure in node_modules
+    (temp_workspace / "node_modules" / "lodash").mkdir(parents=True)
+    (temp_workspace / "node_modules" / "lodash" / "index.js").write_text("module.exports = {}")
+    (temp_workspace / "node_modules" / "lodash" / "fp.js").write_text("module.exports = {}")
+
+    response = await client.get("/api/repos/indexable")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # node_modules directory should be in excluded_by_rule directories
+    assert "node_modules" in data["excluded_by_rule"]["directories"]
+
+    # Individual files inside should NOT be listed
+    assert "node_modules/dep.js" not in data["excluded_by_rule"]["files"]
+    assert "node_modules/lodash/index.js" not in data["excluded_by_rule"]["files"]
+    assert "node_modules/lodash/fp.js" not in data["excluded_by_rule"]["files"]
+
+
+async def test_oyaignore_directory_children_not_listed(client, temp_workspace):
+    """Files inside directories excluded by .oyaignore should not appear individually."""
+    # Create nested files in excluded_dir (already excluded by .oyaignore in fixture)
+    (temp_workspace / "excluded_dir" / "subdir").mkdir()
+    (temp_workspace / "excluded_dir" / "subdir" / "deep.py").write_text("# deep file")
+
+    response = await client.get("/api/repos/indexable")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # excluded_dir should be in directories
+    assert "excluded_dir" in data["excluded_by_oyaignore"]["directories"]
+
+    # Individual files should NOT be listed
+    assert "excluded_dir/file.py" not in data["excluded_by_oyaignore"]["files"]
+    assert "excluded_dir/subdir/deep.py" not in data["excluded_by_oyaignore"]["files"]

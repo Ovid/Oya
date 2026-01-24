@@ -3,22 +3,22 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import Optional
 
-from oya.api.deps import get_db, get_settings
-from oya.config import Settings
+from oya.api.deps import get_db, get_active_repo_paths
 from oya.db.connection import Database
 from oya.notes.schemas import Note, NoteCreate
 from oya.notes.service import NotesService
+from oya.repo.repo_paths import RepoPaths
 
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
 
 def get_notes_service(
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
     db: Database = Depends(get_db),
 ) -> NotesService:
     """Get NotesService instance."""
-    return NotesService(settings.notes_path, db)
+    return NotesService(paths.notes_dir, db)
 
 
 @router.post("", response_model=Note, status_code=status.HTTP_201_CREATED)

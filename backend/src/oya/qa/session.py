@@ -43,7 +43,7 @@ class CGRAGSession:
             settings = load_settings()
             max_nodes = settings.ask.cgrag_session_max_nodes
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             max_nodes = 50  # Default from CONFIG_SCHEMA
         while len(self.cached_nodes) > max_nodes:
             self.cached_nodes.popitem(last=False)
@@ -66,7 +66,7 @@ class CGRAGSession:
             settings = load_settings()
             ttl_minutes = settings.ask.cgrag_session_ttl_minutes
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             ttl_minutes = 30  # Default from CONFIG_SCHEMA
         expiry = self.last_accessed + timedelta(minutes=ttl_minutes)
         return datetime.now() > expiry

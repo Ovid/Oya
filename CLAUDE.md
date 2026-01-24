@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ọya is a local-first, editable wiki generator for codebases. It uses LLMs to generate documentation from source code and stores everything in `.oyawiki/` within the target repository.
+Ọya is a local-first, editable wiki generator for codebases. It uses LLMs to generate documentation from source code.
+
+**Storage:** Wikis stored in `~/.oya/wikis/{local_path}/` with `source/` (git clone) and `meta/` (wiki artifacts) subdirectories
 
 IMPORTANT: this is a generic repository analysis tool. DO NOT MAKE ASSUMPTIONS ABOUT THE CODEBASE BEING ANALYZED. For example, we often use Oya to analyze itself and you often create designs assuming the same tech stack as Oya. THIS IS AN ERROR. Do not make assumptions about the programming languages, frameworks, tools, etc. These must be discovered, not assumed.
 
@@ -17,8 +19,7 @@ cd backend
 source .venv/bin/activate  # Uses existing venv
 pip install -e ".[dev]"    # Install with dev dependencies
 
-# Run server (requires WORKSPACE_PATH env var)
-export WORKSPACE_PATH=/path/to/repo
+# Run server
 uvicorn oya.main:app --reload
 
 # Run tests
@@ -49,7 +50,9 @@ docker-compose up  # Runs both services
 
 ### Backend Structure (`backend/src/oya/`)
 
-- **api/routers/**: FastAPI endpoints (repos, wiki, jobs, search, qa, notes)
+- **api/routers/**: FastAPI endpoints (repos, repos_v2, wiki, jobs, search, qa, notes)
+- **db/**: SQLite for job tracking, metadata, and repo registry
+  - `repo_registry.py`: Multi-repo CRUD operations
 - **generation/**: Wiki generation pipeline
   - `orchestrator.py`: Main generation coordinator - handles the full pipeline
   - `prompts.py`: All LLM prompt templates
@@ -58,19 +61,29 @@ docker-compose up  # Runs both services
   - `staging.py`: Atomic wiki updates via staging directory
 - **llm/**: LiteLLM-based client supporting OpenAI, Anthropic, Google, Ollama
 - **parsing/**: Tree-sitter based code parsers (Python, TypeScript, Java, fallback)
+- **repo/**: Repository management
+  - `url_parser.py`: Parse git URLs and detect source type
+  - `git_operations.py`: Clone/pull wrappers with error handling
+  - `repo_paths.py`: Directory structure utilities for multi-repo storage
 - **vectorstore/**: ChromaDB for semantic search and Q&A
-- **db/**: SQLite for job tracking and metadata
 - **notes/**: Human correction system
 
 ### Frontend Structure (`frontend/src/`)
 
 - **components/**: React components
   - `Layout.tsx`, `Sidebar.tsx`, `TopBar.tsx`: Shell UI
+  - `RepoDropdown.tsx`: Repository selector with status indicators
+  - `AddRepoModal.tsx`: Add new repository modal
+  - `FirstRunWizard.tsx`: Welcome screen for first-time setup
   - `GenerationProgress.tsx`: Real-time job progress via SSE
   - `IndexingPreviewModal.tsx`: File selection before generation
   - `QADock.tsx`: Q&A interface
   - `pages/`: Route components (Overview, Architecture, Workflow, Directory, File)
-- **context/AppContext.tsx**: Global state (repo status, wiki tree, generation jobs)
+- **stores/**: Zustand state management
+  - `reposStore.ts`: Multi-repo state (list, active repo, CRUD)
+  - `wikiStore.ts`: Wiki tree and page content
+  - `generationStore.ts`: Job tracking and progress
+  - `uiStore.ts`: UI state (panels, modals)
 - **api/**: Typed API client functions
 
 ### Data Flow
@@ -157,7 +170,7 @@ When reviewing code (your own or others'), check for these flaws:
 
 ## Environment Variables
 
-Required: `WORKSPACE_PATH` - path to the repo being documented
+- `OYA_DATA_DIR`: Directory for storage (default: `~/.oya`)
 
 LLM config (auto-detected from available keys):
 - `ACTIVE_PROVIDER`: openai | anthropic | google | ollama

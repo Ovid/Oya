@@ -24,7 +24,8 @@ Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
 - **Automatic Wiki Generation** - Generates overview, architecture, workflow, directory, and file documentation from your codebase
 - **Evidence-Gated Q&A** - Ask questions about your code with answers backed by citations
 - **Human Corrections** - Add notes to fix AI mistakes; corrections are treated as ground truth in regeneration
-- **Local-First** - All data stays in your repo under `.oyawiki/`
+- **Multi-Repository Support** - Manage wikis for multiple repositories from a single instance
+- **Local-First** - All data stays local under `~/.oya/`
 - **Multi-Provider LLM Support** - Works with OpenAI, Anthropic, Google, or local Ollama
 
 ![Analyzing Codebase](images/analyzing-codebase.png)
@@ -45,16 +46,19 @@ Ayé. [Per Wikipedia](https://en.wikipedia.org/wiki/%E1%BB%8Cya)
 git clone https://github.com/your-org/oya.git
 cd oya
 
-# Set LLM providers and repo to generate docs for
-# Yes, this is terrible. We'll fix it later after
-# core features are stable.
-- Copy `.env.example` to `.env` and edit.
+# Copy .env.example to .env and add your LLM API keys
+cp .env.example .env
 
 # Start the services
 docker-compose up
 
 # Open http://localhost:5173 in your browser
 ```
+
+On first run, you'll see a welcome wizard to add your first repository. Enter a Git URL or local path and Oya will clone it and generate documentation.
+
+Note that Wiki data will be saved to `~.oya/` in your home directory. See the
+docker compose file.
 
 ### Development Setup
 
@@ -65,9 +69,6 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-
-# Set required environment variable
-export WORKSPACE_PATH=/path/to/your/repo
 
 # Run the API server
 uvicorn oya.main:app --reload
@@ -87,7 +88,7 @@ npm run dev
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `WORKSPACE_PATH` | Path to the repository to document | *Required* |
+| `OYA_DATA_DIR` | Directory for data storage | `~/.oya` |
 | `ACTIVE_PROVIDER` | LLM provider (`openai`, `anthropic`, `google`, `ollama`) | Auto-detected |
 | `ACTIVE_MODEL` | Model name | Provider default |
 | `OPENAI_API_KEY` | OpenAI API key | - |
@@ -122,7 +123,15 @@ oya/
 
 ## API Endpoints
 
-### Repository
+### Repository Management (v2)
+- `GET /api/v2/repos` - List all repositories
+- `POST /api/v2/repos` - Add a new repository (clones from URL or local path)
+- `GET /api/v2/repos/{id}` - Get repository details
+- `DELETE /api/v2/repos/{id}` - Delete a repository and all its data
+- `POST /api/v2/repos/{id}/activate` - Set as active repository
+- `GET /api/v2/repos/active` - Get the currently active repository
+
+### Repository (Legacy)
 - `GET /api/repos/status` - Get repository status
 - `POST /api/repos/init` - Start wiki generation
 

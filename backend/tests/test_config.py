@@ -213,22 +213,21 @@ def test_default_paths_are_correct(temp_workspace: Path):
 # =============================================================================
 
 
-def test_load_settings_from_environment(temp_workspace: Path, monkeypatch):
-    """load_settings integrates config.ini with env vars."""
-    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
+def test_load_settings_from_environment(monkeypatch):
+    """load_settings integrates with env vars."""
     monkeypatch.setenv("ACTIVE_PROVIDER", "openai")
     monkeypatch.setenv("ACTIVE_MODEL", "gpt-4o")
 
     settings = load_settings()
 
-    assert settings.workspace_path == temp_workspace
+    # workspace_path is always None
+    assert settings.workspace_path is None
     assert settings.active_provider == "openai"
     assert settings.active_model == "gpt-4o"
 
 
-def test_load_settings_auto_detects_provider(temp_workspace: Path, monkeypatch):
+def test_load_settings_auto_detects_provider(monkeypatch):
     """Provider auto-detection from API keys works."""
-    monkeypatch.setenv("WORKSPACE_PATH", str(temp_workspace))
     monkeypatch.delenv("ACTIVE_PROVIDER", raising=False)
     monkeypatch.delenv("ACTIVE_MODEL", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -241,9 +240,55 @@ def test_load_settings_auto_detects_provider(temp_workspace: Path, monkeypatch):
     assert settings.active_provider == "ollama"
 
 
-def test_load_settings_requires_workspace_path(monkeypatch):
-    """load_settings raises ValueError without WORKSPACE_PATH."""
-    monkeypatch.delenv("WORKSPACE_PATH", raising=False)
+def test_load_settings_workspace_path_always_none(monkeypatch):
+    """load_settings always returns workspace_path=None."""
+    load_settings.cache_clear()
 
-    with pytest.raises(ValueError, match="WORKSPACE_PATH"):
-        load_settings()
+    settings = load_settings()
+
+    # workspace_path is always None - use active repo context from deps.py
+    assert settings.workspace_path is None
+    # Other settings should still work
+    assert settings.active_provider in ("ollama", "openai", "anthropic", "google")
+    assert settings.data_dir is not None
+
+
+# =============================================================================
+# OYA_DATA_DIR Configuration Tests
+# =============================================================================
+
+
+def test_oya_data_dir_default(monkeypatch):
+    """OYA_DATA_DIR defaults to ~/.oya when not set."""
+    monkeypatch.delenv("OYA_DATA_DIR", raising=False)
+    load_settings.cache_clear()
+    settings = load_settings()
+    expected = Path.home() / ".oya"
+    assert settings.data_dir == expected
+
+
+def test_oya_data_dir_from_env(monkeypatch, temp_workspace):
+    """OYA_DATA_DIR can be set via environment variable."""
+    custom_dir = temp_workspace / "custom-oya"
+    monkeypatch.setenv("OYA_DATA_DIR", str(custom_dir))
+    load_settings.cache_clear()
+    settings = load_settings()
+    assert settings.data_dir == custom_dir
+
+
+def test_repos_db_path(monkeypatch, temp_workspace):
+    """repos.db path is under data_dir."""
+    custom_dir = temp_workspace / "oya"
+    monkeypatch.setenv("OYA_DATA_DIR", str(custom_dir))
+    load_settings.cache_clear()
+    settings = load_settings()
+    assert settings.repos_db_path == custom_dir / "repos.db"
+
+
+def test_wikis_dir_path(monkeypatch, temp_workspace):
+    """wikis directory path is under data_dir."""
+    custom_dir = temp_workspace / "oya"
+    monkeypatch.setenv("OYA_DATA_DIR", str(custom_dir))
+    load_settings.cache_clear()
+    settings = load_settings()
+    assert settings.wikis_dir == custom_dir / "wikis"

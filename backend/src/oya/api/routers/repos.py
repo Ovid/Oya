@@ -1,28 +1,16 @@
 """Repository management endpoints."""
 
-import os
 import uuid
-from datetime import datetime
-from pathlib import Path
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 
 from oya.api.deps import (
     get_repo,
     get_db,
     get_settings,
-    get_workspace_base_path,
-    validate_workspace_path,
-    _reset_db_instance,
-    _reset_vectorstore_instance,
+    get_active_repo_paths,
 )
 from oya.api.schemas import (
-    RepoStatus,
     JobCreated,
-    WorkspaceSwitch,
-    WorkspaceSwitchResponse,
-    DirectoryEntry,
-    DirectoryListing,
-    EmbeddingMetadata,
     IndexableItems,
     FileList,
     OyaignoreUpdateRequest,
@@ -30,16 +18,15 @@ from oya.api.schemas import (
 )
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
 from oya.repo.git_repo import GitRepo
+from oya.repo.repo_paths import RepoPaths
 from oya.db.connection import Database
 from oya.db.migrations import run_migrations
-from oya.config import Settings, load_settings
+from oya.config import Settings
 from oya.generation.orchestrator import GenerationOrchestrator, GenerationProgress
 from oya.generation.staging import (
-    has_incomplete_build,
     prepare_staging_directory,
     promote_staging_to_production,
 )
-from oya.workspace import initialize_workspace
 from oya.indexing.service import IndexingService
 from oya.llm.client import LLMClient
 from oya.vectorstore.store import VectorStore
@@ -48,174 +35,9 @@ from oya.vectorstore.issues import IssuesStore
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
 
-def _is_docker_mode() -> bool:
-    """Check if running in Docker mode.
-
-    Docker mode is detected by the presence of WORKSPACE_DISPLAY_PATH,
-    which is set by docker-compose when the host path differs from container path.
-    """
-    return os.getenv("WORKSPACE_DISPLAY_PATH") is not None
-
-
-def _get_last_generation(db: Database | None) -> datetime | None:
-    """Get the completed_at timestamp of the most recent completed generation.
-
-    Args:
-        db: Database connection, or None if not available.
-
-    Returns:
-        Datetime of last completed generation, or None.
-    """
-    if db is None:
-        return None
-    try:
-        result = db.execute(
-            """
-            SELECT completed_at FROM generations
-            WHERE status = 'completed' AND completed_at IS NOT NULL
-            ORDER BY completed_at DESC
-            LIMIT 1
-            """
-        ).fetchone()
-        if result and result[0]:
-            return datetime.fromisoformat(result[0])
-        return None
-    except Exception:
-        return None
-
-
-def _build_repo_status(
-    workspace_path: Path,
-    display_path: str | None = None,
-    settings: Settings | None = None,
-    db: Database | None = None,
-) -> RepoStatus:
-    """Build RepoStatus for a workspace path.
-
-    Args:
-        workspace_path: Path to the workspace directory.
-        display_path: Optional human-readable path to display (for Docker environments).
-        settings: Optional settings for current provider/model info.
-        db: Optional database connection for querying last generation.
-
-    Returns:
-        RepoStatus with git info if available, or uninitialized status.
-    """
-    # Use display_path if provided, otherwise use workspace_path
-    path_to_display = display_path or str(workspace_path)
-    is_docker = _is_docker_mode()
-
-    # Get embedding metadata if available
-    embedding_metadata = None
-    embedding_mismatch = False
-    current_provider = settings.active_provider if settings else None
-    current_model = settings.active_model if settings else None
-    last_generation = _get_last_generation(db)
-
-    # Use settings for paths if available, otherwise compute from workspace_path
-    if settings:
-        meta_path = settings.oyawiki_path / "meta"
-        wiki_path = settings.wiki_path
-    else:
-        # Fallback for cases where settings isn't available yet
-        _settings = load_settings()
-        meta_path = _settings.oyawiki_path / "meta"
-        wiki_path = _settings.wiki_path
-
-    if meta_path.exists():
-        # Create a temporary indexing service just to read metadata
-        try:
-            # We don't need a real vectorstore/db, just the meta_path
-            indexing_service = IndexingService(
-                vectorstore=None,  # type: ignore
-                db=None,  # type: ignore
-                wiki_path=wiki_path,
-                meta_path=meta_path,
-            )
-            raw_metadata = indexing_service.get_embedding_metadata()
-            if raw_metadata:
-                embedding_metadata = EmbeddingMetadata(
-                    provider=raw_metadata["provider"],
-                    model=raw_metadata["model"],
-                    indexed_at=raw_metadata["indexed_at"],
-                )
-                # Check for mismatch
-                if settings:
-                    embedding_mismatch = (
-                        raw_metadata["provider"] != settings.active_provider
-                        or raw_metadata["model"] != settings.active_model
-                    )
-        except Exception:
-            pass
-
-    try:
-        repo = GitRepo(workspace_path)
-        head_commit = repo.get_head_commit()
-        commit = repo._repo.head.commit
-        return RepoStatus(
-            path=path_to_display,
-            head_commit=head_commit,
-            head_message=str(commit.message).strip() if commit else None,
-            branch=repo.get_current_branch(),
-            initialized=True,
-            is_docker=is_docker,
-            last_generation=last_generation,
-            embedding_metadata=embedding_metadata,
-            current_provider=current_provider,
-            current_model=current_model,
-            embedding_mismatch=embedding_mismatch,
-        )
-    except Exception:
-        return RepoStatus(
-            path=path_to_display,
-            head_commit=None,
-            head_message=None,
-            branch=None,
-            initialized=False,
-            is_docker=is_docker,
-            last_generation=last_generation,
-            embedding_metadata=embedding_metadata,
-            current_provider=current_provider,
-            current_model=current_model,
-            embedding_mismatch=embedding_mismatch,
-        )
-
-
-@router.get("/status", response_model=RepoStatus)
-async def get_repo_status(
-    settings: Settings = Depends(get_settings),
-    db: Database = Depends(get_db),
-) -> RepoStatus:
-    """Get current repository status."""
-    return _build_repo_status(settings.workspace_path, settings.display_path, settings, db)
-
-
-@router.get("/generation-status")
-async def get_generation_status(
-    settings: Settings = Depends(get_settings),
-) -> dict | None:
-    """Check if there's an incomplete wiki build.
-
-    Returns information about incomplete build if .oyawiki-building exists.
-    This indicates a previous generation was interrupted.
-
-    Returns:
-        Dict with incomplete build info, or None if no incomplete build.
-    """
-    if has_incomplete_build(settings.workspace_path):
-        return {
-            "status": "incomplete",
-            "message": (
-                "A previous wiki generation did not complete. "
-                "The wiki must be generated from scratch."
-            ),
-        }
-    return None
-
-
 @router.get("/indexable", response_model=IndexableItems)
 async def get_indexable_items(
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> IndexableItems:
     """Get list of directories and files categorized by exclusion reason.
 
@@ -226,30 +48,31 @@ async def get_indexable_items(
 
     Uses the same FileFilter class as GenerationOrchestrator to ensure
     the preview matches actual generation behavior.
-
-    Requirements: 2.2, 2.3, 2.4, 7.1, 7.2, 7.3, 7.4, 7.6, 7.7, 7.8
     """
-    # Validate workspace path exists and is accessible
-    workspace_path = settings.workspace_path
-    if not workspace_path.exists():
-        raise HTTPException(
-            status_code=400, detail=f"Repository path is invalid or inaccessible: {workspace_path}"
-        )
-
-    if not workspace_path.is_dir():
-        raise HTTPException(
-            status_code=400, detail=f"Repository path is not a directory: {workspace_path}"
-        )
+    source_path = paths.source
+    if not source_path.exists():
+        raise HTTPException(status_code=400, detail=f"Repository source not found: {source_path}")
 
     try:
         # Use the same FileFilter class as GenerationOrchestrator._run_analysis()
-        file_filter = FileFilter(settings.workspace_path)
+        file_filter = FileFilter(source_path)
         categorized = file_filter.get_files_categorized()
 
-        # Derive directories from file paths for each category
+        # For included, derive directories from files
         included_dirs = extract_directories_from_files(categorized.included)
-        oyaignore_dirs = extract_directories_from_files(categorized.excluded_by_oyaignore)
-        rule_dirs = extract_directories_from_files(categorized.excluded_by_rule)
+
+        # Combine file-derived directories with explicitly excluded directories
+        rule_dirs = list(
+            set(extract_directories_from_files(categorized.excluded_by_rule))
+            | set(categorized.excluded_dirs_by_rule)
+        )
+        rule_dirs.sort()
+
+        oyaignore_dirs = list(
+            set(extract_directories_from_files(categorized.excluded_by_oyaignore))
+            | set(categorized.excluded_dirs_by_oyaignore)
+        )
+        oyaignore_dirs.sort()
 
         # Remove root directory ("") from oyaignore and rule dirs since it's always in included
         oyaignore_dirs = [d for d in oyaignore_dirs if d != ""]
@@ -280,9 +103,9 @@ async def get_indexable_items(
 @router.post("/oyaignore", response_model=OyaignoreUpdateResponse)
 async def update_oyaignore(
     request: OyaignoreUpdateRequest,
-    settings: Settings = Depends(get_settings),
+    paths: RepoPaths = Depends(get_active_repo_paths),
 ) -> OyaignoreUpdateResponse:
-    """Add exclusions to and remove patterns from .oyaignore in the repository root.
+    """Add exclusions to and remove patterns from .oyaignore.
 
     Creates the .oyaignore file if it doesn't exist.
     Processes removals first (before additions).
@@ -290,12 +113,9 @@ async def update_oyaignore(
     Adds trailing slash to directory patterns.
     Removes duplicate entries.
 
-    Note: .oyaignore is in root (not .oyawiki) so users can delete .oyawiki
-    for a fresh regeneration without losing their exclusion settings.
-
-    Requirements: 5.6, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
+    In multi-repo mode, .oyaignore is stored in the meta/ directory.
     """
-    oyaignore_path = settings.ignore_path
+    oyaignore_path = paths.oyaignore
 
     try:
         # Read existing content, preserving order but tracking for deduplication
@@ -419,11 +239,30 @@ async def update_oyaignore(
         raise HTTPException(status_code=500, detail=f"Failed to update .oyaignore: {e}")
 
 
+@router.get("/generation-status")
+async def get_generation_status(
+    paths: RepoPaths = Depends(get_active_repo_paths),
+) -> dict | None:
+    """Get the current generation status.
+
+    Returns information about any incomplete build in the staging directory.
+    Returns null if no incomplete build exists.
+    """
+    staging_path = paths.meta_dir / ".oyawiki-building"
+    if staging_path.exists():
+        return {
+            "status": "incomplete",
+            "message": "An incomplete build was found in the staging directory.",
+        }
+    return None
+
+
 @router.post("/init", response_model=JobCreated, status_code=202)
 async def init_repo(
     background_tasks: BackgroundTasks,
     repo: GitRepo = Depends(get_repo),
     db: Database = Depends(get_db),
+    paths: RepoPaths = Depends(get_active_repo_paths),
     settings: Settings = Depends(get_settings),
 ) -> JobCreated:
     """Initialize repository and start wiki generation."""
@@ -442,7 +281,7 @@ async def init_repo(
     db.commit()
 
     # Start generation in background
-    background_tasks.add_task(_run_generation, job_id, repo, db, settings)
+    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings)
 
     return JobCreated(job_id=job_id, message="Wiki generation started")
 
@@ -451,6 +290,7 @@ async def _run_generation(
     job_id: str,
     repo: GitRepo,
     db: Database,
+    paths: RepoPaths,
     settings: Settings,
 ) -> None:
     """Run wiki generation in background using staging directory.
@@ -458,10 +298,11 @@ async def _run_generation(
     Builds wiki in .oyawiki-building, then promotes to .oyawiki on success.
     If generation fails, staging directory is left for debugging.
     """
-    # Staging paths - build in .oyawiki-building
-    staging_path = settings.staging_path
+    # Staging paths - build in .oyawiki-building (in meta directory)
+    staging_path = paths.meta / ".oyawiki-building"
     staging_wiki_path = staging_path / "wiki"
     staging_meta_path = staging_path / "meta"
+    production_path = paths.oyawiki
 
     # Phase number mapping for progress tracking (bottom-up approach)
     # Order: Analysis → Files → Directories → Synthesis → Architecture →
@@ -505,7 +346,7 @@ async def _run_generation(
         db.commit()
 
         # Prepare staging directory (copies production for incremental, or creates empty)
-        prepare_staging_directory(staging_path, settings.oyawiki_path)
+        prepare_staging_directory(staging_path, production_path)
 
         # Create staging database connection for orchestrator
         # This ensures wiki_pages data survives the staging → production promotion
@@ -515,12 +356,13 @@ async def _run_generation(
         run_migrations(staging_db)
 
         # Create orchestrator to build in staging directory
+        log_path = paths.oya_logs / "llm-queries.jsonl"
         llm = LLMClient(
             provider=settings.llm_provider,
             model=settings.llm_model,
             api_key=settings.llm_api_key,
             endpoint=settings.llm_endpoint,
-            log_path=settings.llm_log_path,
+            log_path=log_path,
         )
         issues_store = IssuesStore(staging_meta_path / "vectorstore")
         orchestrator = GenerationOrchestrator(
@@ -598,7 +440,7 @@ async def _run_generation(
         staging_db = None
 
         # SUCCESS: Promote staging to production
-        promote_staging_to_production(staging_path, settings.oyawiki_path)
+        promote_staging_to_production(staging_path, production_path)
 
     except Exception as e:
         # FAILURE: Leave staging directory for debugging
@@ -616,115 +458,3 @@ async def _run_generation(
         # Ensure staging db is closed
         if staging_db is not None:
             staging_db.close()
-
-
-@router.post("/workspace", response_model=WorkspaceSwitchResponse)
-async def switch_workspace(
-    request: WorkspaceSwitch,
-) -> WorkspaceSwitchResponse:
-    """Switch to a different workspace directory.
-
-    Validates the path, clears caches, reinitializes database,
-    and runs workspace initialization for the new workspace.
-
-    Note: In Docker environments, this endpoint may not work as expected
-    since paths must exist inside the container.
-
-    Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.11
-    """
-    # Get base path for validation
-    base_path = get_workspace_base_path()
-
-    # Validate the requested path
-    is_valid, error_msg, resolved_path = validate_workspace_path(request.path, base_path)
-
-    if not is_valid or resolved_path is None:
-        if error_msg and "outside allowed" in error_msg:
-            raise HTTPException(status_code=403, detail=error_msg)
-        raise HTTPException(status_code=400, detail=error_msg or "Invalid path")
-
-    # Clear settings cache and update WORKSPACE_PATH environment variable
-    os.environ["WORKSPACE_PATH"] = str(resolved_path)
-    # Also update display path to match the new workspace
-    os.environ["WORKSPACE_DISPLAY_PATH"] = str(resolved_path)
-    load_settings.cache_clear()
-    get_settings.cache_clear()
-
-    # Reset database and vectorstore instances for new workspace
-    _reset_db_instance()
-    _reset_vectorstore_instance()
-
-    # Initialize workspace for the new path
-    initialize_workspace(resolved_path)
-
-    # Build and return status for the new workspace (display path is the same as resolved path)
-    new_settings = get_settings()
-    new_db = get_db()
-    status = _build_repo_status(resolved_path, str(resolved_path), new_settings, new_db)
-
-    return WorkspaceSwitchResponse(status=status, message=f"Switched to workspace: {resolved_path}")
-
-
-@router.get("/directories", response_model=DirectoryListing)
-async def list_directories(
-    path: str = Query(default=None, description="Directory path to list. Defaults to base path."),
-) -> DirectoryListing:
-    """List directories for the directory picker.
-
-    Returns subdirectories of the given path that are within the allowed base path.
-    Only directories are returned (not files) to support workspace selection.
-    """
-    base_path = get_workspace_base_path()
-
-    # Default to base path if no path provided
-    if path is None:
-        target_path = base_path
-    else:
-        target_path = Path(path).resolve()
-
-    # Validate the path is within base path
-    try:
-        target_path.relative_to(base_path)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Path is outside allowed workspace area")
-
-    if not target_path.exists():
-        raise HTTPException(status_code=400, detail="Path does not exist")
-
-    if not target_path.is_dir():
-        raise HTTPException(status_code=400, detail="Path is not a directory")
-
-    # Get parent path (if not at base)
-    parent = None
-    if target_path != base_path:
-        parent_path = target_path.parent
-        # Only include parent if it's within base path
-        try:
-            parent_path.relative_to(base_path)
-            parent = str(parent_path)
-        except ValueError:
-            parent = str(base_path)
-
-    # List directory entries
-    entries: list[DirectoryEntry] = []
-    try:
-        for entry in sorted(target_path.iterdir(), key=lambda e: e.name.lower()):
-            # Skip hidden files/directories
-            if entry.name.startswith("."):
-                continue
-
-            entries.append(
-                DirectoryEntry(
-                    name=entry.name,
-                    path=str(entry),
-                    is_dir=entry.is_dir(),
-                )
-            )
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    return DirectoryListing(
-        path=str(target_path),
-        parent=parent,
-        entries=entries,
-    )

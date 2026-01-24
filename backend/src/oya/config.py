@@ -88,6 +88,86 @@ CONFIG_SCHEMA: dict[str, dict[str, tuple[type, Any, Any, Any, str]]] = {
 
 
 # =============================================================================
+# Extension to Language Mapping (for syntax highlighting)
+# =============================================================================
+
+EXTENSION_LANGUAGES: dict[str, str] = {
+    ".py": "python",
+    ".pyi": "python",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".jsx": "jsx",
+    ".java": "java",
+    ".go": "go",
+    ".rs": "rust",
+    ".rb": "ruby",
+    ".pl": "perl",
+    ".pm": "perl",
+    ".php": "php",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".hpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".cs": "csharp",
+    ".swift": "swift",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    ".scala": "scala",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".zsh": "zsh",
+    ".sql": "sql",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".toml": "toml",
+    ".xml": "xml",
+    ".html": "html",
+    ".htm": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".sass": "sass",
+    ".less": "less",
+    ".md": "markdown",
+    ".markdown": "markdown",
+    ".lua": "lua",
+    ".r": "r",
+    ".R": "r",
+    ".jl": "julia",
+    ".ex": "elixir",
+    ".exs": "elixir",
+    ".erl": "erlang",
+    ".hrl": "erlang",
+    ".clj": "clojure",
+    ".cljs": "clojure",
+    ".hs": "haskell",
+    ".ml": "ocaml",
+    ".mli": "ocaml",
+    ".fs": "fsharp",
+    ".fsx": "fsharp",
+    ".nim": "nim",
+    ".zig": "zig",
+    ".v": "v",
+    ".d": "d",
+    ".dart": "dart",
+    ".groovy": "groovy",
+    ".gradle": "groovy",
+    ".tf": "hcl",
+    ".hcl": "hcl",
+    ".proto": "protobuf",
+    ".graphql": "graphql",
+    ".gql": "graphql",
+    ".vue": "vue",
+    ".svelte": "svelte",
+}
+
+
+# =============================================================================
 # Task 1.3: Section Dataclasses
 # =============================================================================
 
@@ -226,15 +306,11 @@ def _load_section(
 def _load_config(config_path: Optional[Path] = None) -> "Config":
     """Load configuration from an INI file (internal use only).
 
-    This is an internal function called by load_settings(). It returns a Config
-    with a placeholder workspace_path that load_settings() will replace with
-    the actual workspace path from WORKSPACE_PATH environment variable.
-
     Args:
         config_path: Path to config file. If None, uses defaults from schema.
 
     Returns:
-        Config object with all sections populated (workspace_path is placeholder)
+        Config object with all sections populated
 
     Raises:
         ConfigError: If validation fails
@@ -260,9 +336,8 @@ def _load_config(config_path: Optional[Path] = None) -> "Config":
     llm = LLMConfig(**llm_values)
     paths = PathsConfig(**paths_values)
 
-    # Create Config with placeholder workspace_path (will be set by load_settings)
     return Config(
-        workspace_path=Path("."),  # Placeholder, will be overwritten
+        workspace_path=None,
         generation=generation,
         files=files,
         ask=ask,
@@ -283,11 +358,14 @@ class Config:
 
     This replaces the old Settings class while maintaining backward compatibility
     with existing code that accesses settings properties.
+
+    workspace_path is always None. Use the active repo context from deps.py
+    for workspace-relative paths.
     """
 
     # Core settings
-    workspace_path: Path
-    workspace_display_path: Optional[str] = None
+    workspace_path: Optional[Path] = None  # Always None, kept for compatibility
+    data_dir: Path = None  # type: ignore[assignment]  # Set in __post_init__ if None
     active_provider: str = "ollama"
     active_model: str = "llama2"
     openai_api_key: Optional[str] = None
@@ -312,6 +390,8 @@ class Config:
     def __post_init__(self):
         """Initialize section configs with defaults if not provided."""
         # Since frozen=True, we need to use object.__setattr__
+        if self.data_dir is None:
+            object.__setattr__(self, "data_dir", Path.home() / ".oya")
         if self.generation is None:
             generation_values = {
                 key: default for key, (_, default, _, _, _) in CONFIG_SCHEMA["generation"].items()
@@ -344,19 +424,38 @@ class Config:
             object.__setattr__(self, "paths", PathsConfig(**paths_values))
 
     @property
-    def display_path(self) -> str:
-        """Path to display to users (uses workspace_display_path if set)."""
-        return self.workspace_display_path or str(self.workspace_path)
+    def repos_db_path(self) -> Path:
+        """Path to the multi-repo SQLite database."""
+        return self.data_dir / "repos.db"
+
+    @property
+    def wikis_dir(self) -> Path:
+        """Path to the directory containing all wiki data."""
+        return self.data_dir / "wikis"
+
+    def _require_workspace_path(self) -> Path:
+        """Get workspace_path, raising an error if not set.
+
+        Raises:
+            ConfigError: If workspace_path is None. Use the active repo context
+                from deps.py instead.
+        """
+        if self.workspace_path is None:
+            raise ConfigError(
+                "workspace_path is not set. Use the active repo context from "
+                "deps.py instead of settings properties."
+            )
+        return self.workspace_path
 
     @property
     def oyawiki_path(self) -> Path:
         """Path to .oyawiki directory."""
-        return self.workspace_path / self.paths.wiki_dir
+        return self._require_workspace_path() / self.paths.wiki_dir
 
     @property
     def staging_path(self) -> Path:
         """Path to .oyawiki-building staging directory."""
-        return self.workspace_path / self.paths.staging_dir
+        return self._require_workspace_path() / self.paths.staging_dir
 
     @property
     def wiki_path(self) -> Path:
@@ -394,12 +493,12 @@ class Config:
 
         Stored outside .oyawiki so logs aren't affected by staging/promotion.
         """
-        return self.workspace_path / self.paths.logs_dir / "llm-queries.jsonl"
+        return self._require_workspace_path() / self.paths.logs_dir / "llm-queries.jsonl"
 
     @property
     def ignore_path(self) -> Path:
         """Path to .oyaignore file."""
-        return self.workspace_path / self.paths.ignore_file
+        return self._require_workspace_path() / self.paths.ignore_file
 
     @property
     def llm_provider(self) -> str:
@@ -457,25 +556,13 @@ def load_settings() -> Config:
     Settings are cached for the lifetime of the application.
     Use load_settings.cache_clear() to reload settings.
 
+    workspace_path is always None. Use the active repo context from deps.py
+    for workspace-relative paths.
+
     Returns:
         Config object populated from environment variables and config file.
-
-    Raises:
-        ValueError: If WORKSPACE_PATH is not set.
     """
-    workspace_path_str = os.getenv("WORKSPACE_PATH")
-    if not workspace_path_str:
-        raise ValueError("WORKSPACE_PATH environment variable must be set")
-
-    workspace_path = Path(workspace_path_str)
-
-    # Load config from file if it exists (stored in workspace root, not .oyawiki)
-    config_file = workspace_path / "config.ini"
-    try:
-        config_exists = config_file.exists()
-    except PermissionError:
-        config_exists = False
-    base_config = _load_config(config_file if config_exists else None)
+    base_config = _load_config(None)
 
     # Get provider and model, auto-detecting if not explicitly set
     active_provider = os.getenv("ACTIVE_PROVIDER")
@@ -510,9 +597,13 @@ def load_settings() -> Config:
     # Get max_file_size_kb from env or config
     max_file_size_kb = int(os.getenv("MAX_FILE_SIZE_KB", str(base_config.files.max_file_size_kb)))
 
+    # Get OYA_DATA_DIR from env, defaulting to ~/.oya
+    data_dir_str = os.getenv("OYA_DATA_DIR")
+    data_dir = Path(data_dir_str) if data_dir_str else Path.home() / ".oya"
+
     return Config(
-        workspace_path=workspace_path,
-        workspace_display_path=os.getenv("WORKSPACE_DISPLAY_PATH"),
+        workspace_path=None,
+        data_dir=data_dir,
         active_provider=active_provider,
         active_model=active_model,
         openai_api_key=os.getenv("OPENAI_API_KEY"),

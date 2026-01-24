@@ -1,12 +1,32 @@
 import { useWikiStore } from './wikiStore'
 import { useGenerationStore } from './generationStore'
+import { useReposStore } from './reposStore'
 import * as api from '../api/client'
 
 export async function initializeApp(): Promise<void> {
   const wikiStore = useWikiStore.getState()
   const generationStore = useGenerationStore.getState()
+  const reposStore = useReposStore.getState()
 
   wikiStore.setLoading(true)
+
+  // Fetch repos and active repo
+  try {
+    await reposStore.fetchRepos()
+    await reposStore.fetchActiveRepo()
+
+    // Auto-select first repo if repos exist but none is active
+    const { repos, activeRepo } = useReposStore.getState()
+    if (repos.length > 0 && !activeRepo) {
+      await reposStore.setActiveRepo(repos[0].id)
+    }
+  } catch {
+    // Ignore errors during repo initialization
+  } finally {
+    reposStore.setInitialized(true)
+  }
+
+  // Refresh repo status for the active repo
   await wikiStore.refreshStatus()
 
   // Check for incomplete build FIRST

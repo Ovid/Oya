@@ -4,12 +4,14 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ${REPO_PATH:-.}:/workspace
+      # Data directory (bind mount to host for easy access)
+      - ~/.oya:/root/.oya
+      # Uncomment to enable SSH key access for cloning private repositories:
+      # - ~/.ssh:/root/.ssh:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      - WORKSPACE_PATH=/workspace
-      - WORKSPACE_DISPLAY_PATH=${REPO_PATH:-.}
+      - OYA_DATA_DIR=/root/.oya
       - PYTHONUNBUFFERED=1
     env_file:
       - .env
@@ -22,3 +24,5 @@ services:
       - backend
     environment:
       - VITE_API_URL=http://localhost:8000
+
+# Named volume removed - using bind mount to ~/.oya instead

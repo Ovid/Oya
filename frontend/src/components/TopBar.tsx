@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useWikiStore, useGenerationStore, useUIStore, useNoteEditorStore } from '../stores'
-import { DirectoryPicker } from './DirectoryPicker'
+import { useWikiStore, useGenerationStore, useUIStore } from '../stores'
 import { IndexingPreviewModal } from './IndexingPreviewModal'
+import { RepoDropdown } from './RepoDropdown'
+import { AddRepoModal } from './AddRepoModal'
 
 interface TopBarProps {
   onToggleSidebar: () => void
@@ -18,27 +19,20 @@ export function TopBar({
 }: TopBarProps) {
   const repoStatus = useWikiStore((s) => s.repoStatus)
   const wikiIsLoading = useWikiStore((s) => s.isLoading)
-  const switchWorkspace = useWikiStore((s) => s.switchWorkspace)
   const currentJob = useGenerationStore((s) => s.currentJob)
   const generationIsLoading = useGenerationStore((s) => s.isLoading)
   const startGeneration = useGenerationStore((s) => s.startGeneration)
   const darkMode = useUIStore((s) => s.darkMode)
   const toggleDarkMode = useUIStore((s) => s.toggleDarkMode)
-  const noteEditorIsDirty = useNoteEditorStore((s) => s.isDirty)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+  const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false)
+  const [showGeneratePrompt, setShowGeneratePrompt] = useState(false)
 
   const isLoading = wikiIsLoading || generationIsLoading
   const isGenerating = currentJob?.status === 'running' || currentJob?.status === 'pending'
-  const hasUnsavedChanges = noteEditorIsDirty
 
-  const handleWorkspaceSwitch = async (path: string) => {
-    if (hasUnsavedChanges) {
-      const confirmed = window.confirm(
-        'You have unsaved changes. Are you sure you want to switch workspaces?'
-      )
-      if (!confirmed) return
-    }
-    await switchWorkspace(path)
+  const handleRepoAdded = () => {
+    setShowGeneratePrompt(true)
   }
 
   const getStatusBadge = () => {
@@ -102,15 +96,7 @@ export function TopBar({
 
           <div className="flex items-center space-x-2">
             <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Ọya</span>
-            {repoStatus && (
-              <DirectoryPicker
-                currentPath={repoStatus.path}
-                isDocker={repoStatus.is_docker}
-                onSwitch={handleWorkspaceSwitch}
-                disabled={isGenerating}
-                disabledReason={isGenerating ? 'Cannot switch during generation' : undefined}
-              />
-            )}
+            <RepoDropdown onAddRepo={() => setIsAddRepoModalOpen(true)} disabled={isGenerating} />
           </div>
         </div>
 
@@ -215,6 +201,48 @@ export function TopBar({
         onClose={() => setIsPreviewModalOpen(false)}
         onGenerate={() => startGeneration()}
       />
+
+      {/* Add Repo Modal */}
+      <AddRepoModal
+        isOpen={isAddRepoModalOpen}
+        onClose={() => setIsAddRepoModalOpen(false)}
+        onRepoAdded={handleRepoAdded}
+      />
+
+      {/* Generate Wiki Prompt */}
+      {showGeneratePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowGeneratePrompt(false)}
+          />
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Repository Added
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Would you like to generate documentation for this repository now?
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowGeneratePrompt(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
+              >
+                Later
+              </button>
+              <button
+                onClick={() => {
+                  setShowGeneratePrompt(false)
+                  setIsPreviewModalOpen(true)
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+              >
+                Generate Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

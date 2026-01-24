@@ -8,6 +8,25 @@ from typing import Optional
 from oya.config import ConfigError, load_settings
 
 
+def _has_excluded_ancestor(file_path: str, excluded_dirs: set[str]) -> bool:
+    """Check if any ancestor directory of file_path is in excluded_dirs.
+
+    Args:
+        file_path: Relative file path (e.g., ".git/objects/ab/1234").
+        excluded_dirs: Set of directory paths that are excluded.
+
+    Returns:
+        True if any ancestor directory is in excluded_dirs.
+    """
+    parts = file_path.split("/")
+    # Check each ancestor (not including the file itself)
+    for i in range(1, len(parts)):
+        ancestor = "/".join(parts[:i])
+        if ancestor in excluded_dirs:
+            return True
+    return False
+
+
 @dataclass
 class CategorizedFiles:
     """Files categorized by exclusion reason."""
@@ -15,6 +34,9 @@ class CategorizedFiles:
     included: list[str] = field(default_factory=list)
     excluded_by_oyaignore: list[str] = field(default_factory=list)
     excluded_by_rule: list[str] = field(default_factory=list)
+    # Directories explicitly excluded (shown instead of their children)
+    excluded_dirs_by_rule: list[str] = field(default_factory=list)
+    excluded_dirs_by_oyaignore: list[str] = field(default_factory=list)
 
 
 def extract_directories_from_files(files: list[str]) -> list[str]:
@@ -116,7 +138,7 @@ class FileFilter:
             ignore_filename = settings.paths.ignore_file
             default_max_file_size_kb = settings.files.max_file_size_kb
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             pass
 
         # Get max_file_size_kb from settings if not provided
@@ -225,6 +247,31 @@ class FileFilter:
         """
         return self._is_excluded_by_patterns(path, self.oyaignore_patterns)
 
+    def _is_directory_excluded_by_default_rules(self, dir_path: str) -> bool:
+        """Check if a directory is explicitly excluded by DEFAULT_EXCLUDES patterns.
+
+        This checks if the directory itself matches a pattern, not if files
+        within it would be excluded.
+
+        Args:
+            dir_path: Relative directory path (e.g., ".git", "node_modules").
+
+        Returns:
+            True if directory matches a default exclusion pattern.
+        """
+        return self._is_excluded_by_patterns(dir_path, self.default_exclude_patterns)
+
+    def _is_directory_excluded_by_oyaignore(self, dir_path: str) -> bool:
+        """Check if a directory is explicitly excluded by .oyaignore patterns.
+
+        Args:
+            dir_path: Relative directory path.
+
+        Returns:
+            True if directory matches an oyaignore pattern.
+        """
+        return self._is_excluded_by_patterns(dir_path, self.oyaignore_patterns)
+
     def _is_binary(self, file_path: Path) -> bool:
         """Check if file appears to be binary.
 
@@ -316,6 +363,9 @@ class FileFilter:
         - excluded_by_oyaignore: Files excluded via .oyaignore (user can re-include)
         - excluded_by_rule: Files excluded via built-in rules (cannot be changed)
 
+        When a directory is explicitly excluded by a pattern, only the directory
+        is listed (not its children). This reduces noise in the indexing preview.
+
         Note: Files excluded by rule take precedence. A file excluded by both
         default rules AND oyaignore will appear only in excluded_by_rule.
 
@@ -324,11 +374,40 @@ class FileFilter:
         """
         result = CategorizedFiles()
 
+        # First pass: collect directories that are explicitly excluded by patterns
+        excluded_dirs_by_rule: set[str] = set()
+        excluded_dirs_by_oyaignore: set[str] = set()
+
+        for dir_path in self.repo_path.rglob("*"):
+            if not dir_path.is_dir():
+                continue
+
+            relative = str(dir_path.relative_to(self.repo_path))
+
+            # Check if this directory is explicitly excluded by default rules
+            if self._is_directory_excluded_by_default_rules(relative):
+                # Only add if no ancestor is already excluded
+                if not _has_excluded_ancestor(relative, excluded_dirs_by_rule):
+                    excluded_dirs_by_rule.add(relative)
+            # Check if excluded by oyaignore (only if not already by rules)
+            elif self._is_directory_excluded_by_oyaignore(relative):
+                if not _has_excluded_ancestor(relative, excluded_dirs_by_oyaignore):
+                    excluded_dirs_by_oyaignore.add(relative)
+
+        # Second pass: categorize files, skipping those in excluded directories
         for file_path in self.repo_path.rglob("*"):
             if not file_path.is_file():
                 continue
 
             relative = str(file_path.relative_to(self.repo_path))
+
+            # Skip files in directories excluded by rule
+            if _has_excluded_ancestor(relative, excluded_dirs_by_rule):
+                continue
+
+            # Skip files in directories excluded by oyaignore
+            if _has_excluded_ancestor(relative, excluded_dirs_by_oyaignore):
+                continue
 
             # Check if excluded by default rules first (takes precedence)
             if self._is_excluded_by_default_rules(relative):
@@ -362,6 +441,10 @@ class FileFilter:
 
             # File is included
             result.included.append(relative)
+
+        # Store excluded directories
+        result.excluded_dirs_by_rule = sorted(excluded_dirs_by_rule)
+        result.excluded_dirs_by_oyaignore = sorted(excluded_dirs_by_oyaignore)
 
         # Sort all lists
         result.included.sort()

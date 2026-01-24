@@ -22,8 +22,8 @@ uv sync --dev
 Set environment variables or create a `.env` file:
 
 ```bash
-# Required
-WORKSPACE_PATH=/path/to/your/repository
+# Data directory (default: ~/.oya)
+OYA_DATA_DIR=~/.oya
 
 # LLM Provider (auto-detected from API keys if not set)
 ACTIVE_PROVIDER=openai    # openai | anthropic | google | ollama
@@ -163,15 +163,18 @@ Each phase extracts structured summaries that inform subsequent phases, ensuring
 
 ## Data Storage
 
-All generated data is stored in `.oyawiki/` within the workspace:
+All data is stored under `~/.oya/` (or `OYA_DATA_DIR`):
 
 ```
-.oyawiki/
-├── wiki/           # Generated markdown documentation
-├── notes/          # User corrections and notes
-└── meta/
-    ├── oya.db      # SQLite database (pages, notes, jobs)
-    ├── chroma/     # ChromaDB vector store
-    ├── index/      # Search index
-    └── cache/      # Processing cache
+~/.oya/
+├── repos.db        # Repository registry
+└── wikis/          # Per-repository data
+    └── {local_path}/
+        ├── source/     # Git clone of repository
+        └── meta/       # Wiki artifacts
+            ├── wiki/       # Generated markdown
+            ├── notes/      # User corrections
+            ├── oya.db      # SQLite database
+            ├── chroma/     # Vector store
+            └── cache/      # Processing cache
 ```

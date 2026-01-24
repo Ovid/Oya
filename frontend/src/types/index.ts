@@ -151,19 +151,6 @@ export interface WorkspaceSwitchResponse {
   message: string
 }
 
-// Directory Browser Types
-export interface DirectoryEntry {
-  name: string
-  path: string
-  is_dir: boolean
-}
-
-export interface DirectoryListing {
-  path: string
-  parent: string | null
-  entries: DirectoryEntry[]
-}
-
 // Generation Status Types
 export interface GenerationStatus {
   status: 'incomplete'
@@ -194,4 +181,52 @@ export interface OyaignoreUpdateResponse {
   removed: string[]
   total_added: number
   total_removed: number
+}
+
+// Multi-Repo Types (v2 API)
+export type RepoStatusType = 'pending' | 'cloning' | 'generating' | 'ready' | 'failed'
+
+export interface Repo {
+  id: number
+  origin_url: string
+  source_type: string
+  local_path: string
+  display_name: string
+  head_commit: string | null
+  branch: string | null
+  created_at: string | null
+  last_pulled: string | null
+  last_generated: string | null
+  generation_duration_secs: number | null
+  files_processed: number | null
+  pages_generated: number | null
+  status: RepoStatusType
+  error_message: string | null
+}
+
+export interface RepoListResponse {
+  repos: Repo[]
+  total: number
+}
+
+export interface CreateRepoRequest {
+  url: string
+  display_name?: string
+}
+
+export interface CreateRepoResponse {
+  id: number
+  origin_url: string
+  source_type: string
+  local_path: string
+  display_name: string
+  status: string
+}
+
+export interface ActivateRepoResponse {
+  active_repo_id: number
+}
+
+export interface ActiveRepoResponse {
+  active_repo: Repo | null
 }

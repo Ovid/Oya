@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { NotFound } from './components/NotFound'
+import { FirstRunWizard } from './components/FirstRunWizard'
+import { useReposStore } from './stores'
 import {
   OverviewPage,
   ArchitecturePage,
@@ -22,9 +24,28 @@ function WelcomePage() {
 }
 
 function App() {
+  const repos = useReposStore((s) => s.repos)
+  const activeRepo = useReposStore((s) => s.activeRepo)
+  const isInitialized = useReposStore((s) => s.isInitialized)
+  const fetchRepos = useReposStore((s) => s.fetchRepos)
+  const fetchActiveRepo = useReposStore((s) => s.fetchActiveRepo)
+
+  // Show first-run wizard if no repos in the registry (only after initialization completes)
+  const showFirstRunWizard = isInitialized && repos.length === 0 && activeRepo === null
+
+  const handleFirstRunComplete = async () => {
+    // Refresh repos after adding first one
+    await fetchRepos()
+    await fetchActiveRepo()
+  }
+
+  if (showFirstRunWizard) {
+    return <FirstRunWizard onComplete={handleFirstRunComplete} />
+  }
+
   return (
     <BrowserRouter>
-      <Layout>
+      <Layout key={activeRepo?.id ?? 'no-repo'}>
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/architecture" element={<ArchitecturePage />} />

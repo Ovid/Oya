@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import networkx as nx
@@ -100,6 +101,7 @@ class QAService:
         llm: LLMClient,
         issues_store: IssuesStore | None = None,
         graph: nx.DiGraph | None = None,
+        source_path: Path | None = None,
     ) -> None:
         """Initialize Q&A service.
 
@@ -109,12 +111,14 @@ class QAService:
             llm: LLM client for answer generation.
             issues_store: Optional IssuesStore for issue-aware Q&A.
             graph: Optional code graph for graph-augmented retrieval.
+            source_path: Optional path to source code directory for CGRAG.
         """
         self._vectorstore = vectorstore
         self._db = db
         self._llm = llm
         self._issues_store = issues_store
         self._graph = graph
+        self._source_path = source_path
         self._ranker = RRFRanker(k=60)
 
     async def search(
@@ -243,7 +247,7 @@ class QAService:
             settings = load_settings()
             dedup_hash_length = settings.search.dedup_hash_length
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             dedup_hash_length = 500  # Default from CONFIG_SCHEMA
 
         for r in results:
@@ -278,7 +282,7 @@ class QAService:
             high_confidence_threshold = settings.ask.high_confidence_threshold
             medium_confidence_threshold = settings.ask.medium_confidence_threshold
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             strong_match_threshold = 0.5  # Default from CONFIG_SCHEMA
             min_strong_matches = 3  # Default from CONFIG_SCHEMA
             high_confidence_threshold = 0.3  # Default from CONFIG_SCHEMA
@@ -350,7 +354,7 @@ class QAService:
             max_result_tokens = settings.ask.max_result_tokens
             max_context_tokens = settings.ask.max_context_tokens
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             max_result_tokens = 1500  # Default from CONFIG_SCHEMA
             max_context_tokens = 6000  # Default from CONFIG_SCHEMA
 
@@ -409,7 +413,7 @@ Answer the question based only on the context provided. Include citations to spe
             graph_expansion_confidence = settings.ask.graph_expansion_confidence_threshold
             max_context_tokens = settings.ask.max_context_tokens
         except (ValueError, OSError, ConfigError):
-            # Settings not available (e.g., WORKSPACE_PATH not set in tests)
+            # Settings not available
             graph_expansion_hops = 2  # Default from CONFIG_SCHEMA
             graph_expansion_confidence = 0.5  # Default from CONFIG_SCHEMA
             max_context_tokens = 6000  # Default from CONFIG_SCHEMA
@@ -899,6 +903,7 @@ Answer the question based only on the context provided. Include citations to spe
                 llm=self._llm,
                 graph=self._graph,
                 vectorstore=self._vectorstore,
+                source_path=self._source_path,
             )
         except Exception as e:
             return QAResponse(
@@ -1020,6 +1025,7 @@ Answer the question based only on the context provided. Include citations to spe
                     llm=self._llm,
                     graph=self._graph,
                     vectorstore=self._vectorstore,
+                    source_path=self._source_path,
                 )
                 accumulated_response = cgrag_result.answer  # Already parsed by cgrag
                 answer = cgrag_result.answer
