@@ -283,10 +283,13 @@ class Config:
 
     This replaces the old Settings class while maintaining backward compatibility
     with existing code that accesses settings properties.
+
+    In multi-repo mode, workspace_path may be None. Use the active repo context
+    from deps.py instead of workspace_path-derived properties in that case.
     """
 
-    # Core settings
-    workspace_path: Path
+    # Core settings - workspace_path is optional for multi-repo mode
+    workspace_path: Optional[Path] = None
     data_dir: Path = None  # type: ignore[assignment]  # Set in __post_init__ if None
     workspace_display_path: Optional[str] = None
     active_provider: str = "ollama"
@@ -356,20 +359,35 @@ class Config:
         """Path to the directory containing all wiki data."""
         return self.data_dir / "wikis"
 
+    def _require_workspace_path(self) -> Path:
+        """Get workspace_path, raising an error if not set.
+
+        Raises:
+            ConfigError: If workspace_path is None (multi-repo mode without active repo).
+        """
+        if self.workspace_path is None:
+            raise ConfigError(
+                "workspace_path is not set. In multi-repo mode, use the active repo "
+                "context from deps.py instead of settings properties."
+            )
+        return self.workspace_path
+
     @property
     def display_path(self) -> str:
         """Path to display to users (uses workspace_display_path if set)."""
+        if self.workspace_path is None:
+            return self.workspace_display_path or "(no workspace)"
         return self.workspace_display_path or str(self.workspace_path)
 
     @property
     def oyawiki_path(self) -> Path:
         """Path to .oyawiki directory."""
-        return self.workspace_path / self.paths.wiki_dir
+        return self._require_workspace_path() / self.paths.wiki_dir
 
     @property
     def staging_path(self) -> Path:
         """Path to .oyawiki-building staging directory."""
-        return self.workspace_path / self.paths.staging_dir
+        return self._require_workspace_path() / self.paths.staging_dir
 
     @property
     def wiki_path(self) -> Path:
@@ -407,12 +425,12 @@ class Config:
 
         Stored outside .oyawiki so logs aren't affected by staging/promotion.
         """
-        return self.workspace_path / self.paths.logs_dir / "llm-queries.jsonl"
+        return self._require_workspace_path() / self.paths.logs_dir / "llm-queries.jsonl"
 
     @property
     def ignore_path(self) -> Path:
         """Path to .oyaignore file."""
-        return self.workspace_path / self.paths.ignore_file
+        return self._require_workspace_path() / self.paths.ignore_file
 
     @property
     def llm_provider(self) -> str:
@@ -470,25 +488,27 @@ def load_settings() -> Config:
     Settings are cached for the lifetime of the application.
     Use load_settings.cache_clear() to reload settings.
 
+    In multi-repo mode (WORKSPACE_PATH not set), workspace_path will be None.
+    Use the active repo context from deps.py for workspace-relative paths.
+
     Returns:
         Config object populated from environment variables and config file.
-
-    Raises:
-        ValueError: If WORKSPACE_PATH is not set.
     """
     workspace_path_str = os.getenv("WORKSPACE_PATH")
-    if not workspace_path_str:
-        raise ValueError("WORKSPACE_PATH environment variable must be set")
+    workspace_path: Optional[Path] = None
 
-    workspace_path = Path(workspace_path_str)
-
-    # Load config from file if it exists (stored in workspace root, not .oyawiki)
-    config_file = workspace_path / "config.ini"
-    try:
-        config_exists = config_file.exists()
-    except PermissionError:
-        config_exists = False
-    base_config = _load_config(config_file if config_exists else None)
+    if workspace_path_str:
+        workspace_path = Path(workspace_path_str)
+        # Load config from file if it exists (stored in workspace root, not .oyawiki)
+        config_file = workspace_path / "config.ini"
+        try:
+            config_exists = config_file.exists()
+        except PermissionError:
+            config_exists = False
+        base_config = _load_config(config_file if config_exists else None)
+    else:
+        # Multi-repo mode: no workspace-specific config file
+        base_config = _load_config(None)
 
     # Get provider and model, auto-detecting if not explicitly set
     active_provider = os.getenv("ACTIVE_PROVIDER")
