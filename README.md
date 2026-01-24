@@ -57,6 +57,9 @@ docker-compose up
 
 On first run, you'll see a welcome wizard to add your first repository. Enter a Git URL or local path and Oya will clone it and generate documentation.
 
+Note that Wiki data will be saved to `~.oya/` in your home directory. See the
+docker compose file.
+
 ### Development Setup
 
 **Backend:**
