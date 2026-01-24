@@ -426,7 +426,8 @@ function JsonDisplay({ data, indent = 0 }: { data: unknown; indent?: number }) {
         {'[\n'}
         {data.map((item, i) => (
           <span key={i}>
-            {spaces} <JsonDisplay data={item} indent={indent + 1} />
+            {spaces + '  '}
+            <JsonDisplay data={item} indent={indent + 1} />
             {i < data.length - 1 ? ',' : ''}
             {'\n'}
           </span>
@@ -444,7 +445,8 @@ function JsonDisplay({ data, indent = 0 }: { data: unknown; indent?: number }) {
         {'{\n'}
         {entries.map(([key, value], i) => (
           <span key={key}>
-            {spaces} <span className="text-blue-400">"{key}"</span>:{' '}
+            {spaces + '  '}
+            <span className="text-blue-400">"{key}"</span>:{' '}
             <JsonDisplay data={value} indent={indent + 1} />
             {i < entries.length - 1 ? ',' : ''}
             {'\n'}
