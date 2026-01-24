@@ -244,6 +244,31 @@ class FileFilter:
         """
         return self._is_excluded_by_patterns(path, self.oyaignore_patterns)
 
+    def _is_directory_excluded_by_default_rules(self, dir_path: str) -> bool:
+        """Check if a directory is explicitly excluded by DEFAULT_EXCLUDES patterns.
+
+        This checks if the directory itself matches a pattern, not if files
+        within it would be excluded.
+
+        Args:
+            dir_path: Relative directory path (e.g., ".git", "node_modules").
+
+        Returns:
+            True if directory matches a default exclusion pattern.
+        """
+        return self._is_excluded_by_patterns(dir_path, self.default_exclude_patterns)
+
+    def _is_directory_excluded_by_oyaignore(self, dir_path: str) -> bool:
+        """Check if a directory is explicitly excluded by .oyaignore patterns.
+
+        Args:
+            dir_path: Relative directory path.
+
+        Returns:
+            True if directory matches an oyaignore pattern.
+        """
+        return self._is_excluded_by_patterns(dir_path, self.oyaignore_patterns)
+
     def _is_binary(self, file_path: Path) -> bool:
         """Check if file appears to be binary.
 
