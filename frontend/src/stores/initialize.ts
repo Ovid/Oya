@@ -22,6 +22,8 @@ export async function initializeApp(): Promise<void> {
     }
   } catch {
     // Ignore errors during repo initialization
+  } finally {
+    reposStore.setInitialized(true)
   }
 
   // Refresh repo status for the active repo
