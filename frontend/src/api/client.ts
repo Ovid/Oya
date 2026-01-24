@@ -49,7 +49,17 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text()
-    throw new ApiError(response.status, text || response.statusText)
+    // Try to extract 'detail' from FastAPI error responses
+    let message = text || response.statusText
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.detail) {
+        message = parsed.detail
+      }
+    } catch {
+      // Not JSON, use raw text
+    }
+    throw new ApiError(response.status, message)
   }
 
   return response.json()
