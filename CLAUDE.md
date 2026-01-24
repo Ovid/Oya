@@ -6,9 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ọya is a local-first, editable wiki generator for codebases. It uses LLMs to generate documentation from source code.
 
-**Storage modes:**
-- **Multi-repo mode** (default): Wikis stored in `~/.oya/wikis/{local_path}/` with `source/` (git clone) and `meta/` (wiki artifacts) subdirectories
-- **Legacy mode**: Wiki stored in `.oyawiki/` within the target repository (requires `WORKSPACE_PATH` env var)
+**Storage:** Wikis stored in `~/.oya/wikis/{local_path}/` with `source/` (git clone) and `meta/` (wiki artifacts) subdirectories
 
 IMPORTANT: this is a generic repository analysis tool. DO NOT MAKE ASSUMPTIONS ABOUT THE CODEBASE BEING ANALYZED. For example, we often use Oya to analyze itself and you often create designs assuming the same tech stack as Oya. THIS IS AN ERROR. Do not make assumptions about the programming languages, frameworks, tools, etc. These must be discovered, not assumed.
 
@@ -21,12 +19,8 @@ cd backend
 source .venv/bin/activate  # Uses existing venv
 pip install -e ".[dev]"    # Install with dev dependencies
 
-# Run server (multi-repo mode - no env vars needed)
+# Run server
 uvicorn oya.main:app --reload
-
-# Or legacy single-repo mode:
-# export WORKSPACE_PATH=/path/to/repo
-# uvicorn oya.main:app --reload
 
 # Run tests
 pytest                      # All tests
@@ -73,7 +67,6 @@ docker-compose up  # Runs both services
   - `repo_paths.py`: Directory structure utilities for multi-repo storage
 - **vectorstore/**: ChromaDB for semantic search and Q&A
 - **notes/**: Human correction system
-- **state.py**: Application state singleton (active repo tracking)
 
 ### Frontend Structure (`frontend/src/`)
 
@@ -177,11 +170,7 @@ When reviewing code (your own or others'), check for these flaws:
 
 ## Environment Variables
 
-Multi-repo mode (default):
-- `OYA_DATA_DIR`: Directory for multi-repo storage (default: `~/.oya`)
-
-Legacy single-repo mode:
-- `WORKSPACE_PATH`: Path to the repo being documented (enables legacy mode)
+- `OYA_DATA_DIR`: Directory for storage (default: `~/.oya`)
 
 LLM config (auto-detected from available keys):
 - `ACTIVE_PROVIDER`: openai | anthropic | google | ollama
