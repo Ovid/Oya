@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { initializeApp } from './initialize'
 import { useWikiStore, initialState as wikiInitial } from './wikiStore'
 import { useGenerationStore, initialState as genInitial } from './generationStore'
+import { useReposStore, initialState as reposInitial } from './reposStore'
 import * as api from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -9,6 +10,9 @@ vi.mock('../api/client', () => ({
   getWikiTree: vi.fn(),
   getGenerationStatus: vi.fn(),
   listJobs: vi.fn(),
+  listRepos: vi.fn(),
+  getActiveRepo: vi.fn(),
+  activateRepo: vi.fn(),
 }))
 
 const mockRepoStatus = {
@@ -34,14 +38,27 @@ const mockWikiTree = {
   files: [],
 }
 
+const mockRepo = {
+  id: 1,
+  url: 'https://github.com/test/repo',
+  display_name: 'Test Repo',
+  local_path: '/test/repo',
+  source_type: 'github' as const,
+  created_at: '2024-01-01T00:00:00Z',
+  last_accessed_at: null,
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   useWikiStore.setState(wikiInitial)
   useGenerationStore.setState(genInitial)
+  useReposStore.setState(reposInitial)
 })
 
 describe('initializeApp', () => {
   it('loads repo status and wiki tree', async () => {
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
     vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
@@ -55,6 +72,8 @@ describe('initializeApp', () => {
   })
 
   it('detects incomplete build and clears wiki tree', async () => {
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
     vi.mocked(api.getGenerationStatus).mockResolvedValue({
@@ -70,6 +89,8 @@ describe('initializeApp', () => {
   })
 
   it('restores running job', async () => {
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
     vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
     vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
     vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
@@ -89,5 +110,45 @@ describe('initializeApp', () => {
     await initializeApp()
 
     expect(useGenerationStore.getState().currentJob?.job_id).toBe('running-123')
+  })
+
+  it('auto-selects first repo when repos exist but none is active', async () => {
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [mockRepo] })
+    vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
+    vi.mocked(api.activateRepo).mockResolvedValue({ success: true })
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+    vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
+    vi.mocked(api.listJobs).mockResolvedValue([])
+
+    await initializeApp()
+
+    expect(api.activateRepo).toHaveBeenCalledWith(mockRepo.id)
+  })
+
+  it('does not auto-select when an active repo already exists', async () => {
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [mockRepo] })
+    vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: mockRepo })
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+    vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
+    vi.mocked(api.listJobs).mockResolvedValue([])
+
+    await initializeApp()
+
+    expect(api.activateRepo).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-select when no repos exist', async () => {
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [] })
+    vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+    vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
+    vi.mocked(api.listJobs).mockResolvedValue([])
+
+    await initializeApp()
+
+    expect(api.activateRepo).not.toHaveBeenCalled()
   })
 })
