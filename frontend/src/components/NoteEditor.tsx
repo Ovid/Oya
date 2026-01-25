@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createNote } from '../api/client'
+import { saveNote } from '../api/client'
 import { useNoteEditorStore } from '../stores'
 import type { NoteScope, Note } from '../types'
 
@@ -43,11 +43,8 @@ export function NoteEditor({
     setError(null)
 
     try {
-      const note = await createNote({
-        scope,
-        target: scope === 'general' ? '' : target,
-        content: content.trim(),
-      })
+      const actualTarget = scope === 'general' ? '_general' : target
+      const note = await saveNote(scope, actualTarget, content.trim())
       onNoteCreated?.(note)
       onClose()
       setContent('')
