@@ -85,6 +85,27 @@ class TestGetNote:
 
         assert response.status_code == 404
 
+    def test_general_scope_with_empty_target(self, client, mock_notes_service):
+        """Returns general note with empty target (trailing slash in URL)."""
+        mock_notes_service.get.return_value = Note(
+            id=1,
+            scope=NoteScope.GENERAL,
+            target="",
+            content="General note content",
+            author=None,
+            updated_at="2024-01-01T00:00:00",
+        )
+
+        # URL ends with / for empty target: /api/notes/general/
+        response = client.get("/api/notes/general/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["scope"] == "general"
+        assert data["target"] == ""
+        assert data["content"] == "General note content"
+        mock_notes_service.get.assert_called_once_with(NoteScope.GENERAL, "")
+
 
 class TestUpsertNote:
     """Tests for PUT /api/notes/{scope}/{target}."""
