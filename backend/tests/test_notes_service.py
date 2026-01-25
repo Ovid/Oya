@@ -41,6 +41,43 @@ class TestSlugifyPath:
         assert slug3 == "file%7Btest%7D.py"  # { = %7B, } = %7D
         assert slug4 == "file%3Ctest%3E.py"  # < = %3C, > = %3E
 
+    def test_falls_back_to_hash_for_long_paths(self):
+        """Very long paths fall back to hash-based slugs to avoid filesystem limits."""
+        # Create a path that would exceed 200 bytes when slugified
+        long_path = "a" * 300 + ".py"
+        slug = _slugify_path(long_path)
+
+        # Should be under the limit
+        assert len(slug.encode("utf-8")) <= 200
+
+        # Should contain a hash suffix (16 hex chars after --)
+        assert "--" in slug
+        parts = slug.rsplit("--", 1)
+        assert len(parts) == 2
+        assert len(parts[1]) == 16  # SHA-256 prefix
+
+    def test_unicode_alphanumeric_preserved(self):
+        """Unicode alphanumeric characters are preserved (not percent-encoded)."""
+        # Chinese characters are alphanumeric, so they're kept as-is
+        unicode_path = "src/中文文件.py"
+        slug = _slugify_path(unicode_path)
+
+        # Chinese characters should be preserved
+        assert "中文文件" in slug
+        assert slug == "src--中文文件.py"
+
+    def test_hash_fallback_for_unicode_paths(self):
+        """Long Unicode paths fall back to hash when exceeding byte limit."""
+        # Each Chinese character is 3 UTF-8 bytes, need 70+ chars to exceed 200 bytes
+        unicode_path = "中" * 70 + ".py"
+        slug = _slugify_path(unicode_path)
+
+        # Should be under the limit (200 bytes)
+        assert len(slug.encode("utf-8")) <= 200
+
+        # Should contain a hash suffix (original path exceeds limit)
+        assert "--" in slug
+
 
 class TestGetFilepath:
     """Tests for filepath generation."""
