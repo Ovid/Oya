@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { WikiPage, Note, NoteScope } from '../types'
 import { WikiContent } from './WikiContent'
 import { NotFound } from './NotFound'
@@ -32,6 +32,8 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
   const [noteLoading, setNoteLoading] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
+  // Sequence number to prevent race conditions between note fetch effects
+  const noteFetchSeqRef = useRef(0)
 
   // Load note when target changes (in parallel with page load for better UX)
   // We compute noteTarget from the URL slug rather than waiting for page.source_path
@@ -42,18 +44,20 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
       return
     }
 
-    let cancelled = false
+    // Increment sequence to invalidate any in-flight fetches from other effects
+    const seq = ++noteFetchSeqRef.current
     setNoteLoading(true)
 
     getNote(noteScope, noteTarget)
       .then((n) => {
-        if (!cancelled) {
+        // Only update state if this is still the latest fetch
+        if (noteFetchSeqRef.current === seq) {
           setNote(n)
           setNoteError(null)
         }
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (noteFetchSeqRef.current === seq) {
           // 404 means note doesn't exist - that's expected, not an error
           if (err instanceof ApiError && err.status === 404) {
             setNote(null)
@@ -66,12 +70,8 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
         }
       })
       .finally(() => {
-        if (!cancelled) setNoteLoading(false)
+        if (noteFetchSeqRef.current === seq) setNoteLoading(false)
       })
-
-    return () => {
-      cancelled = true
-    }
   }, [noteScope, noteTarget])
 
   // When page loads with a source_path that differs from the computed noteTarget,
@@ -93,18 +93,19 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
     )
 
     // Re-fetch note with the correct source_path
-    let cancelled = false
+    // Increment sequence to invalidate the first effect's in-flight fetch
+    const seq = ++noteFetchSeqRef.current
     setNoteLoading(true)
 
     getNote(noteScope, page.source_path)
       .then((n) => {
-        if (!cancelled) {
+        if (noteFetchSeqRef.current === seq) {
           setNote(n)
           setNoteError(null)
         }
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (noteFetchSeqRef.current === seq) {
           if (err instanceof ApiError && err.status === 404) {
             setNote(null)
             setNoteError(null)
@@ -115,12 +116,8 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
         }
       })
       .finally(() => {
-        if (!cancelled) setNoteLoading(false)
+        if (noteFetchSeqRef.current === seq) setNoteLoading(false)
       })
-
-    return () => {
-      cancelled = true
-    }
   }, [noteScope, noteTarget, page?.source_path])
 
   const handleNoteSaved = (savedNote: Note) => {
@@ -307,23 +304,30 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
           <span>Could not load correction</span>
           <button
             onClick={() => {
+              const seq = ++noteFetchSeqRef.current
               setNoteError(null)
               setNoteLoading(true)
               getNote(noteScope, effectiveNoteTarget)
                 .then((n) => {
-                  setNote(n)
-                  setNoteError(null)
-                })
-                .catch((err) => {
-                  if (err instanceof ApiError && err.status === 404) {
-                    setNote(null)
+                  if (noteFetchSeqRef.current === seq) {
+                    setNote(n)
                     setNoteError(null)
-                  } else {
-                    setNote(null)
-                    setNoteError(err instanceof Error ? err.message : 'Failed to load correction')
                   }
                 })
-                .finally(() => setNoteLoading(false))
+                .catch((err) => {
+                  if (noteFetchSeqRef.current === seq) {
+                    if (err instanceof ApiError && err.status === 404) {
+                      setNote(null)
+                      setNoteError(null)
+                    } else {
+                      setNote(null)
+                      setNoteError(err instanceof Error ? err.message : 'Failed to load correction')
+                    }
+                  }
+                })
+                .finally(() => {
+                  if (noteFetchSeqRef.current === seq) setNoteLoading(false)
+                })
             }}
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
