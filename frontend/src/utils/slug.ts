@@ -68,13 +68,19 @@ const FILE_EXTENSIONS = new Set([
 ])
 
 /**
- * Convert a file slug back to a full relative path.
- * Slugs are created by replacing / and . with -, so we need to reconstruct.
- * e.g., "lib-MooseX-Extended-pm" -> "lib/MooseX/Extended.pm"
+ * Convert a wiki URL slug back to a file/directory path.
+ *
+ * Wiki URL slugs use single-dash (-) as separators for both path components
+ * and the file extension dot. This is different from notes file slugs which
+ * use double-dash (--) for path separators and preserve dots.
+ *
+ * Examples:
+ *   "lib-MooseX-Extended-pm" -> "lib/MooseX/Extended.pm"
+ *   "src-api" -> "src/api" (directory, no extension detected)
  *
  * We use known file extensions to identify where the extension starts.
  */
-export function slugToPath(slug: string): string {
+export function wikiSlugToPath(slug: string): string {
   const parts = slug.split('-')
 
   if (parts.length === 0) return slug

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useWikiStore } from '../stores'
 import { Disclosure } from '@headlessui/react'
-import { slugToPath } from '../utils/slug'
+import { wikiSlugToPath } from '../utils/slug'
 
 export function Sidebar() {
   const wikiTree = useWikiStore((s) => s.wikiTree)
@@ -138,7 +138,7 @@ export function Sidebar() {
               </Disclosure.Button>
               <Disclosure.Panel className="pl-6 max-h-64 overflow-y-auto">
                 {wikiTree.files.map((slug) => {
-                  const fullPath = slugToPath(slug)
+                  const fullPath = wikiSlugToPath(slug)
                   return (
                     <NavLink key={slug} to={`/files/${slug}`} className={linkClass}>
                       <span className="truncate block" title={fullPath}>
