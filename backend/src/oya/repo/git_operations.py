@@ -34,6 +34,38 @@ class GitSyncError(Exception):
         super().__init__(message)
 
 
+def check_working_directory_clean(repo_path: Path) -> None:
+    """
+    Verify no uncommitted changes exist.
+
+    Args:
+        repo_path: Path to the git repository
+
+    Raises:
+        GitSyncError: If working directory has uncommitted changes or not a git repo
+    """
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise GitSyncError(
+            f"Could not check repository status at `{repo_path}`. "
+            "Ensure this is a valid git repository.",
+            original_error=result.stderr,
+        )
+
+    if result.stdout.strip():
+        raise GitSyncError(
+            f"Repository has uncommitted changes at `{repo_path}`. "
+            "Oya manages this repository automatically—please don't modify files directly. "
+            "To reset, delete that folder and regenerate."
+        )
+
+
 def clone_repo(url: str, dest: Path, timeout: int = 300) -> None:
     """
     Clone a git repository.
