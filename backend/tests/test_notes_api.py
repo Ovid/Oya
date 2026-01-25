@@ -1,253 +1,149 @@
 """Notes API endpoint tests."""
 
-import subprocess
 import pytest
 from unittest.mock import MagicMock
-from datetime import datetime, UTC
-from httpx import ASGITransport, AsyncClient
+from fastapi.testclient import TestClient
 
 from oya.main import app
+from oya.api.routers.notes import get_notes_service
 from oya.notes.schemas import Note, NoteScope
 
 
 @pytest.fixture
-def workspace(setup_active_repo):
-    """Create workspace with notes directory using active repo fixture."""
-    wiki_path = setup_active_repo["wiki_path"]
-    source_path = setup_active_repo["source_path"]
-
-    # Initialize git in source directory
-    source_path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init"], cwd=source_path, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@test.com"], cwd=source_path, capture_output=True
-    )
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=source_path, capture_output=True)
-    (source_path / "README.md").write_text("# Test Repo")
-    subprocess.run(["git", "add", "."], cwd=source_path, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=source_path, capture_output=True)
-
-    # Create notes directory in wiki
-    (wiki_path.parent / "notes").mkdir(exist_ok=True)
-
-    return setup_active_repo
+def client():
+    """Test client."""
+    return TestClient(app)
 
 
 @pytest.fixture
 def mock_notes_service():
-    """Mock NotesService for testing."""
+    """Mock NotesService with dependency override."""
     service = MagicMock()
-    service.create.return_value = Note(
-        id=1,
-        filepath="2024-01-01-file-src-main-py.md",
-        scope=NoteScope.FILE,
-        target="src/main.py",
-        content="Test correction content",
-        author="test@test.com",
-        created_at=datetime.now(UTC),
-    )
-    service.list_by_target.return_value = [
-        Note(
-            id=1,
-            filepath="note1.md",
-            scope=NoteScope.FILE,
-            target="src/main.py",
-            content="Note 1",
-            author=None,
-            created_at=datetime.now(UTC),
-        ),
-    ]
-    return service
+    app.dependency_overrides[get_notes_service] = lambda: service
+    yield service
+    app.dependency_overrides.clear()
 
 
-class TestNotesEndpoints:
-    """Tests for notes API endpoints."""
+class TestListNotes:
+    """Tests for GET /api/notes."""
 
-    @pytest.mark.asyncio
-    async def test_create_note_returns_created(self, workspace, mock_notes_service):
-        """POST /api/notes creates a note and returns 201."""
-        from oya.api.routers.notes import get_notes_service
+    def test_returns_all_notes(self, client, mock_notes_service):
+        """Returns list of all notes."""
+        mock_notes_service.list.return_value = [
+            Note(
+                id=1,
+                scope=NoteScope.FILE,
+                target="src/main.py",
+                content="Content 1",
+                author=None,
+                updated_at="2024-01-01T00:00:00",
+            ),
+        ]
 
-        app.dependency_overrides[get_notes_service] = lambda: mock_notes_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.post(
-                    "/api/notes",
-                    json={
-                        "scope": "file",
-                        "target": "src/main.py",
-                        "content": "This needs refactoring.",
-                    },
-                )
+        response = client.get("/api/notes")
 
-            assert response.status_code == 201
-            data = response.json()
-            assert "id" in data
-            assert data["scope"] == "file"
-            assert data["target"] == "src/main.py"
-        finally:
-            app.dependency_overrides.clear()
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["target"] == "src/main.py"
 
-    @pytest.mark.asyncio
-    async def test_create_note_requires_content(self, workspace):
-        """POST /api/notes requires content field."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as client:
-            response = await client.post(
-                "/api/notes",
-                json={
-                    "scope": "file",
-                    "target": "src/main.py",
-                    # Missing content
-                },
-            )
+    def test_filters_by_scope(self, client, mock_notes_service):
+        """Filters by scope query parameter."""
+        mock_notes_service.list.return_value = []
 
-        assert response.status_code == 422
+        client.get("/api/notes?scope=file")
 
-    @pytest.mark.asyncio
-    async def test_create_note_validates_scope(self, workspace):
-        """POST /api/notes validates scope enum."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as client:
-            response = await client.post(
-                "/api/notes",
-                json={
-                    "scope": "invalid_scope",
-                    "target": "src/main.py",
-                    "content": "Test",
-                },
-            )
+        mock_notes_service.list.assert_called_once_with(NoteScope.FILE)
 
-        assert response.status_code == 422
 
-    @pytest.mark.asyncio
-    async def test_list_notes_by_target(self, workspace, mock_notes_service):
-        """GET /api/notes?target=path lists notes for target."""
-        from oya.api.routers.notes import get_notes_service
+class TestGetNote:
+    """Tests for GET /api/notes/{scope}/{target}."""
 
-        app.dependency_overrides[get_notes_service] = lambda: mock_notes_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.get("/api/notes?target=src/main.py")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert isinstance(data, list)
-            mock_notes_service.list_by_target.assert_called_with("src/main.py")
-        finally:
-            app.dependency_overrides.clear()
-
-    @pytest.mark.asyncio
-    async def test_list_notes_without_target(self, workspace, mock_notes_service):
-        """GET /api/notes without target lists all notes."""
-        from oya.api.routers.notes import get_notes_service
-
-        app.dependency_overrides[get_notes_service] = lambda: mock_notes_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.get("/api/notes")
-
-            assert response.status_code == 200
-            mock_notes_service.list_by_target.assert_called_with(None)
-        finally:
-            app.dependency_overrides.clear()
-
-    @pytest.mark.asyncio
-    async def test_get_note_by_id(self, workspace, mock_notes_service):
-        """GET /api/notes/{id} returns single note."""
-        from oya.api.routers.notes import get_notes_service
-
+    def test_returns_note(self, client, mock_notes_service):
+        """Returns note by scope and target."""
         mock_notes_service.get.return_value = Note(
             id=1,
-            filepath="note.md",
             scope=NoteScope.FILE,
             target="src/main.py",
-            content="Full content",
-            author=None,
-            created_at=datetime.now(UTC),
+            content="Test content",
+            author="alice",
+            updated_at="2024-01-01T00:00:00",
         )
 
-        app.dependency_overrides[get_notes_service] = lambda: mock_notes_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.get("/api/notes/1")
+        response = client.get("/api/notes/file/src/main.py")
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["id"] == 1
-            assert data["content"] == "Full content"
-        finally:
-            app.dependency_overrides.clear()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["content"] == "Test content"
+        assert data["author"] == "alice"
 
-    @pytest.mark.asyncio
-    async def test_get_nonexistent_note_returns_404(self, workspace, mock_notes_service):
-        """GET /api/notes/{id} returns 404 for missing note."""
-        from oya.api.routers.notes import get_notes_service
-
+    def test_returns_404_when_not_found(self, client, mock_notes_service):
+        """Returns 404 when note doesn't exist."""
         mock_notes_service.get.return_value = None
 
-        app.dependency_overrides[get_notes_service] = lambda: mock_notes_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.get("/api/notes/999")
+        response = client.get("/api/notes/file/nonexistent.py")
 
-            assert response.status_code == 404
-        finally:
-            app.dependency_overrides.clear()
+        assert response.status_code == 404
 
-    @pytest.mark.asyncio
-    async def test_delete_note(self, workspace, mock_notes_service):
-        """DELETE /api/notes/{id} deletes note."""
-        from oya.api.routers.notes import get_notes_service
 
+class TestUpsertNote:
+    """Tests for PUT /api/notes/{scope}/{target}."""
+
+    def test_creates_note(self, client, mock_notes_service):
+        """Creates new note."""
+        mock_notes_service.upsert.return_value = Note(
+            id=1,
+            scope=NoteScope.FILE,
+            target="src/main.py",
+            content="New content",
+            author=None,
+            updated_at="2024-01-01T00:00:00",
+        )
+
+        response = client.put(
+            "/api/notes/file/src/main.py",
+            json={"content": "New content"},
+        )
+
+        assert response.status_code == 200
+        mock_notes_service.upsert.assert_called_once()
+
+    def test_updates_existing_note(self, client, mock_notes_service):
+        """Updates existing note."""
+        mock_notes_service.upsert.return_value = Note(
+            id=1,
+            scope=NoteScope.FILE,
+            target="src/main.py",
+            content="Updated content",
+            author="bob",
+            updated_at="2024-01-02T00:00:00",
+        )
+
+        response = client.put(
+            "/api/notes/file/src/main.py",
+            json={"content": "Updated content", "author": "bob"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["content"] == "Updated content"
+
+
+class TestDeleteNote:
+    """Tests for DELETE /api/notes/{scope}/{target}."""
+
+    def test_deletes_note(self, client, mock_notes_service):
+        """Deletes note successfully."""
         mock_notes_service.delete.return_value = True
 
-        app.dependency_overrides[get_notes_service] = lambda: mock_notes_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.delete("/api/notes/1")
+        response = client.delete("/api/notes/file/src/main.py")
 
-            assert response.status_code == 204
-        finally:
-            app.dependency_overrides.clear()
+        assert response.status_code == 204
 
-    @pytest.mark.asyncio
-    async def test_delete_nonexistent_note_returns_404(self, workspace, mock_notes_service):
-        """DELETE /api/notes/{id} returns 404 for missing note."""
-        from oya.api.routers.notes import get_notes_service
-
+    def test_returns_404_when_not_found(self, client, mock_notes_service):
+        """Returns 404 when note doesn't exist."""
         mock_notes_service.delete.return_value = False
 
-        app.dependency_overrides[get_notes_service] = lambda: mock_notes_service
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                response = await client.delete("/api/notes/999")
+        response = client.delete("/api/notes/file/nonexistent.py")
 
-            assert response.status_code == 404
-        finally:
-            app.dependency_overrides.clear()
+        assert response.status_code == 404
