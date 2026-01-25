@@ -120,6 +120,16 @@ class NotesService:
         note_file.parent.mkdir(parents=True, exist_ok=True)
         note_file.write_text(full_content)
 
+    def _get_stored_filepath(self, scope: NoteScope, target: str) -> Optional[str]:
+        """Get the stored filepath from the database for an existing note.
+
+        Returns None if no note exists for this scope/target.
+        """
+        sql = "SELECT filepath FROM notes WHERE scope = ? AND target = ?"
+        cursor = self._db.execute(sql, (scope.value, target))
+        row = cursor.fetchone()
+        return row["filepath"] if row else None
+
     def get(self, scope: NoteScope, target: str) -> Optional[Note]:
         """Get a note by scope and target.
 
@@ -171,6 +181,14 @@ class NotesService:
         updated_at = datetime.now(UTC)
         filepath = _get_filepath(scope, target)
 
+        # Check if note exists with a different filepath (e.g., slug algorithm changed)
+        # and delete the old file to avoid orphans
+        old_filepath = self._get_stored_filepath(scope, target)
+        if old_filepath and old_filepath != filepath:
+            old_file = self._notes_path / old_filepath
+            if old_file.exists():
+                old_file.unlink()
+
         # Write file first (source of truth)
         self._write_note_file(
             filepath=filepath,
@@ -221,12 +239,10 @@ class NotesService:
         Returns:
             True if deleted, False if not found.
         """
-        # First get the note to find the filepath
-        note = self.get(scope, target)
-        if not note:
+        # Get stored filepath from database (not recalculated, in case algorithm changed)
+        filepath = self._get_stored_filepath(scope, target)
+        if not filepath:
             return False
-
-        filepath = _get_filepath(scope, target)
 
         # Delete the file
         note_file = self._notes_path / filepath

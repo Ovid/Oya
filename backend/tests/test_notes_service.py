@@ -142,9 +142,12 @@ class TestNotesServiceUpsert:
         )
 
         mock_db.execute.assert_called()
-        # Should use INSERT...ON CONFLICT
-        call_sql = mock_db.execute.call_args_list[0][0][0].lower()
-        assert "insert" in call_sql
+        # Find the INSERT...ON CONFLICT call (first call is now SELECT for existing filepath)
+        insert_calls = [
+            call for call in mock_db.execute.call_args_list if "insert" in call[0][0].lower()
+        ]
+        assert len(insert_calls) >= 1, "Expected at least one INSERT call"
+        call_sql = insert_calls[0][0][0].lower()
         assert "on conflict" in call_sql
 
     def test_returns_note_object(self, notes_service):
