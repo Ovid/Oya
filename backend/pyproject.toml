@@ -16,6 +16,7 @@ dependencies = [
     "tree-sitter-typescript>=0.21.0",
     "tree-sitter-java>=0.21.0",
     "networkx>=3.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
