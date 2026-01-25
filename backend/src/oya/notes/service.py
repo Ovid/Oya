@@ -12,9 +12,17 @@ from oya.notes.schemas import Note, NoteScope
 
 
 def _slugify_path(path: str) -> str:
-    """Convert path to filename-safe slug.
+    """Convert path to filename-safe slug for filesystem storage.
 
-    Replaces / with -- to avoid nested directories.
+    Uses double-dash (--) for path separators to enable unambiguous conversion back
+    to the original path. This differs from wiki URL slugs (which use single dash),
+    but that's intentional:
+
+    - Wiki URL slugs: src-main-py (relies on file extension heuristics to reconstruct)
+    - Notes file slugs: src--main.py (unambiguous, preserves dots in filenames)
+
+    This is only used for filesystem storage. API lookups use the actual path stored
+    in the database's `target` column, not the slugified version.
     """
     if not path:
         return ""
@@ -28,9 +36,13 @@ def _slugify_path(path: str) -> str:
 
 
 def _get_filepath(scope: NoteScope, target: str) -> str:
-    """Get the filepath for a note based on scope and target.
+    """Get the filesystem path for storing a note's markdown file.
 
-    Returns path relative to notes directory.
+    This is only used for filesystem storage (e.g., .oyawiki/notes/files/src--main.py.md).
+    The database stores the actual target path (e.g., src/main.py) for API lookups.
+
+    Returns:
+        Path relative to the notes directory.
     """
     if scope == NoteScope.GENERAL:
         return "general.md"
