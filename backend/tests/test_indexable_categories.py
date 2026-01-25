@@ -11,6 +11,7 @@ from oya.main import app
 def temp_workspace(setup_active_repo):
     """Create a temporary workspace with test files using active repo fixture."""
     workspace = setup_active_repo["source_path"]
+    paths = setup_active_repo["paths"]
 
     # Ensure workspace exists and init git
     workspace.mkdir(parents=True, exist_ok=True)
@@ -29,8 +30,9 @@ def temp_workspace(setup_active_repo):
     (workspace / "node_modules").mkdir()
     (workspace / "node_modules" / "dep.js").write_text("module.exports = {}")
 
-    # Create .oyaignore file to exclude specific files
-    (workspace / ".oyaignore").write_text("excluded_dir/\nexcluded_file.txt\n")
+    # Create .oyaignore file in meta/ directory (where the API writes it)
+    paths.oyaignore.parent.mkdir(parents=True, exist_ok=True)
+    paths.oyaignore.write_text("excluded_dir/\nexcluded_file.txt\n")
     (workspace / "excluded_dir").mkdir()
     (workspace / "excluded_dir" / "file.py").write_text("# excluded by oyaignore")
     (workspace / "excluded_file.txt").write_text("excluded by oyaignore")
@@ -207,10 +209,13 @@ async def test_dotfiles_excluded_by_rule(client, temp_workspace):
     assert ".config/settings.json" not in data["excluded_by_rule"]["files"]
 
 
-async def test_empty_oyaignore_returns_empty_oyaignore_category(client, temp_workspace):
+async def test_empty_oyaignore_returns_empty_oyaignore_category(
+    client, temp_workspace, setup_active_repo
+):
     """Test that when .oyaignore has no entries, excluded_by_oyaignore is empty."""
-    # Clear .oyaignore
-    (temp_workspace / ".oyaignore").write_text("")
+    # Clear .oyaignore in meta/ directory
+    paths = setup_active_repo["paths"]
+    paths.oyaignore.write_text("")
 
     response = await client.get("/api/repos/indexable")
 
@@ -290,3 +295,51 @@ async def test_oyaignore_directory_children_not_listed(client, temp_workspace):
     # Individual files should NOT be listed
     assert "excluded_dir/file.py" not in data["excluded_by_oyaignore"]["files"]
     assert "excluded_dir/subdir/deep.py" not in data["excluded_by_oyaignore"]["files"]
+
+
+async def test_oyaignore_read_from_meta_not_source(client, setup_active_repo):
+    """Test that .oyaignore is read from meta/ directory, not source/ directory.
+
+    This is a regression test for a bug where .oyaignore was written to meta/
+    but FileFilter was reading from source/.
+    """
+    workspace = setup_active_repo["source_path"]
+    paths = setup_active_repo["paths"]
+
+    # Set up source directory
+    workspace.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=workspace, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"], cwd=workspace, capture_output=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=workspace, capture_output=True)
+
+    # Create test files
+    (workspace / "keep_this.py").write_text("print('keep')")
+    (workspace / "exclude_this.py").write_text("print('exclude')")
+
+    subprocess.run(["git", "add", "."], cwd=workspace, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "Initial"], cwd=workspace, capture_output=True)
+
+    # Create a WRONG .oyaignore in source/ (old behavior location)
+    # This should NOT be read
+    (workspace / ".oyaignore").write_text("keep_this.py\n")
+
+    # Create the CORRECT .oyaignore in meta/ (new behavior location)
+    # This SHOULD be read
+    paths.oyaignore.parent.mkdir(parents=True, exist_ok=True)
+    paths.oyaignore.write_text("exclude_this.py\n")
+
+    response = await client.get("/api/repos/indexable")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # If reading from meta/.oyaignore (correct): exclude_this.py is excluded
+    # If reading from source/.oyaignore (wrong): keep_this.py is excluded
+    assert "keep_this.py" in data["included"]["files"], (
+        ".oyaignore from source/ was read instead of meta/"
+    )
+    assert "exclude_this.py" in data["excluded_by_oyaignore"]["files"], (
+        ".oyaignore from meta/ was not read"
+    )
