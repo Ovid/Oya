@@ -15,6 +15,7 @@ from oya.repo.git_operations import (
     get_default_branch,
     get_remote_url,
     pull_repo,
+    sync_to_default_branch,
 )
 
 
@@ -237,3 +238,70 @@ def test_checkout_branch_nonexistent_raises(tmp_path, source_repo):
 
     assert str(dest) in exc_info.value.message
     assert "nonexistent-branch-xyz" in exc_info.value.message
+
+
+def test_sync_to_default_branch_from_default(tmp_path, source_repo):
+    """sync_to_default_branch works when already on default branch."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    branch = sync_to_default_branch(dest)
+    assert branch in ("main", "master")
+    assert get_current_branch(dest) == branch
+
+
+def test_sync_to_default_branch_from_feature(tmp_path, source_repo):
+    """sync_to_default_branch switches from feature branch to default."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Switch to a feature branch
+    subprocess.run(
+        ["git", "checkout", "-b", "feature-branch"],
+        cwd=dest,
+        check=True,
+        capture_output=True,
+    )
+    assert get_current_branch(dest) == "feature-branch"
+
+    # Sync should switch to default
+    branch = sync_to_default_branch(dest)
+    assert branch in ("main", "master")
+    assert get_current_branch(dest) == branch
+
+
+def test_sync_to_default_branch_pulls_changes(tmp_path, source_repo):
+    """sync_to_default_branch pulls latest changes from origin."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Add a commit to source after clone
+    (source_repo / "new_after_clone.txt").write_text("new content")
+    subprocess.run(["git", "add", "."], cwd=source_repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "New commit"],
+        cwd=source_repo,
+        check=True,
+        capture_output=True,
+    )
+
+    # File doesn't exist yet in dest
+    assert not (dest / "new_after_clone.txt").exists()
+
+    # Sync should pull the new file
+    sync_to_default_branch(dest)
+    assert (dest / "new_after_clone.txt").exists()
+
+
+def test_sync_to_default_branch_dirty_repo_raises(tmp_path, source_repo):
+    """sync_to_default_branch raises GitSyncError for dirty repo."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Make repo dirty
+    (dest / "dirty.txt").write_text("uncommitted")
+
+    with pytest.raises(GitSyncError) as exc_info:
+        sync_to_default_branch(dest)
+
+    assert "uncommitted changes" in exc_info.value.message.lower()
