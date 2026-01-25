@@ -17,6 +17,7 @@ from oya.api.schemas import (
     OyaignoreUpdateResponse,
 )
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
+from oya.repo.git_operations import GitSyncError, sync_to_default_branch
 from oya.repo.git_repo import GitRepo
 from oya.repo.repo_paths import RepoPaths
 from oya.db.connection import Database
@@ -338,9 +339,26 @@ async def _run_generation(
     staging_db: Database | None = None
 
     try:
-        # Update status to running
+        # Sync repository to default branch before generation
         db.execute(
-            "UPDATE generations SET status = 'running', current_phase = '0:starting' WHERE id = ?",
+            "UPDATE generations SET status = 'running', current_phase = '0:syncing' WHERE id = ?",
+            (job_id,),
+        )
+        db.commit()
+
+        try:
+            sync_to_default_branch(paths.source)
+        except GitSyncError as e:
+            db.execute(
+                "UPDATE generations SET status = 'failed', error_message = ? WHERE id = ?",
+                (e.message, job_id),
+            )
+            db.commit()
+            return
+
+        # Update status to starting (after sync)
+        db.execute(
+            "UPDATE generations SET current_phase = '0:starting' WHERE id = ?",
             (job_id,),
         )
         db.commit()
