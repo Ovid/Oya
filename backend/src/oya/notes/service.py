@@ -20,6 +20,13 @@ logger = logging.getLogger(__name__)
 # Use 200 to leave room for .md extension and be safe across all filesystems
 MAX_SLUG_LENGTH = 200
 
+# Mapping from scope to subdirectory name (handles irregular plurals)
+SCOPE_SUBDIRS: dict[NoteScope, str] = {
+    NoteScope.FILE: "files",
+    NoteScope.DIRECTORY: "directories",
+    NoteScope.WORKFLOW: "workflows",
+}
+
 
 def _slugify_path(path: str) -> str:
     """Convert path to filename-safe slug for filesystem storage.
@@ -87,8 +94,7 @@ def _get_filepath(scope: NoteScope, target: str) -> str:
     if not slug:
         slug = "unknown"
 
-    # Organize by scope subdirectory (handle irregular plural for "directory")
-    subdir = "directories" if scope == NoteScope.DIRECTORY else f"{scope.value}s"
+    subdir = SCOPE_SUBDIRS[scope]
     return f"{subdir}/{slug}.md"
 
 
