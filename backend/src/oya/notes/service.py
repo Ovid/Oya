@@ -64,7 +64,9 @@ def _slugify_path(path: str) -> str:
         hash_digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
         # Keep a short prefix for human readability, then add hash
         prefix = slug[:40] if len(slug) > 40 else slug
-        slug = f"{prefix}--{hash_digest}"
+        # Preserve file extension for readability (e.g., ".py")
+        ext = Path(path).suffix
+        slug = f"{prefix}--{hash_digest}{ext}"
 
     return slug
 
