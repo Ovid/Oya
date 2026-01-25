@@ -96,6 +96,14 @@ uvicorn oya.main:app --reload --port 8000
 
 The API will be available at http://localhost:8000
 
+**API Documentation:**
+
+FastAPI auto-generates interactive API documentation:
+
+- **Swagger UI**: http://localhost:8000/docs - Interactive API explorer with "Try it out" functionality
+- **ReDoc**: http://localhost:8000/redoc - Alternative documentation with a cleaner reading layout
+- **OpenAPI JSON**: http://localhost:8000/openapi.json - Machine-readable API specification
+
 ### Frontend Setup
 
 **Requirements:**
