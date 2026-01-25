@@ -348,7 +348,18 @@ export async function deleteNote(scope: NoteScope, target: string): Promise<void
     method: 'DELETE',
   })
   if (!response.ok) {
-    throw new Error(`Failed to delete note: ${response.statusText}`)
+    // Parse error response for FastAPI's detail field
+    const text = await response.text()
+    let message = text || response.statusText
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.detail) {
+        message = parsed.detail
+      }
+    } catch {
+      // Not JSON, use raw text
+    }
+    throw new ApiError(response.status, message)
   }
 }
 
