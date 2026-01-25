@@ -60,16 +60,40 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
     }
   }, [noteScope, noteTarget])
 
-  // Defensive check: verify computed noteTarget matches the authoritative source_path
-  // from the wiki page. If they differ, the slug-to-path conversion may have a bug.
+  // When page loads with a source_path that differs from the computed noteTarget,
+  // re-fetch the note using the authoritative path. This handles files with extensions
+  // not in the FILE_EXTENSIONS list, where slug-to-path conversion falls back incorrectly.
   useEffect(() => {
-    if (page?.source_path && noteTarget !== undefined && noteTarget !== page.source_path) {
+    if (!noteScope || noteTarget === undefined || !page?.source_path) {
+      return
+    }
+
+    if (noteTarget !== page.source_path) {
       console.warn(
         `[PageLoader] Note target mismatch: computed "${noteTarget}" but page.source_path is "${page.source_path}". ` +
-          'The slug-to-path conversion may need fixing.'
+          'Re-fetching note with correct path.'
       )
+
+      // Re-fetch note with the correct source_path
+      let cancelled = false
+      setNoteLoading(true)
+
+      getNote(noteScope, page.source_path)
+        .then((n) => {
+          if (!cancelled) setNote(n)
+        })
+        .catch(() => {
+          if (!cancelled) setNote(null)
+        })
+        .finally(() => {
+          if (!cancelled) setNoteLoading(false)
+        })
+
+      return () => {
+        cancelled = true
+      }
     }
-  }, [page?.source_path, noteTarget])
+  }, [noteScope, noteTarget, page?.source_path])
 
   const handleNoteSaved = (savedNote: Note) => {
     setNote(savedNote)
@@ -238,13 +262,15 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
   }
 
   // Render note section + content
-  const noteSection = noteScope && noteTarget !== undefined && !noteLoading && (
+  // Use page.source_path when available (authoritative), fall back to computed noteTarget
+  const effectiveNoteTarget = page?.source_path ?? noteTarget
+  const noteSection = noteScope && effectiveNoteTarget !== undefined && !noteLoading && (
     <div className="mb-4">
       {note ? (
         <NoteDisplay
           note={note}
           scope={noteScope}
-          target={noteTarget}
+          target={effectiveNoteTarget}
           onEdit={() => setEditorOpen(true)}
           onDeleted={handleNoteDeleted}
         />
@@ -264,7 +290,7 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
         onClose={() => setEditorOpen(false)}
         onSaved={handleNoteSaved}
         scope={noteScope}
-        target={noteTarget}
+        target={effectiveNoteTarget}
         existingContent={note?.content}
       />
     </div>
