@@ -1136,6 +1136,7 @@ def get_directory_prompt(
     file_summaries: list[Any] | None = None,
     subdirectory_summaries: list[Any] | None = None,
     project_name: str | None = None,
+    notes: list[dict[str, Any]] | None = None,
 ) -> str:
     """Generate a prompt for creating a directory page.
 
@@ -1148,6 +1149,7 @@ def get_directory_prompt(
         file_summaries: Optional list of FileSummary objects for files in the directory.
         subdirectory_summaries: Optional list of DirectorySummary objects for child directories.
         project_name: Project name for breadcrumb (defaults to repo_name).
+        notes: Optional list of correction notes affecting this directory.
 
     Returns:
         The rendered prompt string.
@@ -1162,7 +1164,7 @@ def get_directory_prompt(
     # Format display path - use project name for root
     display_path = directory_path if directory_path else proj_name
 
-    return DIRECTORY_TEMPLATE.render(
+    prompt = DIRECTORY_TEMPLATE.render(
         repo_name=repo_name,
         directory_path=display_path,
         breadcrumb=breadcrumb,
@@ -1173,6 +1175,11 @@ def get_directory_prompt(
         ),
         symbols=_format_symbols(symbols),
     )
+
+    if notes:
+        prompt = _add_notes_to_prompt(prompt, notes)
+
+    return prompt
 
 
 def get_file_prompt(
@@ -1217,7 +1224,7 @@ def _format_notes(notes: list[dict[str, Any]]) -> str:
     """Format notes for inclusion in a prompt.
 
     Args:
-        notes: List of note dictionaries with content, author, created_at.
+        notes: List of note dictionaries with content, author, updated_at.
 
     Returns:
         Formatted string representation of notes.
@@ -1234,13 +1241,13 @@ def _format_notes(notes: list[dict[str, Any]]) -> str:
     for i, note in enumerate(notes, 1):
         content = note.get("content", "")
         author = note.get("author", "Unknown")
-        created_at = note.get("created_at", "")
+        updated_at = note.get("updated_at", "")
 
         lines.append(f"### Correction {i}")
         if author:
             lines.append(f"*From: {author}*")
-        if created_at:
-            lines.append(f"*Date: {created_at}*")
+        if updated_at:
+            lines.append(f"*Date: {updated_at}*")
         lines.append("")
         lines.append(content)
         lines.append("")
@@ -1287,11 +1294,11 @@ def get_notes_for_target(
     """
     # Query notes by scope and target
     sql = """
-        SELECT content, author, created_at
+        SELECT content, author, updated_at
         FROM notes
         WHERE (scope = ? AND target = ?)
            OR scope = 'general'
-        ORDER BY created_at DESC
+        ORDER BY updated_at DESC
     """
 
     try:
@@ -1302,7 +1309,7 @@ def get_notes_for_target(
                 {
                     "content": row["content"],
                     "author": row["author"],
-                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
                 }
             )
         return notes
