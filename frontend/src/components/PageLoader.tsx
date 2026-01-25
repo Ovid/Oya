@@ -1,16 +1,20 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { WikiPage } from '../types'
+import type { WikiPage, Note, NoteScope } from '../types'
 import { WikiContent } from './WikiContent'
 import { NotFound } from './NotFound'
+import { NoteDisplay } from './NoteDisplay'
+import { NoteEditor } from './NoteEditor'
 import { useWikiStore, useGenerationStore } from '../stores'
-import { ApiError } from '../api/client'
+import { ApiError, getNote } from '../api/client'
 import { GenerationProgress } from './GenerationProgress'
 
 interface PageLoaderProps {
   loadPage: () => Promise<WikiPage>
+  noteScope?: NoteScope
+  noteTarget?: string
 }
 
-export function PageLoader({ loadPage }: PageLoaderProps) {
+export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps) {
   const repoStatus = useWikiStore((s) => s.repoStatus)
   const isLoading = useWikiStore((s) => s.isLoading)
   const setCurrentPage = useWikiStore((s) => s.setCurrentPage)
@@ -22,6 +26,45 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+
+  // Note state
+  const [note, setNote] = useState<Note | null>(null)
+  const [noteLoading, setNoteLoading] = useState(false)
+  const [editorOpen, setEditorOpen] = useState(false)
+
+  // Load note when target changes
+  useEffect(() => {
+    if (!noteScope || noteTarget === undefined) {
+      setNote(null)
+      return
+    }
+
+    let cancelled = false
+    setNoteLoading(true)
+
+    getNote(noteScope, noteTarget)
+      .then((n) => {
+        if (!cancelled) setNote(n)
+      })
+      .catch(() => {
+        if (!cancelled) setNote(null)
+      })
+      .finally(() => {
+        if (!cancelled) setNoteLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [noteScope, noteTarget])
+
+  const handleNoteSaved = (savedNote: Note) => {
+    setNote(savedNote)
+  }
+
+  const handleNoteDeleted = () => {
+    setNote(null)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -181,5 +224,50 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     )
   }
 
-  return <WikiContent page={page} />
+  // Render note section + content
+  const noteSection = noteScope && noteTarget !== undefined && !noteLoading && (
+    <div className="mb-4">
+      {note ? (
+        <NoteDisplay
+          note={note}
+          scope={noteScope}
+          target={noteTarget}
+          onEdit={() => setEditorOpen(true)}
+          onDeleted={handleNoteDeleted}
+        />
+      ) : (
+        <button
+          onClick={() => setEditorOpen(true)}
+          className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Add Correction
+        </button>
+      )}
+      {noteScope && (
+        <NoteEditor
+          isOpen={editorOpen}
+          onClose={() => setEditorOpen(false)}
+          onSaved={handleNoteSaved}
+          scope={noteScope}
+          target={noteTarget}
+          existingContent={note?.content}
+        />
+      )}
+    </div>
+  )
+
+  return (
+    <>
+      {noteSection}
+      <WikiContent page={page} />
+    </>
+  )
 }
