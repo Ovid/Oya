@@ -321,58 +321,70 @@ class NotesService:
         """Rebuild database index from files on disk.
 
         Scans .oyawiki/notes/ for markdown files and syncs DB.
+        Uses transaction rollback on critical errors to avoid leaving DB empty.
 
         Returns:
             Number of notes indexed.
+
+        Raises:
+            RuntimeError: If a critical error occurs during rebuild.
         """
         count = 0
 
-        # Clear existing notes
-        self._db.execute("DELETE FROM notes")
+        try:
+            # Clear existing notes (within transaction)
+            self._db.execute("DELETE FROM notes")
 
-        # Scan all markdown files
-        for md_file in self._notes_path.rglob("*.md"):
-            try:
-                content = md_file.read_text()
+            # Scan all markdown files
+            for md_file in self._notes_path.rglob("*.md"):
+                try:
+                    content = md_file.read_text()
 
-                # Parse frontmatter
-                if not content.startswith("---"):
+                    # Parse frontmatter
+                    if not content.startswith("---"):
+                        continue
+
+                    end_idx = content.find("---", 3)
+                    if end_idx == -1:
+                        continue
+
+                    frontmatter = content[3:end_idx].strip()
+                    body = content[end_idx + 3 :].strip()
+
+                    meta = yaml.safe_load(frontmatter)
+                    if not meta:
+                        continue
+
+                    scope = NoteScope(meta.get("scope", "general"))
+                    target = meta.get("target", "")
+                    author = meta.get("author")
+                    updated_at = meta.get("updated_at", datetime.now(UTC).isoformat())
+
+                    filepath = str(md_file.relative_to(self._notes_path))
+
+                    # Insert into database
+                    sql = """
+                        INSERT OR REPLACE INTO notes
+                        (scope, target, filepath, content, author, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """
+                    self._db.execute(
+                        sql,
+                        (scope.value, target, filepath, body, author, updated_at),
+                    )
+                    count += 1
+
+                except Exception as e:
+                    # Log and skip malformed files so admins can identify problems
+                    logger.warning(f"Failed to parse note file {md_file}: {e}")
                     continue
 
-                end_idx = content.find("---", 3)
-                if end_idx == -1:
-                    continue
+            # Only commit after all files processed successfully
+            self._db.commit()
+            return count
 
-                frontmatter = content[3:end_idx].strip()
-                body = content[end_idx + 3 :].strip()
-
-                meta = yaml.safe_load(frontmatter)
-                if not meta:
-                    continue
-
-                scope = NoteScope(meta.get("scope", "general"))
-                target = meta.get("target", "")
-                author = meta.get("author")
-                updated_at = meta.get("updated_at", datetime.now(UTC).isoformat())
-
-                filepath = str(md_file.relative_to(self._notes_path))
-
-                # Insert into database
-                sql = """
-                    INSERT OR REPLACE INTO notes
-                    (scope, target, filepath, content, author, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """
-                self._db.execute(
-                    sql,
-                    (scope.value, target, filepath, body, author, updated_at),
-                )
-                count += 1
-
-            except Exception as e:
-                # Log and skip malformed files so admins can identify problems
-                logger.warning(f"Failed to parse note file {md_file}: {e}")
-                continue
-
-        self._db.commit()
-        return count
+        except Exception as e:
+            # Rollback to preserve existing data on critical errors
+            logger.error(f"Critical error during rebuild_index, rolling back: {e}")
+            self._db.rollback()
+            raise RuntimeError(f"Failed to rebuild notes index: {e}") from e
