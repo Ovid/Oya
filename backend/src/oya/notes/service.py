@@ -1,5 +1,6 @@
 """Notes service for managing corrections."""
 
+import logging
 import re
 from datetime import datetime, UTC
 from pathlib import Path
@@ -9,6 +10,8 @@ import yaml
 
 from oya.db.connection import Database
 from oya.notes.schemas import Note, NoteScope
+
+logger = logging.getLogger(__name__)
 
 
 def _slugify_path(path: str) -> str:
@@ -348,8 +351,9 @@ class NotesService:
                 )
                 count += 1
 
-            except Exception:
-                # Skip malformed files
+            except Exception as e:
+                # Log and skip malformed files so admins can identify problems
+                logger.warning(f"Failed to parse note file {md_file}: {e}")
                 continue
 
         self._db.commit()
