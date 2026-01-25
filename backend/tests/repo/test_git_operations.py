@@ -7,6 +7,7 @@ import pytest
 from oya.repo.git_operations import (
     GitCloneError,
     GitPullError,
+    GitSyncError,
     clone_repo,
     get_remote_url,
     pull_repo,
@@ -115,3 +116,11 @@ def test_get_remote_url_no_origin(tmp_path):
     with pytest.raises(ValueError) as exc_info:
         get_remote_url(repo_path)
     assert "origin" in str(exc_info.value).lower()
+
+
+def test_git_sync_error_has_message_and_original_error():
+    """GitSyncError stores message and optional original error."""
+    error = GitSyncError("User message", original_error="Raw stderr")
+    assert error.message == "User message"
+    assert error.original_error == "Raw stderr"
+    assert str(error) == "User message"
