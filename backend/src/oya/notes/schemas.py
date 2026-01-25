@@ -22,7 +22,8 @@ class NoteUpsert(BaseModel):
     content: str = Field(
         ...,
         min_length=1,
-        description="Markdown content of the correction",
+        max_length=10000,
+        description="Markdown content of the correction (max 10,000 characters)",
     )
     author: Optional[str] = Field(
         None,
