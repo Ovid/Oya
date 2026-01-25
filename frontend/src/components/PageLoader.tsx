@@ -68,30 +68,33 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
       return
     }
 
-    if (noteTarget !== page.source_path) {
-      console.warn(
-        `[PageLoader] Note target mismatch: computed "${noteTarget}" but page.source_path is "${page.source_path}". ` +
-          'Re-fetching note with correct path.'
-      )
+    // No mismatch - skip re-fetch
+    if (noteTarget === page.source_path) {
+      return
+    }
 
-      // Re-fetch note with the correct source_path
-      let cancelled = false
-      setNoteLoading(true)
+    console.warn(
+      `[PageLoader] Note target mismatch: computed "${noteTarget}" but page.source_path is "${page.source_path}". ` +
+        'Re-fetching note with correct path.'
+    )
 
-      getNote(noteScope, page.source_path)
-        .then((n) => {
-          if (!cancelled) setNote(n)
-        })
-        .catch(() => {
-          if (!cancelled) setNote(null)
-        })
-        .finally(() => {
-          if (!cancelled) setNoteLoading(false)
-        })
+    // Re-fetch note with the correct source_path
+    let cancelled = false
+    setNoteLoading(true)
 
-      return () => {
-        cancelled = true
-      }
+    getNote(noteScope, page.source_path)
+      .then((n) => {
+        if (!cancelled) setNote(n)
+      })
+      .catch(() => {
+        if (!cancelled) setNote(null)
+      })
+      .finally(() => {
+        if (!cancelled) setNoteLoading(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [noteScope, noteTarget, page?.source_path])
 
