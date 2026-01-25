@@ -39,8 +39,8 @@ def _slugify_path(path: str) -> str:
         if char.isalnum() or char in "-._":
             result.append(char)
         else:
-            # Percent-encode the character (e.g., '(' -> '%28')
-            result.append(f"%{ord(char):02X}")
+            # Percent-encode the character as UTF-8 bytes (e.g., '(' -> '%28', 'é' -> '%C3%A9')
+            result.append("".join(f"%{b:02X}" for b in char.encode("utf-8")))
     slug = "".join(result)
     # Collapse runs of 3+ dashes to -- (handles consecutive separators like //)
     slug = re.sub(r"-{3,}", "--", slug)
