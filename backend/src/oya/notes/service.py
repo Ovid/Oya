@@ -21,6 +21,10 @@ def _slugify_path(path: str) -> str:
     - Wiki URL slugs: src-main-py (relies on file extension heuristics to reconstruct)
     - Notes file slugs: src--main.py (unambiguous, preserves dots in filenames)
 
+    Special characters are percent-encoded to avoid collisions. For example:
+    - file(test).py  -> file%28test%29.py
+    - file[test].py  -> file%5Btest%5D.py
+
     This is only used for filesystem storage. API lookups use the actual path stored
     in the database's `target` column, not the slugified version.
     """
@@ -28,8 +32,16 @@ def _slugify_path(path: str) -> str:
         return ""
     # First replace path separators with -- to flatten directory structure
     slug = path.replace("/", "--").replace("\\", "--")
-    # Then remove any characters that aren't alphanumeric, dash, dot, or underscore
-    slug = re.sub(r"[^a-zA-Z0-9\-._]", "", slug)
+    # Percent-encode special characters to avoid collisions
+    # Keep alphanumeric, dash, dot, and underscore as-is
+    result = []
+    for char in slug:
+        if char.isalnum() or char in "-._":
+            result.append(char)
+        else:
+            # Percent-encode the character (e.g., '(' -> '%28')
+            result.append(f"%{ord(char):02X}")
+    slug = "".join(result)
     # Collapse runs of 3+ dashes to -- (handles consecutive separators like //)
     slug = re.sub(r"-{3,}", "--", slug)
     return slug.strip("-")
