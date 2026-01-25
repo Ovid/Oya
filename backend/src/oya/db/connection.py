@@ -32,6 +32,10 @@ class Database:
         """Commit current transaction."""
         self._conn.commit()
 
+    def rollback(self) -> None:
+        """Rollback current transaction."""
+        self._conn.rollback()
+
     def close(self) -> None:
         """Close database connection."""
         self._conn.close()

@@ -1,39 +1,65 @@
 import { useState, useEffect } from 'react'
-import { createNote } from '../api/client'
+import { saveNote } from '../api/client'
 import { useNoteEditorStore } from '../stores'
+import { ConfirmationDialog } from './ConfirmationDialog'
 import type { NoteScope, Note } from '../types'
+
+const SCOPE_LABELS: Record<NoteScope, string> = {
+  file: 'File',
+  directory: 'Directory',
+  workflow: 'Workflow',
+  general: 'General',
+}
 
 interface NoteEditorProps {
   isOpen: boolean
   onClose: () => void
-  onNoteCreated?: (note: Note) => void
-  defaultScope?: NoteScope
-  defaultTarget?: string
+  onSaved: (note: Note) => void
+  scope: NoteScope
+  target: string
+  existingContent?: string
 }
 
 export function NoteEditor({
   isOpen,
   onClose,
-  onNoteCreated,
-  defaultScope = 'general',
-  defaultTarget = '',
+  onSaved,
+  scope,
+  target,
+  existingContent = '',
 }: NoteEditorProps) {
+  const isDirty = useNoteEditorStore((s) => s.isDirty)
   const setDirty = useNoteEditorStore((s) => s.setDirty)
-  const [scope, setScope] = useState<NoteScope>(defaultScope)
-  const [target, setTarget] = useState(defaultTarget)
-  const [content, setContent] = useState('')
+  const [content, setContent] = useState(existingContent)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+
+  const isEditing = !!existingContent
 
   // Reset state when editor opens
   useEffect(() => {
     if (isOpen) {
-      setScope(defaultScope)
-      setTarget(defaultTarget)
-      setContent('')
+      setContent(existingContent)
       setError(null)
+      setDirty(false)
     }
-  }, [isOpen, defaultScope, defaultTarget])
+  }, [isOpen, existingContent, setDirty])
+
+  // Confirm before closing with unsaved changes
+  const handleClose = () => {
+    if (isDirty) {
+      setShowCloseConfirm(true)
+    } else {
+      onClose()
+    }
+  }
+
+  const handleConfirmClose = () => {
+    setShowCloseConfirm(false)
+    setDirty(false)
+    onClose()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,16 +69,12 @@ export function NoteEditor({
     setError(null)
 
     try {
-      const note = await createNote({
-        scope,
-        target: scope === 'general' ? '' : target,
-        content: content.trim(),
-      })
-      onNoteCreated?.(note)
+      const note = await saveNote(scope, target, content.trim())
+      setDirty(false)
+      onSaved(note)
       onClose()
-      setContent('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save note')
+      setError(err instanceof Error ? err.message : 'Failed to save correction')
     } finally {
       setIsSubmitting(false)
     }
@@ -60,20 +82,24 @@ export function NoteEditor({
 
   if (!isOpen) return null
 
+  const scopeLabel = SCOPE_LABELS[scope]
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={handleClose} />
 
       {/* Slide-over panel */}
       <div className="absolute inset-y-0 right-0 max-w-lg w-full bg-white dark:bg-gray-800 shadow-xl">
         <form onSubmit={handleSubmit} className="h-full flex flex-col">
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Correction</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {isEditing ? 'Edit Correction' : 'Add Correction'}
+            </h2>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,51 +115,13 @@ export function NoteEditor({
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Scope selector */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Scope
-              </label>
-              <div className="flex gap-2 flex-wrap">
-                {(['general', 'file', 'directory', 'workflow'] as NoteScope[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setScope(s)}
-                    className={`px-3 py-1 text-sm rounded capitalize ${
-                      scope === s
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+            {/* Target info */}
+            <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+              <div className="text-sm text-gray-500 dark:text-gray-400">{scopeLabel}</div>
+              <div className="font-mono text-sm text-gray-900 dark:text-white">
+                {target || '(general)'}
               </div>
             </div>
-
-            {/* Target input */}
-            {scope !== 'general' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Target{' '}
-                  {scope === 'file' ? 'File' : scope === 'directory' ? 'Directory' : 'Workflow'}
-                </label>
-                <input
-                  type="text"
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                  placeholder={
-                    scope === 'file'
-                      ? 'e.g., src/main.py'
-                      : scope === 'directory'
-                        ? 'e.g., src/utils'
-                        : 'e.g., authentication'
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
 
             {/* Content editor */}
             <div className="flex-1">
@@ -144,12 +132,17 @@ export function NoteEditor({
                 value={content}
                 onChange={(e) => {
                   setContent(e.target.value)
-                  setDirty(!!e.target.value.trim())
+                  setDirty(!!e.target.value.trim() && e.target.value !== existingContent)
                 }}
-                placeholder="Describe the correction or additional information..."
-                rows={10}
+                placeholder="Describe the correction. This will be shown to the LLM during wiki generation..."
+                rows={12}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                autoFocus
               />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                This correction will be included in the LLM prompt when regenerating documentation
+                for this {scope}.
+              </p>
             </div>
 
             {/* Error message */}
@@ -164,7 +157,7 @@ export function NoteEditor({
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
               Cancel
@@ -179,6 +172,17 @@ export function NoteEditor({
           </div>
         </form>
       </div>
+
+      <ConfirmationDialog
+        isOpen={showCloseConfirm}
+        title="Discard changes?"
+        onConfirm={handleConfirmClose}
+        onCancel={() => setShowCloseConfirm(false)}
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+      >
+        You have unsaved changes. Are you sure you want to close without saving?
+      </ConfirmationDialog>
     </div>
   )
 }

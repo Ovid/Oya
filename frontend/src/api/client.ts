@@ -10,7 +10,7 @@ import type {
   QAResponse,
   Citation,
   SearchQuality,
-  NoteCreate,
+  NoteScope,
   Note,
   WorkspaceSwitchResponse,
   GenerationStatus,
@@ -317,24 +317,55 @@ export async function askQuestionStream(
 }
 
 // Notes endpoints
-export async function createNote(note: NoteCreate): Promise<Note> {
-  return fetchJson<Note>('/api/notes', {
-    method: 'POST',
-    body: JSON.stringify(note),
+export async function getNote(scope: NoteScope, target: string): Promise<Note | null> {
+  try {
+    const encodedTarget = encodeURIComponent(target)
+    return await fetchJson<Note>(`/api/notes/${scope}/${encodedTarget}`)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return null
+    }
+    throw err
+  }
+}
+
+export async function saveNote(
+  scope: NoteScope,
+  target: string,
+  content: string,
+  author?: string
+): Promise<Note> {
+  const encodedTarget = encodeURIComponent(target)
+  return fetchJson<Note>(`/api/notes/${scope}/${encodedTarget}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content, author }),
   })
 }
 
-export async function listNotes(target?: string): Promise<Note[]> {
-  const params = target ? `?target=${encodeURIComponent(target)}` : ''
+export async function deleteNote(scope: NoteScope, target: string): Promise<void> {
+  const encodedTarget = encodeURIComponent(target)
+  const response = await fetch(`${API_BASE}/api/notes/${scope}/${encodedTarget}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    // Parse error response for FastAPI's detail field
+    const text = await response.text()
+    let message = text || response.statusText
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.detail) {
+        message = parsed.detail
+      }
+    } catch {
+      // Not JSON, use raw text
+    }
+    throw new ApiError(response.status, message)
+  }
+}
+
+export async function listNotes(scope?: NoteScope): Promise<Note[]> {
+  const params = scope ? `?scope=${scope}` : ''
   return fetchJson<Note[]>(`/api/notes${params}`)
-}
-
-export async function getNote(noteId: number): Promise<Note> {
-  return fetchJson<Note>(`/api/notes/${noteId}`)
-}
-
-export async function deleteNote(noteId: number): Promise<void> {
-  await fetch(`${API_BASE}/api/notes/${noteId}`, { method: 'DELETE' })
 }
 
 // SSE streaming for job progress

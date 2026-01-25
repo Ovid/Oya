@@ -5,7 +5,7 @@ from typing import Optional
 
 from oya.api.deps import get_db, get_active_repo_paths
 from oya.db.connection import Database
-from oya.notes.schemas import Note, NoteCreate
+from oya.notes.schemas import Note, NoteScope, NoteUpsert
 from oya.notes.service import NotesService
 from oya.repo.repo_paths import RepoPaths
 
@@ -21,51 +21,64 @@ def get_notes_service(
     return NotesService(paths.notes_dir, db)
 
 
-@router.post("", response_model=Note, status_code=status.HTTP_201_CREATED)
-async def create_note(
-    note_data: NoteCreate,
-    service: NotesService = Depends(get_notes_service),
-) -> Note:
-    """Create a new correction note.
-
-    Creates a markdown file in .oyawiki/notes/ with frontmatter metadata
-    and registers the note in the database.
-    """
-    return service.create(note_data)
-
-
 @router.get("", response_model=list[Note])
 async def list_notes(
-    target: Optional[str] = Query(None, description="Filter by target path"),
+    scope: Optional[NoteScope] = Query(None, description="Filter by scope"),
     service: NotesService = Depends(get_notes_service),
 ) -> list[Note]:
-    """List correction notes.
+    """List all correction notes.
 
-    Returns all notes, optionally filtered by target path.
+    Returns all notes, optionally filtered by scope.
     """
-    return service.list_by_target(target)
+    return service.list(scope)
 
 
-@router.get("/{note_id}", response_model=Note)
+@router.get("/{scope}/{target:path}", response_model=Note)
 async def get_note(
-    note_id: int,
+    scope: NoteScope,
+    target: str,
     service: NotesService = Depends(get_notes_service),
 ) -> Note:
-    """Get a single note by ID."""
-    note = service.get(note_id)
+    """Get a single note by scope and target.
+
+    Target should be URL-encoded if it contains special characters.
+    For general notes, use empty string as target.
+    """
+    note = service.get(scope, target)
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     return note
 
 
-@router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.put("/{scope}/{target:path}", response_model=Note)
+async def upsert_note(
+    scope: NoteScope,
+    target: str,
+    data: NoteUpsert,
+    service: NotesService = Depends(get_notes_service),
+) -> Note:
+    """Create or update a correction note.
+
+    Creates a markdown file in .oyawiki/notes/{scope}s/{slug}.md
+    and indexes it in the database.
+    """
+    return service.upsert(
+        scope=scope,
+        target=target,
+        content=data.content,
+        author=data.author,
+    )
+
+
+@router.delete("/{scope}/{target:path}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_note(
-    note_id: int,
+    scope: NoteScope,
+    target: str,
     service: NotesService = Depends(get_notes_service),
 ) -> None:
-    """Delete a note by ID.
+    """Delete a note by scope and target.
 
     Removes both the file and database record.
     """
-    if not service.delete(note_id):
+    if not service.delete(scope, target):
         raise HTTPException(status_code=404, detail="Note not found")
