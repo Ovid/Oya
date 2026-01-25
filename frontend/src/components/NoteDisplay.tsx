@@ -13,16 +13,19 @@ interface NoteDisplayProps {
 export function NoteDisplay({ note, scope, target, onEdit, onDeleted }: NoteDisplayProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isExpanded, setIsExpanded] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const handleDelete = async () => {
     if (!confirm('Delete this correction? This cannot be undone.')) return
 
+    setError(null)
     setIsDeleting(true)
     try {
       await deleteNote(scope, target)
       onDeleted()
     } catch (err) {
       console.error('Failed to delete note:', err)
+      setError('Failed to delete correction. Please try again.')
     } finally {
       setIsDeleting(false)
     }
@@ -42,6 +45,7 @@ export function NoteDisplay({ note, scope, target, onEdit, onDeleted }: NoteDisp
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-label={isExpanded ? 'Collapse correction' : 'Expand correction'}
         className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-t-lg"
       >
         <div className="flex items-center gap-2">
@@ -85,6 +89,13 @@ export function NoteDisplay({ note, scope, target, onEdit, onDeleted }: NoteDisp
             ))}
           </div>
 
+          {/* Error message */}
+          {error && (
+            <div className="mt-3 p-2 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded text-sm text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
+
           {/* Footer */}
           <div className="mt-4 pt-3 border-t border-amber-200 dark:border-amber-800 flex items-center justify-between text-sm">
             <div className="text-amber-700 dark:text-amber-300">
@@ -94,6 +105,7 @@ export function NoteDisplay({ note, scope, target, onEdit, onDeleted }: NoteDisp
             <div className="flex gap-2">
               <button
                 onClick={onEdit}
+                aria-label="Edit correction"
                 className="px-3 py-1 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 rounded"
               >
                 Edit
@@ -101,6 +113,7 @@ export function NoteDisplay({ note, scope, target, onEdit, onDeleted }: NoteDisp
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
+                aria-label="Delete correction"
                 className="px-3 py-1 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
