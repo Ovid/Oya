@@ -51,8 +51,9 @@ def _get_filepath(scope: NoteScope, target: str) -> str:
     if not slug:
         slug = "unknown"
 
-    # Organize by scope subdirectory
-    return f"{scope.value}s/{slug}.md"
+    # Organize by scope subdirectory (handle irregular plural for "directory")
+    subdir = "directories" if scope == NoteScope.DIRECTORY else f"{scope.value}s"
+    return f"{subdir}/{slug}.md"
 
 
 class NotesService:

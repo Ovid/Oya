@@ -33,7 +33,7 @@ class TestGetFilepath:
         assert _get_filepath(NoteScope.FILE, "src/main.py") == "files/src--main.py.md"
 
     def test_directory_scope_uses_directories_subdirectory(self):
-        assert _get_filepath(NoteScope.DIRECTORY, "src/api") == "directorys/src--api.md"
+        assert _get_filepath(NoteScope.DIRECTORY, "src/api") == "directories/src--api.md"
 
     def test_workflow_scope_uses_workflows_subdirectory(self):
         assert _get_filepath(NoteScope.WORKFLOW, "auth") == "workflows/auth.md"
