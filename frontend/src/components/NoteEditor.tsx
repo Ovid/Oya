@@ -20,6 +20,7 @@ export function NoteEditor({
   target,
   existingContent = '',
 }: NoteEditorProps) {
+  const isDirty = useNoteEditorStore((s) => s.isDirty)
   const setDirty = useNoteEditorStore((s) => s.setDirty)
   const [content, setContent] = useState(existingContent)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -34,6 +35,18 @@ export function NoteEditor({
       setError(null)
     }
   }, [isOpen, existingContent])
+
+  // Confirm before closing with unsaved changes
+  const handleClose = () => {
+    if (isDirty) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
+        setDirty(false)
+        onClose()
+      }
+    } else {
+      onClose()
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,7 +81,7 @@ export function NoteEditor({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={handleClose} />
 
       {/* Slide-over panel */}
       <div className="absolute inset-y-0 right-0 max-w-lg w-full bg-white dark:bg-gray-800 shadow-xl">
@@ -80,7 +93,7 @@ export function NoteEditor({
             </h2>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,7 +151,7 @@ export function NoteEditor({
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
               Cancel
