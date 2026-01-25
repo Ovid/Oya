@@ -1,5 +1,6 @@
 """Notes service for managing corrections."""
 
+import hashlib
 import logging
 import re
 from datetime import datetime, UTC
@@ -12,6 +13,11 @@ from oya.db.connection import Database
 from oya.notes.schemas import Note, NoteScope
 
 logger = logging.getLogger(__name__)
+
+
+# Max filename length before falling back to hash (most filesystems limit to 255 bytes)
+# Use 200 to leave room for .md extension and be safe across all filesystems
+MAX_SLUG_LENGTH = 200
 
 
 def _slugify_path(path: str) -> str:
@@ -27,6 +33,9 @@ def _slugify_path(path: str) -> str:
     Special characters are percent-encoded to avoid collisions. For example:
     - file(test).py  -> file%28test%29.py
     - file[test].py  -> file%5Btest%5D.py
+
+    If the resulting slug exceeds MAX_SLUG_LENGTH bytes (e.g., paths with many
+    Unicode characters), falls back to a SHA-256 hash prefix for the filename.
 
     This is only used for filesystem storage. API lookups use the actual path stored
     in the database's `target` column, not the slugified version.
@@ -47,7 +56,16 @@ def _slugify_path(path: str) -> str:
     slug = "".join(result)
     # Collapse runs of 3+ dashes to -- (handles consecutive separators like //)
     slug = re.sub(r"-{3,}", "--", slug)
-    return slug.strip("-")
+    slug = slug.strip("-")
+
+    # If slug is too long, fall back to hash-based filename
+    if len(slug.encode("utf-8")) > MAX_SLUG_LENGTH:
+        hash_digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
+        # Keep a short prefix for human readability, then add hash
+        prefix = slug[:40] if len(slug) > 40 else slug
+        slug = f"{prefix}--{hash_digest}"
+
+    return slug
 
 
 def _get_filepath(scope: NoteScope, target: str) -> str:
