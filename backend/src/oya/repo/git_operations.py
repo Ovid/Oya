@@ -115,6 +115,62 @@ def get_default_branch(repo_path: Path, timeout: int = 30) -> str:
     )
 
 
+def get_current_branch(repo_path: Path) -> str:
+    """
+    Get the name of the currently checked out branch.
+
+    Args:
+        repo_path: Path to the git repository
+
+    Returns:
+        Name of the current branch
+
+    Raises:
+        GitSyncError: If unable to determine current branch
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise GitSyncError(
+            f"Could not determine current branch in `{repo_path}`. "
+            "Ensure this is a valid git repository.",
+            original_error=result.stderr,
+        )
+
+    return result.stdout.strip()
+
+
+def checkout_branch(repo_path: Path, branch: str) -> None:
+    """
+    Checkout a specific branch.
+
+    Args:
+        repo_path: Path to the git repository
+        branch: Name of the branch to checkout
+
+    Raises:
+        GitSyncError: If checkout fails
+    """
+    result = subprocess.run(
+        ["git", "checkout", branch],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise GitSyncError(
+            f"Could not switch to branch '{branch}' in `{repo_path}`. "
+            "The repository may be in an unexpected state.",
+            original_error=result.stderr,
+        )
+
+
 def clone_repo(url: str, dest: Path, timeout: int = 300) -> None:
     """
     Clone a git repository.

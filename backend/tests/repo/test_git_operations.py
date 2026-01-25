@@ -9,7 +9,9 @@ from oya.repo.git_operations import (
     GitPullError,
     GitSyncError,
     check_working_directory_clean,
+    checkout_branch,
     clone_repo,
+    get_current_branch,
     get_default_branch,
     get_remote_url,
     pull_repo,
@@ -183,3 +185,55 @@ def test_get_default_branch_no_remote_raises(tmp_path):
 
     assert str(repo_path) in exc_info.value.message
     assert "default branch" in exc_info.value.message.lower()
+
+
+def test_get_current_branch_returns_branch_name(tmp_path, source_repo):
+    """get_current_branch returns the current branch name."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    branch = get_current_branch(dest)
+    assert branch in ("main", "master")
+
+
+def test_get_current_branch_invalid_repo_raises(tmp_path):
+    """get_current_branch raises GitSyncError for non-git directory."""
+    not_a_repo = tmp_path / "not-a-repo"
+    not_a_repo.mkdir()
+
+    with pytest.raises(GitSyncError) as exc_info:
+        get_current_branch(not_a_repo)
+
+    assert str(not_a_repo) in exc_info.value.message
+
+
+def test_checkout_branch_switches_branch(tmp_path, source_repo):
+    """checkout_branch switches to specified branch."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Create and switch to a feature branch
+    subprocess.run(
+        ["git", "checkout", "-b", "feature-test"],
+        cwd=dest,
+        check=True,
+        capture_output=True,
+    )
+    assert get_current_branch(dest) == "feature-test"
+
+    # Use checkout_branch to switch back
+    default = get_default_branch(dest)
+    checkout_branch(dest, default)
+    assert get_current_branch(dest) == default
+
+
+def test_checkout_branch_nonexistent_raises(tmp_path, source_repo):
+    """checkout_branch raises GitSyncError for nonexistent branch."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    with pytest.raises(GitSyncError) as exc_info:
+        checkout_branch(dest, "nonexistent-branch-xyz")
+
+    assert str(dest) in exc_info.value.message
+    assert "nonexistent-branch-xyz" in exc_info.value.message
