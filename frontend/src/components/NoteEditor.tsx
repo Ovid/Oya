@@ -4,6 +4,13 @@ import { useNoteEditorStore } from '../stores'
 import { ConfirmationDialog } from './ConfirmationDialog'
 import type { NoteScope, Note } from '../types'
 
+const SCOPE_LABELS: Record<NoteScope, string> = {
+  file: 'File',
+  directory: 'Directory',
+  workflow: 'Workflow',
+  general: 'General',
+}
+
 interface NoteEditorProps {
   isOpen: boolean
   onClose: () => void
@@ -75,14 +82,7 @@ export function NoteEditor({
 
   if (!isOpen) return null
 
-  const scopeLabel =
-    scope === 'file'
-      ? 'File'
-      : scope === 'directory'
-        ? 'Directory'
-        : scope === 'workflow'
-          ? 'Workflow'
-          : 'General'
+  const scopeLabel = SCOPE_LABELS[scope]
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
