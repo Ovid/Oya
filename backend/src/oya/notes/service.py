@@ -393,5 +393,9 @@ class NotesService:
         except Exception as e:
             # Rollback to preserve existing data on critical errors
             logger.error(f"Critical error during rebuild_index, rolling back: {e}")
-            self._db.rollback()
+            try:
+                self._db.rollback()
+            except Exception as rollback_error:
+                # Defensive: rollback may fail if no transaction is active
+                logger.error(f"Failed to rollback transaction: {rollback_error}")
             raise RuntimeError(f"Failed to rebuild notes index: {e}") from e
