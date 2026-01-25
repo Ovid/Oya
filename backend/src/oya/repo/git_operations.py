@@ -66,6 +66,55 @@ def check_working_directory_clean(repo_path: Path) -> None:
         )
 
 
+def get_default_branch(repo_path: Path, timeout: int = 30) -> str:
+    """
+    Detect the repository's default branch.
+
+    Queries remote first, falls back to local refs.
+
+    Args:
+        repo_path: Path to the git repository
+        timeout: Timeout in seconds for remote query
+
+    Returns:
+        Name of the default branch (e.g., 'main' or 'master')
+
+    Raises:
+        GitSyncError: If default branch cannot be determined
+    """
+    # Try querying remote first (authoritative)
+    try:
+        result = subprocess.run(
+            ["git", "remote", "show", "origin"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if "HEAD branch:" in line:
+                    return line.split(":")[-1].strip()
+    except subprocess.TimeoutExpired:
+        pass  # Fall through to local refs
+
+    # Fallback: check local symbolic ref
+    result = subprocess.run(
+        ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        # Output is like "refs/remotes/origin/main"
+        return result.stdout.strip().split("/")[-1]
+
+    raise GitSyncError(
+        f"Could not determine the default branch for `{repo_path}`. "
+        "Ensure the repository has an origin remote configured."
+    )
+
+
 def clone_repo(url: str, dest: Path, timeout: int = 300) -> None:
     """
     Clone a git repository.

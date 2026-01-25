@@ -10,6 +10,7 @@ from oya.repo.git_operations import (
     GitSyncError,
     check_working_directory_clean,
     clone_repo,
+    get_default_branch,
     get_remote_url,
     pull_repo,
 )
@@ -159,3 +160,26 @@ def test_check_working_directory_clean_invalid_repo_raises(tmp_path):
         check_working_directory_clean(not_a_repo)
 
     assert str(not_a_repo) in exc_info.value.message
+
+
+def test_get_default_branch_returns_main(tmp_path, source_repo):
+    """get_default_branch returns the default branch name."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    branch = get_default_branch(dest)
+    # source_repo fixture creates repo on master (git default) or main
+    assert branch in ("main", "master")
+
+
+def test_get_default_branch_no_remote_raises(tmp_path):
+    """get_default_branch raises GitSyncError when no origin remote."""
+    repo_path = tmp_path / "no-origin"
+    repo_path.mkdir()
+    subprocess.run(["git", "init"], cwd=repo_path, check=True, capture_output=True)
+
+    with pytest.raises(GitSyncError) as exc_info:
+        get_default_branch(repo_path)
+
+    assert str(repo_path) in exc_info.value.message
+    assert "default branch" in exc_info.value.message.lower()
