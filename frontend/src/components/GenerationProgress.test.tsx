@@ -5,7 +5,7 @@ import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants'
  * Tests for GenerationProgress phase ordering.
  *
  * The bottom-up generation pipeline runs phases in this order:
- * Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
+ * Syncing → Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
  *
  * The frontend must display phases in this same order to correctly show
  * which phases are completed vs in-progress.
@@ -14,6 +14,7 @@ import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants'
 // Extract the constants from the component for testing
 // This ensures the phase order matches the backend's bottom-up approach
 const EXPECTED_PHASE_ORDER = [
+  'syncing',
   'analysis',
   'files',
   'directories',
@@ -26,6 +27,7 @@ const EXPECTED_PHASE_ORDER = [
 
 const EXPECTED_PHASES = {
   starting: { name: 'Starting', description: 'Initializing generation...' },
+  syncing: { name: 'Syncing', description: 'Fetching latest code from repository...' },
   analysis: { name: 'Analysis', description: 'Scanning repository and parsing code...' },
   files: { name: 'Files', description: 'Generating file-level documentation...' },
   directories: { name: 'Directories', description: 'Generating directory documentation...' },
@@ -76,8 +78,8 @@ describe('GenerationProgress phase ordering', () => {
     expect(PHASE_ORDER).toContain('indexing')
   })
 
-  it('should have 8 phases total', () => {
-    expect(PHASE_ORDER).toHaveLength(8)
+  it('should have 9 phases total', () => {
+    expect(PHASE_ORDER).toHaveLength(9)
   })
 })
 
