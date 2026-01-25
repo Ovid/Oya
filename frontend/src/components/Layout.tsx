@@ -30,8 +30,9 @@ export function Layout({ children }: LayoutProps) {
   const noteEditor = useNoteEditorStore(
     useShallow((s) => ({
       isOpen: s.isOpen,
-      defaultScope: s.defaultScope,
-      defaultTarget: s.defaultTarget,
+      scope: s.scope,
+      target: s.target,
+      existingContent: s.existingContent,
     }))
   )
   const closeNoteEditor = useNoteEditorStore((s) => s.close)
@@ -150,9 +151,10 @@ export function Layout({ children }: LayoutProps) {
       <NoteEditor
         isOpen={noteEditor.isOpen}
         onClose={closeNoteEditor}
-        onNoteCreated={() => refreshTree()}
-        defaultScope={noteEditor.defaultScope}
-        defaultTarget={noteEditor.defaultTarget}
+        onSaved={() => refreshTree()}
+        scope={noteEditor.scope}
+        target={noteEditor.target}
+        existingContent={noteEditor.existingContent}
       />
     </div>
   )
