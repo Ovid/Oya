@@ -92,7 +92,26 @@ export function NoteDisplay({ note, scope, target, onEdit, onDeleted }: NoteDisp
           {/* Error message */}
           {error && (
             <div className="mt-3 p-2 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded text-sm text-red-700 dark:text-red-300">
-              {error}
+              <div className="flex items-start justify-between gap-2">
+                <span className="flex-1">{error}</span>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="px-2 py-0.5 text-xs font-medium rounded bg-red-200/80 hover:bg-red-300 dark:bg-red-800/60 dark:hover:bg-red-700 text-red-900 dark:text-red-100 disabled:opacity-50"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setError(null)}
+                    className="px-2 py-0.5 text-xs font-medium rounded bg-transparent hover:bg-red-200/40 dark:hover:bg-red-800/40 text-red-700 dark:text-red-300"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
