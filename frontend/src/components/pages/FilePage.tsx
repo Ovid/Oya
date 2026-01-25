@@ -11,11 +11,5 @@ export function FilePage() {
   // Convert slug back to file path for note lookup
   const filePath = slug ? slugToPath(slug) : ''
 
-  return (
-    <PageLoader
-      loadPage={loadPage}
-      noteScope="file"
-      noteTarget={filePath}
-    />
-  )
+  return <PageLoader loadPage={loadPage} noteScope="file" noteTarget={filePath} />
 }

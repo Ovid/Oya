@@ -10,13 +10,7 @@ export function DirectoryPage() {
 
   // Convert slug back to directory path
   // Handle 'root' specially
-  const dirPath = slug === 'root' ? '' : (slug ? slugToPath(slug) : '')
+  const dirPath = slug === 'root' ? '' : slug ? slugToPath(slug) : ''
 
-  return (
-    <PageLoader
-      loadPage={loadPage}
-      noteScope="directory"
-      noteTarget={dirPath}
-    />
-  )
+  return <PageLoader loadPage={loadPage} noteScope="directory" noteTarget={dirPath} />
 }
