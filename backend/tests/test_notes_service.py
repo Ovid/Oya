@@ -47,14 +47,18 @@ class TestSlugifyPath:
         long_path = "a" * 300 + ".py"
         slug = _slugify_path(long_path)
 
-        # Should be under the limit
-        assert len(slug.encode("utf-8")) <= 200
+        # Should be under the limit (allowing for preserved extension)
+        # The limit is 200, but extension is preserved so we allow slightly over
+        assert len(slug.encode("utf-8")) <= 200 + len(".py")
 
-        # Should contain a hash suffix (16 hex chars after --)
+        # Should contain a hash suffix (16 hex chars after --) plus extension
         assert "--" in slug
         parts = slug.rsplit("--", 1)
         assert len(parts) == 2
-        assert len(parts[1]) == 16  # SHA-256 prefix
+        # Hash is 16 hex chars, plus preserved ".py" extension
+        assert parts[1] == _slugify_path(long_path).rsplit("--", 1)[1]
+        assert parts[1].endswith(".py")
+        assert len(parts[1]) == 16 + len(".py")  # SHA-256 prefix + extension
 
     def test_unicode_alphanumeric_preserved(self):
         """Unicode alphanumeric characters are preserved (not percent-encoded)."""
@@ -72,11 +76,12 @@ class TestSlugifyPath:
         unicode_path = "中" * 70 + ".py"
         slug = _slugify_path(unicode_path)
 
-        # Should be under the limit (200 bytes)
-        assert len(slug.encode("utf-8")) <= 200
+        # Should be under the limit (allowing for preserved extension)
+        assert len(slug.encode("utf-8")) <= 200 + len(".py")
 
-        # Should contain a hash suffix (original path exceeds limit)
+        # Should contain a hash suffix (original path exceeds limit) and preserve extension
         assert "--" in slug
+        assert slug.endswith(".py")
 
 
 class TestGetFilepath:
