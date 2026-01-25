@@ -347,6 +347,10 @@ class NotesService:
         count = 0
 
         try:
+            # Start explicit transaction so DELETE + INSERTs are atomic
+            # This ensures rollback can restore the original data if rebuild fails
+            self._db.execute("BEGIN IMMEDIATE")
+
             # Clear existing notes (within transaction)
             self._db.execute("DELETE FROM notes")
 
