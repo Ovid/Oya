@@ -56,7 +56,8 @@ async def get_indexable_items(
 
     try:
         # Use the same FileFilter class as GenerationOrchestrator._run_analysis()
-        file_filter = FileFilter(source_path)
+        # Pass the oyaignore path from meta/ directory where the API writes it
+        file_filter = FileFilter(source_path, ignore_path=paths.oyaignore)
         categorized = file_filter.get_files_categorized()
 
         # For included, derive directories from files
