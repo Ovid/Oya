@@ -26,11 +26,11 @@ def _slugify_path(path: str) -> str:
     """
     if not path:
         return ""
-    # Remove any characters that aren't alphanumeric, dash, dot, underscore, or path separator
-    slug = re.sub(r"[^a-zA-Z0-9\-._/\\]", "", path)
-    # Replace path separators with --
-    slug = slug.replace("/", "--").replace("\\", "--")
-    # Collapse runs of 3+ dashes to -- (preserving intentional double-dash separators)
+    # First replace path separators with -- to flatten directory structure
+    slug = path.replace("/", "--").replace("\\", "--")
+    # Then remove any characters that aren't alphanumeric, dash, dot, or underscore
+    slug = re.sub(r"[^a-zA-Z0-9\-._]", "", slug)
+    # Collapse runs of 3+ dashes to -- (handles consecutive separators like //)
     slug = re.sub(r"-{3,}", "--", slug)
     return slug.strip("-")
 
