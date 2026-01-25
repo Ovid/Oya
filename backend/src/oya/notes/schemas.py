@@ -27,7 +27,8 @@ class NoteUpsert(BaseModel):
     )
     author: Optional[str] = Field(
         None,
-        description="Optional author name or email",
+        max_length=200,
+        description="Optional author name or email (max 200 characters)",
     )
 
 
