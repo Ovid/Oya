@@ -34,6 +34,7 @@ class DirectoryGenerator:
         file_summaries: list[FileSummary] | None = None,
         child_summaries: list[DirectorySummary] | None = None,
         project_name: str | None = None,
+        notes: list[dict] | None = None,
     ) -> tuple[GeneratedPage, DirectorySummary]:
         """Generate directory documentation and extract summary.
 
@@ -45,6 +46,7 @@ class DirectoryGenerator:
             file_summaries: Optional list of FileSummary objects for files in the directory.
             child_summaries: Optional list of DirectorySummary objects for child directories.
             project_name: Optional project name for breadcrumb (defaults to repo name).
+            notes: Optional list of human correction notes for this directory.
 
         Returns:
             A tuple of (GeneratedPage, DirectorySummary).
@@ -61,6 +63,7 @@ class DirectoryGenerator:
             file_summaries=file_summaries or [],
             subdirectory_summaries=child_summaries or [],
             project_name=proj_name,
+            notes=notes,
         )
 
         content = await self.llm_client.generate(
