@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { saveNote } from '../api/client'
 import { useNoteEditorStore } from '../stores'
+import { ConfirmationDialog } from './ConfirmationDialog'
 import type { NoteScope, Note } from '../types'
 
 interface NoteEditorProps {
@@ -25,6 +26,7 @@ export function NoteEditor({
   const [content, setContent] = useState(existingContent)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   const isEditing = !!existingContent
 
@@ -39,13 +41,16 @@ export function NoteEditor({
   // Confirm before closing with unsaved changes
   const handleClose = () => {
     if (isDirty) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
-        setDirty(false)
-        onClose()
-      }
+      setShowCloseConfirm(true)
     } else {
       onClose()
     }
+  }
+
+  const handleConfirmClose = () => {
+    setShowCloseConfirm(false)
+    setDirty(false)
+    onClose()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -166,6 +171,17 @@ export function NoteEditor({
           </div>
         </form>
       </div>
+
+      <ConfirmationDialog
+        isOpen={showCloseConfirm}
+        title="Discard changes?"
+        onConfirm={handleConfirmClose}
+        onCancel={() => setShowCloseConfirm(false)}
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+      >
+        You have unsaved changes. Are you sure you want to close without saving?
+      </ConfirmationDialog>
     </div>
   )
 }
