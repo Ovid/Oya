@@ -1422,7 +1422,7 @@ class TestSynthesisBatchingForLargeInputs:
     """
 
     @given(file_summaries_data=large_file_summaries_strategy())
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_batching_produces_valid_synthesis_map(self, file_summaries_data):
         """Feature: bottom-up-generation, Property 9: Synthesis Batching for Large Inputs
 
