@@ -121,6 +121,7 @@ def run_migrations(db: Database) -> None:
                 db.execute("DROP TABLE IF EXISTS fts_content")
                 db.commit()
             except Exception:
+                # Ignore errors - table may not exist, and executescript will create it fresh
                 pass
 
         # Version 6 migration: Recreate notes table with new schema
@@ -130,6 +131,7 @@ def run_migrations(db: Database) -> None:
                 db.execute("DROP TABLE IF EXISTS notes")
                 db.commit()
             except Exception:
+                # Ignore errors - table may not exist, and executescript will create it fresh
                 pass
 
         # Apply schema using executescript which handles multiple statements
