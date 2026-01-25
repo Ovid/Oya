@@ -35,6 +35,40 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
   // Sequence number to prevent race conditions between note fetch effects
   const noteFetchSeqRef = useRef(0)
 
+  // Shared note-fetching logic used by effects and retry button
+  const fetchNoteForTarget = useCallback(
+    (scope: NoteScope, target: string) => {
+      const seq = ++noteFetchSeqRef.current
+      setNoteLoading(true)
+      setNoteError(null)
+
+      getNote(scope, target)
+        .then((n) => {
+          if (noteFetchSeqRef.current === seq) {
+            setNote(n)
+            setNoteError(null)
+          }
+        })
+        .catch((err) => {
+          if (noteFetchSeqRef.current === seq) {
+            // 404 means note doesn't exist - that's expected, not an error
+            if (err instanceof ApiError && err.status === 404) {
+              setNote(null)
+              setNoteError(null)
+            } else {
+              // Network/server errors should be surfaced to user
+              setNote(null)
+              setNoteError(err instanceof Error ? err.message : 'Failed to load correction')
+            }
+          }
+        })
+        .finally(() => {
+          if (noteFetchSeqRef.current === seq) setNoteLoading(false)
+        })
+    },
+    []
+  )
+
   // Load note when target changes (in parallel with page load for better UX)
   // We compute noteTarget from the URL slug rather than waiting for page.source_path
   // to avoid sequential loading. A consistency check below verifies they match.
@@ -43,36 +77,8 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
       setNote(null)
       return
     }
-
-    // Increment sequence to invalidate any in-flight fetches from other effects
-    const seq = ++noteFetchSeqRef.current
-    setNoteLoading(true)
-
-    getNote(noteScope, noteTarget)
-      .then((n) => {
-        // Only update state if this is still the latest fetch
-        if (noteFetchSeqRef.current === seq) {
-          setNote(n)
-          setNoteError(null)
-        }
-      })
-      .catch((err) => {
-        if (noteFetchSeqRef.current === seq) {
-          // 404 means note doesn't exist - that's expected, not an error
-          if (err instanceof ApiError && err.status === 404) {
-            setNote(null)
-            setNoteError(null)
-          } else {
-            // Network/server errors should be surfaced to user
-            setNote(null)
-            setNoteError(err instanceof Error ? err.message : 'Failed to load correction')
-          }
-        }
-      })
-      .finally(() => {
-        if (noteFetchSeqRef.current === seq) setNoteLoading(false)
-      })
-  }, [noteScope, noteTarget])
+    fetchNoteForTarget(noteScope, noteTarget)
+  }, [noteScope, noteTarget, fetchNoteForTarget])
 
   // When page loads with a source_path that differs from the computed noteTarget,
   // re-fetch the note using the authoritative path. This handles files with extensions
@@ -92,33 +98,8 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
         'Re-fetching note with correct path.'
     )
 
-    // Re-fetch note with the correct source_path
-    // Increment sequence to invalidate the first effect's in-flight fetch
-    const seq = ++noteFetchSeqRef.current
-    setNoteLoading(true)
-
-    getNote(noteScope, page.source_path)
-      .then((n) => {
-        if (noteFetchSeqRef.current === seq) {
-          setNote(n)
-          setNoteError(null)
-        }
-      })
-      .catch((err) => {
-        if (noteFetchSeqRef.current === seq) {
-          if (err instanceof ApiError && err.status === 404) {
-            setNote(null)
-            setNoteError(null)
-          } else {
-            setNote(null)
-            setNoteError(err instanceof Error ? err.message : 'Failed to load correction')
-          }
-        }
-      })
-      .finally(() => {
-        if (noteFetchSeqRef.current === seq) setNoteLoading(false)
-      })
-  }, [noteScope, noteTarget, page?.source_path])
+    fetchNoteForTarget(noteScope, page.source_path)
+  }, [noteScope, noteTarget, page?.source_path, fetchNoteForTarget])
 
   const handleNoteSaved = (savedNote: Note) => {
     setNote(savedNote)
@@ -303,32 +284,7 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
           </svg>
           <span>Could not load correction</span>
           <button
-            onClick={() => {
-              const seq = ++noteFetchSeqRef.current
-              setNoteError(null)
-              setNoteLoading(true)
-              getNote(noteScope, effectiveNoteTarget)
-                .then((n) => {
-                  if (noteFetchSeqRef.current === seq) {
-                    setNote(n)
-                    setNoteError(null)
-                  }
-                })
-                .catch((err) => {
-                  if (noteFetchSeqRef.current === seq) {
-                    if (err instanceof ApiError && err.status === 404) {
-                      setNote(null)
-                      setNoteError(null)
-                    } else {
-                      setNote(null)
-                      setNoteError(err instanceof Error ? err.message : 'Failed to load correction')
-                    }
-                  }
-                })
-                .finally(() => {
-                  if (noteFetchSeqRef.current === seq) setNoteLoading(false)
-                })
-            }}
+            onClick={() => fetchNoteForTarget(noteScope, effectiveNoteTarget)}
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             Retry
