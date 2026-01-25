@@ -8,6 +8,7 @@ from oya.repo.git_operations import (
     GitCloneError,
     GitPullError,
     GitSyncError,
+    check_working_directory_clean,
     clone_repo,
     get_remote_url,
     pull_repo,
@@ -124,3 +125,37 @@ def test_git_sync_error_has_message_and_original_error():
     assert error.message == "User message"
     assert error.original_error == "Raw stderr"
     assert str(error) == "User message"
+
+
+def test_check_working_directory_clean_passes_for_clean_repo(tmp_path, source_repo):
+    """Clean repo passes working directory check."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+    # Should not raise
+    check_working_directory_clean(dest)
+
+
+def test_check_working_directory_clean_fails_for_dirty_repo(tmp_path, source_repo):
+    """Dirty repo raises GitSyncError with path in message."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Make repo dirty with uncommitted changes
+    (dest / "dirty_file.txt").write_text("uncommitted content")
+
+    with pytest.raises(GitSyncError) as exc_info:
+        check_working_directory_clean(dest)
+
+    assert str(dest) in exc_info.value.message
+    assert "uncommitted changes" in exc_info.value.message.lower()
+
+
+def test_check_working_directory_clean_invalid_repo_raises(tmp_path):
+    """check_working_directory_clean raises GitSyncError for non-git directory."""
+    not_a_repo = tmp_path / "not-a-git-repo"
+    not_a_repo.mkdir()
+
+    with pytest.raises(GitSyncError) as exc_info:
+        check_working_directory_clean(not_a_repo)
+
+    assert str(not_a_repo) in exc_info.value.message
