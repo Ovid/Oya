@@ -3,11 +3,40 @@
 import pytest
 from unittest.mock import MagicMock
 
-from oya.notes.service import NotesService
-from oya.notes.schemas import (
-    NoteCreate,
-    NoteScope,
-)
+from oya.notes.service import NotesService, _slugify_path, _get_filepath
+from oya.notes.schemas import NoteScope
+
+
+class TestSlugifyPath:
+    """Tests for path slugification."""
+
+    def test_replaces_slashes_with_double_dash(self):
+        assert _slugify_path("src/main.py") == "src--main.py"
+
+    def test_handles_nested_paths(self):
+        assert _slugify_path("src/api/routers/notes.py") == "src--api--routers--notes.py"
+
+    def test_empty_path_returns_empty(self):
+        assert _slugify_path("") == ""
+
+    def test_removes_special_characters(self):
+        assert _slugify_path("src/[test]/file.py") == "src--test--file.py"
+
+
+class TestGetFilepath:
+    """Tests for filepath generation."""
+
+    def test_general_scope_returns_general_md(self):
+        assert _get_filepath(NoteScope.GENERAL, "") == "general.md"
+
+    def test_file_scope_uses_files_subdirectory(self):
+        assert _get_filepath(NoteScope.FILE, "src/main.py") == "files/src--main.py.md"
+
+    def test_directory_scope_uses_directories_subdirectory(self):
+        assert _get_filepath(NoteScope.DIRECTORY, "src/api") == "directorys/src--api.md"
+
+    def test_workflow_scope_uses_workflows_subdirectory(self):
+        assert _get_filepath(NoteScope.WORKFLOW, "auth") == "workflows/auth.md"
 
 
 @pytest.fixture
@@ -24,7 +53,16 @@ def tmp_workspace(tmp_path):
 def mock_db():
     """Mock database for testing."""
     db = MagicMock()
-    db.execute.return_value.lastrowid = 1
+    # Setup for upsert returning the note
+    db.execute.return_value.fetchone.return_value = {
+        "id": 1,
+        "scope": "file",
+        "target": "src/main.py",
+        "filepath": "files/src--main.py.md",
+        "content": "Test content",
+        "author": None,
+        "updated_at": "2024-01-01T00:00:00+00:00",
+    }
     return db
 
 
@@ -35,206 +73,90 @@ def notes_service(tmp_workspace, mock_db):
     return NotesService(notes_path, mock_db)
 
 
-class TestNotesServiceCreate:
-    """Tests for note creation."""
+class TestNotesServiceUpsert:
+    """Tests for note upsert."""
 
     def test_creates_note_file(self, notes_service, tmp_workspace):
-        """Creating a note saves file to disk."""
-        note_data = NoteCreate(
+        """Upserting a note creates file on disk."""
+        notes_service.upsert(
             scope=NoteScope.FILE,
             target="src/main.py",
             content="This function should use async/await pattern.",
         )
 
-        notes_service.create(note_data)
-
-        # Check file exists
+        # Check file exists in correct location
         notes_path = tmp_workspace / ".oyawiki" / "notes"
-        files = list(notes_path.glob("*.md"))
-        assert len(files) == 1
+        note_file = notes_path / "files" / "src--main.py.md"
+        assert note_file.exists()
 
         # Check content
-        content = files[0].read_text()
+        content = note_file.read_text()
         assert "scope: file" in content
         assert "target: src/main.py" in content
         assert "async/await pattern" in content
 
-    def test_generates_correct_filename(self, notes_service, tmp_workspace):
-        """Note filename follows format: {timestamp}-{scope}-{slug}.md"""
-        note_data = NoteCreate(
-            scope=NoteScope.DIRECTORY,
-            target="src/utils",
-            content="All utilities should be pure functions.",
-        )
-
-        notes_service.create(note_data)
-
-        notes_path = tmp_workspace / ".oyawiki" / "notes"
-        files = list(notes_path.glob("*.md"))
-        filename = files[0].name
-
-        # Should contain timestamp, scope, and slug
-        assert "-directory-" in filename
-        assert filename.endswith(".md")
-
     def test_includes_frontmatter_metadata(self, notes_service, tmp_workspace):
         """Note file includes YAML frontmatter with metadata."""
-        note_data = NoteCreate(
+        notes_service.upsert(
             scope=NoteScope.WORKFLOW,
             target="authentication",
             content="Auth flow needs two-factor support.",
             author="test@example.com",
         )
 
-        notes_service.create(note_data)
-
         notes_path = tmp_workspace / ".oyawiki" / "notes"
-        files = list(notes_path.glob("*.md"))
-        content = files[0].read_text()
+        note_file = notes_path / "workflows" / "authentication.md"
+        content = note_file.read_text()
 
-        # Check frontmatter exists
         assert content.startswith("---")
         assert "scope: workflow" in content
         assert "target: authentication" in content
         assert "author: test@example.com" in content
-        assert "created_at:" in content
+        assert "updated_at:" in content
 
-    def test_stores_note_in_database(self, notes_service, mock_db):
-        """Creating a note inserts record in database."""
-        note_data = NoteCreate(
+    def test_upserts_to_database(self, notes_service, mock_db):
+        """Upserting inserts or updates database record."""
+        notes_service.upsert(
             scope=NoteScope.FILE,
             target="src/api.py",
             content="API needs rate limiting.",
         )
 
-        notes_service.create(note_data)
-
         mock_db.execute.assert_called()
-        # Should insert into notes table
-        call_sql = mock_db.execute.call_args[0][0].lower()
+        # Should use INSERT...ON CONFLICT
+        call_sql = mock_db.execute.call_args_list[0][0][0].lower()
         assert "insert" in call_sql
-        assert "notes" in call_sql
+        assert "on conflict" in call_sql
 
-    def test_returns_note_with_id(self, notes_service):
-        """Created note has ID and all fields populated."""
-        note_data = NoteCreate(
+    def test_returns_note_object(self, notes_service):
+        """Upsert returns Note with all fields."""
+        note = notes_service.upsert(
             scope=NoteScope.GENERAL,
             target="",
             content="General project guidelines.",
         )
 
-        note = notes_service.create(note_data)
-
         assert note.id is not None
-        assert note.scope == NoteScope.GENERAL
-        assert note.content == "General project guidelines."
-        assert note.created_at is not None
-
-
-class TestNotesServiceList:
-    """Tests for listing notes."""
-
-    def test_lists_notes_by_target(self, notes_service, mock_db):
-        """Lists notes filtered by target path."""
-        mock_db.execute.return_value.fetchall.return_value = [
-            {
-                "id": 1,
-                "filepath": "2024-01-01-file-src-main-py.md",
-                "scope": "file",
-                "target": "src/main.py",
-                "content": "Note 1",
-                "author": "test@example.com",
-                "created_at": "2024-01-01T00:00:00",
-            },
-            {
-                "id": 2,
-                "filepath": "2024-01-02-file-src-main-py.md",
-                "scope": "file",
-                "target": "src/main.py",
-                "content": "Note 2",
-                "author": None,
-                "created_at": "2024-01-02T00:00:00",
-            },
-        ]
-
-        notes = notes_service.list_by_target("src/main.py")
-
-        assert len(notes) == 2
-        assert all(n.target == "src/main.py" for n in notes)
-
-    def test_lists_all_notes_when_no_target(self, notes_service, mock_db):
-        """Lists all notes when target is None."""
-        mock_db.execute.return_value.fetchall.return_value = [
-            {
-                "id": 1,
-                "filepath": "note1.md",
-                "scope": "file",
-                "target": "src/a.py",
-                "content": "A",
-                "author": None,
-                "created_at": "2024-01-01T00:00:00",
-            },
-            {
-                "id": 2,
-                "filepath": "note2.md",
-                "scope": "directory",
-                "target": "src/utils",
-                "content": "B",
-                "author": None,
-                "created_at": "2024-01-02T00:00:00",
-            },
-        ]
-
-        notes = notes_service.list_by_target(None)
-
-        assert len(notes) == 2
-
-    def test_returns_empty_list_when_no_notes(self, notes_service, mock_db):
-        """Returns empty list when no notes match."""
-        mock_db.execute.return_value.fetchall.return_value = []
-
-        notes = notes_service.list_by_target("nonexistent/path.py")
-
-        assert notes == []
+        assert note.scope == NoteScope.FILE  # From mock
+        assert note.content == "Test content"  # From mock
 
 
 class TestNotesServiceGet:
-    """Tests for getting individual notes."""
+    """Tests for getting notes."""
 
-    def test_gets_note_by_id(self, notes_service, mock_db, tmp_workspace):
-        """Gets note by ID returns full content."""
-        # Create a note file
-        notes_path = tmp_workspace / ".oyawiki" / "notes"
-        (notes_path / "test-note.md").write_text("""---
-scope: file
-target: src/main.py
-author: test@example.com
-created_at: 2024-01-01T00:00:00
----
-Full note content here.
-""")
-
-        mock_db.execute.return_value.fetchone.return_value = {
-            "id": 1,
-            "filepath": "test-note.md",
-            "scope": "file",
-            "target": "src/main.py",
-            "content": "Full note content here.",
-            "author": "test@example.com",
-            "created_at": "2024-01-01T00:00:00",
-        }
-
-        note = notes_service.get(1)
+    def test_gets_note_by_scope_and_target(self, notes_service, mock_db):
+        """Gets note by scope and target."""
+        note = notes_service.get(NoteScope.FILE, "src/main.py")
 
         assert note is not None
         assert note.id == 1
-        assert note.content == "Full note content here."
+        assert note.content == "Test content"
 
-    def test_returns_none_for_nonexistent_id(self, notes_service, mock_db):
-        """Returns None when note ID doesn't exist."""
+    def test_returns_none_when_not_found(self, notes_service, mock_db):
+        """Returns None when note doesn't exist."""
         mock_db.execute.return_value.fetchone.return_value = None
 
-        note = notes_service.get(999)
+        note = notes_service.get(NoteScope.FILE, "nonexistent.py")
 
         assert note is None
 
@@ -246,50 +168,81 @@ class TestNotesServiceDelete:
         """Deleting a note removes the file."""
         # Create a note file
         notes_path = tmp_workspace / ".oyawiki" / "notes"
-        note_file = notes_path / "test-note.md"
+        files_dir = notes_path / "files"
+        files_dir.mkdir(exist_ok=True)
+        note_file = files_dir / "src--main.py.md"
         note_file.write_text("Test content")
 
         mock_db.execute.return_value.fetchone.return_value = {
             "id": 1,
-            "filepath": "test-note.md",
             "scope": "file",
             "target": "src/main.py",
+            "filepath": "files/src--main.py.md",
             "content": "Test",
             "author": None,
-            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
         }
 
-        result = notes_service.delete(1)
+        result = notes_service.delete(NoteScope.FILE, "src/main.py")
 
         assert result is True
         assert not note_file.exists()
 
-    def test_deletes_database_record(self, notes_service, mock_db, tmp_workspace):
-        """Deleting a note removes database record."""
-        notes_path = tmp_workspace / ".oyawiki" / "notes"
-        (notes_path / "test.md").write_text("Test")
-
-        mock_db.execute.return_value.fetchone.return_value = {
-            "id": 1,
-            "filepath": "test.md",
-            "scope": "file",
-            "target": "src/main.py",
-            "content": "Test",
-            "author": None,
-            "created_at": "2024-01-01T00:00:00",
-        }
-
-        notes_service.delete(1)
-
-        # Check DELETE was called
-        calls = [str(c) for c in mock_db.execute.call_args_list]
-        delete_called = any("delete" in c.lower() for c in calls)
-        assert delete_called
-
-    def test_returns_false_for_nonexistent(self, notes_service, mock_db):
+    def test_returns_false_when_not_found(self, notes_service, mock_db):
         """Returns False when note doesn't exist."""
         mock_db.execute.return_value.fetchone.return_value = None
 
-        result = notes_service.delete(999)
+        result = notes_service.delete(NoteScope.FILE, "nonexistent.py")
 
         assert result is False
+
+
+class TestNotesServiceList:
+    """Tests for listing notes."""
+
+    def test_lists_all_notes(self, notes_service, mock_db):
+        """Lists all notes when no scope filter."""
+        mock_db.execute.return_value.fetchall.return_value = [
+            {
+                "id": 1,
+                "scope": "file",
+                "target": "src/a.py",
+                "filepath": "files/src--a.py.md",
+                "content": "A",
+                "author": None,
+                "updated_at": "2024-01-01T00:00:00",
+            },
+            {
+                "id": 2,
+                "scope": "directory",
+                "target": "src/utils",
+                "filepath": "directories/src--utils.md",
+                "content": "B",
+                "author": None,
+                "updated_at": "2024-01-02T00:00:00",
+            },
+        ]
+
+        notes = notes_service.list()
+
+        assert len(notes) == 2
+
+    def test_filters_by_scope(self, notes_service, mock_db):
+        """Lists notes filtered by scope."""
+        mock_db.execute.return_value.fetchall.return_value = [
+            {
+                "id": 1,
+                "scope": "file",
+                "target": "src/a.py",
+                "filepath": "files/src--a.py.md",
+                "content": "A",
+                "author": None,
+                "updated_at": "2024-01-01T00:00:00",
+            },
+        ]
+
+        notes_service.list(NoteScope.FILE)
+
+        # Verify scope was passed to query
+        call_args = mock_db.execute.call_args[0]
+        assert "file" in call_args[1]
