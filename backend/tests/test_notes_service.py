@@ -19,8 +19,27 @@ class TestSlugifyPath:
     def test_empty_path_returns_empty(self):
         assert _slugify_path("") == ""
 
-    def test_removes_special_characters(self):
-        assert _slugify_path("src/[test]/file.py") == "src--test--file.py"
+    def test_encodes_special_characters(self):
+        """Special characters are percent-encoded to avoid collisions."""
+        assert _slugify_path("src/[test]/file.py") == "src--%5Btest%5D--file.py"
+
+    def test_different_special_chars_produce_different_slugs(self):
+        """Different special characters should not collide."""
+        # These would all become "filetest.py" if we removed special chars
+        slug1 = _slugify_path("file(test).py")
+        slug2 = _slugify_path("file[test].py")
+        slug3 = _slugify_path("file{test}.py")
+        slug4 = _slugify_path("file<test>.py")
+
+        # All should be unique
+        slugs = [slug1, slug2, slug3, slug4]
+        assert len(slugs) == len(set(slugs)), f"Collision detected: {slugs}"
+
+        # Verify encoding
+        assert slug1 == "file%28test%29.py"  # ( = %28, ) = %29
+        assert slug2 == "file%5Btest%5D.py"  # [ = %5B, ] = %5D
+        assert slug3 == "file%7Btest%7D.py"  # { = %7B, } = %7D
+        assert slug4 == "file%3Ctest%3E.py"  # < = %3C, > = %3E
 
 
 class TestGetFilepath:
