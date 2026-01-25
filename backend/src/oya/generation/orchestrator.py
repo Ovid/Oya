@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
+from oya.generation.prompts import get_notes_for_target
 from oya.generation.graph_architecture import GraphArchitectureGenerator
 from oya.generation.mermaid import LayerDiagramGenerator
 from oya.graph import load_graph
@@ -338,7 +339,7 @@ class GenerationOrchestrator:
             cursor = self.db.execute(
                 """
                 SELECT COUNT(*) FROM notes
-                WHERE target = ? AND created_at > ?
+                WHERE target = ? AND updated_at > ?
                 """,
                 (target, generated_at),
             )
@@ -1197,6 +1198,9 @@ class GenerationOrchestrator:
                 file_summary_lookup[f] for f in direct_files if f in file_summary_lookup
             ]
 
+            # Load notes for this directory
+            notes = get_notes_for_target(self.db, "directory", dir_path)
+
             # Generate directory page with child summaries
             page, directory_summary = await self.directory_generator.generate(
                 directory_path=dir_path,
@@ -1206,6 +1210,7 @@ class GenerationOrchestrator:
                 file_summaries=dir_file_summaries,
                 child_summaries=child_summaries,
                 project_name=project_name,
+                notes=notes,
             )
 
             # Add signature hash to the page for storage
@@ -1399,6 +1404,9 @@ class GenerationOrchestrator:
                 s for s in all_parsed_symbols if s.metadata.get("file") == file_path
             ]
 
+            # Load notes for this file
+            notes = get_notes_for_target(self.db, "file", file_path)
+
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
             page, file_summary = await self.file_generator.generate(
                 file_path=file_path,
@@ -1408,6 +1416,7 @@ class GenerationOrchestrator:
                 architecture_summary="",
                 parsed_symbols=file_parsed_symbols,
                 file_imports=all_file_imports,
+                notes=notes,
             )
             # Add source hash to the page for storage
             page.source_hash = content_hash
