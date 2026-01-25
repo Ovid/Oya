@@ -3,7 +3,7 @@
 from oya.db.connection import Database
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -46,20 +46,16 @@ CREATE TABLE IF NOT EXISTS wiki_pages (
 );
 
 -- Notes registry (human corrections)
--- Tracks all correction notes with their scope and targeting
+-- One note per (scope, target) pair - upsert semantics
 CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filepath TEXT NOT NULL UNIQUE,  -- Path relative to .oyawiki/notes/
     scope TEXT NOT NULL,  -- 'file', 'directory', 'workflow', 'general'
-    target TEXT,  -- Target path or identifier
-    content TEXT,  -- Note content (for search and display)
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    target TEXT NOT NULL,  -- Target path or identifier (empty string for general)
+    filepath TEXT NOT NULL,  -- Path relative to .oyawiki/notes/
+    content TEXT NOT NULL,  -- Note content (markdown)
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     author TEXT,
-    git_branch TEXT,
-    git_commit TEXT,
-    git_dirty INTEGER DEFAULT 0,  -- Boolean: was repo dirty when note was created
-    oya_version TEXT,
-    metadata TEXT  -- JSON for additional data
+    UNIQUE(scope, target)
 );
 
 -- Citations mapping wiki content to source code
@@ -93,8 +89,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_wiki_pages_type ON wiki_pages(type);
 CREATE INDEX IF NOT EXISTS idx_wiki_pages_target ON wiki_pages(target);
-CREATE INDEX IF NOT EXISTS idx_notes_scope ON notes(scope);
-CREATE INDEX IF NOT EXISTS idx_notes_target ON notes(target);
+CREATE INDEX IF NOT EXISTS idx_notes_scope_target ON notes(scope, target);
 CREATE INDEX IF NOT EXISTS idx_citations_wiki_page ON citations(wiki_page_id);
 CREATE INDEX IF NOT EXISTS idx_citations_source_file ON citations(source_file);
 CREATE INDEX IF NOT EXISTS idx_generations_status ON generations(status);
@@ -124,6 +119,15 @@ def run_migrations(db: Database) -> None:
         if current_version >= 1 and current_version < 4:
             try:
                 db.execute("DROP TABLE IF EXISTS fts_content")
+                db.commit()
+            except Exception:
+                pass
+
+        # Version 6 migration: Recreate notes table with new schema
+        # Must drop before executescript since CREATE TABLE IF NOT EXISTS won't update
+        if current_version >= 1 and current_version < 6:
+            try:
+                db.execute("DROP TABLE IF EXISTS notes")
                 db.commit()
             except Exception:
                 pass
