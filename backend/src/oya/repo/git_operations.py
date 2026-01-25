@@ -25,6 +25,15 @@ class GitPullError(Exception):
         super().__init__(message)
 
 
+class GitSyncError(Exception):
+    """Error during git sync operation."""
+
+    def __init__(self, message: str, original_error: Optional[str] = None):
+        self.message = message
+        self.original_error = original_error
+        super().__init__(message)
+
+
 def clone_repo(url: str, dest: Path, timeout: int = 300) -> None:
     """
     Clone a git repository.
