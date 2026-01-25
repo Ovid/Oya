@@ -171,6 +171,55 @@ def checkout_branch(repo_path: Path, branch: str) -> None:
         )
 
 
+def sync_to_default_branch(repo_path: Path, timeout: int = 120) -> str:
+    """
+    Sync repository to latest default branch.
+
+    Checks for clean working directory, detects default branch,
+    checks it out if needed, and pulls latest changes.
+
+    Args:
+        repo_path: Path to the git repository
+        timeout: Timeout in seconds for network operations
+
+    Returns:
+        Name of the default branch
+
+    Raises:
+        GitSyncError: If any step fails, with user-friendly message
+    """
+    # Step 1: Ensure working directory is clean
+    check_working_directory_clean(repo_path)
+
+    # Step 2: Detect default branch
+    default_branch = get_default_branch(repo_path, timeout=timeout)
+
+    # Step 3: Checkout default branch if not already on it
+    current = get_current_branch(repo_path)
+    if current != default_branch:
+        checkout_branch(repo_path, default_branch)
+
+    # Step 4: Pull latest changes
+    try:
+        pull_repo(repo_path, timeout=timeout)
+    except GitPullError as e:
+        # Convert to GitSyncError with path included
+        if "conflict" in e.message.lower():
+            raise GitSyncError(
+                f"Pull failed due to conflicts in `{repo_path}`. "
+                "Oya manages this repository automatically—please don't modify files directly. "
+                "Delete that folder and regenerate to fix this.",
+                original_error=e.original_error,
+            )
+        raise GitSyncError(
+            f"Could not pull latest changes for `{repo_path}`: {e.message}. "
+            "Check your network connection and repository access.",
+            original_error=e.original_error,
+        )
+
+    return default_branch
+
+
 def clone_repo(url: str, dest: Path, timeout: int = 300) -> None:
     """
     Clone a git repository.
