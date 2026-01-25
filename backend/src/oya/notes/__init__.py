@@ -1,6 +1,6 @@
 """Notes module for human corrections and annotations."""
 
-from oya.notes.schemas import Note, NoteCreate, NoteScope
+from oya.notes.schemas import Note, NoteScope, NoteUpsert
 from oya.notes.service import NotesService
 
-__all__ = ["Note", "NoteCreate", "NoteScope", "NotesService"]
+__all__ = ["Note", "NoteScope", "NoteUpsert", "NotesService"]

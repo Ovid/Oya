@@ -5,21 +5,50 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 from oya.db.connection import Database
-from oya.notes.schemas import Note, NoteCreate, NoteScope
+from oya.notes.schemas import Note, NoteScope
 
 
-def _slugify(text: str) -> str:
-    """Convert text to URL-safe slug."""
-    # Replace path separators and non-alphanumeric chars
-    slug = re.sub(r"[/\\]", "-", text)
-    slug = re.sub(r"[^a-zA-Z0-9-]", "-", slug)
-    slug = re.sub(r"-+", "-", slug)
-    return slug.strip("-").lower()
+def _slugify_path(path: str) -> str:
+    """Convert path to filename-safe slug.
+
+    Replaces / with -- to avoid nested directories.
+    """
+    if not path:
+        return ""
+    # Remove any characters that aren't alphanumeric, dash, dot, underscore, or path separator
+    slug = re.sub(r"[^a-zA-Z0-9\-._/\\]", "", path)
+    # Replace path separators with --
+    slug = slug.replace("/", "--").replace("\\", "--")
+    # Collapse runs of 3+ dashes to -- (preserving intentional double-dash separators)
+    slug = re.sub(r"-{3,}", "--", slug)
+    return slug.strip("-")
+
+
+def _get_filepath(scope: NoteScope, target: str) -> str:
+    """Get the filepath for a note based on scope and target.
+
+    Returns path relative to notes directory.
+    """
+    if scope == NoteScope.GENERAL:
+        return "general.md"
+
+    slug = _slugify_path(target)
+    if not slug:
+        slug = "unknown"
+
+    # Organize by scope subdirectory
+    return f"{scope.value}s/{slug}.md"
 
 
 class NotesService:
-    """Service for managing correction notes."""
+    """Service for managing correction notes.
+
+    File-primary storage with database index.
+    Each (scope, target) pair has at most one note.
+    """
 
     def __init__(self, notes_path: Path, db: Database) -> None:
         """Initialize notes service.
@@ -30,17 +59,10 @@ class NotesService:
         """
         self._notes_path = notes_path
         self._db = db
-        # Ensure notes directory exists
+        # Ensure notes directory and subdirectories exist
         self._notes_path.mkdir(parents=True, exist_ok=True)
-
-    def _generate_filename(self, scope: NoteScope, target: str) -> str:
-        """Generate filename for a new note.
-
-        Format: {ISO-timestamp}-{scope}-{slug}.md
-        """
-        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S")
-        slug = _slugify(target) if target else "general"
-        return f"{timestamp}-{scope.value}-{slug}.md"
+        for subdir in ["files", "directories", "workflows"]:
+            (self._notes_path / subdir).mkdir(exist_ok=True)
 
     def _write_note_file(
         self,
@@ -49,7 +71,7 @@ class NotesService:
         target: str,
         content: str,
         author: Optional[str],
-        created_at: datetime,
+        updated_at: datetime,
     ) -> None:
         """Write note file with YAML frontmatter."""
         frontmatter_lines = [
@@ -61,107 +83,158 @@ class NotesService:
             frontmatter_lines.append(f"author: {author}")
         frontmatter_lines.extend(
             [
-                f"created_at: {created_at.isoformat()}",
+                f"updated_at: {updated_at.isoformat()}",
                 "---",
+                "",
             ]
         )
 
-        full_content = "\n".join(frontmatter_lines) + "\n" + content
+        full_content = "\n".join(frontmatter_lines) + content
 
         note_file = self._notes_path / filepath
+        note_file.parent.mkdir(parents=True, exist_ok=True)
         note_file.write_text(full_content)
 
-    def _read_note_content(self, filepath: str) -> Optional[str]:
-        """Read content from note file (excluding frontmatter)."""
-        note_file = self._notes_path / filepath
-        if not note_file.exists():
-            return None
-
-        content = note_file.read_text()
-
-        # Skip frontmatter
-        if content.startswith("---"):
-            # Find end of frontmatter
-            end_idx = content.find("---", 3)
-            if end_idx != -1:
-                content = content[end_idx + 3 :].strip()
-
-        return content
-
-    def create(self, note_data: NoteCreate) -> Note:
-        """Create a new correction note.
+    def get(self, scope: NoteScope, target: str) -> Optional[Note]:
+        """Get a note by scope and target.
 
         Args:
-            note_data: Note creation request.
+            scope: Note scope.
+            target: Target path (empty string for general).
 
         Returns:
-            Created note with ID.
+            Note if found, None otherwise.
         """
-        created_at = datetime.now(UTC)
-        filepath = self._generate_filename(note_data.scope, note_data.target)
-
-        # Write file
-        self._write_note_file(
-            filepath=filepath,
-            scope=note_data.scope,
-            target=note_data.target,
-            content=note_data.content,
-            author=note_data.author,
-            created_at=created_at,
-        )
-
-        # Insert into database
         sql = """
-            INSERT INTO notes (filepath, scope, target, content, author, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            SELECT id, scope, target, filepath, content, author, updated_at
+            FROM notes
+            WHERE scope = ? AND target = ?
         """
-        cursor = self._db.execute(
-            sql,
-            (
-                filepath,
-                note_data.scope.value,
-                note_data.target,
-                note_data.content,
-                note_data.author,
-                created_at.isoformat(),
-            ),
-        )
-        note_id = cursor.lastrowid
-        if note_id is None:
-            raise RuntimeError("Failed to get note ID after insert")
+        cursor = self._db.execute(sql, (scope.value, target))
+        row = cursor.fetchone()
+
+        if not row:
+            return None
 
         return Note(
-            id=note_id,
-            filepath=filepath,
-            scope=note_data.scope,
-            target=note_data.target,
-            content=note_data.content,
-            author=note_data.author,
-            created_at=created_at,
+            id=row["id"],
+            scope=NoteScope(row["scope"]),
+            target=row["target"],
+            content=row["content"],
+            author=row["author"],
+            updated_at=datetime.fromisoformat(row["updated_at"]),
         )
 
-    def list_by_target(self, target: Optional[str]) -> list[Note]:
-        """List notes, optionally filtered by target.
+    def upsert(
+        self,
+        scope: NoteScope,
+        target: str,
+        content: str,
+        author: Optional[str] = None,
+    ) -> Note:
+        """Create or update a note.
 
         Args:
-            target: Optional target path to filter by.
+            scope: Note scope.
+            target: Target path (empty string for general).
+            content: Markdown content.
+            author: Optional author.
+
+        Returns:
+            The created or updated note.
+        """
+        updated_at = datetime.now(UTC)
+        filepath = _get_filepath(scope, target)
+
+        # Write file first (source of truth)
+        self._write_note_file(
+            filepath=filepath,
+            scope=scope,
+            target=target,
+            content=content,
+            author=author,
+            updated_at=updated_at,
+        )
+
+        # Upsert into database
+        sql = """
+            INSERT INTO notes (scope, target, filepath, content, author, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(scope, target) DO UPDATE SET
+                filepath = excluded.filepath,
+                content = excluded.content,
+                author = excluded.author,
+                updated_at = excluded.updated_at
+        """
+        self._db.execute(
+            sql,
+            (
+                scope.value,
+                target,
+                filepath,
+                content,
+                author,
+                updated_at.isoformat(),
+            ),
+        )
+
+        # Get the note ID (either newly inserted or existing)
+        note = self.get(scope, target)
+        if note is None:
+            raise RuntimeError("Failed to get note after upsert")
+
+        return note
+
+    def delete(self, scope: NoteScope, target: str) -> bool:
+        """Delete a note by scope and target.
+
+        Args:
+            scope: Note scope.
+            target: Target path.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        # First get the note to find the filepath
+        note = self.get(scope, target)
+        if not note:
+            return False
+
+        filepath = _get_filepath(scope, target)
+
+        # Delete the file
+        note_file = self._notes_path / filepath
+        if note_file.exists():
+            note_file.unlink()
+
+        # Delete from database
+        sql = "DELETE FROM notes WHERE scope = ? AND target = ?"
+        self._db.execute(sql, (scope.value, target))
+
+        return True
+
+    def list(self, scope: Optional[NoteScope] = None) -> list[Note]:
+        """List notes, optionally filtered by scope.
+
+        Args:
+            scope: Optional scope to filter by.
 
         Returns:
             List of notes.
         """
-        if target:
+        if scope:
             sql = """
-                SELECT id, filepath, scope, target, content, author, created_at
+                SELECT id, scope, target, filepath, content, author, updated_at
                 FROM notes
-                WHERE target = ?
-                ORDER BY created_at DESC
+                WHERE scope = ?
+                ORDER BY updated_at DESC
             """
-            cursor = self._db.execute(sql, (target,))
+            cursor = self._db.execute(sql, (scope.value,))
         else:
             sql = """
-                SELECT id, filepath, scope, target, content, author, created_at
+                SELECT id, scope, target, filepath, content, author, updated_at
                 FROM notes
-                ORDER BY created_at DESC
+                ORDER BY updated_at DESC
             """
             cursor = self._db.execute(sql)
 
@@ -170,68 +243,71 @@ class NotesService:
             notes.append(
                 Note(
                     id=row["id"],
-                    filepath=row["filepath"],
                     scope=NoteScope(row["scope"]),
                     target=row["target"],
                     content=row["content"],
                     author=row["author"],
-                    created_at=datetime.fromisoformat(row["created_at"]),
+                    updated_at=datetime.fromisoformat(row["updated_at"]),
                 )
             )
 
         return notes
 
-    def get(self, note_id: int) -> Optional[Note]:
-        """Get a note by ID.
+    def rebuild_index(self) -> int:
+        """Rebuild database index from files on disk.
 
-        Args:
-            note_id: Note database ID.
-
-        Returns:
-            Note if found, None otherwise.
-        """
-        sql = """
-            SELECT id, filepath, scope, target, content, author, created_at
-            FROM notes
-            WHERE id = ?
-        """
-        cursor = self._db.execute(sql, (note_id,))
-        row = cursor.fetchone()
-
-        if not row:
-            return None
-
-        return Note(
-            id=row["id"],
-            filepath=row["filepath"],
-            scope=NoteScope(row["scope"]),
-            target=row["target"],
-            content=row["content"],
-            author=row["author"],
-            created_at=datetime.fromisoformat(row["created_at"]),
-        )
-
-    def delete(self, note_id: int) -> bool:
-        """Delete a note by ID.
-
-        Args:
-            note_id: Note database ID.
+        Scans .oyawiki/notes/ for markdown files and syncs DB.
 
         Returns:
-            True if deleted, False if not found.
+            Number of notes indexed.
         """
-        # First get the note to find the filepath
-        note = self.get(note_id)
-        if not note:
-            return False
+        count = 0
 
-        # Delete the file
-        note_file = self._notes_path / note.filepath
-        if note_file.exists():
-            note_file.unlink()
+        # Clear existing notes
+        self._db.execute("DELETE FROM notes")
 
-        # Delete from database
-        sql = "DELETE FROM notes WHERE id = ?"
-        self._db.execute(sql, (note_id,))
+        # Scan all markdown files
+        for md_file in self._notes_path.rglob("*.md"):
+            try:
+                content = md_file.read_text()
 
-        return True
+                # Parse frontmatter
+                if not content.startswith("---"):
+                    continue
+
+                end_idx = content.find("---", 3)
+                if end_idx == -1:
+                    continue
+
+                frontmatter = content[3:end_idx].strip()
+                body = content[end_idx + 3 :].strip()
+
+                meta = yaml.safe_load(frontmatter)
+                if not meta:
+                    continue
+
+                scope = NoteScope(meta.get("scope", "general"))
+                target = meta.get("target", "")
+                author = meta.get("author")
+                updated_at = meta.get("updated_at", datetime.now(UTC).isoformat())
+
+                filepath = str(md_file.relative_to(self._notes_path))
+
+                # Insert into database
+                sql = """
+                    INSERT OR REPLACE INTO notes
+                    (scope, target, filepath, content, author, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """
+                self._db.execute(
+                    sql,
+                    (scope.value, target, filepath, body, author, updated_at),
+                )
+                count += 1
+
+            except Exception:
+                # Skip malformed files
+                continue
+
+        self._db.commit()
+        return count
