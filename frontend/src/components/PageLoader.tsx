@@ -259,16 +259,14 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
           Add Correction
         </button>
       )}
-      {noteScope && (
-        <NoteEditor
-          isOpen={editorOpen}
-          onClose={() => setEditorOpen(false)}
-          onSaved={handleNoteSaved}
-          scope={noteScope}
-          target={noteTarget}
-          existingContent={note?.content}
-        />
-      )}
+      <NoteEditor
+        isOpen={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSaved={handleNoteSaved}
+        scope={noteScope}
+        target={noteTarget}
+        existingContent={note?.content}
+      />
     </div>
   )
 
