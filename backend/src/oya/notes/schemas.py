@@ -16,14 +16,9 @@ class NoteScope(str, Enum):
     GENERAL = "general"
 
 
-class NoteCreate(BaseModel):
-    """Request to create a new note."""
+class NoteUpsert(BaseModel):
+    """Request to create or update a note."""
 
-    scope: NoteScope = Field(..., description="Scope of the correction")
-    target: str = Field(
-        "",
-        description="Target path (file, directory, or workflow name)",
-    )
     content: str = Field(
         ...,
         min_length=1,
@@ -31,7 +26,7 @@ class NoteCreate(BaseModel):
     )
     author: Optional[str] = Field(
         None,
-        description="Optional author email (defaults to git config)",
+        description="Optional author name or email",
     )
 
 
@@ -41,9 +36,8 @@ class Note(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int = Field(..., description="Database ID")
-    filepath: str = Field(..., description="Filename in notes directory")
     scope: NoteScope = Field(..., description="Scope of the correction")
     target: str = Field(..., description="Target path")
     content: str = Field(..., description="Markdown content")
-    author: Optional[str] = Field(None, description="Author email")
-    created_at: datetime = Field(..., description="Creation timestamp")
+    author: Optional[str] = Field(None, description="Author")
+    updated_at: datetime = Field(..., description="Last update timestamp")
