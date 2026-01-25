@@ -111,14 +111,15 @@ class TestPhaseOrderConsistency:
         # Import the phase_numbers mapping from repos.py
         # We test this by checking the expected values directly
         expected_phase_numbers = {
-            "analysis": 1,
-            "files": 2,
-            "directories": 3,
-            "synthesis": 4,
-            "architecture": 5,
-            "overview": 6,
-            "workflows": 7,
-            "indexing": 8,
+            "syncing": 1,
+            "analysis": 2,
+            "files": 3,
+            "directories": 4,
+            "synthesis": 5,
+            "architecture": 6,
+            "overview": 7,
+            "workflows": 8,
+            "indexing": 9,
         }
 
         # Import and check the actual mapping
@@ -134,29 +135,30 @@ class TestPhaseOrderConsistency:
                 f"Phase '{phase}' should have number {expected_num} in repos.py"
             )
 
-    def test_total_phases_is_eight(self):
-        """Total phases should be 8 for the bottom-up pipeline (including indexing)."""
+    def test_total_phases_is_nine(self):
+        """Total phases should be 9 for the bottom-up pipeline (including syncing and indexing)."""
         from oya.api.routers import repos
         import inspect
 
         source = inspect.getsource(repos.init_repo)
 
-        # Check that total_phases is 8
-        assert '"full", "pending", 8' in source or "'full', 'pending', 8" in source, (
-            "Total phases should be 8 in init_repo"
+        # Check that total_phases is 9
+        assert '"full", "pending", 9' in source or "'full', 'pending', 9" in source, (
+            "Total phases should be 9 in init_repo"
         )
 
     def test_files_before_architecture(self):
         """Files phase number should be less than architecture phase number."""
         expected_phase_numbers = {
-            "analysis": 1,
-            "files": 2,
-            "directories": 3,
-            "synthesis": 4,
-            "architecture": 5,
-            "overview": 6,
-            "workflows": 7,
-            "indexing": 8,
+            "syncing": 1,
+            "analysis": 2,
+            "files": 3,
+            "directories": 4,
+            "synthesis": 5,
+            "architecture": 6,
+            "overview": 7,
+            "workflows": 8,
+            "indexing": 9,
         }
 
         assert expected_phase_numbers["files"] < expected_phase_numbers["architecture"], (
@@ -166,13 +168,14 @@ class TestPhaseOrderConsistency:
     def test_synthesis_before_architecture_and_overview(self):
         """Synthesis phase should come before architecture and overview."""
         expected_phase_numbers = {
-            "analysis": 1,
-            "files": 2,
-            "directories": 3,
-            "synthesis": 4,
-            "architecture": 5,
-            "overview": 6,
-            "workflows": 7,
+            "syncing": 1,
+            "analysis": 2,
+            "files": 3,
+            "directories": 4,
+            "synthesis": 5,
+            "architecture": 6,
+            "overview": 7,
+            "workflows": 8,
         }
 
         assert expected_phase_numbers["synthesis"] < expected_phase_numbers["architecture"], (
