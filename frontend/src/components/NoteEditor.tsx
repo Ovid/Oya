@@ -35,8 +35,9 @@ export function NoteEditor({
     if (isOpen) {
       setContent(existingContent)
       setError(null)
+      setDirty(false)
     }
-  }, [isOpen, existingContent])
+  }, [isOpen, existingContent, setDirty])
 
   // Confirm before closing with unsaved changes
   const handleClose = () => {
