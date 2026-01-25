@@ -112,21 +112,13 @@ export interface QAResponse {
 // Notes Types
 export type NoteScope = 'file' | 'directory' | 'workflow' | 'general'
 
-export interface NoteCreate {
-  scope: NoteScope
-  target: string
-  content: string
-  author?: string
-}
-
 export interface Note {
   id: number
-  filepath: string
   scope: NoteScope
   target: string
   content: string
   author: string | null
-  created_at: string
+  updated_at: string
 }
 
 // UI State Types
