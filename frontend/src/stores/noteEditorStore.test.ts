@@ -11,34 +11,37 @@ describe('noteEditorStore', () => {
       const state = useNoteEditorStore.getState()
       expect(state.isOpen).toBe(false)
       expect(state.isDirty).toBe(false)
-      expect(state.defaultScope).toBe('general')
-      expect(state.defaultTarget).toBe('')
+      expect(state.scope).toBe('general')
+      expect(state.target).toBe('')
+      expect(state.existingContent).toBe('')
     })
   })
 
   describe('open', () => {
-    it('opens editor with default values', () => {
-      useNoteEditorStore.getState().open()
-
-      const state = useNoteEditorStore.getState()
-      expect(state.isOpen).toBe(true)
-      expect(state.defaultScope).toBe('general')
-      expect(state.defaultTarget).toBe('')
-    })
-
     it('opens editor with specified scope and target', () => {
       useNoteEditorStore.getState().open('file', '/src/main.ts')
 
       const state = useNoteEditorStore.getState()
       expect(state.isOpen).toBe(true)
-      expect(state.defaultScope).toBe('file')
-      expect(state.defaultTarget).toBe('/src/main.ts')
+      expect(state.scope).toBe('file')
+      expect(state.target).toBe('/src/main.ts')
+      expect(state.existingContent).toBe('')
+    })
+
+    it('opens editor with existing content for edit mode', () => {
+      useNoteEditorStore.getState().open('file', '/src/main.ts', 'Existing note content')
+
+      const state = useNoteEditorStore.getState()
+      expect(state.isOpen).toBe(true)
+      expect(state.scope).toBe('file')
+      expect(state.target).toBe('/src/main.ts')
+      expect(state.existingContent).toBe('Existing note content')
     })
 
     it('resets isDirty when opening', () => {
       useNoteEditorStore.setState({ isDirty: true })
 
-      useNoteEditorStore.getState().open()
+      useNoteEditorStore.getState().open('general', '')
 
       expect(useNoteEditorStore.getState().isDirty).toBe(false)
     })

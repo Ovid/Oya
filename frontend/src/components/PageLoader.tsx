@@ -1,16 +1,20 @@
-import { useEffect, useState, useCallback } from 'react'
-import type { WikiPage } from '../types'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import type { WikiPage, Note, NoteScope } from '../types'
 import { WikiContent } from './WikiContent'
 import { NotFound } from './NotFound'
+import { NoteDisplay } from './NoteDisplay'
+import { NoteEditor } from './NoteEditor'
 import { useWikiStore, useGenerationStore } from '../stores'
-import { ApiError } from '../api/client'
+import { ApiError, getNote } from '../api/client'
 import { GenerationProgress } from './GenerationProgress'
 
 interface PageLoaderProps {
   loadPage: () => Promise<WikiPage>
+  noteScope?: NoteScope
+  noteTarget?: string
 }
 
-export function PageLoader({ loadPage }: PageLoaderProps) {
+export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps) {
   const repoStatus = useWikiStore((s) => s.repoStatus)
   const isLoading = useWikiStore((s) => s.isLoading)
   const setCurrentPage = useWikiStore((s) => s.setCurrentPage)
@@ -22,6 +26,85 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+
+  // Note state
+  const [note, setNote] = useState<Note | null>(null)
+  const [noteLoading, setNoteLoading] = useState(false)
+  const [noteError, setNoteError] = useState<string | null>(null)
+  const [editorOpen, setEditorOpen] = useState(false)
+  // Sequence number to prevent race conditions between note fetch effects
+  const noteFetchSeqRef = useRef(0)
+
+  // Shared note-fetching logic used by effects and retry button
+  const fetchNoteForTarget = useCallback((scope: NoteScope, target: string) => {
+    const seq = ++noteFetchSeqRef.current
+    setNoteLoading(true)
+    setNoteError(null)
+
+    getNote(scope, target)
+      .then((n) => {
+        if (noteFetchSeqRef.current === seq) {
+          setNote(n)
+          setNoteError(null)
+        }
+      })
+      .catch((err) => {
+        if (noteFetchSeqRef.current === seq) {
+          // 404 means note doesn't exist - that's expected, not an error
+          if (err instanceof ApiError && err.status === 404) {
+            setNote(null)
+            setNoteError(null)
+          } else {
+            // Network/server errors should be surfaced to user
+            setNote(null)
+            setNoteError(err instanceof Error ? err.message : 'Failed to load correction')
+          }
+        }
+      })
+      .finally(() => {
+        if (noteFetchSeqRef.current === seq) setNoteLoading(false)
+      })
+  }, [])
+
+  // Load note when target changes (in parallel with page load for better UX)
+  // We compute noteTarget from the URL slug rather than waiting for page.source_path
+  // to avoid sequential loading. A consistency check below verifies they match.
+  useEffect(() => {
+    if (!noteScope || noteTarget === undefined) {
+      setNote(null)
+      return
+    }
+    fetchNoteForTarget(noteScope, noteTarget)
+  }, [noteScope, noteTarget, fetchNoteForTarget])
+
+  // When page loads with a source_path that differs from the computed noteTarget,
+  // re-fetch the note using the authoritative path. This handles files with extensions
+  // not in the FILE_EXTENSIONS list, where slug-to-path conversion falls back incorrectly.
+  useEffect(() => {
+    if (!noteScope || noteTarget === undefined || !page?.source_path) {
+      return
+    }
+
+    // No mismatch - skip re-fetch
+    if (noteTarget === page.source_path) {
+      return
+    }
+
+    console.warn(
+      `[PageLoader] Note target mismatch: computed "${noteTarget}" but page.source_path is "${page.source_path}". ` +
+        'Re-fetching note with correct path.'
+    )
+
+    fetchNoteForTarget(noteScope, page.source_path)
+  }, [noteScope, noteTarget, page?.source_path, fetchNoteForTarget])
+
+  const handleNoteSaved = (savedNote: Note) => {
+    setNote(savedNote)
+  }
+
+  const handleNoteDeleted = () => {
+    setNote(null)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -181,5 +264,63 @@ export function PageLoader({ loadPage }: PageLoaderProps) {
     )
   }
 
-  return <WikiContent page={page} />
+  // Render note section + content
+  // Use page.source_path when available (authoritative), fall back to computed noteTarget
+  const effectiveNoteTarget = page?.source_path ?? noteTarget
+  const noteSection = noteScope && effectiveNoteTarget !== undefined && !noteLoading && (
+    <div className="mb-4">
+      {noteError ? (
+        <div className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <span>Could not load correction</span>
+          <button
+            onClick={() => fetchNoteForTarget(noteScope, effectiveNoteTarget)}
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : note ? (
+        <NoteDisplay
+          note={note}
+          scope={noteScope}
+          target={effectiveNoteTarget}
+          onEdit={() => setEditorOpen(true)}
+          onDeleted={handleNoteDeleted}
+        />
+      ) : (
+        <button
+          onClick={() => setEditorOpen(true)}
+          className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Correction
+        </button>
+      )}
+      <NoteEditor
+        isOpen={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSaved={handleNoteSaved}
+        scope={noteScope}
+        target={effectiveNoteTarget}
+        existingContent={note?.content}
+      />
+    </div>
+  )
+
+  return (
+    <>
+      {noteSection}
+      <WikiContent page={page} />
+    </>
+  )
 }
