@@ -202,6 +202,7 @@ class NotesService:
                 updated_at.isoformat(),
             ),
         )
+        self._db.commit()
 
         # Get the note ID (either newly inserted or existing)
         note = self.get(scope, target)
@@ -235,6 +236,7 @@ class NotesService:
         # Delete from database
         sql = "DELETE FROM notes WHERE scope = ? AND target = ?"
         self._db.execute(sql, (scope.value, target))
+        self._db.commit()
 
         return True
 
