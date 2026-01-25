@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import re
+import threading
 from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
@@ -105,6 +106,8 @@ class NotesService:
         """
         self._notes_path = notes_path
         self._db = db
+        # Lock for thread-safe upsert/delete operations (protects file + DB atomicity)
+        self._lock = threading.Lock()
         # Ensure notes directory and subdirectories exist
         self._notes_path.mkdir(parents=True, exist_ok=True)
         for subdir in ["files", "directories", "workflows"]:
@@ -202,46 +205,48 @@ class NotesService:
         updated_at = datetime.now(UTC)
         filepath = _get_filepath(scope, target)
 
-        # Check if note exists with a different filepath (e.g., slug algorithm changed)
-        # and delete the old file to avoid orphans
-        old_filepath = self._get_stored_filepath(scope, target)
-        if old_filepath and old_filepath != filepath:
-            old_file = self._notes_path / old_filepath
-            if old_file.exists():
-                old_file.unlink()
+        # Use lock to ensure atomicity of file + DB operations
+        with self._lock:
+            # Check if note exists with a different filepath (e.g., slug algorithm changed)
+            # and delete the old file to avoid orphans
+            old_filepath = self._get_stored_filepath(scope, target)
+            if old_filepath and old_filepath != filepath:
+                old_file = self._notes_path / old_filepath
+                if old_file.exists():
+                    old_file.unlink()
 
-        # Write file first (source of truth)
-        self._write_note_file(
-            filepath=filepath,
-            scope=scope,
-            target=target,
-            content=content,
-            author=author,
-            updated_at=updated_at,
-        )
+            # Write file first (source of truth)
+            self._write_note_file(
+                filepath=filepath,
+                scope=scope,
+                target=target,
+                content=content,
+                author=author,
+                updated_at=updated_at,
+            )
 
-        # Upsert into database
-        sql = """
-            INSERT INTO notes (scope, target, filepath, content, author, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(scope, target) DO UPDATE SET
-                filepath = excluded.filepath,
-                content = excluded.content,
-                author = excluded.author,
-                updated_at = excluded.updated_at
-        """
-        self._db.execute(
-            sql,
-            (
-                scope.value,
-                target,
-                filepath,
-                content,
-                author,
-                updated_at.isoformat(),
-            ),
-        )
-        self._db.commit()
+            # Upsert into database
+            sql = """
+                INSERT INTO notes (scope, target, filepath, content, author, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(scope, target) DO UPDATE SET
+                    filepath = excluded.filepath,
+                    content = excluded.content,
+                    author = excluded.author,
+                    updated_at = excluded.updated_at
+            """
+            self._db.execute(
+                sql,
+                (
+                    scope.value,
+                    target,
+                    filepath,
+                    content,
+                    author,
+                    updated_at.isoformat(),
+                ),
+            )
+            self._db.commit()
 
         # Get the note ID (either newly inserted or existing)
         note = self.get(scope, target)
@@ -260,22 +265,24 @@ class NotesService:
         Returns:
             True if deleted, False if not found.
         """
-        # Get stored filepath from database (not recalculated, in case algorithm changed)
-        filepath = self._get_stored_filepath(scope, target)
-        if not filepath:
-            return False
+        # Use lock to ensure atomicity of file + DB operations
+        with self._lock:
+            # Get stored filepath from database (not recalculated, in case algorithm changed)
+            filepath = self._get_stored_filepath(scope, target)
+            if not filepath:
+                return False
 
-        # Delete the file
-        note_file = self._notes_path / filepath
-        if note_file.exists():
-            note_file.unlink()
+            # Delete the file
+            note_file = self._notes_path / filepath
+            if note_file.exists():
+                note_file.unlink()
 
-        # Delete from database
-        sql = "DELETE FROM notes WHERE scope = ? AND target = ?"
-        self._db.execute(sql, (scope.value, target))
-        self._db.commit()
+            # Delete from database
+            sql = "DELETE FROM notes WHERE scope = ? AND target = ?"
+            self._db.execute(sql, (scope.value, target))
+            self._db.commit()
 
-        return True
+            return True
 
     def list(self, scope: Optional[NoteScope] = None) -> list[Note]:
         """List notes, optionally filtered by scope.
