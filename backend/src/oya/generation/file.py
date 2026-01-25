@@ -40,6 +40,7 @@ class FileGenerator:
         architecture_summary: str,
         parsed_symbols: list[ParsedSymbol] | None = None,
         file_imports: dict[str, list[str]] | None = None,
+        notes: list[dict] | None = None,
     ) -> tuple[GeneratedPage, FileSummary]:
         """Generate documentation for a file.
 
@@ -51,6 +52,7 @@ class FileGenerator:
             architecture_summary: Summary of how this file fits in the architecture.
             parsed_symbols: Optional list of ParsedSymbol objects for class diagrams.
             file_imports: Optional dict of all file imports for dependency diagrams.
+            notes: Optional list of human-authored notes to incorporate into documentation.
 
         Returns:
             Tuple of (GeneratedPage with file documentation, FileSummary extracted from output).
@@ -64,6 +66,7 @@ class FileGenerator:
             imports=imports,
             architecture_summary=architecture_summary,
             language=language,
+            notes=notes,
         )
 
         # First attempt
