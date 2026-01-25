@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useWikiStore } from '../stores'
 import { Disclosure } from '@headlessui/react'
-import { wikiSlugToPath } from '../utils/slug'
+import { wikiSlugToPath, slugToTitle } from '../utils/slug'
 
 export function Sidebar() {
   const wikiTree = useWikiStore((s) => s.wikiTree)
@@ -73,7 +73,7 @@ export function Sidebar() {
               <Disclosure.Panel className="pl-6">
                 {wikiTree.workflows.map((slug) => (
                   <NavLink key={slug} to={`/workflows/${slug}`} className={linkClass}>
-                    {slug.replace(/-/g, ' ')}
+                    {slugToTitle(slug)}
                   </NavLink>
                 ))}
               </Disclosure.Panel>
