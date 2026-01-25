@@ -32,7 +32,9 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
   const [noteLoading, setNoteLoading] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
 
-  // Load note when target changes
+  // Load note when target changes (in parallel with page load for better UX)
+  // We compute noteTarget from the URL slug rather than waiting for page.source_path
+  // to avoid sequential loading. A consistency check below verifies they match.
   useEffect(() => {
     if (!noteScope || noteTarget === undefined) {
       setNote(null)
@@ -57,6 +59,17 @@ export function PageLoader({ loadPage, noteScope, noteTarget }: PageLoaderProps)
       cancelled = true
     }
   }, [noteScope, noteTarget])
+
+  // Defensive check: verify computed noteTarget matches the authoritative source_path
+  // from the wiki page. If they differ, the slug-to-path conversion may have a bug.
+  useEffect(() => {
+    if (page?.source_path && noteTarget !== undefined && noteTarget !== page.source_path) {
+      console.warn(
+        `[PageLoader] Note target mismatch: computed "${noteTarget}" but page.source_path is "${page.source_path}". ` +
+          'The slug-to-path conversion may need fixing.'
+      )
+    }
+  }, [page?.source_path, noteTarget])
 
   const handleNoteSaved = (savedNote: Note) => {
     setNote(savedNote)
