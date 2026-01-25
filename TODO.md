@@ -11,6 +11,23 @@
     conflicting dependencies.
          ERROR: ResolutionImpossible: for help visit
          https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts
+
+	⏺ Bash(cd /Users/poecurt/projects/oya/.worktrees/fix-notes-system/backend && source .venv/bin/activate 2>/dev/null || python3 -m venv .venv && source .venv/bin/activat…) timeout: 5m 0s
+	⎿  Error: Exit code 1
+		ERROR: Cannot install oya because these package versions have conflicting dependencies.
+		ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts
+
+	⏺ Bash(cd /Users/poecurt/projects/oya/.worktrees/fix-notes-system/frontend && npm install --silent 2>&1 | tail -5)
+	⎿  (No content)
+
+	⏺ Actually, looking at the CLAUDE.md, it says "Uses existing venv" so there's probably a venv in the original project. Worktrees share the git repo but not non-tracked files like .venv. Let me try creating a
+	fresh venv properly.
+
+	Bash(cd /Users/poecurt/projects/oya/.worktrees/fix-notes-system/backend && python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]" 2>&1 | tail…) timeout: 5m 0s
+	⎿  Running…
+		ctrl+b ctrl+b (twice) to run in background
+
+
 * backend/src/oya/qa/cgrag.py def \_read_source_for_nodes(
     * This could blow our context window
 
@@ -86,11 +103,11 @@
     - Templates (done)
     - Need left and right search areas to be "widenable" so I can see more
       content (done)
-    - Proper filenames on left side
+    - Proper filenames on left side (done)
     - lib/MooseX/Extended/Core.pm showing nothing
     - Prompt injections!
     - Notes: we should have a single note per file, directory, and it can be
-      edited.
+      edited. (done)
     - Auto-create .oyaignore with appropriate files (not done: too many
       programming languages, so not done yet. Do it for popular languages?)
 * Allow optional web search? Might pull in more context. Might pull in a mess.
