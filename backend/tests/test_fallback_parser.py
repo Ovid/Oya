@@ -99,70 +99,101 @@ func helper(x int) int {
 
 
 class TestDocumentationFileFiltering:
-    """Tests that documentation files skip class detection.
+    """Tests that documentation files produce no symbols.
 
-    English prose like "class you specify" in POD/markdown should not
-    be misinterpreted as class declarations.
+    Documentation files (markdown, POD, rst, txt) should not have any
+    symbols extracted to avoid misinterpreting code examples as actual
+    code. This prevents planning documents with code snippets from
+    creating false entry points in workflow detection.
     """
 
-    def test_skips_class_detection_for_pod_files(self, parser):
-        """POD files should not have class patterns matched."""
+    def test_no_symbols_for_pod_files(self, parser):
+        """POD files should produce no symbols."""
         content = """=head1 NAME
 
 aliased - Use shorter versions of class names.
 
-=head1 DESCRIPTION
+=head1 CODE EXAMPLE
 
-It loads the class you specify and exports into your namespace
-a subroutine that returns the class name.
+sub example_function {
+    my $x = shift;
+    return $x * 2;
+}
 """
         result = parser.parse_string(content, "README.pod")
 
-        # Should not find "you" or "name" as classes
-        class_symbols = [s for s in result.file.symbols if s.symbol_type == SymbolType.CLASS]
-        class_names = [s.name for s in class_symbols]
-        assert "you" not in class_names
-        assert "name" not in class_names
+        assert result.ok
+        assert len(result.file.symbols) == 0
 
-    def test_skips_class_detection_for_markdown_files(self, parser):
-        """Markdown files should not have class patterns matched."""
+    def test_no_symbols_for_markdown_files(self, parser):
+        """Markdown files should produce no symbols."""
         content = """# Documentation
 
 This describes the class structure and how to use it.
 
-You can create a new class instance by calling the constructor.
+```python
+def main():
+    print("Hello")
+
+def execute(task):
+    task.run()
+```
 """
         result = parser.parse_string(content, "README.md")
 
-        # Should not find "structure" or "instance" as classes
-        class_symbols = [s for s in result.file.symbols if s.symbol_type == SymbolType.CLASS]
-        assert len(class_symbols) == 0
+        assert result.ok
+        assert len(result.file.symbols) == 0
 
-    def test_skips_class_detection_for_rst_files(self, parser):
-        """reStructuredText files should not have class patterns matched."""
+    def test_no_symbols_for_rst_files(self, parser):
+        """reStructuredText files should produce no symbols."""
         content = """
 Documentation
 =============
 
 The class name is extracted from the module path.
+
+.. code-block:: python
+
+   class MyClass:
+       def run(self):
+           pass
 """
         result = parser.parse_string(content, "docs.rst")
 
-        class_symbols = [s for s in result.file.symbols if s.symbol_type == SymbolType.CLASS]
-        class_names = [s.name for s in class_symbols]
-        assert "name" not in class_names
+        assert result.ok
+        assert len(result.file.symbols) == 0
 
-    def test_skips_class_detection_for_txt_files(self, parser):
-        """Plain text files should not have class patterns matched."""
+    def test_no_symbols_for_txt_files(self, parser):
+        """Plain text files should produce no symbols."""
         content = """NOTES
 
 This class provides utility functions.
 The interface design follows standard patterns.
+
+def main():
+    pass
 """
         result = parser.parse_string(content, "notes.txt")
 
-        class_symbols = [s for s in result.file.symbols if s.symbol_type == SymbolType.CLASS]
-        assert len(class_symbols) == 0
+        assert result.ok
+        assert len(result.file.symbols) == 0
+
+    def test_no_symbols_for_adoc_files(self, parser):
+        """AsciiDoc files should produce no symbols."""
+        content = """= Documentation
+
+Some text with code examples.
+
+[source,python]
+----
+def execute():
+    pass
+----
+"""
+        result = parser.parse_string(content, "docs.adoc")
+
+        assert result.ok
+        assert len(result.file.symbols) == 0
 
     def test_still_detects_classes_in_code_files(self, parser):
         """Non-documentation files should still detect class patterns."""
@@ -178,24 +209,22 @@ end
         class_names = [s.name for s in class_symbols]
         assert "User" in class_names
 
-    def test_still_detects_functions_in_documentation_files(self, parser):
-        """Documentation files should still detect function patterns if present."""
-        content = """=head1 CODE EXAMPLE
-
+    def test_still_detects_functions_in_code_files(self, parser):
+        """Non-documentation files should still detect function patterns."""
+        code = """
 sub example_function {
     my $x = shift;
     return $x * 2;
 }
 """
-        result = parser.parse_string(content, "example.pod")
+        result = parser.parse_string(code, "module.pl")
 
-        # Should still find functions
         func_symbols = [s for s in result.file.symbols if s.symbol_type == SymbolType.FUNCTION]
         func_names = [s.name for s in func_symbols]
         assert "example_function" in func_names
 
-    def test_perl_skips_classes_in_pod_after_end_marker(self, parser):
-        """Perl files skip class detection in POD after __END__."""
+    def test_perl_detects_symbols_in_code_section(self, parser):
+        """Perl files detect symbols before __END__ marker."""
         content = """use strict;
 package MyModule;
 
@@ -212,7 +241,7 @@ It loads the class you specify and exports the class name.
 """
         result = parser.parse_string(content, "module.pm")
 
-        # Should find the function
+        # Should find the function (Perl file, not documentation)
         func_symbols = [s for s in result.file.symbols if s.symbol_type == SymbolType.FUNCTION]
         func_names = [s.name for s in func_symbols]
         assert "greet" in func_names
@@ -222,3 +251,54 @@ It loads the class you specify and exports the class name.
         class_names = [s.name for s in class_symbols]
         assert "you" not in class_names
         assert "name" not in class_names
+
+    def test_markdown_with_entry_point_code_examples(self, parser):
+        """Markdown with code examples containing entry point names produces no symbols.
+
+        This specifically tests the scenario where planning documents contain
+        code examples with function names like 'main', 'execute', 'run' that
+        would otherwise be detected as entry points for workflow generation.
+        """
+        content = """# Implementation Plan
+
+## Database Connection
+
+```python
+def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+    return self.conn.execute(sql, params)
+
+def main():
+    db = Database()
+    db.execute("SELECT 1")
+```
+
+## Running the System
+
+The `run` function starts the server:
+
+```python
+async def run():
+    await server.start()
+```
+"""
+        result = parser.parse_string(content, "2026-01-08-implementation.md")
+
+        assert result.ok
+        # No symbols should be extracted - these are just documentation
+        assert len(result.file.symbols) == 0
+
+    def test_documentation_files_still_return_metadata(self, parser):
+        """Documentation files return valid ParseResult with metadata but no symbols."""
+        content = """# README
+
+This is documentation.
+Line 2.
+Line 3.
+"""
+        result = parser.parse_string(content, "README.md")
+
+        assert result.ok
+        assert result.file is not None
+        assert result.file.language == "unknown"
+        assert result.file.line_count == 5
+        assert len(result.file.symbols) == 0

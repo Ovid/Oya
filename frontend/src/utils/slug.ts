@@ -29,3 +29,33 @@ export function wikiSlugToPath(slug: string): string {
   // Fallback: just replace dashes with slashes (for directories)
   return slug.replace(/-/g, '/')
 }
+
+/**
+ * Convert a slug to a human-readable title.
+ *
+ * Replaces hyphens with spaces and title-cases each word.
+ *
+ * Examples:
+ *   "repos-v2" -> "Repos V2"
+ *   "route-workflows" -> "Route Workflows"
+ *   "qa" -> "QA"
+ */
+export function slugToTitle(slug: string): string {
+  return slug
+    .replace(/-/g, ' ')
+    .split(' ')
+    .map((word) => {
+      // Handle common abbreviations that should be all uppercase
+      const upperWord = word.toUpperCase()
+      if (['QA', 'API', 'UI', 'ID', 'URL', 'HTTP', 'CLI', 'DB'].includes(upperWord)) {
+        return upperWord
+      }
+      // Handle version strings like "v1", "v2" -> "V1", "V2"
+      if (/^v\d+$/i.test(word)) {
+        return word.toUpperCase()
+      }
+      // Standard title case
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    })
+    .join(' ')
+}
