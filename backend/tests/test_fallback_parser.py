@@ -195,6 +195,27 @@ def execute():
         assert result.ok
         assert len(result.file.symbols) == 0
 
+    def test_no_symbols_for_rdoc_files(self, parser):
+        """Ruby documentation files should produce no symbols."""
+        content = """= MyClass
+
+This is a Ruby documentation file.
+
+== Methods
+
+=== run
+
+Runs the main process.
+
+  def run
+    execute_tasks
+  end
+"""
+        result = parser.parse_string(content, "README.rdoc")
+
+        assert result.ok
+        assert len(result.file.symbols) == 0
+
     def test_still_detects_classes_in_code_files(self, parser):
         """Non-documentation files should still detect class patterns."""
         code = """
