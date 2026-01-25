@@ -344,7 +344,10 @@ export async function saveNote(
 
 export async function deleteNote(scope: NoteScope, target: string): Promise<void> {
   const encodedTarget = encodeURIComponent(target)
-  await fetch(`${API_BASE}/api/notes/${scope}/${encodedTarget}`, { method: 'DELETE' })
+  const response = await fetch(`${API_BASE}/api/notes/${scope}/${encodedTarget}`, { method: 'DELETE' })
+  if (!response.ok) {
+    throw new Error(`Failed to delete note: ${response.statusText}`)
+  }
 }
 
 export async function listNotes(scope?: NoteScope): Promise<Note[]> {
