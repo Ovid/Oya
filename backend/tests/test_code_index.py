@@ -1,5 +1,7 @@
 # backend/tests/test_code_index.py - new file
 
+import json
+
 import pytest
 from oya.db.code_index import CodeIndexBuilder, CodeIndexEntry
 from oya.db.connection import Database
@@ -183,7 +185,6 @@ def test_compute_called_by(temp_db_with_code_index):
     cursor = db.execute("SELECT called_by FROM code_index WHERE symbol_name = ?", ("helper",))
     row = cursor.fetchone()
     assert row is not None
-    import json
 
     called_by = json.loads(row[0])
     assert "main" in called_by
@@ -398,3 +399,128 @@ def test_query_by_file_and_symbol(temp_db_with_code_index):
     results = query.find_by_file_and_symbol("oya/api/deps.py", "get_db")
     assert len(results) == 1
     assert results[0].file_path == "backend/src/oya/api/deps.py"
+
+
+def test_query_by_mutates(temp_db_with_code_index):
+    """Should find functions that mutate a specific variable."""
+    db = temp_db_with_code_index
+
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, mutates, source_hash)
+        VALUES
+        ('a.py', 'func1', 'function', 1, 10, '["_cache", "_state"]', 'h1'),
+        ('b.py', 'func2', 'function', 1, 10, '["_config"]', 'h2'),
+        ('c.py', 'func3', 'function', 1, 10, '["_cache"]', 'h3')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.find_by_mutates("_cache")
+    names = [r.symbol_name for r in results]
+
+    assert "func1" in names
+    assert "func3" in names
+    assert "func2" not in names
+
+
+def test_query_by_file(temp_db_with_code_index):
+    """Should find all symbols in files matching pattern."""
+    db = temp_db_with_code_index
+
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, source_hash)
+        VALUES
+        ('backend/api/deps.py', 'get_db', 'function', 1, 10, 'h1'),
+        ('backend/api/deps.py', 'get_store', 'function', 11, 20, 'h2'),
+        ('backend/db/connection.py', 'connect', 'function', 1, 10, 'h3')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.find_by_file("deps.py")
+    assert len(results) == 2
+    names = [r.symbol_name for r in results]
+    assert "get_db" in names
+    assert "get_store" in names
+
+
+def test_query_by_symbol(temp_db_with_code_index):
+    """Should find all symbols with given name."""
+    db = temp_db_with_code_index
+
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, source_hash)
+        VALUES
+        ('a.py', 'process', 'function', 1, 10, 'h1'),
+        ('b.py', 'process', 'function', 1, 10, 'h2'),
+        ('c.py', 'other', 'function', 1, 10, 'h3')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.find_by_symbol("process")
+    assert len(results) == 2
+
+
+def test_get_callers(temp_db_with_code_index):
+    """Should find functions that call the given symbol."""
+    db = temp_db_with_code_index
+
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, calls, source_hash)
+        VALUES
+        ('a.py', 'main', 'function', 1, 10, '["helper", "process"]', 'h1'),
+        ('b.py', 'handler', 'function', 1, 10, '["helper"]', 'h2'),
+        ('c.py', 'helper', 'function', 1, 10, '[]', 'h3')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.get_callers("helper")
+    names = [r.symbol_name for r in results]
+
+    assert "main" in names
+    assert "handler" in names
+    assert "helper" not in names
+
+
+def test_get_callees(temp_db_with_code_index):
+    """Should find functions called by the given symbol."""
+    db = temp_db_with_code_index
+
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, calls, source_hash)
+        VALUES
+        ('a.py', 'main', 'function', 1, 10, '["helper", "process"]', 'h1'),
+        ('b.py', 'helper', 'function', 1, 10, '[]', 'h2'),
+        ('c.py', 'process', 'function', 1, 10, '[]', 'h3')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.get_callees("main")
+    names = [r.symbol_name for r in results]
+
+    assert len(results) == 2
+    assert "helper" in names
+    assert "process" in names
