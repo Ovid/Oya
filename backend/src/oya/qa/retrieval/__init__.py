@@ -1,5 +1,6 @@
 """Mode-specific retrieval strategies."""
 
 from oya.qa.retrieval.diagnostic import DiagnosticRetriever
+from oya.qa.retrieval.exploratory import ExploratoryRetriever
 
-__all__ = ["DiagnosticRetriever"]
+__all__ = ["DiagnosticRetriever", "ExploratoryRetriever"]
