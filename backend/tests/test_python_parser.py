@@ -298,3 +298,61 @@ def wrapper():
     func = next(s for s in result.file.symbols if s.name == "wrapper")
     # Re-raise without exception type should not add to raises
     assert func.metadata.get("raises", []) == []
+
+
+def test_extracts_error_strings_from_raise(parser):
+    """Parser should extract string literals from raise statements."""
+    source = """
+def process(data):
+    if not data:
+        raise ValueError("input cannot be empty")
+    if data.get("type") not in VALID_TYPES:
+        raise ValueError("invalid type specified")
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "process")
+    assert "error_strings" in func.metadata
+    assert "input cannot be empty" in func.metadata["error_strings"]
+    assert "invalid type specified" in func.metadata["error_strings"]
+
+
+def test_extracts_error_strings_from_logging(parser):
+    """Parser should extract strings from logging.error calls."""
+    source = """
+def fetch_data(url):
+    try:
+        response = requests.get(url)
+    except RequestException:
+        logger.error("failed to fetch data from remote server")
+        raise
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "fetch_data")
+    assert "error_strings" in func.metadata
+    assert "failed to fetch data from remote server" in func.metadata["error_strings"]
+
+
+def test_non_logging_error_method_not_detected(parser):
+    """Parser should NOT extract strings from non-logger .error() methods.
+
+    This tests the fix for a bug where any object's .error() method was
+    incorrectly detected as a logging call (e.g., result.error(), handler.error()).
+    """
+    source = """
+def process_result(result):
+    if result.error("validation failed"):
+        return None
+    handler.error("something went wrong")
+    return result.data
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "process_result")
+    # Should NOT have error_strings since result.error() and handler.error()
+    # are not logger objects
+    assert "error_strings" not in func.metadata or func.metadata["error_strings"] == []
