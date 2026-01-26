@@ -292,3 +292,26 @@ def test_wikis_dir_path(monkeypatch, temp_workspace):
     load_settings.cache_clear()
     settings = load_settings()
     assert settings.wikis_dir == custom_dir / "wikis"
+
+
+# =============================================================================
+# CGRAG Classification Config Tests
+# =============================================================================
+
+
+def test_cgrag_classification_config():
+    """Should have classification config settings."""
+    from oya.config import load_settings
+
+    load_settings.cache_clear()
+
+    settings = load_settings()
+
+    assert hasattr(settings.ask, "classification_model")
+    assert settings.ask.classification_model == "haiku"
+    assert hasattr(settings.ask, "use_mode_routing")
+    assert settings.ask.use_mode_routing is True
+    assert hasattr(settings.ask, "use_code_index")
+    assert settings.ask.use_code_index is True
+    assert hasattr(settings.ask, "use_source_fetching")
+    assert settings.ask.use_source_fetching is True
