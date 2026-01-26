@@ -3,6 +3,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
 import type { WikiPage } from '../types'
+import { parseFrontmatter } from '../utils/frontmatter'
+import { PageInfo } from './PageInfo'
 
 // Initialize mermaid with a readable theme
 mermaid.initialize({
@@ -78,11 +80,15 @@ interface WikiContentProps {
 }
 
 export function WikiContent({ page }: WikiContentProps) {
+  const { meta, content } = parseFrontmatter(page.content)
+
   return (
-    <article className="prose prose-gray dark:prose-invert max-w-none">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
+    <>
+      <PageInfo meta={meta} />
+      <article className="prose prose-gray dark:prose-invert max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
           // Custom heading with id for TOC links
           h1: ({ children }) => {
             const id = String(children)
@@ -164,10 +170,11 @@ export function WikiContent({ page }: WikiContentProps) {
               </table>
             </div>
           ),
-        }}
-      >
-        {page.content}
-      </ReactMarkdown>
-    </article>
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </article>
+    </>
   )
 }
