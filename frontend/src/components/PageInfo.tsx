@@ -79,9 +79,7 @@ export function PageInfo({ meta }: PageInfoProps) {
 
               return (
                 <div key={key} className="flex gap-2">
-                  <dt className="font-medium text-gray-600 dark:text-gray-400 min-w-20">
-                    {label}
-                  </dt>
+                  <dt className="font-medium text-gray-600 dark:text-gray-400 min-w-20">{label}</dt>
                   <dd className="text-gray-800 dark:text-gray-200 break-all">{displayValue}</dd>
                 </div>
               )
