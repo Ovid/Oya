@@ -8,10 +8,8 @@ def test_extract_exception_types():
     query = "Why am I getting sqlite3.OperationalError: readonly database?"
     anchors = extract_error_anchors(query)
 
-    assert (
-        "sqlite3.OperationalError" in anchors.exception_types
-        or "OperationalError" in anchors.exception_types
-    )
+    assert "sqlite3.OperationalError" in anchors.exception_types
+    assert "OperationalError" in anchors.exception_types
 
 
 def test_extract_error_messages():
