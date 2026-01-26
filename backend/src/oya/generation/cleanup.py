@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from oya.generation.frontmatter import parse_frontmatter
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,3 +51,52 @@ def delete_all_workflows(workflows_dir: Path) -> int:
         count += 1
 
     return count
+
+
+def delete_orphaned_pages(
+    pages_dir: Path,
+    source_dir: Path,
+    is_file: bool,
+) -> list[str]:
+    """Delete wiki pages whose source files/directories no longer exist.
+
+    Args:
+        pages_dir: Path to wiki/files or wiki/directories
+        source_dir: Path to source repository
+        is_file: True if checking files, False if checking directories
+
+    Returns:
+        List of deleted source paths
+    """
+    if not pages_dir.exists():
+        return []
+
+    deleted = []
+    for md_file in pages_dir.glob("*.md"):
+        content = md_file.read_text(encoding="utf-8")
+        meta, _ = parse_frontmatter(content)
+
+        # No frontmatter = treat as orphaned
+        if meta is None:
+            logger.info(f"Deleting page without frontmatter: {md_file.name}")
+            md_file.unlink()
+            deleted.append(f"(no frontmatter: {md_file.name})")
+            continue
+
+        source_path = meta.get("source")
+        if not source_path:
+            logger.info(f"Deleting page without source: {md_file.name}")
+            md_file.unlink()
+            deleted.append(f"(no source: {md_file.name})")
+            continue
+
+        # Check if source exists
+        full_source = source_dir / source_path
+        source_exists = full_source.is_file() if is_file else full_source.is_dir()
+
+        if not source_exists:
+            logger.info(f"Deleting orphaned page: {source_path}")
+            md_file.unlink()
+            deleted.append(source_path)
+
+    return deleted
