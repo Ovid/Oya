@@ -1,8 +1,15 @@
 """Tests for cleanup module - stale content deletion during regeneration."""
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
-from oya.generation.cleanup import CleanupResult, delete_all_workflows, delete_orphaned_pages
+from oya.generation.cleanup import (
+    CleanupResult,
+    delete_all_workflows,
+    delete_orphaned_notes,
+    delete_orphaned_pages,
+)
+from oya.notes.schemas import NoteScope
 
 
 class TestCleanupResult:
@@ -175,3 +182,57 @@ commit: abc123
         assert deleted == ["deleted/module"]
         assert (wiki_dirs_dir / "src-api.md").exists()
         assert not (wiki_dirs_dir / "deleted-module.md").exists()
+
+
+class TestDeleteOrphanedNotes:
+    """Tests for delete_orphaned_notes function."""
+
+    def test_delete_orphaned_file_notes(self, tmp_path):
+        """Test deleting notes for files that no longer exist."""
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        (source_dir / "exists.py").write_text("print('hello')")
+
+        # Mock NotesService
+        mock_notes_service = MagicMock()
+        mock_notes_service.list.return_value = [
+            MagicMock(scope=NoteScope.FILE, target="exists.py"),
+            MagicMock(scope=NoteScope.FILE, target="deleted.py"),
+        ]
+
+        deleted = delete_orphaned_notes(mock_notes_service, source_dir)
+
+        assert deleted == 1
+        mock_notes_service.delete.assert_called_once_with(NoteScope.FILE, "deleted.py")
+
+    def test_delete_orphaned_directory_notes(self, tmp_path):
+        """Test deleting notes for directories that no longer exist."""
+        source_dir = tmp_path / "source"
+        (source_dir / "src" / "api").mkdir(parents=True)
+
+        mock_notes_service = MagicMock()
+        mock_notes_service.list.return_value = [
+            MagicMock(scope=NoteScope.DIRECTORY, target="src/api"),
+            MagicMock(scope=NoteScope.DIRECTORY, target="deleted/module"),
+        ]
+
+        deleted = delete_orphaned_notes(mock_notes_service, source_dir)
+
+        assert deleted == 1
+        mock_notes_service.delete.assert_called_once_with(NoteScope.DIRECTORY, "deleted/module")
+
+    def test_skip_general_and_workflow_notes(self, tmp_path):
+        """Test that general and workflow notes are not checked."""
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+
+        mock_notes_service = MagicMock()
+        mock_notes_service.list.return_value = [
+            MagicMock(scope=NoteScope.GENERAL, target=""),
+            MagicMock(scope=NoteScope.WORKFLOW, target="some-workflow"),
+        ]
+
+        deleted = delete_orphaned_notes(mock_notes_service, source_dir)
+
+        assert deleted == 0
+        mock_notes_service.delete.assert_not_called()
