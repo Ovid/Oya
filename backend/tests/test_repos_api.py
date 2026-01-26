@@ -290,3 +290,60 @@ async def test_post_repos_init_starts_generation(client, data_dir, source_repo, 
 
     # Verify the background task was scheduled (mock was called)
     assert mock_run_generation.call_count == 1
+
+
+# ============================================================================
+# Status Endpoint Tests
+# ============================================================================
+
+
+async def test_get_status_requires_active_repo(client, data_dir):
+    """GET /api/repos/status returns 400 when no repo is active."""
+    response = await client.get("/api/repos/status")
+
+    assert response.status_code == 400
+    data = response.json()
+    assert "No repository is active" in data["detail"]
+
+
+async def test_get_status_returns_correct_schema(client, data_dir, source_repo):
+    """GET /api/repos/status returns correct response schema."""
+    await _create_and_activate_repo(client, source_repo)
+
+    response = await client.get("/api/repos/status")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check required fields
+    assert "path" in data
+    assert "head_commit" in data
+    assert "branch" in data
+    assert "initialized" in data
+    assert "is_docker" in data
+    assert "last_generation" in data
+    assert "generation_status" in data
+    assert "embedding_metadata" in data
+    assert "current_provider" in data
+    assert "current_model" in data
+    assert "embedding_mismatch" in data
+
+
+async def test_get_status_returns_correct_values(client, data_dir, source_repo):
+    """GET /api/repos/status returns expected values for a new repo."""
+    await _create_and_activate_repo(client, source_repo)
+
+    response = await client.get("/api/repos/status")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # New repo should not be initialized (no wiki yet)
+    assert data["initialized"] is False
+    # Should have a path
+    assert data["path"] is not None
+    # head_commit may be None for a newly created repo (not yet generated)
+    # No embedding metadata for new repo
+    assert data["embedding_metadata"] is None
+    # No embedding mismatch when no embeddings exist
+    assert data["embedding_mismatch"] is False

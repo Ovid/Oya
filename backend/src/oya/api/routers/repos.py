@@ -1,6 +1,7 @@
 """Repository management endpoints."""
 
 import logging
+import os
 import uuid
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 
@@ -9,6 +10,7 @@ from oya.api.deps import (
     get_db,
     get_settings,
     get_active_repo_paths,
+    get_active_repo,
 )
 from oya.api.schemas import (
     JobCreated,
@@ -16,6 +18,8 @@ from oya.api.schemas import (
     FileList,
     OyaignoreUpdateRequest,
     OyaignoreUpdateResponse,
+    RepoStatus,
+    EmbeddingMetadata,
 )
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
 from oya.repo.git_operations import GitSyncError, sync_to_default_branch
@@ -39,6 +43,75 @@ from oya.vectorstore.issues import IssuesStore
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
+
+
+@router.get("/status", response_model=RepoStatus)
+async def get_repo_status(
+    settings: Settings = Depends(get_settings),
+) -> RepoStatus:
+    """Get status of the currently active repository.
+
+    Returns repository metadata including git info, generation status,
+    and embedding configuration.
+    """
+    repo_record = get_active_repo()
+
+    if repo_record is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No repository is active. Please select a repository first.",
+        )
+
+    paths = RepoPaths(settings.data_dir, repo_record.local_path)
+
+    # Note: head_message is not currently supported, would require git log parsing
+    head_message = None
+
+    # Check if wiki has been generated (overview.md exists)
+    initialized = (paths.wiki_dir / "overview.md").exists()
+
+    # Get embedding metadata if available
+    embedding_metadata = None
+    has_embedding_info = (
+        repo_record.embedding_provider
+        and repo_record.embedding_model
+        and repo_record.last_generated
+    )
+    if has_embedding_info:
+        # Type narrowing: has_embedding_info ensures these are not None
+        assert repo_record.embedding_provider is not None
+        assert repo_record.embedding_model is not None
+        assert repo_record.last_generated is not None
+        embedding_metadata = EmbeddingMetadata(
+            provider=repo_record.embedding_provider,
+            model=repo_record.embedding_model,
+            indexed_at=repo_record.last_generated.isoformat(),
+        )
+
+    # Check for embedding mismatch
+    embedding_mismatch = False
+    if embedding_metadata:
+        embedding_mismatch = (
+            repo_record.embedding_provider != settings.active_provider
+            or repo_record.embedding_model != settings.active_model
+        )
+
+    return RepoStatus(
+        path=repo_record.local_path,
+        head_commit=repo_record.head_commit,
+        head_message=head_message,
+        branch=repo_record.branch,
+        initialized=initialized,
+        is_docker=os.environ.get("DOCKER_ENV", "").lower() == "true",
+        last_generation=(
+            repo_record.last_generated.isoformat() if repo_record.last_generated else None
+        ),
+        generation_status=repo_record.status,
+        embedding_metadata=embedding_metadata,
+        current_provider=settings.active_provider,
+        current_model=settings.active_model,
+        embedding_mismatch=embedding_mismatch,
+    )
 
 
 @router.get("/indexable", response_model=IndexableItems)
