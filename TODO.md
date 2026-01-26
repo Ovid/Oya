@@ -1,7 +1,10 @@
 # TODO
 
-* When restarting, if we hit a 404 page, it goes to the "Add your first repo"
-  page.
+* When generation is done, it must direct back to the overview page.
+* When I restart the server, I go  "Add your first repository" page, even when
+  the page is valid, such as
+  http://localhost:5173/directories/backend-src-oya-data. Refreshing the page
+  gets me to the correct wiki page.
 * No need for .dotfiles and .dotdirs inside of the ~/.oya directory.
     ./wikis/github.com/Ovid/Oya/meta/.oyaignore
     ./wikis/github.com/Ovid/Oya/meta/.oyawiki
