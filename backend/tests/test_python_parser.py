@@ -261,3 +261,40 @@ from myapp.models import User
     # All imports should have high confidence
     for ref in import_refs:
         assert ref.confidence >= 0.95
+
+
+def test_extracts_raises_from_function(parser):
+    """Parser should extract exception types from raise statements."""
+    source = '''
+def validate_input(data):
+    """Validate input data."""
+    if not data:
+        raise ValueError("Data cannot be empty")
+    if not isinstance(data, dict):
+        raise TypeError("Data must be a dictionary")
+    return True
+'''
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "validate_input")
+    assert "raises" in func.metadata
+    assert set(func.metadata["raises"]) == {"ValueError", "TypeError"}
+
+
+def test_extracts_raises_from_reraise(parser):
+    """Parser should handle re-raise patterns."""
+    source = """
+def wrapper():
+    try:
+        do_something()
+    except Exception as e:
+        logger.error(f"Failed: {e}")
+        raise
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "wrapper")
+    # Re-raise without exception type should not add to raises
+    assert func.metadata.get("raises", []) == []
