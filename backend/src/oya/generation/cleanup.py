@@ -146,3 +146,48 @@ def delete_orphaned_notes(
             deleted_count += 1
 
     return deleted_count
+
+
+def cleanup_stale_content(
+    wiki_path: Path,
+    source_path: Path,
+    notes_service: "NotesService | None" = None,
+) -> CleanupResult:
+    """Remove stale wiki pages and notes.
+
+    This function should be called during the syncing phase, after git sync
+    completes and before generation starts.
+
+    Args:
+        wiki_path: Path to wiki directory (.oyawiki/wiki)
+        source_path: Path to source repository
+        notes_service: Optional NotesService for notes cleanup
+
+    Returns:
+        CleanupResult with counts of deleted items
+    """
+    result = CleanupResult()
+
+    # Step 1: Delete all workflows (they'll be regenerated)
+    workflows_dir = wiki_path / "workflows"
+    result.workflows_deleted = delete_all_workflows(workflows_dir)
+    logger.info(f"Deleted {result.workflows_deleted} workflow pages")
+
+    # Step 2: Delete orphaned file pages
+    files_dir = wiki_path / "files"
+    deleted_files = delete_orphaned_pages(files_dir, source_path, is_file=True)
+    result.files_deleted = len(deleted_files)
+    logger.info(f"Deleted {result.files_deleted} orphaned file pages")
+
+    # Step 3: Delete orphaned directory pages
+    dirs_dir = wiki_path / "directories"
+    deleted_dirs = delete_orphaned_pages(dirs_dir, source_path, is_file=False)
+    result.directories_deleted = len(deleted_dirs)
+    logger.info(f"Deleted {result.directories_deleted} orphaned directory pages")
+
+    # Step 4: Delete orphaned notes
+    if notes_service:
+        result.notes_deleted = delete_orphaned_notes(notes_service, source_path)
+        logger.info(f"Deleted {result.notes_deleted} orphaned notes")
+
+    return result
