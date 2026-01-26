@@ -60,8 +60,9 @@ def extract_error_anchors(query: str) -> ErrorAnchors:
         if match.group(1) not in anchors.file_refs:
             anchors.file_refs.append(match.group(1))
 
-    # Extract function names from stack traces: "in get_db"
-    func_pattern = r"\bin\s+(\w+)\b"
+    # Extract function names from stack traces: "line 45, in get_db"
+    # Only match when preceded by line number to avoid false positives like "error in production"
+    func_pattern = r"line\s+\d+,?\s+in\s+(\w+)"
     for match in re.finditer(func_pattern, query):
         anchors.function_refs.append(match.group(1))
 
@@ -81,7 +82,12 @@ class DiagnosticRetriever:
         self.code_index = code_index
 
     async def retrieve(self, query: str, budget: int = 2000) -> list[RetrievalResult]:
-        """Retrieve context for diagnosing an error."""
+        """Retrieve context for diagnosing an error.
+
+        Args:
+            query: The user's diagnostic question
+            budget: Token budget for results (TODO: implement token-aware truncation)
+        """
         results: list[RetrievalResult] = []
         anchors = extract_error_anchors(query)
 
