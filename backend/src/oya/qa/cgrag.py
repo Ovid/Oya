@@ -19,9 +19,12 @@ from oya.graph.models import Subgraph
 from oya.graph.query import get_neighborhood
 
 if TYPE_CHECKING:
+    from oya.db.code_index import CodeIndexQuery, CodeIndexEntry
     from oya.llm.client import LLMClient
     from oya.qa.session import CGRAGSession
     from oya.vectorstore.store import VectorStore
+
+from oya.qa.retrieval.diagnostic import RetrievalResult
 
 
 def parse_gaps(response: str) -> list[str]:
@@ -257,6 +260,74 @@ def extract_references_from_gap(gap: str) -> GapReferences:
             refs.function_name = func_match.group(1)
 
     return refs
+
+
+async def resolve_gap_with_code_index(
+    gap: str,
+    code_index: "CodeIndexQuery",
+) -> RetrievalResult | None:
+    """Try to resolve a gap using the code index.
+
+    Returns None if gap cannot be resolved via code index.
+    """
+    refs = extract_references_from_gap(gap)
+
+    # Try specific lookup first (file + function)
+    if refs.file_path and refs.function_name:
+        entries = code_index.find_by_file_and_symbol(refs.file_path, refs.function_name)
+        if entries:
+            entry = entries[0]
+            return RetrievalResult(
+                content=_format_code_index_entry(entry),
+                source="code_index",
+                path=entry.file_path,
+                line_range=(entry.line_start, entry.line_end),
+                relevance=f"Direct lookup: {entry.symbol_name}",
+            )
+
+    # Try file-only lookup
+    if refs.file_path:
+        entries = code_index.find_by_file(refs.file_path)
+        if entries:
+            content = "\n\n".join(_format_code_index_entry(e) for e in entries[:5])
+            return RetrievalResult(
+                content=content,
+                source="code_index",
+                path=refs.file_path,
+                relevance=f"File lookup: {refs.file_path}",
+            )
+
+    # Try function-only lookup
+    if refs.function_name:
+        entries = code_index.find_by_symbol(refs.function_name)
+        if entries:
+            entry = entries[0]  # Take first match
+            return RetrievalResult(
+                content=_format_code_index_entry(entry),
+                source="code_index",
+                path=entry.file_path,
+                line_range=(entry.line_start, entry.line_end),
+                relevance=f"Symbol lookup: {entry.symbol_name}",
+            )
+
+    return None
+
+
+def _format_code_index_entry(entry: "CodeIndexEntry") -> str:
+    """Format a code index entry as context."""
+    lines = [
+        f"# {entry.file_path}:{entry.line_start}-{entry.line_end}",
+        f"# {entry.signature}" if entry.signature else "",
+    ]
+    if entry.docstring:
+        lines.append(f"# {entry.docstring[:100]}")
+    if entry.raises:
+        lines.append(f"# Raises: {', '.join(entry.raises)}")
+    if entry.mutates:
+        lines.append(f"# Mutates: {', '.join(entry.mutates)}")
+    lines.append("")
+    lines.append(f"# [Source for {entry.symbol_name} to be fetched]")
+    return "\n".join(line for line in lines if line is not None)
 
 
 async def run_cgrag_loop(
