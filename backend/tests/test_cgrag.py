@@ -653,3 +653,46 @@ class TestExtractReferencesFromGap:
         refs = extract_references_from_gap(gap)
 
         assert "deps.py" in (refs.file_path or "")
+
+    def test_extract_references_with_backticks(self):
+        """Should handle backtick-wrapped code references from LLMs."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        # Test backticks around "func() in path" pattern
+        gap = "`get_db()` in `backend/src/oya/api/deps.py`"
+        refs = extract_references_from_gap(gap)
+
+        assert refs.file_path == "backend/src/oya/api/deps.py"
+        assert refs.function_name == "get_db"
+
+        # Test backticks around file path only
+        gap2 = "The `auth/verify.py` module"
+        refs2 = extract_references_from_gap(gap2)
+        assert refs2.file_path == "auth/verify.py"
+
+        # Test backticks around function name only
+        gap3 = "How does `process_request()` work?"
+        refs3 = extract_references_from_gap(gap3)
+        assert refs3.function_name == "process_request"
+
+    def test_extract_references_extended_extensions(self):
+        """Should handle extended file extensions like .go, .rs, .tsx."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        # Test Go files
+        gap = "main() in cmd/server/main.go"
+        refs = extract_references_from_gap(gap)
+        assert refs.file_path == "cmd/server/main.go"
+        assert refs.function_name == "main"
+
+        # Test Rust files
+        gap = "handle_request in src/handlers.rs"
+        refs = extract_references_from_gap(gap)
+        assert refs.file_path == "src/handlers.rs"
+        assert refs.function_name == "handle_request"
+
+        # Test TSX files
+        gap = "Component in src/App.tsx"
+        refs = extract_references_from_gap(gap)
+        assert refs.file_path == "src/App.tsx"
+        assert refs.function_name == "Component"
