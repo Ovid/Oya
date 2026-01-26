@@ -14,6 +14,28 @@ def test_extract_scope():
     assert extract_scope("What's wrong with the caching layer?") == "caching"
 
 
+def test_extract_scope_with_articles():
+    """Should handle queries with various articles (a, an, this)."""
+    # Article "a"
+    assert extract_scope("flaws in a module") == "module"
+    assert extract_scope("problems with a component") == "component"
+    assert extract_scope("analyze a service") == "service"
+
+    # Article "an"
+    assert extract_scope("issues with an api") == "api"
+    assert extract_scope("what's wrong with an endpoint") == "endpoint"
+    assert extract_scope("analyze an interface") == "interface"
+
+    # Article "this"
+    assert extract_scope("problems with this component") == "component"
+    assert extract_scope("flaws in this module") == "module"
+    assert extract_scope("what's wrong with this service") == "service"
+
+    # No article (should still work)
+    assert extract_scope("flaws in backend") == "backend"
+    assert extract_scope("analyze frontend") == "frontend"
+
+
 @pytest.fixture
 def mock_code_index():
     """Create mock code index query."""
