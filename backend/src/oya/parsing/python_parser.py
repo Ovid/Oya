@@ -128,6 +128,9 @@ class PythonParser(BaseParser):
         raises = self._extract_raises(node)
         if raises:
             metadata["raises"] = raises
+        error_strings = self._extract_error_strings(node)
+        if error_strings:
+            metadata["error_strings"] = error_strings
 
         return ParsedSymbol(
             name=node.name,
@@ -164,6 +167,48 @@ class PythonParser(BaseParser):
                     # raise existing_exception
                     raises.append(child.exc.id)
         return list(set(raises))
+
+    def _is_logging_call(self, node: ast.Call) -> bool:
+        """Check if call is a logging call (logger.error, logging.warning, etc.).
+
+        Args:
+            node: The AST Call node.
+
+        Returns:
+            True if this is a logging call for error/warning/critical/exception.
+        """
+        if isinstance(node.func, ast.Attribute):
+            # Must be an error-level logging method
+            if node.func.attr in ("error", "warning", "critical", "exception"):
+                # Must be on a logger-like object
+                if isinstance(node.func.value, ast.Name):
+                    if node.func.value.id in ("logger", "logging", "log"):
+                        return True
+        return False
+
+    def _extract_error_strings(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+        """Extract string literals from raise statements and logging calls.
+
+        Args:
+            node: The AST function node.
+
+        Returns:
+            List of unique error message strings (truncated to 100 chars).
+        """
+        strings = []
+        for child in ast.walk(node):
+            # From raise statements
+            if isinstance(child, ast.Raise) and child.exc:
+                if isinstance(child.exc, ast.Call) and child.exc.args:
+                    for arg in child.exc.args:
+                        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                            strings.append(arg.value[:100])  # Truncate long strings
+            # From logging calls
+            if isinstance(child, ast.Call) and self._is_logging_call(child):
+                for arg in child.args:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        strings.append(arg.value[:100])
+        return list(set(strings))
 
     def _parse_class(self, node: ast.ClassDef) -> list[ParsedSymbol]:
         """Parse a class definition and its methods.
