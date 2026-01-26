@@ -108,15 +108,17 @@ class ExploratoryRetriever:
         depth: int,
         max_depth: int,
         results: list[tuple[CodeIndexEntry, int]],
-        visited: set[str],
+        visited: set[tuple[str, str]],
     ) -> None:
         """Walk call graph forward from entry."""
         if depth > max_depth:
             return
-        if entry.symbol_name in visited:
+
+        key = (entry.file_path, entry.symbol_name)
+        if key in visited:
             return
 
-        visited.add(entry.symbol_name)
+        visited.add(key)
         results.append((entry, depth))
 
         callees = self.code_index.get_callees(entry.symbol_name)
