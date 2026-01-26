@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from oya.generation.cleanup import (
     CleanupResult,
+    cleanup_stale_content,
     delete_all_workflows,
     delete_orphaned_notes,
     delete_orphaned_pages,
@@ -236,3 +237,108 @@ class TestDeleteOrphanedNotes:
 
         assert deleted == 0
         mock_notes_service.delete.assert_not_called()
+
+
+class TestCleanupStaleContent:
+    """Tests for main cleanup_stale_content function."""
+
+    def test_cleanup_stale_content_full(self, tmp_path):
+        """Test full cleanup with workflows, files, dirs, and notes."""
+        # Set up wiki structure
+        wiki_path = tmp_path / "wiki"
+        (wiki_path / "files").mkdir(parents=True)
+        (wiki_path / "directories").mkdir(parents=True)
+        (wiki_path / "workflows").mkdir(parents=True)
+
+        # Source with one file
+        source_path = tmp_path / "source"
+        source_path.mkdir()
+        (source_path / "exists.py").write_text("print('hello')")
+
+        # Workflow to delete
+        (wiki_path / "workflows" / "old-workflow.md").write_text("# Old")
+
+        # Valid file page
+        (wiki_path / "files" / "exists-py.md").write_text("""---
+source: exists.py
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+# exists.py
+""")
+        # Orphaned file page
+        (wiki_path / "files" / "deleted-py.md").write_text("""---
+source: deleted.py
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+# deleted.py
+""")
+
+        # Mock notes service
+        mock_notes_service = MagicMock()
+        mock_notes_service.list.return_value = []
+
+        result = cleanup_stale_content(
+            wiki_path=wiki_path,
+            source_path=source_path,
+            notes_service=mock_notes_service,
+        )
+
+        assert result.workflows_deleted == 1
+        assert result.files_deleted == 1
+        assert result.directories_deleted == 0
+        assert (wiki_path / "files" / "exists-py.md").exists()
+        assert not (wiki_path / "files" / "deleted-py.md").exists()
+        assert not (wiki_path / "workflows" / "old-workflow.md").exists()
+
+    def test_cleanup_stale_content_without_notes_service(self, tmp_path):
+        """Test cleanup when notes_service is not provided."""
+        wiki_path = tmp_path / "wiki"
+        (wiki_path / "files").mkdir(parents=True)
+        (wiki_path / "directories").mkdir(parents=True)
+        (wiki_path / "workflows").mkdir(parents=True)
+
+        source_path = tmp_path / "source"
+        source_path.mkdir()
+
+        result = cleanup_stale_content(
+            wiki_path=wiki_path,
+            source_path=source_path,
+            notes_service=None,
+        )
+
+        assert result.workflows_deleted == 0
+        assert result.files_deleted == 0
+        assert result.directories_deleted == 0
+        assert result.notes_deleted == 0
+
+    def test_cleanup_stale_content_with_orphaned_notes(self, tmp_path):
+        """Test cleanup deletes orphaned notes when notes_service provided."""
+        wiki_path = tmp_path / "wiki"
+        (wiki_path / "files").mkdir(parents=True)
+        (wiki_path / "directories").mkdir(parents=True)
+        (wiki_path / "workflows").mkdir(parents=True)
+
+        source_path = tmp_path / "source"
+        source_path.mkdir()
+        (source_path / "exists.py").write_text("print('hello')")
+
+        # Mock notes service with one orphaned note
+        mock_notes_service = MagicMock()
+        from oya.notes.schemas import NoteScope
+
+        mock_notes_service.list.return_value = [
+            MagicMock(scope=NoteScope.FILE, target="deleted.py"),
+        ]
+
+        result = cleanup_stale_content(
+            wiki_path=wiki_path,
+            source_path=source_path,
+            notes_service=mock_notes_service,
+        )
+
+        assert result.notes_deleted == 1
+        mock_notes_service.delete.assert_called_once_with(NoteScope.FILE, "deleted.py")
