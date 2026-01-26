@@ -32,10 +32,16 @@ from oya.qa.schemas import (
     QAResponse,
     SearchQuality,
 )
+from oya.qa.classifier import QueryMode
+from oya.qa.retrieval.analytical import AnalyticalRetriever
+from oya.qa.retrieval.diagnostic import DiagnosticRetriever
+from oya.qa.retrieval.exploratory import ExploratoryRetriever
 from oya.qa.session import SessionStore
 from oya.vectorstore.store import VectorStore
 
 if TYPE_CHECKING:
+    from oya.db.code_index import CodeIndexQuery
+    from oya.qa.classifier import QueryClassifier
     from oya.vectorstore.issues import IssuesStore
 
 # Keywords that trigger issue-aware Q&A responses (code logic, not configuration)
@@ -102,6 +108,8 @@ class QAService:
         issues_store: IssuesStore | None = None,
         graph: nx.DiGraph | None = None,
         source_path: Path | None = None,
+        classifier: QueryClassifier | None = None,
+        code_index: CodeIndexQuery | None = None,
     ) -> None:
         """Initialize Q&A service.
 
@@ -112,6 +120,8 @@ class QAService:
             issues_store: Optional IssuesStore for issue-aware Q&A.
             graph: Optional code graph for graph-augmented retrieval.
             source_path: Optional path to source code directory for CGRAG.
+            classifier: Optional query classifier for mode-specific retrieval.
+            code_index: Optional code index for structured code search.
         """
         self._vectorstore = vectorstore
         self._db = db
@@ -119,6 +129,8 @@ class QAService:
         self._issues_store = issues_store
         self._graph = graph
         self._source_path = source_path
+        self._classifier = classifier
+        self._code_index = code_index
         self._ranker = RRFRanker(k=60)
 
     async def search(
@@ -748,6 +760,30 @@ Format your response with:
         Returns:
             Q&A response with answer, citations, confidence, and search quality.
         """
+        # Check if mode routing is enabled
+        mode_context = ""
+        try:
+            settings = load_settings()
+            use_mode_routing = settings.ask.use_mode_routing
+            use_code_index = settings.ask.use_code_index
+        except (ValueError, OSError, ConfigError):
+            use_mode_routing = False
+            use_code_index = False
+
+        # Classify query and get mode-specific context if enabled
+        if use_mode_routing and self._classifier is not None:
+            classification = await self._classifier.classify(request.question)
+
+            # Route to mode-specific retriever (except CONCEPTUAL which uses hybrid search)
+            if (
+                classification.mode != QueryMode.CONCEPTUAL
+                and use_code_index
+                and self._code_index is not None
+            ):
+                mode_context = await self._get_mode_specific_context(
+                    request.question, classification.mode
+                )
+
         # Perform hybrid search
         results, semantic_ok, fts_ok = await self.search(request.question)
 
@@ -756,6 +792,10 @@ Format your response with:
 
         # Build initial context with token budgeting
         initial_context, results_used = self._build_context_prompt(request.question, results)
+
+        # Add mode-specific context if available
+        if mode_context:
+            initial_context = mode_context + "\n\n---\n\n" + initial_context
 
         # Add graph context if available and enabled
         if self._graph is not None and request.use_graph and results:
@@ -784,6 +824,45 @@ Format your response with:
                 fts_ok=fts_ok,
                 results_used=results_used,
             )
+
+    async def _get_mode_specific_context(self, query: str, mode: QueryMode) -> str:
+        """Get context from mode-specific retriever.
+
+        Args:
+            query: The user's question.
+            mode: The classified query mode.
+
+        Returns:
+            Formatted context string from the mode-specific retriever.
+        """
+        if self._code_index is None:
+            return ""
+
+        results = []
+        if mode == QueryMode.DIAGNOSTIC:
+            retriever = DiagnosticRetriever(self._code_index)
+            results = await retriever.retrieve(query)
+        elif mode == QueryMode.EXPLORATORY:
+            retriever = ExploratoryRetriever(self._code_index)
+            results = await retriever.retrieve(query)
+        elif mode == QueryMode.ANALYTICAL:
+            retriever = AnalyticalRetriever(self._code_index, self._issues_store)
+            results = await retriever.retrieve(query)
+
+        if not results:
+            return ""
+
+        # Format results into context
+        context_parts = []
+        for r in results:
+            header = f"[{r.source.upper()}] {r.path}"
+            if r.line_range:
+                header += f":{r.line_range[0]}-{r.line_range[1]}"
+            if r.relevance:
+                header += f" ({r.relevance})"
+            context_parts.append(f"{header}\n{r.content}")
+
+        return "\n\n---\n\n".join(context_parts)
 
     async def _ask_quick(
         self,
