@@ -11,6 +11,7 @@ from oya.api.deps import (
     get_settings,
     get_active_repo_paths,
     get_active_repo,
+    invalidate_db_cache_for_repo,
 )
 from oya.api.schemas import (
     JobCreated,
@@ -346,6 +347,15 @@ async def init_repo(
     settings: Settings = Depends(get_settings),
 ) -> JobCreated:
     """Initialize repository and start wiki generation."""
+    # Get active repo ID for cache invalidation after promotion
+    active_repo = get_active_repo()
+    if active_repo is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No repository is active. Please select a repository first.",
+        )
+    repo_id = active_repo.id
+
     job_id = str(uuid.uuid4())
 
     # Record job in database
@@ -361,7 +371,7 @@ async def init_repo(
     db.commit()
 
     # Start generation in background
-    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings)
+    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings, repo_id)
 
     return JobCreated(job_id=job_id, message="Wiki generation started")
 
@@ -372,11 +382,20 @@ async def _run_generation(
     db: Database,
     paths: RepoPaths,
     settings: Settings,
+    repo_id: int,
 ) -> None:
     """Run wiki generation in background using staging directory.
 
     Builds wiki in .oyawiki-building, then promotes to .oyawiki on success.
     If generation fails, staging directory is left for debugging.
+
+    Args:
+        job_id: Unique job identifier.
+        repo: GitRepo instance for the source repository.
+        db: Database connection for job tracking.
+        paths: RepoPaths for the active repo.
+        settings: Application settings.
+        repo_id: The ID of the active repo (for cache invalidation after promotion).
     """
     # Staging paths - build in .oyawiki-building (in meta directory)
     staging_path = paths.meta / ".oyawiki-building"
@@ -563,6 +582,12 @@ async def _run_generation(
 
         # SUCCESS: Promote staging to production
         promote_staging_to_production(staging_path, production_path)
+
+        # CRITICAL: Invalidate cached database connection for this repo.
+        # The promotion replaced the .oyawiki directory (including the DB file),
+        # so any cached connection is now stale and will cause "readonly database"
+        # errors on subsequent writes.
+        invalidate_db_cache_for_repo(repo_id)
 
     except Exception as e:
         # FAILURE: Leave staging directory for debugging
