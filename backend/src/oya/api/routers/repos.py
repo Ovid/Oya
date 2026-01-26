@@ -1,5 +1,6 @@
 """Repository management endpoints."""
 
+import logging
 import uuid
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 
@@ -23,6 +24,7 @@ from oya.repo.repo_paths import RepoPaths
 from oya.db.connection import Database
 from oya.db.migrations import run_migrations
 from oya.config import Settings
+from oya.generation.cleanup import cleanup_stale_content
 from oya.generation.orchestrator import GenerationOrchestrator, GenerationProgress
 from oya.generation.staging import (
     prepare_staging_directory,
@@ -30,8 +32,11 @@ from oya.generation.staging import (
 )
 from oya.indexing.service import IndexingService
 from oya.llm.client import LLMClient
+from oya.notes.service import NotesService
 from oya.vectorstore.store import VectorStore
 from oya.vectorstore.issues import IssuesStore
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
@@ -374,6 +379,28 @@ async def _run_generation(
         staging_db = Database(staging_db_path)
         # Run migrations on staging db to ensure schema is up to date
         run_migrations(staging_db)
+
+        # Cleanup stale content before generation
+        try:
+            # Create notes service for cleanup
+            notes_service = NotesService(
+                notes_path=staging_path / "notes",
+                db=staging_db,
+            )
+
+            cleanup_result = cleanup_stale_content(
+                wiki_path=staging_wiki_path,
+                source_path=paths.source,
+                notes_service=notes_service,
+            )
+            logger.info(
+                f"Cleanup complete: {cleanup_result.workflows_deleted} workflows, "
+                f"{cleanup_result.files_deleted} files, "
+                f"{cleanup_result.directories_deleted} directories, "
+                f"{cleanup_result.notes_deleted} notes deleted"
+            )
+        except Exception as e:
+            logger.warning(f"Cleanup failed (continuing with generation): {e}")
 
         # Create orchestrator to build in staging directory
         log_path = paths.oya_logs / "llm-queries.jsonl"

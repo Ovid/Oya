@@ -81,18 +81,16 @@ def delete_orphaned_pages(
         content = md_file.read_text(encoding="utf-8")
         meta, _ = parse_frontmatter(content)
 
-        # No frontmatter = treat as orphaned
+        # No frontmatter = skip (backwards compatibility with pre-frontmatter pages)
+        # These pages will get frontmatter when regenerated
         if meta is None:
-            logger.info(f"Deleting page without frontmatter: {md_file.name}")
-            md_file.unlink()
-            deleted.append(f"(no frontmatter: {md_file.name})")
+            logger.debug(f"Skipping page without frontmatter: {md_file.name}")
             continue
 
         source_path = meta.get("source")
         if not source_path:
-            logger.info(f"Deleting page without source: {md_file.name}")
-            md_file.unlink()
-            deleted.append(f"(no source: {md_file.name})")
+            # Page has frontmatter but no source field - skip for safety
+            logger.debug(f"Skipping page without source field: {md_file.name}")
             continue
 
         # Check if source exists

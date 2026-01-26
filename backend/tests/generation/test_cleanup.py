@@ -135,20 +135,42 @@ commit: abc123
         assert (wiki_files_dir / "exists-py.md").exists()
         assert not (wiki_files_dir / "deleted-py.md").exists()
 
-    def test_delete_page_without_frontmatter(self, tmp_path):
-        """Test that pages without frontmatter are treated as orphaned."""
+    def test_preserve_page_without_frontmatter(self, tmp_path):
+        """Test that pages without frontmatter are preserved (backwards compatibility)."""
         wiki_files_dir = tmp_path / "wiki" / "files"
         wiki_files_dir.mkdir(parents=True)
         source_dir = tmp_path / "source"
         source_dir.mkdir()
 
-        # Page without frontmatter
+        # Page without frontmatter - should be kept for backwards compatibility
         (wiki_files_dir / "old-page.md").write_text("# Old Page\n\nNo frontmatter here.")
 
         deleted = delete_orphaned_pages(wiki_files_dir, source_dir, is_file=True)
 
-        assert len(deleted) == 1
-        assert not (wiki_files_dir / "old-page.md").exists()
+        assert len(deleted) == 0
+        assert (wiki_files_dir / "old-page.md").exists()  # Should be preserved
+
+    def test_preserve_page_with_frontmatter_but_no_source(self, tmp_path):
+        """Test that pages with frontmatter but no source field are preserved."""
+        wiki_files_dir = tmp_path / "wiki" / "files"
+        wiki_files_dir.mkdir(parents=True)
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+
+        # Page with frontmatter but missing source field
+        (wiki_files_dir / "partial-page.md").write_text("""---
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# Partial Page
+""")
+
+        deleted = delete_orphaned_pages(wiki_files_dir, source_dir, is_file=True)
+
+        assert len(deleted) == 0
+        assert (wiki_files_dir / "partial-page.md").exists()  # Should be preserved
 
     def test_delete_orphaned_directory_pages(self, tmp_path):
         """Test deleting directory pages whose sources no longer exist."""
