@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from oya.generation.cleanup import CleanupResult, delete_all_workflows
+from oya.generation.cleanup import CleanupResult, delete_all_workflows, delete_orphaned_pages
 
 
 class TestCleanupResult:
@@ -86,3 +86,92 @@ class TestDeleteAllWorkflows:
         assert not (workflows_dir / "auth-flow.md").exists()
         assert (workflows_dir / "config.json").exists()
         assert (workflows_dir / "readme.txt").exists()
+
+
+class TestDeleteOrphanedPages:
+    """Tests for delete_orphaned_pages function."""
+
+    def test_delete_orphaned_file_pages(self, tmp_path):
+        """Test deleting file pages whose sources no longer exist."""
+        wiki_files_dir = tmp_path / "wiki" / "files"
+        wiki_files_dir.mkdir(parents=True)
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+
+        # Create source file
+        (source_dir / "exists.py").write_text("print('hello')")
+
+        # Create wiki pages - one valid, one orphaned
+        (wiki_files_dir / "exists-py.md").write_text("""---
+source: exists.py
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# exists.py
+""")
+        (wiki_files_dir / "deleted-py.md").write_text("""---
+source: deleted.py
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# deleted.py
+""")
+
+        deleted = delete_orphaned_pages(wiki_files_dir, source_dir, is_file=True)
+
+        assert deleted == ["deleted.py"]
+        assert (wiki_files_dir / "exists-py.md").exists()
+        assert not (wiki_files_dir / "deleted-py.md").exists()
+
+    def test_delete_page_without_frontmatter(self, tmp_path):
+        """Test that pages without frontmatter are treated as orphaned."""
+        wiki_files_dir = tmp_path / "wiki" / "files"
+        wiki_files_dir.mkdir(parents=True)
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+
+        # Page without frontmatter
+        (wiki_files_dir / "old-page.md").write_text("# Old Page\n\nNo frontmatter here.")
+
+        deleted = delete_orphaned_pages(wiki_files_dir, source_dir, is_file=True)
+
+        assert len(deleted) == 1
+        assert not (wiki_files_dir / "old-page.md").exists()
+
+    def test_delete_orphaned_directory_pages(self, tmp_path):
+        """Test deleting directory pages whose sources no longer exist."""
+        wiki_dirs_dir = tmp_path / "wiki" / "directories"
+        wiki_dirs_dir.mkdir(parents=True)
+        source_dir = tmp_path / "source"
+        (source_dir / "src" / "api").mkdir(parents=True)
+
+        # Valid directory page
+        (wiki_dirs_dir / "src-api.md").write_text("""---
+source: src/api
+type: directory
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# src/api
+""")
+        # Orphaned directory page
+        (wiki_dirs_dir / "deleted-module.md").write_text("""---
+source: deleted/module
+type: directory
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# deleted/module
+""")
+
+        deleted = delete_orphaned_pages(wiki_dirs_dir, source_dir, is_file=False)
+
+        assert deleted == ["deleted/module"]
+        assert (wiki_dirs_dir / "src-api.md").exists()
+        assert not (wiki_dirs_dir / "deleted-module.md").exists()
