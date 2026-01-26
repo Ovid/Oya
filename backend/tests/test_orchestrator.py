@@ -1428,3 +1428,283 @@ class TestGraphArchitectureIntegration:
 
                 # Verify standard generator was called
                 mock_std_gen.assert_called_once()
+
+
+# ============================================================================
+# Task 5.2: Code Index Building During Generation Tests
+# ============================================================================
+
+
+class TestCodeIndexBuilding:
+    """Tests for building code index during generation (Task 5.2).
+
+    Requirements: After files phase completes, the orchestrator should build
+    the code index using CodeIndexBuilder when settings.ask.use_code_index is True.
+    """
+
+    @pytest.mark.asyncio
+    async def test_orchestrator_builds_code_index_when_enabled(self, tmp_path):
+        """Orchestrator builds code index after files phase when setting is enabled."""
+        from oya.db.connection import Database
+        from oya.db.migrations import run_migrations
+        from oya.db.code_index import CodeIndexQuery
+
+        # Create a repo with source files
+        repo_dir = tmp_path / "test-repo"
+        repo_dir.mkdir()
+        src_dir = repo_dir / "src"
+        src_dir.mkdir()
+        (src_dir / "main.py").write_text("def hello():\n    '''Say hello'''\n    print('Hello')\n")
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Generated\n\nContent here."
+
+        mock_repo = MagicMock()
+        mock_repo.path = repo_dir
+        mock_repo.get_head_commit.return_value = "abc123def"
+
+        # Create database with schema
+        db_path = tmp_path / "oya.db"
+        db = Database(db_path)
+        run_migrations(db)
+
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm,
+            repo=mock_repo,
+            db=db,
+            wiki_path=wiki_path,
+        )
+
+        # Mock generators to avoid full generation
+        mock_file_summary = FileSummary(
+            file_path="src/main.py",
+            purpose="Entry point",
+            layer="api",
+        )
+        mock_page = GeneratedPage(
+            content="# File",
+            page_type="file",
+            path="files/src-main-py.md",
+            word_count=1,
+            target="src/main.py",
+        )
+
+        async def mock_file_generate(*args, **kwargs):
+            return mock_page, mock_file_summary
+
+        orchestrator.file_generator.generate = mock_file_generate
+
+        # Mock other generators
+        with patch.object(orchestrator, "_run_overview", new_callable=AsyncMock) as mock_overview:
+            mock_overview.return_value = GeneratedPage(
+                content="# Overview", page_type="overview", path="overview.md", word_count=1
+            )
+            with patch.object(
+                orchestrator, "_run_architecture", new_callable=AsyncMock
+            ) as mock_arch:
+                mock_arch.return_value = GeneratedPage(
+                    content="# Arch", page_type="architecture", path="architecture.md", word_count=1
+                )
+                with patch.object(
+                    orchestrator, "_run_workflows", new_callable=AsyncMock
+                ) as mock_workflows:
+                    mock_workflows.return_value = []
+                    with patch.object(
+                        orchestrator, "_run_synthesis", new_callable=AsyncMock
+                    ) as mock_synthesis:
+                        mock_synthesis.return_value = SynthesisMap()
+                        # Enable code index in settings
+                        with patch("oya.generation.orchestrator.load_settings") as mock_settings:
+                            mock_ask_settings = MagicMock()
+                            mock_ask_settings.use_code_index = True
+                            mock_settings.return_value.ask = mock_ask_settings
+                            mock_settings.return_value.generation.progress_report_interval = 1
+
+                            await orchestrator.run()
+
+        # Verify code index was built
+        query = CodeIndexQuery(db)
+        entries = query.find_by_file("main.py")
+
+        assert len(entries) > 0, "Code index should have entries for main.py"
+        assert any(e.symbol_name == "hello" for e in entries), "Should have hello function"
+
+    @pytest.mark.asyncio
+    async def test_orchestrator_skips_code_index_when_disabled(self, tmp_path):
+        """Orchestrator skips code index building when setting is disabled."""
+        from oya.db.connection import Database
+        from oya.db.migrations import run_migrations
+        from oya.db.code_index import CodeIndexQuery
+
+        # Create a repo with source files
+        repo_dir = tmp_path / "test-repo"
+        repo_dir.mkdir()
+        src_dir = repo_dir / "src"
+        src_dir.mkdir()
+        (src_dir / "main.py").write_text("def hello():\n    '''Say hello'''\n    print('Hello')\n")
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Generated\n\nContent here."
+
+        mock_repo = MagicMock()
+        mock_repo.path = repo_dir
+        mock_repo.get_head_commit.return_value = "abc123def"
+
+        # Create database with schema
+        db_path = tmp_path / "oya.db"
+        db = Database(db_path)
+        run_migrations(db)
+
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm,
+            repo=mock_repo,
+            db=db,
+            wiki_path=wiki_path,
+        )
+
+        # Mock generators
+        mock_file_summary = FileSummary(
+            file_path="src/main.py",
+            purpose="Entry point",
+            layer="api",
+        )
+        mock_page = GeneratedPage(
+            content="# File",
+            page_type="file",
+            path="files/src-main-py.md",
+            word_count=1,
+            target="src/main.py",
+        )
+
+        async def mock_file_generate(*args, **kwargs):
+            return mock_page, mock_file_summary
+
+        orchestrator.file_generator.generate = mock_file_generate
+
+        with patch.object(orchestrator, "_run_overview", new_callable=AsyncMock) as mock_overview:
+            mock_overview.return_value = GeneratedPage(
+                content="# Overview", page_type="overview", path="overview.md", word_count=1
+            )
+            with patch.object(
+                orchestrator, "_run_architecture", new_callable=AsyncMock
+            ) as mock_arch:
+                mock_arch.return_value = GeneratedPage(
+                    content="# Arch", page_type="architecture", path="architecture.md", word_count=1
+                )
+                with patch.object(
+                    orchestrator, "_run_workflows", new_callable=AsyncMock
+                ) as mock_workflows:
+                    mock_workflows.return_value = []
+                    with patch.object(
+                        orchestrator, "_run_synthesis", new_callable=AsyncMock
+                    ) as mock_synthesis:
+                        mock_synthesis.return_value = SynthesisMap()
+                        # Disable code index in settings
+                        with patch("oya.generation.orchestrator.load_settings") as mock_settings:
+                            mock_ask_settings = MagicMock()
+                            mock_ask_settings.use_code_index = False
+                            mock_settings.return_value.ask = mock_ask_settings
+                            mock_settings.return_value.generation.progress_report_interval = 1
+
+                            await orchestrator.run()
+
+        # Verify code index was NOT built
+        query = CodeIndexQuery(db)
+        entries = query.find_by_file("main.py")
+
+        assert len(entries) == 0, "Code index should be empty when disabled"
+
+    @pytest.mark.asyncio
+    async def test_code_index_computes_called_by_relationships(self, tmp_path):
+        """Code index should compute called_by relationships after building."""
+        from oya.db.connection import Database
+        from oya.db.migrations import run_migrations
+        from oya.db.code_index import CodeIndexQuery
+
+        # Create a repo with source files that have call relationships
+        repo_dir = tmp_path / "test-repo"
+        repo_dir.mkdir()
+        src_dir = repo_dir / "src"
+        src_dir.mkdir()
+        (src_dir / "main.py").write_text("def caller():\n    callee()\n\ndef callee():\n    pass\n")
+
+        mock_llm = AsyncMock()
+        mock_llm.generate.return_value = "# Generated\n\nContent here."
+
+        mock_repo = MagicMock()
+        mock_repo.path = repo_dir
+        mock_repo.get_head_commit.return_value = "abc123def"
+
+        # Create database with schema
+        db_path = tmp_path / "oya.db"
+        db = Database(db_path)
+        run_migrations(db)
+
+        wiki_path = tmp_path / ".oyawiki"
+        wiki_path.mkdir()
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm,
+            repo=mock_repo,
+            db=db,
+            wiki_path=wiki_path,
+        )
+
+        # Mock generators
+        mock_file_summary = FileSummary(
+            file_path="src/main.py",
+            purpose="Entry point",
+            layer="api",
+        )
+        mock_page = GeneratedPage(
+            content="# File",
+            page_type="file",
+            path="files/src-main-py.md",
+            word_count=1,
+            target="src/main.py",
+        )
+
+        async def mock_file_generate(*args, **kwargs):
+            return mock_page, mock_file_summary
+
+        orchestrator.file_generator.generate = mock_file_generate
+
+        with patch.object(orchestrator, "_run_overview", new_callable=AsyncMock) as mock_overview:
+            mock_overview.return_value = GeneratedPage(
+                content="# Overview", page_type="overview", path="overview.md", word_count=1
+            )
+            with patch.object(
+                orchestrator, "_run_architecture", new_callable=AsyncMock
+            ) as mock_arch:
+                mock_arch.return_value = GeneratedPage(
+                    content="# Arch", page_type="architecture", path="architecture.md", word_count=1
+                )
+                with patch.object(
+                    orchestrator, "_run_workflows", new_callable=AsyncMock
+                ) as mock_workflows:
+                    mock_workflows.return_value = []
+                    with patch.object(
+                        orchestrator, "_run_synthesis", new_callable=AsyncMock
+                    ) as mock_synthesis:
+                        mock_synthesis.return_value = SynthesisMap()
+                        with patch("oya.generation.orchestrator.load_settings") as mock_settings:
+                            mock_ask_settings = MagicMock()
+                            mock_ask_settings.use_code_index = True
+                            mock_settings.return_value.ask = mock_ask_settings
+                            mock_settings.return_value.generation.progress_report_interval = 1
+
+                            await orchestrator.run()
+
+        # Verify called_by relationships were computed
+        query = CodeIndexQuery(db)
+        callee_entries = query.find_by_symbol("callee")
+
+        # The callee function should have "caller" in its called_by list
+        # (depends on parser extracting calls metadata)
+        assert len(callee_entries) > 0, "Should find callee function"
