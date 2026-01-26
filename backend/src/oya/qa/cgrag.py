@@ -207,6 +207,50 @@ class CGRAGResult:
     context_from_cache: bool = False
 
 
+@dataclass
+class GapReferences:
+    """Extracted references from a gap description."""
+
+    file_path: str | None = None
+    function_name: str | None = None
+
+
+def extract_references_from_gap(gap: str) -> GapReferences:
+    """Extract file and function references from a gap description."""
+    refs = GapReferences()
+
+    # Pattern: "func_name() in path/to/file.py" - function with parens before "in"
+    func_in_file = re.search(r"(\w+)\(\)\s+in\s+([\w/.-]+\.(?:py|ts|js|java))", gap)
+    if func_in_file:
+        refs.function_name = func_in_file.group(1)
+        refs.file_path = func_in_file.group(2)
+        return refs
+
+    # Pattern: "func_name in path/to/file.py" - simple identifier before "in" + path
+    simple_in_file = re.search(r"\b(\w+)\s+in\s+([\w/.-]+\.(?:py|ts|js|java))", gap)
+    if simple_in_file:
+        refs.function_name = simple_in_file.group(1)
+        refs.file_path = simple_in_file.group(2)
+        return refs
+
+    # Pattern: explicit file path
+    file_match = re.search(r"([\w/.-]+\.(?:py|ts|js|java))", gap)
+    if file_match:
+        refs.file_path = file_match.group(1)
+
+    # Pattern: function_name() or function_name
+    func_match = re.search(r"\b(\w+)\(\)", gap)
+    if func_match:
+        refs.function_name = func_match.group(1)
+    elif not refs.function_name:
+        # Try to find a function-like name
+        func_match = re.search(r"(?:function|method|implementation of)\s+(\w+)", gap, re.IGNORECASE)
+        if func_match:
+            refs.function_name = func_match.group(1)
+
+    return refs
+
+
 async def run_cgrag_loop(
     question: str,
     initial_context: str,
