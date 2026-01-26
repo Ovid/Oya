@@ -100,16 +100,19 @@ class QueryClassifier:
     async def classify(self, query: str) -> ClassificationResult:
         """Classify a query into a retrieval mode."""
         try:
-            response = await self.llm.complete(
+            response = await self.llm.generate(
+                prompt=f"Classify this question: {query}",
                 system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
-                user_prompt=f"Classify this question: {query}",
                 temperature=0.0,
                 max_tokens=200,
             )
 
             # Parse JSON response
-            result = json.loads(response.content)
-            mode = QueryMode(result["mode"].lower())
+            result = json.loads(response)
+            mode_str = result.get("mode", "").lower()
+            if not mode_str:
+                raise KeyError("mode")
+            mode = QueryMode(mode_str)
 
             return ClassificationResult(
                 mode=mode,
