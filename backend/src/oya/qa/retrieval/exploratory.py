@@ -58,7 +58,7 @@ class ExploratoryRetriever:
 
         # 2. Walk call graph forward from entry points
         flow_entries: list[tuple[CodeIndexEntry, int]] = []
-        visited = set()
+        visited: set[tuple[str, str]] = set()
 
         for entry in entry_points[:2]:
             self._walk_forward(entry, 0, 3, flow_entries, visited)
