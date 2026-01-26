@@ -129,6 +129,25 @@ def _reset_db_instance() -> None:
     _db_instances.clear()
 
 
+def invalidate_db_cache_for_repo(repo_id: int) -> None:
+    """Invalidate the cached database connection for a specific repo.
+
+    This MUST be called after operations that replace the database file,
+    such as promote_staging_to_production(), to ensure subsequent requests
+    get a fresh connection to the new database file.
+
+    Without this, cached connections will hold stale file descriptors
+    pointing to the deleted database, causing "attempt to write a readonly
+    database" errors.
+
+    Args:
+        repo_id: The ID of the repo whose DB cache should be invalidated.
+    """
+    if repo_id in _db_instances:
+        _db_instances[repo_id].close()
+        del _db_instances[repo_id]
+
+
 def get_repo() -> GitRepo:
     """Get repository wrapper for the active repo's source directory.
 

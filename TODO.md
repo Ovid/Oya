@@ -1,5 +1,11 @@
 # TODO
 
+* When restarting, if we hit a 404 page, it goes to the "Add your first repo"
+  page.
+* No need for .dotfiles and .dotdirs inside of the ~/.oya directory.
+    ./wikis/github.com/Ovid/Oya/meta/.oyaignore
+    ./wikis/github.com/Ovid/Oya/meta/.oyawiki
+    ./wikis/github.com/Ovid/Oya/meta/.oya-logs
 * Need to be able to delete a repo from Oya
 * Need to add windows support (paths)
 * Fix this issue which slows us down and eats tokens when we start a worktree:

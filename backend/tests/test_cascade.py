@@ -162,7 +162,7 @@ class TestFileChangeCascade:
 
         # Check if file should be regenerated with modified content
         file_hashes = {}
-        should_regen, content_hash = orchestrator._should_regenerate_file(
+        should_regen, content_hash, _ = orchestrator._should_regenerate_file(
             file_path, modified_content, file_hashes
         )
 
@@ -203,7 +203,7 @@ class TestFileChangeCascade:
 
         # Check if file should be regenerated with same content
         file_hashes = {}
-        should_regen, returned_hash = orchestrator._should_regenerate_file(
+        should_regen, returned_hash, _ = orchestrator._should_regenerate_file(
             file_path, content, file_hashes
         )
 
@@ -237,7 +237,7 @@ class TestFileChangeCascade:
 
         # Check if file should be regenerated
         file_hashes = {}
-        should_regen, content_hash = orchestrator._should_regenerate_file(
+        should_regen, content_hash, _ = orchestrator._should_regenerate_file(
             file_path, content, file_hashes
         )
 
@@ -404,7 +404,7 @@ class TestFileChangeCascadeEndToEnd:
             "file_contents": {"src/main.py": new_content},
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # File should have been regenerated
         assert len(pages) == 1, "Changed file should be regenerated"
@@ -467,12 +467,14 @@ class TestFileChangeCascadeEndToEnd:
             "file_contents": {"src/main.py": content},
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # File should NOT have been regenerated
         assert len(pages) == 0, "Unchanged file should be skipped"
         assert len(generate_called) == 0, "Generator should not be called for unchanged file"
-        assert len(file_summaries) == 0
+        # Skipped files should still have placeholder summaries for directory generation
+        assert len(file_summaries) == 1, "Skipped files should have placeholder summaries"
+        assert file_summaries[0].file_path == "src/main.py"
 
     @pytest.mark.asyncio
     async def test_mixed_changed_and_unchanged_files(
@@ -544,7 +546,7 @@ class TestFileChangeCascadeEndToEnd:
             },
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # Only file2 (changed) and file3 (new) should be regenerated
         assert len(pages) == 2, f"Expected 2 regenerated files, got {len(pages)}"
@@ -644,7 +646,7 @@ class TestSynthesisCascade:
 
         # Check if file should be regenerated with modified content
         file_hashes = {}
-        should_regen, content_hash = orchestrator._should_regenerate_file(
+        should_regen, content_hash, _ = orchestrator._should_regenerate_file(
             file_path, modified_content, file_hashes
         )
 
@@ -683,7 +685,7 @@ class TestSynthesisCascade:
 
         # Check if file should be regenerated with same content
         file_hashes = {}
-        should_regen, returned_hash = orchestrator._should_regenerate_file(
+        should_regen, returned_hash, _ = orchestrator._should_regenerate_file(
             file_path, content, file_hashes
         )
 
@@ -747,7 +749,7 @@ class TestSynthesisCascade:
             "file_contents": {file_path: modified_content},
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # Property: regenerated files produce summaries
         assert len(pages) == 1, "New file should be regenerated"
@@ -847,7 +849,7 @@ class TestHighLevelDocsCascade:
 
         # Check if file should be regenerated with modified content
         file_hashes = {}
-        should_regen_file, _ = orchestrator._should_regenerate_file(
+        should_regen_file, _, _ = orchestrator._should_regenerate_file(
             file_path, modified_content, file_hashes
         )
 
@@ -901,7 +903,9 @@ class TestHighLevelDocsCascade:
 
         # Check if file should be regenerated with same content
         file_hashes = {}
-        should_regen_file, _ = orchestrator._should_regenerate_file(file_path, content, file_hashes)
+        should_regen_file, _, _ = orchestrator._should_regenerate_file(
+            file_path, content, file_hashes
+        )
 
         # Property: unchanged content does NOT trigger file regeneration
         assert should_regen_file is False, "Unchanged file should NOT trigger regeneration"
@@ -1254,7 +1258,9 @@ class TestNoChangeSkip:
         files_needing_regen = []
 
         for file_path, content in zip(file_paths, file_contents):
-            should_regen, _ = orchestrator._should_regenerate_file(file_path, content, file_hashes)
+            should_regen, _, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
             if should_regen:
                 files_needing_regen.append(file_path)
 
@@ -1327,7 +1333,9 @@ class TestNoChangeSkip:
         files_regenerated = False
 
         for file_path, content in zip(file_paths, file_contents):
-            should_regen, _ = orchestrator._should_regenerate_file(file_path, content, file_hashes)
+            should_regen, _, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
             if should_regen:
                 files_regenerated = True
                 break
@@ -1406,7 +1414,9 @@ class TestNoChangeSkip:
         files_regenerated = False
 
         for file_path, content in zip(file_paths, file_contents):
-            should_regen, _ = orchestrator._should_regenerate_file(file_path, content, file_hashes)
+            should_regen, _, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
             if should_regen:
                 files_regenerated = True
                 break
@@ -1499,7 +1509,9 @@ class TestNoChangeSkip:
         files_needing_regen = []
 
         for file_path, content in zip(file_paths, file_contents):
-            should_regen, _ = orchestrator._should_regenerate_file(file_path, content, file_hashes)
+            should_regen, _, _ = orchestrator._should_regenerate_file(
+                file_path, content, file_hashes
+            )
             if should_regen:
                 files_needing_regen.append(file_path)
 
