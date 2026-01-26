@@ -23,6 +23,8 @@ class GeneratedPage:
         word_count: Number of words in content.
         target: Optional target (file/directory path).
         source_hash: Hash of source content (for incremental regeneration).
+        purpose: Purpose of directory/file (used in incremental regen).
+        layer: Architectural layer for file pages (used in incremental regen).
     """
 
     content: str
@@ -31,6 +33,8 @@ class GeneratedPage:
     word_count: int
     target: str | None = None
     source_hash: str | None = None
+    purpose: str | None = None
+    layer: str | None = None
 
 
 class OverviewGenerator:

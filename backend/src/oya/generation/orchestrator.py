@@ -20,13 +20,14 @@ import tomllib
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 
 from oya.generation.architecture import ArchitectureGenerator
+from oya.generation.frontmatter import build_frontmatter
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
 from oya.generation.prompts import get_notes_for_target
@@ -251,6 +252,7 @@ class GenerationOrchestrator:
         parser_registry: ParserRegistry | None = None,
         parallel_limit: int = 10,
         issues_store: "IssuesStore | None" = None,
+        ignore_path: Path | None = None,
     ):
         """Initialize the orchestrator.
 
@@ -262,6 +264,7 @@ class GenerationOrchestrator:
             parser_registry: Optional parser registry for code analysis.
             parallel_limit: Max concurrent LLM calls for file/directory generation.
             issues_store: Optional IssuesStore for indexing detected code issues.
+            ignore_path: Path to .oyaignore file. If None, defaults to repo_path/.oyaignore.
         """
         self.llm_client = llm_client
         self.repo = repo
@@ -271,6 +274,7 @@ class GenerationOrchestrator:
         self._fallback_parser = FallbackParser()
         self.parallel_limit = parallel_limit
         self._issues_store = issues_store
+        self.ignore_path = ignore_path
 
         # Initialize generators
         self.overview_generator = OverviewGenerator(llm_client, repo)
@@ -317,6 +321,8 @@ class GenerationOrchestrator:
                 return {
                     "source_hash": metadata.get("source_hash"),
                     "generated_at": row[1],
+                    "purpose": metadata.get("purpose"),
+                    "layer": metadata.get("layer"),
                 }
         except Exception:
             pass
@@ -376,7 +382,7 @@ class GenerationOrchestrator:
 
     def _should_regenerate_file(
         self, file_path: str, content: str, file_hashes: dict[str, str]
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, dict | None]:
         """Check if a file page needs regeneration.
 
         Args:
@@ -385,24 +391,25 @@ class GenerationOrchestrator:
             file_hashes: Dict to store computed hashes (modified in place).
 
         Returns:
-            Tuple of (should_regenerate, content_hash).
+            Tuple of (should_regenerate, content_hash, existing_info).
+            existing_info is the stored page info if not regenerating, None otherwise.
         """
         content_hash = compute_content_hash(content)
         file_hashes[file_path] = content_hash
 
         existing = self._get_existing_page_info(file_path, "file")
         if not existing:
-            return True, content_hash
+            return True, content_hash, None
 
         # Check if content changed
         if existing.get("source_hash") != content_hash:
-            return True, content_hash
+            return True, content_hash, None
 
         # Check if there are new notes
         if self._has_new_notes(file_path, existing.get("generated_at")):
-            return True, content_hash
+            return True, content_hash, None
 
-        return False, content_hash
+        return False, content_hash, existing
 
     def _should_regenerate_directory(
         self, dir_path: str, dir_files: list[str], file_hashes: dict[str, str]
@@ -502,9 +509,11 @@ class GenerationOrchestrator:
         analysis = await self._run_analysis(progress_callback)
 
         # Phase 2: Files (run before directories to compute content hashes and collect summaries)
-        file_pages, file_hashes, file_summaries = await self._run_files(analysis, progress_callback)
+        file_pages, file_hashes, file_summaries, file_layers = await self._run_files(
+            analysis, progress_callback
+        )
         for page in file_pages:
-            await self._save_page(page)
+            await self._save_page_with_frontmatter(page, layer=file_layers.get(page.path))
 
         # Track if any files were regenerated (for cascade)
         files_regenerated = len(file_pages) > 0
@@ -515,7 +524,7 @@ class GenerationOrchestrator:
             analysis, file_hashes, progress_callback, file_summaries=file_summaries
         )
         for page in directory_pages:
-            await self._save_page(page)
+            await self._save_page_with_frontmatter(page)
 
         # Track if any directories were regenerated (for cascade)
         directories_regenerated = len(directory_pages) > 0
@@ -587,7 +596,7 @@ class GenerationOrchestrator:
                 ),
             )
             architecture_page = await self._run_architecture(analysis, synthesis_map=synthesis_map)
-            await self._save_page(architecture_page)
+            await self._save_page_with_frontmatter(architecture_page)
             await self._emit_progress(
                 progress_callback,
                 GenerationProgress(
@@ -611,7 +620,7 @@ class GenerationOrchestrator:
                 ),
             )
             overview_page = await self._run_overview(analysis, synthesis_map=synthesis_map)
-            await self._save_page(overview_page)
+            await self._save_page_with_frontmatter(overview_page)
             await self._emit_progress(
                 progress_callback,
                 GenerationProgress(
@@ -629,7 +638,7 @@ class GenerationOrchestrator:
                 analysis, progress_callback, synthesis_map=synthesis_map
             )
             for page in workflow_pages:
-                await self._save_page(page)
+                await self._save_page_with_frontmatter(page)
 
         # Convert ParsedSymbol objects to dicts for indexing
         analysis_symbols = [
@@ -680,7 +689,7 @@ class GenerationOrchestrator:
             file_imports, and parse_errors.
         """
         # Use FileFilter to respect .oyaignore and default exclusions
-        file_filter = FileFilter(self.repo.path)
+        file_filter = FileFilter(self.repo.path, ignore_path=self.ignore_path)
         files = file_filter.get_files()
         file_contents: dict[str, str] = {}
 
@@ -1157,10 +1166,11 @@ class GenerationOrchestrator:
                 skipped_count += 1
                 completed += 1
                 # For skipped directories, we need a placeholder summary for parent access
-                # Create a minimal summary based on what we know
+                # Use the stored purpose from the database to maintain signature consistency
+                stored_purpose = existing.get("purpose", "") if existing else ""
                 placeholder_summary = DirectorySummary(
                     directory_path=dir_path,
-                    purpose="",  # Unknown for skipped directories
+                    purpose=stored_purpose,
                     contains=[f.split("/")[-1] for f in dir_files],
                     role_in_system="",
                 )
@@ -1213,8 +1223,9 @@ class GenerationOrchestrator:
                 notes=notes,
             )
 
-            # Add signature hash to the page for storage
+            # Add signature hash and purpose to the page for storage
             page.source_hash = signature_hash
+            page.purpose = directory_summary.purpose
 
             pages.append(page)
             directory_summaries.append(directory_summary)
@@ -1241,7 +1252,7 @@ class GenerationOrchestrator:
         self,
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
-    ) -> tuple[list[GeneratedPage], dict[str, str], list[FileSummary]]:
+    ) -> tuple[list[GeneratedPage], dict[str, str], list[FileSummary], dict[str, str | None]]:
         """Run file generation phase with parallel processing and incremental support.
 
         Args:
@@ -1250,11 +1261,12 @@ class GenerationOrchestrator:
 
         Returns:
             Tuple of (list of generated file pages, dict of file_path to content_hash,
-            list of FileSummaries).
+            list of FileSummaries, dict mapping page path to layer).
         """
         pages: list[GeneratedPage] = []
         file_hashes: dict[str, str] = {}
         file_summaries: list[FileSummary] = []
+        file_layers: dict[str, str | None] = {}
 
         # Generate page for each source file
         # Use denylist approach: document everything EXCEPT known non-code files
@@ -1341,7 +1353,7 @@ class GenerationOrchestrator:
 
         # Filter to source files and check which need regeneration
         files_to_generate: list[tuple[str, str]] = []  # (file_path, content_hash)
-        skipped_count = 0
+        skipped_files: list[tuple[str, dict]] = []  # (file_path, existing_info)
 
         for file_path in analysis["files"]:
             ext = Path(file_path).suffix.lower()
@@ -1354,13 +1366,30 @@ class GenerationOrchestrator:
             # Process all other text files as source code
             content = analysis["file_contents"].get(file_path, "")
             if content:
-                should_regen, content_hash = self._should_regenerate_file(
+                should_regen, content_hash, existing_info = self._should_regenerate_file(
                     file_path, content, file_hashes
                 )
                 if should_regen:
                     files_to_generate.append((file_path, content_hash))
                 else:
-                    skipped_count += 1
+                    skipped_files.append((file_path, existing_info or {}))
+
+        # Create placeholder FileSummaries for skipped files
+        for file_path, existing_info in skipped_files:
+            stored_purpose = existing_info.get("purpose") or ""
+            stored_layer = existing_info.get("layer") or "utility"  # Default to utility
+            placeholder_summary = FileSummary(
+                file_path=file_path,
+                purpose=stored_purpose,
+                layer=stored_layer,
+                key_abstractions=[],
+                internal_deps=[],
+                external_deps=[],
+                issues=[],
+            )
+            file_summaries.append(placeholder_summary)
+
+        skipped_count = len(skipped_files)
 
         # Total includes both generated and skipped for accurate progress display
         total_files = len(files_to_generate) + skipped_count
@@ -1432,8 +1461,12 @@ class GenerationOrchestrator:
 
             for coro in asyncio.as_completed(tasks):
                 page, summary = await coro
+                # Store summary data on page for incremental regeneration
+                page.purpose = summary.purpose
+                page.layer = summary.layer
                 pages.append(page)
                 file_summaries.append(summary)
+                file_layers[page.path] = summary.layer
 
                 # Index issues to IssuesStore
                 if summary.issues and self._issues_store:
@@ -1454,7 +1487,7 @@ class GenerationOrchestrator:
                     ),
                 )
 
-        return pages, file_hashes, file_summaries
+        return pages, file_hashes, file_summaries, file_layers
 
     def _symbol_to_dict(self, symbol: ParsedSymbol) -> dict:
         """Convert a ParsedSymbol to a dictionary for legacy consumers.
@@ -1492,6 +1525,69 @@ class GenerationOrchestrator:
         metadata = {}
         if page.source_hash:
             metadata["source_hash"] = page.source_hash
+
+        # Record in database (if method exists)
+        if hasattr(self.db, "execute"):
+            try:
+                self.db.execute(
+                    """
+                    INSERT OR REPLACE INTO wiki_pages
+                    (path, type, word_count, target, metadata, generated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    (
+                        page.path,
+                        page.page_type,
+                        page.word_count,
+                        page.target,
+                        json.dumps(metadata) if metadata else None,
+                    ),
+                )
+                self.db.commit()
+            except Exception:
+                # Table might not exist yet, skip recording
+                pass
+
+    async def _save_page_with_frontmatter(
+        self,
+        page: GeneratedPage,
+        layer: str | None = None,
+    ) -> None:
+        """Save a generated page with frontmatter metadata.
+
+        Args:
+            page: Generated page to save.
+            layer: Architectural layer (for file pages).
+        """
+        # Determine full path
+        page_path = self.wiki_path / page.path
+
+        # Ensure parent directory exists
+        page_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Get current commit hash (short form for readability)
+        commit = self.repo.get_head_commit()[:12]
+
+        # Build frontmatter
+        frontmatter = build_frontmatter(
+            source=page.target,
+            page_type=page.page_type,
+            commit=commit,
+            generated=datetime.now(timezone.utc),
+            layer=layer,
+        )
+
+        # Write content with frontmatter
+        page_path.write_text(frontmatter + page.content, encoding="utf-8")
+
+        # Build metadata JSON with source hash for incremental regeneration
+        metadata = {}
+        if page.source_hash:
+            metadata["source_hash"] = page.source_hash
+        if page.purpose:
+            metadata["purpose"] = page.purpose
+        if page.layer:
+            metadata["layer"] = page.layer
 
         # Record in database (if method exists)
         if hasattr(self.db, "execute"):

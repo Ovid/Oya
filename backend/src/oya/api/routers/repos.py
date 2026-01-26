@@ -1,5 +1,7 @@
 """Repository management endpoints."""
 
+import logging
+import os
 import uuid
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 
@@ -8,6 +10,8 @@ from oya.api.deps import (
     get_db,
     get_settings,
     get_active_repo_paths,
+    get_active_repo,
+    invalidate_db_cache_for_repo,
 )
 from oya.api.schemas import (
     JobCreated,
@@ -15,6 +19,8 @@ from oya.api.schemas import (
     FileList,
     OyaignoreUpdateRequest,
     OyaignoreUpdateResponse,
+    RepoStatus,
+    EmbeddingMetadata,
 )
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
 from oya.repo.git_operations import GitSyncError, sync_to_default_branch
@@ -23,6 +29,7 @@ from oya.repo.repo_paths import RepoPaths
 from oya.db.connection import Database
 from oya.db.migrations import run_migrations
 from oya.config import Settings
+from oya.generation.cleanup import cleanup_stale_content
 from oya.generation.orchestrator import GenerationOrchestrator, GenerationProgress
 from oya.generation.staging import (
     prepare_staging_directory,
@@ -30,10 +37,82 @@ from oya.generation.staging import (
 )
 from oya.indexing.service import IndexingService
 from oya.llm.client import LLMClient
+from oya.notes.service import NotesService
 from oya.vectorstore.store import VectorStore
 from oya.vectorstore.issues import IssuesStore
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/repos", tags=["repos"])
+
+
+@router.get("/status", response_model=RepoStatus)
+async def get_repo_status(
+    settings: Settings = Depends(get_settings),
+) -> RepoStatus:
+    """Get status of the currently active repository.
+
+    Returns repository metadata including git info, generation status,
+    and embedding configuration.
+    """
+    repo_record = get_active_repo()
+
+    if repo_record is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No repository is active. Please select a repository first.",
+        )
+
+    paths = RepoPaths(settings.data_dir, repo_record.local_path)
+
+    # Note: head_message is not currently supported, would require git log parsing
+    head_message = None
+
+    # Check if wiki has been generated (overview.md exists)
+    initialized = (paths.wiki_dir / "overview.md").exists()
+
+    # Get embedding metadata if available
+    embedding_metadata = None
+    has_embedding_info = (
+        repo_record.embedding_provider
+        and repo_record.embedding_model
+        and repo_record.last_generated
+    )
+    if has_embedding_info:
+        # Type narrowing: has_embedding_info ensures these are not None
+        assert repo_record.embedding_provider is not None
+        assert repo_record.embedding_model is not None
+        assert repo_record.last_generated is not None
+        embedding_metadata = EmbeddingMetadata(
+            provider=repo_record.embedding_provider,
+            model=repo_record.embedding_model,
+            indexed_at=repo_record.last_generated.isoformat(),
+        )
+
+    # Check for embedding mismatch
+    embedding_mismatch = False
+    if embedding_metadata:
+        embedding_mismatch = (
+            repo_record.embedding_provider != settings.active_provider
+            or repo_record.embedding_model != settings.active_model
+        )
+
+    return RepoStatus(
+        path=repo_record.local_path,
+        head_commit=repo_record.head_commit,
+        head_message=head_message,
+        branch=repo_record.branch,
+        initialized=initialized,
+        is_docker=os.environ.get("DOCKER_ENV", "").lower() == "true",
+        last_generation=(
+            repo_record.last_generated.isoformat() if repo_record.last_generated else None
+        ),
+        generation_status=repo_record.status,
+        embedding_metadata=embedding_metadata,
+        current_provider=settings.active_provider,
+        current_model=settings.active_model,
+        embedding_mismatch=embedding_mismatch,
+    )
 
 
 @router.get("/indexable", response_model=IndexableItems)
@@ -268,6 +347,15 @@ async def init_repo(
     settings: Settings = Depends(get_settings),
 ) -> JobCreated:
     """Initialize repository and start wiki generation."""
+    # Get active repo ID for cache invalidation after promotion
+    active_repo = get_active_repo()
+    if active_repo is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No repository is active. Please select a repository first.",
+        )
+    repo_id = active_repo.id
+
     job_id = str(uuid.uuid4())
 
     # Record job in database
@@ -283,7 +371,7 @@ async def init_repo(
     db.commit()
 
     # Start generation in background
-    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings)
+    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings, repo_id)
 
     return JobCreated(job_id=job_id, message="Wiki generation started")
 
@@ -294,11 +382,20 @@ async def _run_generation(
     db: Database,
     paths: RepoPaths,
     settings: Settings,
+    repo_id: int,
 ) -> None:
     """Run wiki generation in background using staging directory.
 
     Builds wiki in .oyawiki-building, then promotes to .oyawiki on success.
     If generation fails, staging directory is left for debugging.
+
+    Args:
+        job_id: Unique job identifier.
+        repo: GitRepo instance for the source repository.
+        db: Database connection for job tracking.
+        paths: RepoPaths for the active repo.
+        settings: Application settings.
+        repo_id: The ID of the active repo (for cache invalidation after promotion).
     """
     # Staging paths - build in .oyawiki-building (in meta directory)
     staging_path = paths.meta / ".oyawiki-building"
@@ -375,6 +472,29 @@ async def _run_generation(
         # Run migrations on staging db to ensure schema is up to date
         run_migrations(staging_db)
 
+        # Cleanup stale content before generation
+        try:
+            # Create notes service for cleanup
+            notes_service = NotesService(
+                notes_path=staging_path / "notes",
+                db=staging_db,
+            )
+
+            cleanup_result = cleanup_stale_content(
+                wiki_path=staging_wiki_path,
+                source_path=paths.source,
+                notes_service=notes_service,
+                oyaignore_path=paths.oyaignore,
+            )
+            logger.info(
+                f"Cleanup complete: {cleanup_result.workflows_deleted} workflows, "
+                f"{cleanup_result.files_deleted} files, "
+                f"{cleanup_result.directories_deleted} directories, "
+                f"{cleanup_result.notes_deleted} notes deleted"
+            )
+        except Exception as e:
+            logger.warning(f"Cleanup failed (continuing with generation): {e}")
+
         # Create orchestrator to build in staging directory
         log_path = paths.oya_logs / "llm-queries.jsonl"
         llm = LLMClient(
@@ -392,6 +512,7 @@ async def _run_generation(
             wiki_path=staging_wiki_path,
             parallel_limit=settings.parallel_file_limit,
             issues_store=issues_store,
+            ignore_path=paths.oyaignore,
         )
 
         generation_result = await orchestrator.run(progress_callback=progress_callback)
@@ -461,6 +582,12 @@ async def _run_generation(
 
         # SUCCESS: Promote staging to production
         promote_staging_to_production(staging_path, production_path)
+
+        # CRITICAL: Invalidate cached database connection for this repo.
+        # The promotion replaced the .oyawiki directory (including the DB file),
+        # so any cached connection is now stale and will cause "readonly database"
+        # errors on subsequent writes.
+        invalidate_db_cache_for_repo(repo_id)
 
     except Exception as e:
         # FAILURE: Leave staging directory for debugging

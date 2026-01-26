@@ -66,3 +66,28 @@ class OyaignoreUpdateResponse(BaseModel):
     removed: list[str]
     total_added: int
     total_removed: int
+
+
+class EmbeddingMetadata(BaseModel):
+    """Embedding metadata for a repository."""
+
+    provider: str
+    model: str
+    indexed_at: str
+
+
+class RepoStatus(BaseModel):
+    """Repository status response."""
+
+    path: str
+    head_commit: str | None
+    head_message: str | None
+    branch: str | None
+    initialized: bool
+    is_docker: bool
+    last_generation: str | None
+    generation_status: str | None
+    embedding_metadata: EmbeddingMetadata | None
+    current_provider: str | None
+    current_model: str | None
+    embedding_mismatch: bool
