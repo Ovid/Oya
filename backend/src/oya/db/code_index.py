@@ -145,3 +145,117 @@ class CodeIndexBuilder:
         """Remove all entries for a file."""
         self.db.execute("DELETE FROM code_index WHERE file_path = ?", (file_path,))
         self.db.commit()
+
+
+class CodeIndexQuery:
+    """Query interface for the code index."""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def find_by_raises(self, exception_type: str) -> list[CodeIndexEntry]:
+        """Find functions that raise a specific exception type."""
+        cursor = self.db.execute(
+            """
+            SELECT * FROM code_index
+            WHERE EXISTS (
+                SELECT 1 FROM json_each(raises) WHERE value = ?
+            )
+        """,
+            (exception_type,),
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]
+
+    def find_by_error_string(self, pattern: str) -> list[CodeIndexEntry]:
+        """Find functions with error strings matching pattern."""
+        cursor = self.db.execute(
+            """
+            SELECT * FROM code_index
+            WHERE EXISTS (
+                SELECT 1 FROM json_each(error_strings) WHERE value LIKE ?
+            )
+        """,
+            (f"%{pattern}%",),
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]
+
+    def find_by_mutates(self, variable: str) -> list[CodeIndexEntry]:
+        """Find functions that mutate a specific variable."""
+        cursor = self.db.execute(
+            """
+            SELECT * FROM code_index
+            WHERE EXISTS (
+                SELECT 1 FROM json_each(mutates) WHERE value = ?
+            )
+        """,
+            (variable,),
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]
+
+    def find_by_file_and_symbol(self, file_pattern: str, symbol_name: str) -> list[CodeIndexEntry]:
+        """Find symbol by file path pattern and name."""
+        cursor = self.db.execute(
+            """
+            SELECT * FROM code_index
+            WHERE file_path LIKE ? AND symbol_name = ?
+        """,
+            (f"%{file_pattern}%", symbol_name),
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]
+
+    def find_by_file(self, file_pattern: str) -> list[CodeIndexEntry]:
+        """Find all symbols in files matching pattern."""
+        cursor = self.db.execute(
+            """
+            SELECT * FROM code_index WHERE file_path LIKE ?
+        """,
+            (f"%{file_pattern}%",),
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]
+
+    def find_by_symbol(self, symbol_name: str) -> list[CodeIndexEntry]:
+        """Find all symbols with given name."""
+        cursor = self.db.execute(
+            """
+            SELECT * FROM code_index WHERE symbol_name = ?
+        """,
+            (symbol_name,),
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]
+
+    def get_callers(self, symbol_name: str) -> list[CodeIndexEntry]:
+        """Get functions that call the given symbol (walk backward)."""
+        cursor = self.db.execute(
+            """
+            SELECT * FROM code_index
+            WHERE EXISTS (
+                SELECT 1 FROM json_each(calls) WHERE value = ?
+            )
+        """,
+            (symbol_name,),
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]
+
+    def get_callees(self, symbol_name: str) -> list[CodeIndexEntry]:
+        """Get functions called by the given symbol (walk forward)."""
+        # First get the calls list for this symbol
+        cursor = self.db.execute(
+            "SELECT calls FROM code_index WHERE symbol_name = ?", (symbol_name,)
+        )
+        row = cursor.fetchone()
+        if not row or not row[0]:
+            return []
+
+        calls = json.loads(row[0])
+        if not calls:
+            return []
+
+        # Find entries for each callee
+        placeholders = ",".join("?" * len(calls))
+        cursor = self.db.execute(
+            f"""
+            SELECT * FROM code_index WHERE symbol_name IN ({placeholders})
+        """,
+            calls,
+        )
+        return [CodeIndexEntry.from_row(row) for row in cursor.fetchall()]

@@ -323,3 +323,78 @@ def test_duplicate_symbol_names_in_same_file(temp_db_with_code_index):
     row = cursor.fetchone()
     assert row[0] == 10  # line_start of second symbol
     assert row[1] == "def process(x: str)"
+
+
+def test_query_by_raises(temp_db_with_code_index):
+    """Should find functions by exception type."""
+    db = temp_db_with_code_index
+
+    # Insert test data
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, raises, source_hash)
+        VALUES
+        ('a.py', 'func1', 'function', 1, 10, '["ValueError", "TypeError"]', 'h1'),
+        ('b.py', 'func2', 'function', 1, 10, '["IOError"]', 'h2'),
+        ('c.py', 'func3', 'function', 1, 10, '["ValueError"]', 'h3')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.find_by_raises("ValueError")
+    names = [r.symbol_name for r in results]
+
+    assert "func1" in names
+    assert "func3" in names
+    assert "func2" not in names
+
+
+def test_query_by_error_string(temp_db_with_code_index):
+    """Should find functions by error string pattern."""
+    db = temp_db_with_code_index
+
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, error_strings, source_hash)
+        VALUES
+        ('a.py', 'func1', 'function', 1, 10, '["database is locked", "connection failed"]', 'h1'),
+        ('b.py', 'func2', 'function', 1, 10, '["invalid input"]', 'h2')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.find_by_error_string("database")
+    assert len(results) == 1
+    assert results[0].symbol_name == "func1"
+
+
+def test_query_by_file_and_symbol(temp_db_with_code_index):
+    """Should find specific symbol by file pattern and name."""
+    db = temp_db_with_code_index
+
+    db.execute("""
+        INSERT INTO code_index
+        (file_path, symbol_name, symbol_type, line_start, line_end, source_hash)
+        VALUES
+        ('backend/src/oya/api/deps.py', 'get_db', 'function', 1, 10, 'h1'),
+        ('backend/src/oya/api/deps.py', 'get_store', 'function', 11, 20, 'h2'),
+        ('other/deps.py', 'get_db', 'function', 1, 10, 'h3')
+    """)
+    db.commit()
+
+    from oya.db.code_index import CodeIndexQuery
+
+    query = CodeIndexQuery(db)
+
+    results = query.find_by_file_and_symbol("deps.py", "get_db")
+    assert len(results) == 2  # Both files match
+
+    results = query.find_by_file_and_symbol("oya/api/deps.py", "get_db")
+    assert len(results) == 1
+    assert results[0].file_path == "backend/src/oya/api/deps.py"
