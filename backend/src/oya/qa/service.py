@@ -34,7 +34,7 @@ from oya.qa.schemas import (
 )
 from oya.qa.classifier import QueryMode
 from oya.qa.retrieval.analytical import AnalyticalRetriever
-from oya.qa.retrieval.diagnostic import DiagnosticRetriever
+from oya.qa.retrieval.diagnostic import DiagnosticRetriever, RetrievalResult
 from oya.qa.retrieval.exploratory import ExploratoryRetriever
 from oya.qa.session import SessionStore
 from oya.vectorstore.store import VectorStore
@@ -838,16 +838,15 @@ Format your response with:
         if self._code_index is None:
             return ""
 
-        results = []
+        results: list[RetrievalResult] = []
         if mode == QueryMode.DIAGNOSTIC:
-            retriever = DiagnosticRetriever(self._code_index)
-            results = await retriever.retrieve(query)
+            results = await DiagnosticRetriever(self._code_index).retrieve(query)
         elif mode == QueryMode.EXPLORATORY:
-            retriever = ExploratoryRetriever(self._code_index)
-            results = await retriever.retrieve(query)
+            results = await ExploratoryRetriever(self._code_index).retrieve(query)
         elif mode == QueryMode.ANALYTICAL:
-            retriever = AnalyticalRetriever(self._code_index, self._issues_store)
-            results = await retriever.retrieve(query)
+            results = await AnalyticalRetriever(self._code_index, self._issues_store).retrieve(
+                query
+            )
 
         if not results:
             return ""
