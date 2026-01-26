@@ -15,9 +15,9 @@ from oya.qa.retrieval.diagnostic import RetrievalResult
 def extract_scope(query: str) -> str | None:
     """Extract the scope being analyzed from a query."""
     patterns = [
-        r"(?:flaws?|problems?|issues?)\s+(?:in|with)\s+(?:the\s+)?(\w+)",
-        r"analyze\s+(?:the\s+)?(\w+)",
-        r"what'?s\s+wrong\s+with\s+(?:the\s+)?(\w+)",
+        r"(?:flaws?|problems?|issues?)\s+(?:in|with)\s+(?:(?:the|a|an|this)\s+)?(\w+)",
+        r"analyze\s+(?:(?:the|a|an|this)\s+)?(\w+)",
+        r"what'?s\s+wrong\s+with\s+(?:(?:the|a|an|this)\s+)?(\w+)",
         r"(\w+)\s+(?:structure|architecture|design)",
     ]
 
