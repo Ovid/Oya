@@ -219,22 +219,30 @@ def extract_references_from_gap(gap: str) -> GapReferences:
     """Extract file and function references from a gap description."""
     refs = GapReferences()
 
+    # Strip backticks that LLMs often use for code references
+    gap = gap.replace("`", "")
+
+    # Common file extensions pattern (longer extensions first to avoid partial matches)
+    _EXT_PATTERN = (
+        r"\.(?:pyi|py|tsx|ts|jsx|js|java|go|rs|rb|cpp|hpp|cs|swift|kt|scala|php|vue|svelte|c|h)"
+    )
+
     # Pattern: "func_name() in path/to/file.py" - function with parens before "in"
-    func_in_file = re.search(r"(\w+)\(\)\s+in\s+([\w/.-]+\.(?:py|ts|js|java))", gap)
+    func_in_file = re.search(rf"(\w+)\(\)\s+in\s+([\w/.-]+{_EXT_PATTERN})", gap)
     if func_in_file:
         refs.function_name = func_in_file.group(1)
         refs.file_path = func_in_file.group(2)
         return refs
 
     # Pattern: "func_name in path/to/file.py" - simple identifier before "in" + path
-    simple_in_file = re.search(r"\b(\w+)\s+in\s+([\w/.-]+\.(?:py|ts|js|java))", gap)
+    simple_in_file = re.search(rf"\b(\w+)\s+in\s+([\w/.-]+{_EXT_PATTERN})", gap)
     if simple_in_file:
         refs.function_name = simple_in_file.group(1)
         refs.file_path = simple_in_file.group(2)
         return refs
 
     # Pattern: explicit file path
-    file_match = re.search(r"([\w/.-]+\.(?:py|ts|js|java))", gap)
+    file_match = re.search(rf"([\w/.-]+{_EXT_PATTERN})", gap)
     if file_match:
         refs.file_path = file_match.group(1)
 
