@@ -20,13 +20,14 @@ import tomllib
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 
 from oya.generation.architecture import ArchitectureGenerator
+from oya.generation.frontmatter import build_frontmatter
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
 from oya.generation.prompts import get_notes_for_target
@@ -502,9 +503,11 @@ class GenerationOrchestrator:
         analysis = await self._run_analysis(progress_callback)
 
         # Phase 2: Files (run before directories to compute content hashes and collect summaries)
-        file_pages, file_hashes, file_summaries = await self._run_files(analysis, progress_callback)
+        file_pages, file_hashes, file_summaries, file_layers = await self._run_files(
+            analysis, progress_callback
+        )
         for page in file_pages:
-            await self._save_page(page)
+            await self._save_page_with_frontmatter(page, layer=file_layers.get(page.path))
 
         # Track if any files were regenerated (for cascade)
         files_regenerated = len(file_pages) > 0
@@ -515,7 +518,7 @@ class GenerationOrchestrator:
             analysis, file_hashes, progress_callback, file_summaries=file_summaries
         )
         for page in directory_pages:
-            await self._save_page(page)
+            await self._save_page_with_frontmatter(page)
 
         # Track if any directories were regenerated (for cascade)
         directories_regenerated = len(directory_pages) > 0
@@ -587,7 +590,7 @@ class GenerationOrchestrator:
                 ),
             )
             architecture_page = await self._run_architecture(analysis, synthesis_map=synthesis_map)
-            await self._save_page(architecture_page)
+            await self._save_page_with_frontmatter(architecture_page)
             await self._emit_progress(
                 progress_callback,
                 GenerationProgress(
@@ -611,7 +614,7 @@ class GenerationOrchestrator:
                 ),
             )
             overview_page = await self._run_overview(analysis, synthesis_map=synthesis_map)
-            await self._save_page(overview_page)
+            await self._save_page_with_frontmatter(overview_page)
             await self._emit_progress(
                 progress_callback,
                 GenerationProgress(
@@ -629,7 +632,7 @@ class GenerationOrchestrator:
                 analysis, progress_callback, synthesis_map=synthesis_map
             )
             for page in workflow_pages:
-                await self._save_page(page)
+                await self._save_page_with_frontmatter(page)
 
         # Convert ParsedSymbol objects to dicts for indexing
         analysis_symbols = [
@@ -1241,7 +1244,7 @@ class GenerationOrchestrator:
         self,
         analysis: dict,
         progress_callback: ProgressCallback | None = None,
-    ) -> tuple[list[GeneratedPage], dict[str, str], list[FileSummary]]:
+    ) -> tuple[list[GeneratedPage], dict[str, str], list[FileSummary], dict[str, str | None]]:
         """Run file generation phase with parallel processing and incremental support.
 
         Args:
@@ -1250,11 +1253,12 @@ class GenerationOrchestrator:
 
         Returns:
             Tuple of (list of generated file pages, dict of file_path to content_hash,
-            list of FileSummaries).
+            list of FileSummaries, dict mapping page path to layer).
         """
         pages: list[GeneratedPage] = []
         file_hashes: dict[str, str] = {}
         file_summaries: list[FileSummary] = []
+        file_layers: dict[str, str | None] = {}
 
         # Generate page for each source file
         # Use denylist approach: document everything EXCEPT known non-code files
@@ -1434,6 +1438,7 @@ class GenerationOrchestrator:
                 page, summary = await coro
                 pages.append(page)
                 file_summaries.append(summary)
+                file_layers[page.path] = summary.layer
 
                 # Index issues to IssuesStore
                 if summary.issues and self._issues_store:
@@ -1454,7 +1459,7 @@ class GenerationOrchestrator:
                     ),
                 )
 
-        return pages, file_hashes, file_summaries
+        return pages, file_hashes, file_summaries, file_layers
 
     def _symbol_to_dict(self, symbol: ParsedSymbol) -> dict:
         """Convert a ParsedSymbol to a dictionary for legacy consumers.
@@ -1487,6 +1492,65 @@ class GenerationOrchestrator:
 
         # Write content
         page_path.write_text(page.content, encoding="utf-8")
+
+        # Build metadata JSON with source hash for incremental regeneration
+        metadata = {}
+        if page.source_hash:
+            metadata["source_hash"] = page.source_hash
+
+        # Record in database (if method exists)
+        if hasattr(self.db, "execute"):
+            try:
+                self.db.execute(
+                    """
+                    INSERT OR REPLACE INTO wiki_pages
+                    (path, type, word_count, target, metadata, generated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    (
+                        page.path,
+                        page.page_type,
+                        page.word_count,
+                        page.target,
+                        json.dumps(metadata) if metadata else None,
+                    ),
+                )
+                self.db.commit()
+            except Exception:
+                # Table might not exist yet, skip recording
+                pass
+
+    async def _save_page_with_frontmatter(
+        self,
+        page: GeneratedPage,
+        layer: str | None = None,
+    ) -> None:
+        """Save a generated page with frontmatter metadata.
+
+        Args:
+            page: Generated page to save.
+            layer: Architectural layer (for file pages).
+        """
+        # Determine full path
+        page_path = self.wiki_path / page.path
+
+        # Ensure parent directory exists
+        page_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Get current commit hash (short form for readability)
+        commit = self.repo.get_head_commit()[:12]
+
+        # Build frontmatter
+        frontmatter = build_frontmatter(
+            source=page.target,
+            page_type=page.page_type,
+            commit=commit,
+            generated=datetime.now(timezone.utc),
+            layer=layer,
+        )
+
+        # Write content with frontmatter
+        page_path.write_text(frontmatter + page.content, encoding="utf-8")
 
         # Build metadata JSON with source hash for incremental regeneration
         metadata = {}

@@ -404,7 +404,7 @@ class TestFileChangeCascadeEndToEnd:
             "file_contents": {"src/main.py": new_content},
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # File should have been regenerated
         assert len(pages) == 1, "Changed file should be regenerated"
@@ -467,7 +467,7 @@ class TestFileChangeCascadeEndToEnd:
             "file_contents": {"src/main.py": content},
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # File should NOT have been regenerated
         assert len(pages) == 0, "Unchanged file should be skipped"
@@ -544,7 +544,7 @@ class TestFileChangeCascadeEndToEnd:
             },
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # Only file2 (changed) and file3 (new) should be regenerated
         assert len(pages) == 2, f"Expected 2 regenerated files, got {len(pages)}"
@@ -747,7 +747,7 @@ class TestSynthesisCascade:
             "file_contents": {file_path: modified_content},
         }
 
-        pages, file_hashes, file_summaries = await orchestrator._run_files(analysis)
+        pages, file_hashes, file_summaries, file_layers = await orchestrator._run_files(analysis)
 
         # Property: regenerated files produce summaries
         assert len(pages) == 1, "New file should be regenerated"
