@@ -57,6 +57,7 @@ class CodeIndexBuilder:
     """Builds and maintains the code index."""
 
     INDEXABLE_TYPES = {SymbolType.FUNCTION, SymbolType.METHOD, SymbolType.CLASS}
+    MAX_DOCSTRING_LENGTH = 200
 
     def __init__(self, db: Database):
         self.db = db
@@ -81,7 +82,7 @@ class CodeIndexBuilder:
 
                 self.db.execute(
                     """
-                    INSERT INTO code_index
+                    INSERT OR REPLACE INTO code_index
                     (file_path, symbol_name, symbol_type, line_start, line_end,
                      signature, docstring, calls, called_by, raises, mutates,
                      error_strings, source_hash)
@@ -94,7 +95,7 @@ class CodeIndexBuilder:
                         symbol.start_line,
                         symbol.end_line,
                         symbol.signature,
-                        (symbol.docstring or "")[:200],
+                        (symbol.docstring or "")[: self.MAX_DOCSTRING_LENGTH],
                         json.dumps(calls),
                         json.dumps([]),  # called_by computed later
                         json.dumps(raises),
@@ -109,7 +110,16 @@ class CodeIndexBuilder:
         return count
 
     def compute_called_by(self) -> None:
-        """Compute called_by by inverting calls relationships."""
+        """Compute called_by by inverting calls relationships.
+
+        This method builds a reverse mapping from the `calls` field of each symbol.
+        For each function A that calls function B, B's `called_by` field will include A.
+
+        Limitation: This matches symbols by name only, not by file path. If multiple
+        files define symbols with the same name, all of them will have their called_by
+        field updated. This is a best-effort call graph - accurate for uniquely-named
+        functions, but may include false positives for common names.
+        """
         # Build reverse mapping
         called_by_map: dict[str, list[str]] = {}
 
