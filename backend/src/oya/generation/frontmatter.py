@@ -41,8 +41,8 @@ def build_frontmatter(
         metadata["source"] = source
 
     metadata["type"] = page_type
-    metadata["commit"] = commit
     metadata["generated"] = generated.isoformat()
+    metadata["commit"] = commit
 
     if layer is not None:
         metadata["layer"] = layer
