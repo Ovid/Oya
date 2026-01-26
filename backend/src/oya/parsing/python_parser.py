@@ -123,6 +123,12 @@ class PythonParser(BaseParser):
         else:
             symbol_type = SymbolType.FUNCTION
 
+        # Build metadata
+        metadata = {}
+        raises = self._extract_raises(node)
+        if raises:
+            metadata["raises"] = raises
+
         return ParsedSymbol(
             name=node.name,
             symbol_type=symbol_type,
@@ -132,7 +138,32 @@ class PythonParser(BaseParser):
             signature=self._build_signature(node),
             decorators=decorators,
             parent=parent,
+            metadata=metadata,
         )
+
+    def _extract_raises(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+        """Extract exception types from raise statements.
+
+        Args:
+            node: The AST function node.
+
+        Returns:
+            List of unique exception type names.
+        """
+        raises = []
+        for child in ast.walk(node):
+            if isinstance(child, ast.Raise) and child.exc:
+                if isinstance(child.exc, ast.Call):
+                    # raise ValueError("msg")
+                    if isinstance(child.exc.func, ast.Name):
+                        raises.append(child.exc.func.id)
+                    elif isinstance(child.exc.func, ast.Attribute):
+                        # raise module.CustomError()
+                        raises.append(child.exc.func.attr)
+                elif isinstance(child.exc, ast.Name):
+                    # raise existing_exception
+                    raises.append(child.exc.id)
+        return list(set(raises))
 
     def _parse_class(self, node: ast.ClassDef) -> list[ParsedSymbol]:
         """Parse a class definition and its methods.
