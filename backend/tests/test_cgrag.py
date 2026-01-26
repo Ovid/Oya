@@ -696,3 +696,36 @@ class TestExtractReferencesFromGap:
         refs = extract_references_from_gap(gap)
         assert refs.file_path == "src/App.tsx"
         assert refs.function_name == "Component"
+
+
+@pytest.mark.asyncio
+async def test_resolve_gap_with_code_index():
+    """Should resolve gap using code index before semantic search."""
+    from unittest.mock import MagicMock
+    from oya.qa.cgrag import resolve_gap_with_code_index
+    from oya.db.code_index import CodeIndexEntry
+
+    mock_code_index = MagicMock()
+    mock_entry = CodeIndexEntry(
+        id=1,
+        file_path="backend/src/oya/api/deps.py",
+        symbol_name="get_db",
+        symbol_type="function",
+        line_start=45,
+        line_end=60,
+        signature="def get_db(repo) -> Database",
+        docstring="Get database connection",
+        calls=[],
+        called_by=[],
+        raises=[],
+        mutates=["_db_instances"],
+        error_strings=[],
+        source_hash="abc",
+    )
+    mock_code_index.find_by_file_and_symbol.return_value = [mock_entry]
+
+    result = await resolve_gap_with_code_index("get_db in deps.py", mock_code_index)
+
+    assert result is not None
+    assert "deps.py" in result.path
+    assert "get_db" in result.content
