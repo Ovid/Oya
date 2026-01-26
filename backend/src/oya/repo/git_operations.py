@@ -25,6 +25,201 @@ class GitPullError(Exception):
         super().__init__(message)
 
 
+class GitSyncError(Exception):
+    """Error during git sync operation."""
+
+    def __init__(self, message: str, original_error: Optional[str] = None):
+        self.message = message
+        self.original_error = original_error
+        super().__init__(message)
+
+
+def check_working_directory_clean(repo_path: Path) -> None:
+    """
+    Verify no uncommitted changes exist.
+
+    Args:
+        repo_path: Path to the git repository
+
+    Raises:
+        GitSyncError: If working directory has uncommitted changes or not a git repo
+    """
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise GitSyncError(
+            f"Could not check repository status at `{repo_path}`. "
+            "Ensure this is a valid git repository.",
+            original_error=result.stderr,
+        )
+
+    if result.stdout.strip():
+        raise GitSyncError(
+            f"Repository has uncommitted changes at `{repo_path}`. "
+            "Oya manages this repository automatically—please don't modify files directly. "
+            "To reset, delete that folder and regenerate."
+        )
+
+
+def get_default_branch(repo_path: Path, timeout: int = 30) -> str:
+    """
+    Detect the repository's default branch.
+
+    Queries remote first, falls back to local refs.
+
+    Args:
+        repo_path: Path to the git repository
+        timeout: Timeout in seconds for remote query
+
+    Returns:
+        Name of the default branch (e.g., 'main' or 'master')
+
+    Raises:
+        GitSyncError: If default branch cannot be determined
+    """
+    # Try querying remote first (authoritative)
+    try:
+        result = subprocess.run(
+            ["git", "remote", "show", "origin"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if "HEAD branch:" in line:
+                    return line.split(":")[-1].strip()
+    except subprocess.TimeoutExpired:
+        pass  # Fall through to local refs
+
+    # Fallback: check local symbolic ref
+    result = subprocess.run(
+        ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        # Output is like "refs/remotes/origin/main"
+        return result.stdout.strip().split("/")[-1]
+
+    raise GitSyncError(
+        f"Could not determine the default branch for `{repo_path}`. "
+        "Ensure the repository has an origin remote configured."
+    )
+
+
+def get_current_branch(repo_path: Path) -> str:
+    """
+    Get the name of the currently checked out branch.
+
+    Args:
+        repo_path: Path to the git repository
+
+    Returns:
+        Name of the current branch
+
+    Raises:
+        GitSyncError: If unable to determine current branch
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise GitSyncError(
+            f"Could not determine current branch in `{repo_path}`. "
+            "Ensure this is a valid git repository.",
+            original_error=result.stderr,
+        )
+
+    return result.stdout.strip()
+
+
+def checkout_branch(repo_path: Path, branch: str) -> None:
+    """
+    Checkout a specific branch.
+
+    Args:
+        repo_path: Path to the git repository
+        branch: Name of the branch to checkout
+
+    Raises:
+        GitSyncError: If checkout fails
+    """
+    result = subprocess.run(
+        ["git", "checkout", branch],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise GitSyncError(
+            f"Could not switch to branch '{branch}' in `{repo_path}`. "
+            "The repository may be in an unexpected state.",
+            original_error=result.stderr,
+        )
+
+
+def sync_to_default_branch(repo_path: Path, timeout: int = 120) -> str:
+    """
+    Sync repository to latest default branch.
+
+    Checks for clean working directory, detects default branch,
+    checks it out if needed, and pulls latest changes.
+
+    Args:
+        repo_path: Path to the git repository
+        timeout: Timeout in seconds for network operations
+
+    Returns:
+        Name of the default branch
+
+    Raises:
+        GitSyncError: If any step fails, with user-friendly message
+    """
+    # Step 1: Ensure working directory is clean
+    check_working_directory_clean(repo_path)
+
+    # Step 2: Detect default branch
+    default_branch = get_default_branch(repo_path, timeout=timeout)
+
+    # Step 3: Checkout default branch if not already on it
+    current = get_current_branch(repo_path)
+    if current != default_branch:
+        checkout_branch(repo_path, default_branch)
+
+    # Step 4: Pull latest changes
+    try:
+        pull_repo(repo_path, timeout=timeout)
+    except GitPullError as e:
+        # Convert to GitSyncError with path included
+        if "conflict" in e.message.lower():
+            raise GitSyncError(
+                f"Pull failed due to conflicts in `{repo_path}`. "
+                "Oya manages this repository automatically—please don't modify files directly. "
+                "Delete that folder and regenerate to fix this.",
+                original_error=e.original_error,
+            )
+        raise GitSyncError(
+            f"Could not pull latest changes for `{repo_path}`: {e.message}. "
+            "Check your network connection and repository access.",
+            original_error=e.original_error,
+        )
+
+    return default_branch
+
+
 def clone_repo(url: str, dest: Path, timeout: int = 300) -> None:
     """
     Clone a git repository.

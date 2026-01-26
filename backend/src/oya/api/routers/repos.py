@@ -17,6 +17,7 @@ from oya.api.schemas import (
     OyaignoreUpdateResponse,
 )
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
+from oya.repo.git_operations import GitSyncError, sync_to_default_branch
 from oya.repo.git_repo import GitRepo
 from oya.repo.repo_paths import RepoPaths
 from oya.db.connection import Database
@@ -55,7 +56,8 @@ async def get_indexable_items(
 
     try:
         # Use the same FileFilter class as GenerationOrchestrator._run_analysis()
-        file_filter = FileFilter(source_path)
+        # Pass the oyaignore path from meta/ directory where the API writes it
+        file_filter = FileFilter(source_path, ignore_path=paths.oyaignore)
         categorized = file_filter.get_files_categorized()
 
         # For included, derive directories from files
@@ -269,14 +271,14 @@ async def init_repo(
     job_id = str(uuid.uuid4())
 
     # Record job in database
-    # (8 phases: analysis, files, directories, synthesis, architecture,
+    # (9 phases: syncing, analysis, files, directories, synthesis, architecture,
     # overview, workflows, indexing)
     db.execute(
         """
         INSERT INTO generations (id, type, status, started_at, total_phases)
         VALUES (?, ?, ?, datetime('now'), ?)
         """,
-        (job_id, "full", "pending", 8),
+        (job_id, "full", "pending", 9),
     )
     db.commit()
 
@@ -305,17 +307,18 @@ async def _run_generation(
     production_path = paths.oyawiki
 
     # Phase number mapping for progress tracking (bottom-up approach)
-    # Order: Analysis → Files → Directories → Synthesis → Architecture →
+    # Order: Syncing → Analysis → Files → Directories → Synthesis → Architecture →
     # Overview → Workflows → Indexing
     phase_numbers = {
-        "analysis": 1,
-        "files": 2,
-        "directories": 3,
-        "synthesis": 4,
-        "architecture": 5,
-        "overview": 6,
-        "workflows": 7,
-        "indexing": 8,
+        "syncing": 1,
+        "analysis": 2,
+        "files": 3,
+        "directories": 4,
+        "synthesis": 5,
+        "architecture": 6,
+        "overview": 7,
+        "workflows": 8,
+        "indexing": 9,
     }
 
     async def progress_callback(progress: GenerationProgress) -> None:
@@ -338,9 +341,26 @@ async def _run_generation(
     staging_db: Database | None = None
 
     try:
-        # Update status to running
+        # Sync repository to default branch before generation
         db.execute(
-            "UPDATE generations SET status = 'running', current_phase = '0:starting' WHERE id = ?",
+            "UPDATE generations SET status = 'running', current_phase = '0:syncing' WHERE id = ?",
+            (job_id,),
+        )
+        db.commit()
+
+        try:
+            sync_to_default_branch(paths.source)
+        except GitSyncError as e:
+            db.execute(
+                "UPDATE generations SET status = 'failed', error_message = ? WHERE id = ?",
+                (e.message, job_id),
+            )
+            db.commit()
+            return
+
+        # Update status to starting (after sync)
+        db.execute(
+            "UPDATE generations SET current_phase = '0:starting' WHERE id = ?",
             (job_id,),
         )
         db.commit()
@@ -379,7 +399,7 @@ async def _run_generation(
         # Index wiki content for Q&A search (in staging)
         db.execute(
             """UPDATE generations
-            SET current_phase = '8:indexing', current_step = 0, total_steps = 0
+            SET current_phase = '9:indexing', current_step = 0, total_steps = 0
             WHERE id = ?""",
             (job_id,),
         )
