@@ -206,6 +206,21 @@ commit: abc123
         assert (wiki_dirs_dir / "src-api.md").exists()
         assert not (wiki_dirs_dir / "deleted-module.md").exists()
 
+    def test_preserve_directory_page_without_frontmatter(self, tmp_path):
+        """Test that directory pages without frontmatter are preserved."""
+        wiki_dirs_dir = tmp_path / "wiki" / "directories"
+        wiki_dirs_dir.mkdir(parents=True)
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+
+        # Directory page without frontmatter - should be kept
+        (wiki_dirs_dir / "old-dir.md").write_text("# Old Directory\n\nNo frontmatter here.")
+
+        deleted = delete_orphaned_pages(wiki_dirs_dir, source_dir, is_file=False)
+
+        assert len(deleted) == 0
+        assert (wiki_dirs_dir / "old-dir.md").exists()  # Should be preserved
+
 
 class TestDeleteOrphanedNotes:
     """Tests for delete_orphaned_notes function."""
