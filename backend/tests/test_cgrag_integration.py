@@ -14,7 +14,7 @@ The test data simulates the original bug scenario:
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from oya.db.connection import Database
 from oya.db.code_index import CodeIndexQuery
@@ -386,8 +386,6 @@ class TestFullQAServiceIntegration:
     @pytest.mark.asyncio
     async def test_qa_service_with_classifier_and_code_index(self, full_qa_setup):
         """QAService integrates classifier and code index for mode-specific retrieval."""
-        from unittest.mock import patch
-
         setup = full_qa_setup
 
         # Configure classifier to return DIAGNOSTIC
@@ -431,8 +429,6 @@ class TestFullQAServiceIntegration:
     @pytest.mark.asyncio
     async def test_qa_service_conceptual_mode_skips_code_index(self, full_qa_setup):
         """CONCEPTUAL mode queries use hybrid search, not code index retrieval."""
-        from unittest.mock import patch
-
         setup = full_qa_setup
 
         # Configure classifier to return CONCEPTUAL
