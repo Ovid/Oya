@@ -356,3 +356,89 @@ def process_result(result):
     # Should NOT have error_strings since result.error() and handler.error()
     # are not logger objects
     assert "error_strings" not in func.metadata or func.metadata["error_strings"] == []
+
+
+def test_extracts_mutates_module_level(parser):
+    """Parser should detect assignments to module-level state."""
+    source = """
+_cache = {}
+
+def get_cached(key):
+    if key not in _cache:
+        _cache[key] = compute(key)
+    return _cache[key]
+
+def clear_cache():
+    _cache.clear()
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    get_func = next(s for s in result.file.symbols if s.name == "get_cached")
+    assert "mutates" in get_func.metadata
+    assert "_cache" in get_func.metadata["mutates"]
+
+    clear_func = next(s for s in result.file.symbols if s.name == "clear_cache")
+    assert "mutates" in clear_func.metadata
+    assert "_cache" in clear_func.metadata["mutates"]
+
+
+def test_extracts_mutates_self_attributes(parser):
+    """Parser should detect assignments to self attributes."""
+    source = """
+class Service:
+    def __init__(self):
+        self.connection = None
+
+    def connect(self, url):
+        self.connection = create_connection(url)
+        self.connected = True
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    connect_func = next(s for s in result.file.symbols if s.name == "connect")
+    assert "mutates" in connect_func.metadata
+    assert "self.connection" in connect_func.metadata["mutates"]
+    assert "self.connected" in connect_func.metadata["mutates"]
+
+
+def test_extracts_mutates_augmented_assignment(parser):
+    """Parser should detect augmented assignments to module-level state."""
+    source = """
+counter = 0
+items = []
+
+def increment():
+    global counter
+    counter += 1
+
+def add_item(item):
+    items.append(item)
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    inc_func = next(s for s in result.file.symbols if s.name == "increment")
+    assert "mutates" in inc_func.metadata
+    assert "counter" in inc_func.metadata["mutates"]
+
+    add_func = next(s for s in result.file.symbols if s.name == "add_item")
+    assert "mutates" in add_func.metadata
+    assert "items" in add_func.metadata["mutates"]
+
+
+def test_no_mutates_for_local_variables(parser):
+    """Parser should NOT detect mutations of local variables."""
+    source = """
+def process(data):
+    local_cache = {}
+    local_cache["key"] = data
+    return local_cache
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "process")
+    # local_cache is not module-level, so no mutates
+    assert "mutates" not in func.metadata or func.metadata["mutates"] == []
