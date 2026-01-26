@@ -7,9 +7,15 @@ import pytest
 from oya.repo.git_operations import (
     GitCloneError,
     GitPullError,
+    GitSyncError,
+    check_working_directory_clean,
+    checkout_branch,
     clone_repo,
+    get_current_branch,
+    get_default_branch,
     get_remote_url,
     pull_repo,
+    sync_to_default_branch,
 )
 
 
@@ -115,3 +121,187 @@ def test_get_remote_url_no_origin(tmp_path):
     with pytest.raises(ValueError) as exc_info:
         get_remote_url(repo_path)
     assert "origin" in str(exc_info.value).lower()
+
+
+def test_git_sync_error_has_message_and_original_error():
+    """GitSyncError stores message and optional original error."""
+    error = GitSyncError("User message", original_error="Raw stderr")
+    assert error.message == "User message"
+    assert error.original_error == "Raw stderr"
+    assert str(error) == "User message"
+
+
+def test_check_working_directory_clean_passes_for_clean_repo(tmp_path, source_repo):
+    """Clean repo passes working directory check."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+    # Should not raise
+    check_working_directory_clean(dest)
+
+
+def test_check_working_directory_clean_fails_for_dirty_repo(tmp_path, source_repo):
+    """Dirty repo raises GitSyncError with path in message."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Make repo dirty with uncommitted changes
+    (dest / "dirty_file.txt").write_text("uncommitted content")
+
+    with pytest.raises(GitSyncError) as exc_info:
+        check_working_directory_clean(dest)
+
+    assert str(dest) in exc_info.value.message
+    assert "uncommitted changes" in exc_info.value.message.lower()
+
+
+def test_check_working_directory_clean_invalid_repo_raises(tmp_path):
+    """check_working_directory_clean raises GitSyncError for non-git directory."""
+    not_a_repo = tmp_path / "not-a-git-repo"
+    not_a_repo.mkdir()
+
+    with pytest.raises(GitSyncError) as exc_info:
+        check_working_directory_clean(not_a_repo)
+
+    assert str(not_a_repo) in exc_info.value.message
+
+
+def test_get_default_branch_returns_main(tmp_path, source_repo):
+    """get_default_branch returns the default branch name."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    branch = get_default_branch(dest)
+    # source_repo fixture creates repo on master (git default) or main
+    assert branch in ("main", "master")
+
+
+def test_get_default_branch_no_remote_raises(tmp_path):
+    """get_default_branch raises GitSyncError when no origin remote."""
+    repo_path = tmp_path / "no-origin"
+    repo_path.mkdir()
+    subprocess.run(["git", "init"], cwd=repo_path, check=True, capture_output=True)
+
+    with pytest.raises(GitSyncError) as exc_info:
+        get_default_branch(repo_path)
+
+    assert str(repo_path) in exc_info.value.message
+    assert "default branch" in exc_info.value.message.lower()
+
+
+def test_get_current_branch_returns_branch_name(tmp_path, source_repo):
+    """get_current_branch returns the current branch name."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    branch = get_current_branch(dest)
+    assert branch in ("main", "master")
+
+
+def test_get_current_branch_invalid_repo_raises(tmp_path):
+    """get_current_branch raises GitSyncError for non-git directory."""
+    not_a_repo = tmp_path / "not-a-repo"
+    not_a_repo.mkdir()
+
+    with pytest.raises(GitSyncError) as exc_info:
+        get_current_branch(not_a_repo)
+
+    assert str(not_a_repo) in exc_info.value.message
+
+
+def test_checkout_branch_switches_branch(tmp_path, source_repo):
+    """checkout_branch switches to specified branch."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Create and switch to a feature branch
+    subprocess.run(
+        ["git", "checkout", "-b", "feature-test"],
+        cwd=dest,
+        check=True,
+        capture_output=True,
+    )
+    assert get_current_branch(dest) == "feature-test"
+
+    # Use checkout_branch to switch back
+    default = get_default_branch(dest)
+    checkout_branch(dest, default)
+    assert get_current_branch(dest) == default
+
+
+def test_checkout_branch_nonexistent_raises(tmp_path, source_repo):
+    """checkout_branch raises GitSyncError for nonexistent branch."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    with pytest.raises(GitSyncError) as exc_info:
+        checkout_branch(dest, "nonexistent-branch-xyz")
+
+    assert str(dest) in exc_info.value.message
+    assert "nonexistent-branch-xyz" in exc_info.value.message
+
+
+def test_sync_to_default_branch_from_default(tmp_path, source_repo):
+    """sync_to_default_branch works when already on default branch."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    branch = sync_to_default_branch(dest)
+    assert branch in ("main", "master")
+    assert get_current_branch(dest) == branch
+
+
+def test_sync_to_default_branch_from_feature(tmp_path, source_repo):
+    """sync_to_default_branch switches from feature branch to default."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Switch to a feature branch
+    subprocess.run(
+        ["git", "checkout", "-b", "feature-branch"],
+        cwd=dest,
+        check=True,
+        capture_output=True,
+    )
+    assert get_current_branch(dest) == "feature-branch"
+
+    # Sync should switch to default
+    branch = sync_to_default_branch(dest)
+    assert branch in ("main", "master")
+    assert get_current_branch(dest) == branch
+
+
+def test_sync_to_default_branch_pulls_changes(tmp_path, source_repo):
+    """sync_to_default_branch pulls latest changes from origin."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Add a commit to source after clone
+    (source_repo / "new_after_clone.txt").write_text("new content")
+    subprocess.run(["git", "add", "."], cwd=source_repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "New commit"],
+        cwd=source_repo,
+        check=True,
+        capture_output=True,
+    )
+
+    # File doesn't exist yet in dest
+    assert not (dest / "new_after_clone.txt").exists()
+
+    # Sync should pull the new file
+    sync_to_default_branch(dest)
+    assert (dest / "new_after_clone.txt").exists()
+
+
+def test_sync_to_default_branch_dirty_repo_raises(tmp_path, source_repo):
+    """sync_to_default_branch raises GitSyncError for dirty repo."""
+    dest = tmp_path / "dest"
+    clone_repo(str(source_repo), dest)
+
+    # Make repo dirty
+    (dest / "dirty.txt").write_text("uncommitted")
+
+    with pytest.raises(GitSyncError) as exc_info:
+        sync_to_default_branch(dest)
+
+    assert "uncommitted changes" in exc_info.value.message.lower()
