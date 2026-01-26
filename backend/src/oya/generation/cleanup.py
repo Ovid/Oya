@@ -2,7 +2,7 @@
 
 During wiki regeneration, some content becomes stale and needs to be deleted:
 - Workflows: Always regenerated fresh, so all existing workflows are deleted
-- File/directory pages: Orphaned pages for deleted source files
+- File/directory pages: Orphaned pages for deleted source files OR excluded sources
 - Notes: Notes attached to files that no longer exist
 """
 
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from oya.generation.frontmatter import parse_frontmatter
 from oya.notes.schemas import NoteScope
+from oya.repo.file_filter import FileFilter
 
 if TYPE_CHECKING:
     from oya.notes.service import NotesService
@@ -62,13 +63,20 @@ def delete_orphaned_pages(
     pages_dir: Path,
     source_dir: Path,
     is_file: bool,
+    file_filter: FileFilter | None = None,
 ) -> list[str]:
-    """Delete wiki pages whose source files/directories no longer exist.
+    """Delete wiki pages whose source files/directories no longer exist or are excluded.
+
+    A page is deleted if:
+    - Its source file/directory no longer exists in the repository, OR
+    - Its source is excluded by .oyaignore or default exclusion rules
 
     Args:
         pages_dir: Path to wiki/files or wiki/directories
         source_dir: Path to source repository
         is_file: True if checking files, False if checking directories
+        file_filter: Optional FileFilter to check exclusions. If provided, pages
+            for excluded sources will also be deleted.
 
     Returns:
         List of deleted source paths
@@ -97,8 +105,24 @@ def delete_orphaned_pages(
         full_source = source_dir / source_path
         source_exists = full_source.is_file() if is_file else full_source.is_dir()
 
+        # Check if source is excluded (even if it exists)
+        source_excluded = False
+        if file_filter and source_exists:
+            # Use the appropriate exclusion check based on type
+            if is_file:
+                source_excluded = file_filter._is_excluded(source_path)
+            else:
+                # For directories, check if it matches exclusion patterns
+                source_excluded = file_filter._is_directory_excluded_by_oyaignore(
+                    source_path
+                ) or file_filter._is_directory_excluded_by_default_rules(source_path)
+
         if not source_exists:
-            logger.info(f"Deleting orphaned page: {source_path}")
+            logger.info(f"Deleting orphaned page (source deleted): {source_path}")
+            md_file.unlink()
+            deleted.append(source_path)
+        elif source_excluded:
+            logger.info(f"Deleting page for excluded source: {source_path}")
             md_file.unlink()
             deleted.append(source_path)
 
@@ -150,6 +174,7 @@ def cleanup_stale_content(
     wiki_path: Path,
     source_path: Path,
     notes_service: "NotesService | None" = None,
+    oyaignore_path: Path | None = None,
 ) -> CleanupResult:
     """Remove stale wiki pages and notes.
 
@@ -160,28 +185,42 @@ def cleanup_stale_content(
         wiki_path: Path to wiki directory (.oyawiki/wiki)
         source_path: Path to source repository
         notes_service: Optional NotesService for notes cleanup
+        oyaignore_path: Optional path to .oyaignore file. If provided, pages for
+            excluded sources will also be deleted.
 
     Returns:
         CleanupResult with counts of deleted items
     """
     result = CleanupResult()
 
+    # Create FileFilter if oyaignore path provided (for exclusion checking)
+    file_filter = None
+    if oyaignore_path:
+        file_filter = FileFilter(
+            repo_path=source_path,
+            ignore_path=oyaignore_path,
+        )
+
     # Step 1: Delete all workflows (they'll be regenerated)
     workflows_dir = wiki_path / "workflows"
     result.workflows_deleted = delete_all_workflows(workflows_dir)
     logger.info(f"Deleted {result.workflows_deleted} workflow pages")
 
-    # Step 2: Delete orphaned file pages
+    # Step 2: Delete orphaned file pages (and pages for excluded sources)
     files_dir = wiki_path / "files"
-    deleted_files = delete_orphaned_pages(files_dir, source_path, is_file=True)
+    deleted_files = delete_orphaned_pages(
+        files_dir, source_path, is_file=True, file_filter=file_filter
+    )
     result.files_deleted = len(deleted_files)
-    logger.info(f"Deleted {result.files_deleted} orphaned file pages")
+    logger.info(f"Deleted {result.files_deleted} orphaned/excluded file pages")
 
-    # Step 3: Delete orphaned directory pages
+    # Step 3: Delete orphaned directory pages (and pages for excluded sources)
     dirs_dir = wiki_path / "directories"
-    deleted_dirs = delete_orphaned_pages(dirs_dir, source_path, is_file=False)
+    deleted_dirs = delete_orphaned_pages(
+        dirs_dir, source_path, is_file=False, file_filter=file_filter
+    )
     result.directories_deleted = len(deleted_dirs)
-    logger.info(f"Deleted {result.directories_deleted} orphaned directory pages")
+    logger.info(f"Deleted {result.directories_deleted} orphaned/excluded directory pages")
 
     # Step 4: Delete orphaned notes
     if notes_service:

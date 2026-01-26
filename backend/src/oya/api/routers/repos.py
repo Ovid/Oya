@@ -465,6 +465,7 @@ async def _run_generation(
                 wiki_path=staging_wiki_path,
                 source_path=paths.source,
                 notes_service=notes_service,
+                oyaignore_path=paths.oyaignore,
             )
             logger.info(
                 f"Cleanup complete: {cleanup_result.workflows_deleted} workflows, "

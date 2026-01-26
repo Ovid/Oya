@@ -221,6 +221,104 @@ commit: abc123
         assert len(deleted) == 0
         assert (wiki_dirs_dir / "old-dir.md").exists()  # Should be preserved
 
+    def test_delete_file_pages_for_oyaignore_excluded_sources(self, tmp_path):
+        """Test deleting file pages whose sources are excluded by .oyaignore."""
+        from oya.repo.file_filter import FileFilter
+
+        wiki_files_dir = tmp_path / "wiki" / "files"
+        wiki_files_dir.mkdir(parents=True)
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+
+        # Create source files - one included, one to be excluded
+        (source_dir / "included.py").write_text("print('hello')")
+        (source_dir / "docs").mkdir()
+        (source_dir / "docs" / "excluded.md").write_text("# Excluded")
+
+        # Create .oyaignore that excludes docs/
+        oyaignore_path = tmp_path / ".oyaignore"
+        oyaignore_path.write_text("docs/\n")
+
+        # Create wiki pages for both files
+        (wiki_files_dir / "included-py.md").write_text("""---
+source: included.py
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# included.py
+""")
+        (wiki_files_dir / "docs-excluded-md.md").write_text("""---
+source: docs/excluded.md
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# docs/excluded.md
+""")
+
+        # Create file filter with the oyaignore
+        file_filter = FileFilter(repo_path=source_dir, ignore_path=oyaignore_path)
+
+        deleted = delete_orphaned_pages(
+            wiki_files_dir, source_dir, is_file=True, file_filter=file_filter
+        )
+
+        # The excluded file's page should be deleted
+        assert "docs/excluded.md" in deleted
+        assert not (wiki_files_dir / "docs-excluded-md.md").exists()
+        # The included file's page should remain
+        assert (wiki_files_dir / "included-py.md").exists()
+
+    def test_delete_directory_pages_for_oyaignore_excluded_sources(self, tmp_path):
+        """Test deleting directory pages whose sources are excluded by .oyaignore."""
+        from oya.repo.file_filter import FileFilter
+
+        wiki_dirs_dir = tmp_path / "wiki" / "directories"
+        wiki_dirs_dir.mkdir(parents=True)
+        source_dir = tmp_path / "source"
+        (source_dir / "src").mkdir(parents=True)
+        (source_dir / "docs").mkdir()
+
+        # Create .oyaignore that excludes docs/
+        oyaignore_path = tmp_path / ".oyaignore"
+        oyaignore_path.write_text("docs/\n")
+
+        # Create wiki pages for both directories
+        (wiki_dirs_dir / "src.md").write_text("""---
+source: src
+type: directory
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# src
+""")
+        (wiki_dirs_dir / "docs.md").write_text("""---
+source: docs
+type: directory
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+
+# docs
+""")
+
+        # Create file filter with the oyaignore
+        file_filter = FileFilter(repo_path=source_dir, ignore_path=oyaignore_path)
+
+        deleted = delete_orphaned_pages(
+            wiki_dirs_dir, source_dir, is_file=False, file_filter=file_filter
+        )
+
+        # The excluded directory's page should be deleted
+        assert "docs" in deleted
+        assert not (wiki_dirs_dir / "docs.md").exists()
+        # The included directory's page should remain
+        assert (wiki_dirs_dir / "src.md").exists()
+
 
 class TestDeleteOrphanedNotes:
     """Tests for delete_orphaned_notes function."""
@@ -379,3 +477,64 @@ commit: abc123
 
         assert result.notes_deleted == 1
         mock_notes_service.delete.assert_called_once_with(NoteScope.FILE, "deleted.py")
+
+    def test_cleanup_stale_content_with_oyaignore(self, tmp_path):
+        """Test cleanup deletes pages for sources excluded by .oyaignore."""
+        wiki_path = tmp_path / "wiki"
+        (wiki_path / "files").mkdir(parents=True)
+        (wiki_path / "directories").mkdir(parents=True)
+        (wiki_path / "workflows").mkdir(parents=True)
+
+        source_path = tmp_path / "source"
+        source_path.mkdir()
+        (source_path / "included.py").write_text("print('hello')")
+        (source_path / "docs").mkdir()
+        (source_path / "docs" / "excluded.md").write_text("# Excluded")
+
+        # Create .oyaignore that excludes docs/
+        oyaignore_path = tmp_path / ".oyaignore"
+        oyaignore_path.write_text("docs/\n")
+
+        # Create wiki pages
+        (wiki_path / "files" / "included-py.md").write_text("""---
+source: included.py
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+# included.py
+""")
+        (wiki_path / "files" / "docs-excluded-md.md").write_text("""---
+source: docs/excluded.md
+type: file
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+# docs/excluded.md
+""")
+        (wiki_path / "directories" / "docs.md").write_text("""---
+source: docs
+type: directory
+generated: 2026-01-26T10:30:00Z
+commit: abc123
+---
+# docs
+""")
+
+        mock_notes_service = MagicMock()
+        mock_notes_service.list.return_value = []
+
+        result = cleanup_stale_content(
+            wiki_path=wiki_path,
+            source_path=source_path,
+            notes_service=mock_notes_service,
+            oyaignore_path=oyaignore_path,
+        )
+
+        # Should have deleted the excluded file and directory pages
+        assert result.files_deleted == 1
+        assert result.directories_deleted == 1
+        assert not (wiki_path / "files" / "docs-excluded-md.md").exists()
+        assert not (wiki_path / "directories" / "docs.md").exists()
+        # Included file should remain
+        assert (wiki_path / "files" / "included-py.md").exists()
