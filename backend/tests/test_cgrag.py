@@ -620,3 +620,36 @@ NONE
         assert "JWT" in result.answer or "verify" in result.answer
         # The gap should have been resolved
         assert any("verify_token" in gap for gap in result.gaps_resolved)
+
+
+class TestExtractReferencesFromGap:
+    """Tests for extract_references_from_gap function."""
+
+    def test_extract_file_reference_from_gap(self):
+        """Should extract file paths from gap descriptions."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        gap = "The implementation of get_db() in backend/src/oya/api/deps.py"
+        refs = extract_references_from_gap(gap)
+
+        assert refs.file_path == "backend/src/oya/api/deps.py"
+        assert refs.function_name == "get_db"
+
+    def test_extract_function_only_from_gap(self):
+        """Should extract function name without file."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        gap = "How does promote_staging_to_production() handle the database?"
+        refs = extract_references_from_gap(gap)
+
+        assert refs.file_path is None
+        assert refs.function_name == "promote_staging_to_production"
+
+    def test_extract_partial_file_from_gap(self):
+        """Should extract partial file references."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        gap = "The deps.py module's caching behavior"
+        refs = extract_references_from_gap(gap)
+
+        assert "deps.py" in (refs.file_path or "")
