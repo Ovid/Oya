@@ -493,6 +493,7 @@ async def _run_generation(
             wiki_path=staging_wiki_path,
             parallel_limit=settings.parallel_file_limit,
             issues_store=issues_store,
+            ignore_path=paths.oyaignore,
         )
 
         generation_result = await orchestrator.run(progress_callback=progress_callback)

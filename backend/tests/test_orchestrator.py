@@ -1059,6 +1059,89 @@ class TestEnhancedDirectorySignature:
         assert sig1 == sig2
 
 
+class TestSkippedDirectoryPurposePreservation:
+    """Tests for preserving purpose when directories are skipped during incremental regen."""
+
+    def test_placeholder_uses_stored_purpose(self):
+        """When a directory is skipped, the placeholder should use the stored purpose.
+
+        This prevents cascading regeneration of parent directories due to
+        signature mismatch from empty placeholder purposes.
+        """
+        from oya.generation.orchestrator import compute_directory_signature_with_children
+        from oya.generation.summaries import DirectorySummary
+
+        # Simulate the scenario: parent directory signature computation
+        # with a child that has been skipped
+
+        file_hashes = [("routes.py", "abc123")]
+
+        # If child was skipped with stored purpose preserved
+        child_with_stored_purpose = DirectorySummary(
+            directory_path="src/api/handlers",
+            purpose="HTTP request handlers",  # Retrieved from database
+            contains=["get.py", "post.py"],
+            role_in_system="",
+        )
+
+        # This is how it SHOULD work now (with fix)
+        sig_with_purpose = compute_directory_signature_with_children(
+            file_hashes, [child_with_stored_purpose]
+        )
+
+        # This is how it USED TO work (broken - empty purpose)
+        child_with_empty_purpose = DirectorySummary(
+            directory_path="src/api/handlers",
+            purpose="",  # Bug: was using empty string
+            contains=["get.py", "post.py"],
+            role_in_system="",
+        )
+        sig_with_empty = compute_directory_signature_with_children(
+            file_hashes, [child_with_empty_purpose]
+        )
+
+        # The signatures should be different, proving the bug
+        assert sig_with_purpose != sig_with_empty
+
+        # The stored signature (from first generation) would match sig_with_purpose
+        # With the fix, subsequent runs preserve the purpose and get the same signature
+
+    def test_get_existing_page_info_returns_purpose(self):
+        """_get_existing_page_info should return purpose from metadata."""
+        import json
+        from unittest.mock import MagicMock
+
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_db.execute.return_value = mock_cursor
+
+        # Simulate database returning metadata with purpose
+        metadata = {"source_hash": "sig123", "purpose": "API handlers"}
+        mock_cursor.fetchone.return_value = (json.dumps(metadata), "2024-01-01T00:00:00")
+
+        # Create minimal orchestrator with mocked db
+        mock_repo = MagicMock()
+        mock_repo.path = Path("/test")
+        mock_repo.get_head_commit.return_value = "abc123"
+        mock_llm = MagicMock()
+
+        from oya.generation.orchestrator import GenerationOrchestrator
+
+        with patch("oya.generation.orchestrator.ParserRegistry"):
+            orchestrator = GenerationOrchestrator(
+                llm_client=mock_llm,
+                repo=mock_repo,
+                db=mock_db,
+                wiki_path=Path("/test/wiki"),
+            )
+
+        result = orchestrator._get_existing_page_info("src/api", "directory")
+
+        assert result is not None
+        assert result["source_hash"] == "sig123"
+        assert result["purpose"] == "API handlers"
+
+
 # ============================================================================
 # Task 9: Graph-Based Architecture Integration Tests
 # ============================================================================
