@@ -398,9 +398,7 @@ export function IndexingPreviewModal({ isOpen, onClose, onGenerate }: IndexingPr
                     onChange={() => setGenerationMode('incremental')}
                     className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                    Incremental
-                  </span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Incremental</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
                     Only regenerate changed files
                   </span>
@@ -414,9 +412,7 @@ export function IndexingPreviewModal({ isOpen, onClose, onGenerate }: IndexingPr
                     onChange={() => setGenerationMode('full')}
                     className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                    Full
-                  </span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Full</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
                     Wipe all data and regenerate from scratch
                   </span>
@@ -426,16 +422,24 @@ export function IndexingPreviewModal({ isOpen, onClose, onGenerate }: IndexingPr
               {generationMode === 'full' ? (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-4">
                   <div className="flex">
-                    <svg className="h-5 w-5 text-amber-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                    <svg
+                      className="h-5 w-5 text-amber-400 flex-shrink-0"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                     <div className="ml-3">
                       <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
                         Full Regeneration
                       </h3>
                       <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-                        This will delete all existing wiki data (pages, database, vector store, notes)
-                        except .oyaignore. The entire wiki will be regenerated.
+                        This will delete all existing wiki data (pages, database, vector store,
+                        notes) except .oyaignore. The entire wiki will be regenerated.
                       </p>
                     </div>
                   </div>

@@ -1068,9 +1068,7 @@ describe('IndexingPreviewModal', () => {
     })
 
     it('resets mode to incremental when modal closes and reopens', async () => {
-      const { rerender } = render(
-        <IndexingPreviewModal {...defaultProps} isOpen={true} />
-      )
+      const { rerender } = render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
 
       await waitFor(() => {
         expect(screen.getByText('Directories')).toBeInTheDocument()
