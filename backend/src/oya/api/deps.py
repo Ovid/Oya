@@ -148,6 +148,28 @@ def invalidate_db_cache_for_repo(repo_id: int) -> None:
         del _db_instances[repo_id]
 
 
+def reconnect_db(repo_id: int, paths: RepoPaths) -> Database:
+    """Invalidate the stale DB connection and return a fresh one.
+
+    Use after any operation that replaces or destroys the .oyawiki directory
+    (full regeneration wipe, staging promotion). Ensures the directory
+    structure exists, runs migrations, and caches the new connection.
+
+    Args:
+        repo_id: The ID of the repo whose DB needs reconnecting.
+        paths: RepoPaths for the repo.
+
+    Returns:
+        A fresh Database connection with migrations applied.
+    """
+    invalidate_db_cache_for_repo(repo_id)
+    paths.meta_dir.mkdir(parents=True, exist_ok=True)
+    db = Database(paths.db_path)
+    run_migrations(db)
+    _db_instances[repo_id] = db
+    return db
+
+
 def get_repo() -> GitRepo:
     """Get repository wrapper for the active repo's source directory.
 

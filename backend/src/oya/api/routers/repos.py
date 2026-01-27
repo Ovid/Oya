@@ -12,7 +12,7 @@ from oya.api.deps import (
     get_settings,
     get_active_repo_paths,
     get_active_repo,
-    invalidate_db_cache_for_repo,
+    reconnect_db,
 )
 from oya.api.schemas import (
     JobCreated,
@@ -472,14 +472,8 @@ async def _run_generation(
             logger.info("Full regeneration: wiped production directory %s", production_path)
 
             # The job-tracking db lives inside .oyawiki (at .oyawiki/meta/oya.db),
-            # so wiping production destroyed it. We must:
-            # 1. Invalidate the cached connection (points to deleted file)
-            # 2. Recreate the directory structure
-            # 3. Open a fresh connection and re-insert the job record
-            invalidate_db_cache_for_repo(repo_id)
-            paths.create_structure()
-            db = Database(paths.db_path)
-            run_migrations(db)
+            # so wiping production destroyed it. Reconnect and re-insert the job.
+            db = reconnect_db(repo_id, paths)
             db.execute(
                 """
                 INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
@@ -610,11 +604,10 @@ async def _run_generation(
         # SUCCESS: Promote staging to production
         promote_staging_to_production(staging_path, production_path)
 
-        # CRITICAL: Invalidate cached database connection for this repo.
-        # The promotion replaced the .oyawiki directory (including the DB file),
-        # so any cached connection is now stale and will cause "readonly database"
-        # errors on subsequent writes.
-        invalidate_db_cache_for_repo(repo_id)
+        # CRITICAL: The promotion replaced the .oyawiki directory (including
+        # the DB file), so the cached connection is stale. Reconnect so any
+        # subsequent requests get a fresh connection.
+        reconnect_db(repo_id, paths)
 
     except Exception as e:
         # FAILURE: Leave staging directory for debugging
