@@ -6,12 +6,14 @@ invalidates any cached DB connection pointing at the now-deleted oya.db file.
 """
 
 import shutil
+import sqlite3
 
 import pytest
 
 from oya.api.deps import (
     _db_instances,
     get_db,
+    invalidate_db_cache_for_repo,
     reconnect_db,
 )
 from oya.db.connection import Database
@@ -43,7 +45,7 @@ class TestReconnectDb:
         assert _db_instances[repo_id] is db
 
     def test_invalidates_old_connection(self, setup_active_repo):
-        """reconnect_db should close and replace any previously cached connection."""
+        """reconnect_db should replace the previously cached connection."""
         repo_id = setup_active_repo["repo_id"]
         paths = setup_active_repo["paths"]
 
@@ -88,6 +90,61 @@ class TestReconnectDb:
             "SELECT name FROM sqlite_master WHERE type='table' AND name='generations'"
         )
         assert cursor.fetchone() is not None
+
+
+class TestInvalidateDoesNotCloseConnection:
+    """Invalidation must NOT close old connections.
+
+    Long-lived consumers (SSE streaming) hold references to the cached DB.
+    If invalidate_db_cache_for_repo closes the old connection, those
+    consumers crash with 'Cannot operate on a closed database'.
+    """
+
+    def test_old_connection_usable_after_invalidation(self, setup_active_repo):
+        """Old DB connection should remain readable after cache invalidation."""
+        repo_id = setup_active_repo["repo_id"]
+
+        old_db = get_db()
+
+        # Write data so we can read it back later
+        old_db.execute(
+            """
+            INSERT INTO generations (id, type, status, started_at, total_phases)
+            VALUES ('survive-test', 'full', 'running', datetime('now'), 9)
+            """
+        )
+        old_db.commit()
+
+        # Invalidate cache — old_db should NOT be closed
+        invalidate_db_cache_for_repo(repo_id)
+
+        # Old connection should still be usable (this is what the SSE stream does)
+        cursor = old_db.execute("SELECT status FROM generations WHERE id = 'survive-test'")
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["status"] == "running"
+
+    def test_old_connection_not_closed_during_reconnect(self, setup_active_repo):
+        """reconnect_db should not close the old connection either."""
+        repo_id = setup_active_repo["repo_id"]
+        paths = setup_active_repo["paths"]
+
+        old_db = get_db()
+        old_db.execute(
+            """
+            INSERT INTO generations (id, type, status, started_at, total_phases)
+            VALUES ('reconnect-survive', 'full', 'running', datetime('now'), 9)
+            """
+        )
+        old_db.commit()
+
+        # reconnect_db calls invalidate_db_cache_for_repo internally
+        reconnect_db(repo_id, paths)
+
+        # Old connection should still work
+        cursor = old_db.execute("SELECT status FROM generations WHERE id = 'reconnect-survive'")
+        row = cursor.fetchone()
+        assert row is not None
 
 
 class TestReconnectDbAfterFullWipe:
@@ -184,10 +241,130 @@ class TestReconnectDbAfterFullWipe:
         # Wipe production WITHOUT reconnecting
         shutil.rmtree(paths.oyawiki)
 
-        import sqlite3
-
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
             db.execute("UPDATE generations SET status = 'running' WHERE id = 'test-job'")
+
+
+class TestPromotedDbHasCompletedJobStatus:
+    """After staging promotion, the promoted DB must have the completed job status.
+
+    Bug: The generation pipeline writes job status "completed" to the production
+    DB (db), then promotes staging → production. The staging DB is a copy from
+    BEFORE generation started, so it has the job with status "running". After
+    promotion, get_db() returns a connection to the promoted (staging) DB which
+    has the stale "running" status. The SSE stream polls forever, and the UI
+    shows a stalled progress screen.
+
+    Fix: Before closing staging_db, copy the final job status into the staging
+    DB so the promoted DB has the correct "completed" state.
+    """
+
+    def test_without_staging_update_promoted_db_has_stale_status(self, setup_active_repo):
+        """Proves the bug: without updating staging DB, promoted DB has stale status.
+
+        The generation pipeline writes "completed" only to the production DB.
+        The staging DB (copied before generation) still has "running". After
+        promotion, get_db() sees the stale "running" status.
+        """
+        repo_id = setup_active_repo["repo_id"]
+        paths = setup_active_repo["paths"]
+
+        db = get_db()
+        db.execute(
+            """
+            INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
+            VALUES ('stale-job', 'full', 'running', datetime('now'), 9, '0:starting')
+            """
+        )
+        db.commit()
+
+        # Copy production to staging (staging gets "running" snapshot)
+        staging_path = paths.meta / ".oyawiki-building"
+        from oya.generation.staging import prepare_staging_directory
+
+        prepare_staging_directory(staging_path, paths.oyawiki)
+        staging_meta = staging_path / "meta"
+        staging_db = Database(staging_meta / "oya.db")
+        run_migrations(staging_db)
+
+        # Update production only — staging still has "running"
+        db.execute("UPDATE generations SET status = 'completed' WHERE id = 'stale-job'")
+        db.commit()
+
+        # Promote WITHOUT updating staging DB first (the bug)
+        staging_db.close()
+        promote_staging_to_production(staging_path, paths.oyawiki)
+        reconnect_db(repo_id, paths)
+
+        fresh_db = get_db()
+        cursor = fresh_db.execute("SELECT status FROM generations WHERE id = 'stale-job'")
+        row = cursor.fetchone()
+        assert row is not None
+        # This proves the bug: promoted DB has stale "running" status
+        assert row["status"] == "running"
+
+    def test_with_staging_update_promoted_db_has_completed_status(self, setup_active_repo):
+        """Fix: updating staging DB before promotion gives correct status.
+
+        When the staging DB is updated with the final job status before closing
+        and promoting, the promoted DB has "completed" and the SSE stream
+        terminates correctly.
+        """
+        repo_id = setup_active_repo["repo_id"]
+        paths = setup_active_repo["paths"]
+
+        db = get_db()
+        db.execute(
+            """
+            INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
+            VALUES ('fixed-job', 'full', 'running', datetime('now'), 9, '0:starting')
+            """
+        )
+        db.commit()
+
+        # Copy production to staging (staging gets "running" snapshot)
+        staging_path = paths.meta / ".oyawiki-building"
+        from oya.generation.staging import prepare_staging_directory
+
+        prepare_staging_directory(staging_path, paths.oyawiki)
+        staging_meta = staging_path / "meta"
+        staging_db = Database(staging_meta / "oya.db")
+        run_migrations(staging_db)
+
+        # Update production DB to "completed"
+        db.execute(
+            """
+            UPDATE generations
+            SET status = 'completed', completed_at = datetime('now'), changes_made = 1
+            WHERE id = 'fixed-job'
+            """
+        )
+        db.commit()
+
+        # THE FIX: also update staging DB before closing
+        staging_db.execute(
+            """
+            UPDATE generations
+            SET status = 'completed', completed_at = datetime('now'), changes_made = 1
+            WHERE id = 'fixed-job'
+            """
+        )
+        staging_db.commit()
+
+        # Close and promote
+        staging_db.close()
+        promote_staging_to_production(staging_path, paths.oyawiki)
+        reconnect_db(repo_id, paths)
+
+        # Promoted DB must show "completed"
+        fresh_db = get_db()
+        cursor = fresh_db.execute("SELECT status FROM generations WHERE id = 'fixed-job'")
+        row = cursor.fetchone()
+        assert row is not None, "Job 'fixed-job' not found in promoted DB"
+        assert row["status"] == "completed", (
+            f"Expected 'completed' but got '{row['status']}' — "
+            "staging DB has stale job status after promotion"
+        )
 
 
 class TestReconnectDbAfterPromotion:

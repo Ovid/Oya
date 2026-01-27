@@ -130,21 +130,21 @@ def _reset_db_instance() -> None:
 
 
 def invalidate_db_cache_for_repo(repo_id: int) -> None:
-    """Invalidate the cached database connection for a specific repo.
+    """Remove the cached database connection for a specific repo.
 
     This MUST be called after operations that replace the database file,
     such as promote_staging_to_production(), to ensure subsequent requests
     get a fresh connection to the new database file.
 
-    Without this, cached connections will hold stale file descriptors
-    pointing to the deleted database, causing "attempt to write a readonly
-    database" errors.
+    The old connection is NOT closed here — it may still be held by
+    long-lived consumers like SSE streaming endpoints. Those consumers
+    will pick up the new connection on their next get_db() call, and
+    the old connection will be garbage-collected when unreferenced.
 
     Args:
         repo_id: The ID of the repo whose DB cache should be invalidated.
     """
     if repo_id in _db_instances:
-        _db_instances[repo_id].close()
         del _db_instances[repo_id]
 
 
