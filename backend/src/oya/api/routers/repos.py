@@ -3,7 +3,8 @@
 import logging
 import os
 import uuid
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+import shutil
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Body
 
 from oya.api.deps import (
     get_repo,
@@ -341,6 +342,7 @@ async def get_generation_status(
 @router.post("/init", response_model=JobCreated, status_code=202)
 async def init_repo(
     background_tasks: BackgroundTasks,
+    mode: str = Body("incremental", embed=True),
     repo: GitRepo = Depends(get_repo),
     db: Database = Depends(get_db),
     paths: RepoPaths = Depends(get_active_repo_paths),
@@ -371,7 +373,7 @@ async def init_repo(
     db.commit()
 
     # Start generation in background
-    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings, repo_id)
+    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings, repo_id, mode)
 
     return JobCreated(job_id=job_id, message="Wiki generation started")
 
@@ -383,6 +385,7 @@ async def _run_generation(
     paths: RepoPaths,
     settings: Settings,
     repo_id: int,
+    mode: str = "incremental",
 ) -> None:
     """Run wiki generation in background using staging directory.
 
@@ -461,6 +464,12 @@ async def _run_generation(
             (job_id,),
         )
         db.commit()
+
+        # Full regeneration: wipe production directory to force clean rebuild
+        # .oyaignore lives at meta/.oyaignore (outside .oyawiki), so it's unaffected
+        if mode == "full" and production_path.exists():
+            shutil.rmtree(production_path)
+            logger.info("Full regeneration: wiped production directory %s", production_path)
 
         # Prepare staging directory (copies production for incremental, or creates empty)
         prepare_staging_directory(staging_path, production_path)
