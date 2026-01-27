@@ -585,8 +585,8 @@ async def _run_generation(
             generation_result.files_regenerated or generation_result.directories_regenerated
         )
 
-        # Update status to completed BEFORE promoting staging
-        # (promotion deletes .oyawiki which contains the database file)
+        # Update status in BOTH databases before promoting staging.
+        # Production DB: so current SSE consumers see "completed" immediately.
         db.execute(
             """
             UPDATE generations
@@ -596,6 +596,20 @@ async def _run_generation(
             (changes_made, job_id),
         )
         db.commit()
+
+        # Also update staging DB so the promoted DB has the correct final
+        # status. The staging DB is a copy from before generation started,
+        # so it has the job with stale status "running". Without this,
+        # SSE streams polling get_db() after promotion see "running" forever.
+        staging_db.execute(
+            """
+            UPDATE generations
+            SET status = 'completed', completed_at = datetime('now'), changes_made = ?
+            WHERE id = ?
+            """,
+            (changes_made, job_id),
+        )
+        staging_db.commit()
 
         # Close staging db before promotion (releases file handle)
         staging_db.close()
