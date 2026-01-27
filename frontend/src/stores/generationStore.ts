@@ -10,7 +10,7 @@ interface GenerationState {
 }
 
 interface GenerationActions {
-  startGeneration: () => Promise<string | null>
+  startGeneration: (mode?: 'incremental' | 'full') => Promise<string | null>
   setCurrentJob: (job: JobStatus | null) => void
   setGenerationStatus: (status: GenerationStatus | null) => void
   dismissGenerationStatus: () => void
@@ -28,7 +28,7 @@ export const initialState: GenerationState = {
 export const useGenerationStore = create<GenerationState & GenerationActions>()((set, get) => ({
   ...initialState,
 
-  startGeneration: async () => {
+  startGeneration: async (mode: 'incremental' | 'full' = 'incremental') => {
     // Guard against concurrent calls
     const state = get()
     const jobIsActive =
@@ -39,7 +39,7 @@ export const useGenerationStore = create<GenerationState & GenerationActions>()(
 
     set({ isLoading: true, generationStatus: null, error: null })
     try {
-      const result = await api.initRepo()
+      const result = await api.initRepo(mode)
       const job = await api.getJob(result.job_id)
       set({ currentJob: job })
       return result.job_id
