@@ -1,5 +1,10 @@
 # TODO
 
+* Load code in reverse dependency order, if feasible. That let's us be able to
+  load "top-level" modules and have context for lower-level modules.
+* Should compress syncing and analysis into a single phase
+* Generated wiki, hit refresh, and it started regenerating.  Files dropdown
+  said 47, but there were only 7 files shown.
 * When generation is done, it must direct back to the overview page.
 * When I restart the server, I go  "Add your first repository" page, even when
   the page is valid, such as
