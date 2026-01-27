@@ -73,8 +73,11 @@ export async function getRepoStatus(): Promise<RepoStatus> {
   return fetchJson<RepoStatus>('/api/repos/status')
 }
 
-export async function initRepo(): Promise<JobCreated> {
-  return fetchJson<JobCreated>('/api/repos/init', { method: 'POST' })
+export async function initRepo(mode: 'incremental' | 'full' = 'incremental'): Promise<JobCreated> {
+  return fetchJson<JobCreated>('/api/repos/init', {
+    method: 'POST',
+    body: JSON.stringify({ mode }),
+  })
 }
 
 export async function switchWorkspace(path: string): Promise<WorkspaceSwitchResponse> {
