@@ -471,6 +471,24 @@ async def _run_generation(
             shutil.rmtree(production_path)
             logger.info("Full regeneration: wiped production directory %s", production_path)
 
+            # The job-tracking db lives inside .oyawiki (at .oyawiki/meta/oya.db),
+            # so wiping production destroyed it. We must:
+            # 1. Invalidate the cached connection (points to deleted file)
+            # 2. Recreate the directory structure
+            # 3. Open a fresh connection and re-insert the job record
+            invalidate_db_cache_for_repo(repo_id)
+            paths.create_structure()
+            db = Database(paths.db_path)
+            run_migrations(db)
+            db.execute(
+                """
+                INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
+                VALUES (?, ?, ?, datetime('now'), ?, '0:starting')
+                """,
+                (job_id, "full", "running", 9),
+            )
+            db.commit()
+
         # Prepare staging directory (copies production for incremental, or creates empty)
         prepare_staging_directory(staging_path, production_path)
 
