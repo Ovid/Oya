@@ -1,6 +1,8 @@
 """SSE streaming tests."""
 
+import logging
 import shutil
+from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -111,6 +113,48 @@ async def test_sse_stream_survives_mid_stream_reconnect(client, setup_active_rep
 
     assert response.status_code == 200
     assert "event: complete" in response.text
+
+
+async def test_sse_stream_logs_exception_on_db_failure(client, setup_active_repo, caplog):
+    """When get_db() raises during SSE polling, the exception is logged.
+
+    The SSE stream catches DB errors and sends a clean error event to the
+    client, but the actual exception must be logged server-side so the root
+    cause is diagnosable (not just "Database connection lost").
+    """
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO generations (id, type, status, started_at)
+        VALUES ('log-test-job', 'full', 'running', datetime('now'))
+        """
+    )
+    db.commit()
+
+    call_count = 0
+
+    def get_db_then_fail():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # First call: FastAPI dependency injection for initial job check
+            return db
+        raise RuntimeError("Simulated DB corruption")
+
+    with (
+        patch("oya.api.routers.jobs.get_db", side_effect=get_db_then_fail),
+        caplog.at_level(logging.ERROR, logger="oya.api.routers.jobs"),
+    ):
+        response = await client.get("/api/jobs/log-test-job/stream")
+
+    # Client gets a clean error event
+    assert response.status_code == 200
+    assert "event: error" in response.text
+    assert "Database connection lost" in response.text
+
+    # Server logs the actual exception details
+    assert "SSE stream DB error for job log-test-job" in caplog.text
+    assert "Simulated DB corruption" in caplog.text
 
 
 async def test_sse_stream_sees_completed_after_staging_promotion(client, setup_active_repo):
