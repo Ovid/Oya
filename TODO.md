@@ -2,7 +2,6 @@
 
 * Load code in reverse dependency order, if feasible. That let's us be able to
   load "top-level" modules and have context for lower-level modules.
-* Should compress syncing and analysis into a single phase
 * Generated wiki, hit refresh, and it started regenerating.  Files dropdown
   said 47, but there were only 7 files shown.
 * code_index UNIQUE(file_path, symbol_name) loses data when a file has duplicate
