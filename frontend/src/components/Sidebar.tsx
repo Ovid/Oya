@@ -136,7 +136,7 @@ export function Sidebar() {
                 </svg>
                 Files ({wikiTree.files.length})
               </Disclosure.Button>
-              <Disclosure.Panel className="pl-6 max-h-64 overflow-y-auto">
+              <Disclosure.Panel className="pl-6">
                 {wikiTree.files.map((slug) => {
                   const fullPath = wikiSlugToPath(slug)
                   return (

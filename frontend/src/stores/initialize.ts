@@ -11,20 +11,28 @@ export async function initializeApp(): Promise<void> {
   wikiStore.setLoading(true)
 
   // Fetch repos and active repo
-  try {
-    await reposStore.fetchRepos()
-    await reposStore.fetchActiveRepo()
+  await reposStore.fetchRepos()
 
-    // Auto-select first repo if repos exist but none is active
-    const { repos, activeRepo } = useReposStore.getState()
-    if (repos.length > 0 && !activeRepo) {
-      await reposStore.setActiveRepo(repos[0].id)
-    }
-  } catch {
-    // Ignore errors during repo initialization
-  } finally {
-    reposStore.setInitialized(true)
+  // Check if fetch succeeded - fetchRepos catches errors internally
+  // and sets error state rather than throwing
+  const { error: fetchError } = useReposStore.getState()
+  if (fetchError) {
+    // Don't mark as initialized when fetch fails - we don't know repo state
+    // This prevents showing FirstRunWizard when backend isn't ready
+    wikiStore.setLoading(false)
+    return
   }
+
+  await reposStore.fetchActiveRepo()
+
+  // Auto-select first repo if repos exist but none is active
+  const { repos, activeRepo } = useReposStore.getState()
+  if (repos.length > 0 && !activeRepo) {
+    await reposStore.setActiveRepo(repos[0].id)
+  }
+
+  // Only mark as initialized after successful fetch
+  reposStore.setInitialized(true)
 
   // Refresh repo status for the active repo
   await wikiStore.refreshStatus()

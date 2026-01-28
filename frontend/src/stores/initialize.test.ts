@@ -160,4 +160,37 @@ describe('initializeApp', () => {
 
     expect(api.activateRepo).not.toHaveBeenCalled()
   })
+
+  it('does not mark as initialized when repo fetch fails', async () => {
+    // Simulate backend not ready - fetch throws network error
+    vi.mocked(api.listRepos).mockRejectedValue(new Error('Failed to fetch'))
+    vi.mocked(api.getActiveRepo).mockRejectedValue(new Error('Failed to fetch'))
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+    vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
+    vi.mocked(api.listJobs).mockResolvedValue([])
+
+    await initializeApp()
+
+    // When fetch fails, we should NOT be "initialized" because we don't know
+    // if there are repos or not. This prevents showing FirstRunWizard incorrectly.
+    expect(useReposStore.getState().isInitialized).toBe(false)
+    // Loading should be cleared even when fetch fails
+    expect(useWikiStore.getState().isLoading).toBe(false)
+  })
+
+  it('marks as initialized when repo fetch succeeds with empty list', async () => {
+    // Backend is ready, genuinely no repos
+    vi.mocked(api.listRepos).mockResolvedValue({ repos: [], total: 0 })
+    vi.mocked(api.getActiveRepo).mockResolvedValue({ active_repo: null })
+    vi.mocked(api.getRepoStatus).mockResolvedValue(mockRepoStatus)
+    vi.mocked(api.getWikiTree).mockResolvedValue(mockWikiTree)
+    vi.mocked(api.getGenerationStatus).mockResolvedValue(null)
+    vi.mocked(api.listJobs).mockResolvedValue([])
+
+    await initializeApp()
+
+    // When fetch succeeds with empty list, we ARE initialized
+    expect(useReposStore.getState().isInitialized).toBe(true)
+  })
 })
