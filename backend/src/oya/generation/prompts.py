@@ -568,17 +568,6 @@ Then include the code block with appropriate language syntax highlighting.
 If this file has no public API (only private/internal code), still include a Synopsis section and note: "This file has no public API for external use."
 """
 
-SYNOPSIS_NO_CALLERS_NOTE = """
-**Note:** No internal callers found in this codebase. This may be:
-- A public API intended for external consumers
-- An entry point (CLI command, API route, etc.)
-- Potentially unused code
-"""
-
-SYNOPSIS_TEST_ONLY_NOTE = """
-**Note:** Only test usage found in this codebase.
-"""
-
 
 def format_call_site_synopsis(
     snippet: str,
