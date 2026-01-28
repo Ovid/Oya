@@ -1,5 +1,6 @@
 # TODO
 
+* docs/plans/2026-01-28-call-site-synopses-design.md
 * Code synopsis for files
 * Load code in reverse dependency order, if feasible. That let's us be able to
   load "top-level" modules and have context for lower-level modules.
