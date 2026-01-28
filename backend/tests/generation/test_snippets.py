@@ -77,3 +77,28 @@ def test_select_best_call_site_external_production_beats_external_test():
 
     assert best == external_prod
     assert external_test in others
+
+
+def test_select_best_call_site_without_target_file_maintains_backward_compat():
+    """Without target_file, function should work as before (all treated as external)."""
+    caller1 = CallSite(
+        caller_file="src/a.py",
+        caller_symbol="func_a",
+        line=10,
+        target_symbol="target",
+    )
+    caller2 = CallSite(
+        caller_file="tests/test_a.py",
+        caller_symbol="test_func",
+        line=20,
+        target_symbol="target",
+    )
+
+    # Without target_file, production should still beat test
+    best, others = select_best_call_site(
+        call_sites=[caller2, caller1],
+        file_contents={},
+    )
+
+    assert best == caller1  # Production beats test
+    assert caller2 in others
