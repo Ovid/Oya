@@ -1,0 +1,79 @@
+"""Tests for call-site snippet extraction."""
+
+from oya.generation.snippets import select_best_call_site
+from oya.graph.models import CallSite
+
+
+def test_select_best_call_site_prefers_external_over_internal():
+    """External callers (different file) should be preferred over internal callers (same file)."""
+    target_file = "src/mymodule.py"
+
+    internal_caller = CallSite(
+        caller_file="src/mymodule.py",  # Same as target
+        caller_symbol="internal_func",
+        line=50,
+        target_symbol="my_function",
+    )
+    external_caller = CallSite(
+        caller_file="src/other.py",  # Different from target
+        caller_symbol="external_func",
+        line=10,
+        target_symbol="my_function",
+    )
+
+    best, others = select_best_call_site(
+        call_sites=[internal_caller, external_caller],
+        file_contents={},
+        target_file=target_file,
+    )
+
+    assert best == external_caller
+    assert internal_caller in others
+
+
+def test_select_best_call_site_falls_back_to_internal_when_no_external():
+    """When only internal callers exist, use them."""
+    target_file = "src/mymodule.py"
+
+    internal_caller = CallSite(
+        caller_file="src/mymodule.py",
+        caller_symbol="helper",
+        line=20,
+        target_symbol="my_function",
+    )
+
+    best, others = select_best_call_site(
+        call_sites=[internal_caller],
+        file_contents={},
+        target_file=target_file,
+    )
+
+    assert best == internal_caller
+    assert others == []
+
+
+def test_select_best_call_site_external_production_beats_external_test():
+    """Among external callers, production beats test."""
+    target_file = "src/mymodule.py"
+
+    external_test = CallSite(
+        caller_file="tests/test_mymodule.py",
+        caller_symbol="test_func",
+        line=10,
+        target_symbol="my_function",
+    )
+    external_prod = CallSite(
+        caller_file="src/other.py",
+        caller_symbol="use_func",
+        line=20,
+        target_symbol="my_function",
+    )
+
+    best, others = select_best_call_site(
+        call_sites=[external_test, external_prod],
+        file_contents={},
+        target_file=target_file,
+    )
+
+    assert best == external_prod
+    assert external_test in others

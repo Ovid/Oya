@@ -99,17 +99,20 @@ def extract_call_snippet(
 def select_best_call_site(
     call_sites: list[CallSite],
     file_contents: dict[str, str],
+    target_file: str | None = None,
 ) -> tuple[CallSite | None, list[CallSite]]:
     """Select the best call site for synopsis, return others for reference.
 
-    Selection criteria:
-    1. Filter out test files (prefer production code)
-    2. If only test files exist, use best test example
-    3. Prefer diversity (different files over same file)
+    Selection criteria (in priority order):
+    1. External production (caller from different file, not a test)
+    2. External test (caller from different file, is a test)
+    3. Internal production (caller from same file, not a test)
+    4. Internal test (caller from same file, is a test)
 
     Args:
         call_sites: List of CallSite objects.
         file_contents: Dict mapping file paths to contents (for future heuristics).
+        target_file: The file being documented. Used to distinguish internal vs external callers.
 
     Returns:
         Tuple of (best_site, other_sites) where best_site may be None if no callers.
@@ -118,18 +121,43 @@ def select_best_call_site(
     if not call_sites:
         return None, []
 
-    # Separate production and test files
-    production = [s for s in call_sites if not is_test_file(s.caller_file)]
-    tests = [s for s in call_sites if is_test_file(s.caller_file)]
+    def is_external(site: CallSite) -> bool:
+        """Check if caller is from a different file than the target."""
+        if target_file is None:
+            return True  # If no target specified, treat all as external
+        return site.caller_file != target_file
 
-    # Prefer production code for "best"
-    if production:
-        production.sort(key=lambda s: (s.caller_file, s.line))
-        best = production[0]
-    elif tests:
-        tests.sort(key=lambda s: (s.caller_file, s.line))
-        best = tests[0]
-    else:
+    # Categorize call sites into 4 tiers
+    external_production: list[CallSite] = []
+    external_test: list[CallSite] = []
+    internal_production: list[CallSite] = []
+    internal_test: list[CallSite] = []
+
+    for site in call_sites:
+        external = is_external(site)
+        test = is_test_file(site.caller_file)
+
+        if external and not test:
+            external_production.append(site)
+        elif external and test:
+            external_test.append(site)
+        elif not external and not test:
+            internal_production.append(site)
+        else:
+            internal_test.append(site)
+
+    # Sort each tier by file path and line for deterministic selection
+    for tier in [external_production, external_test, internal_production, internal_test]:
+        tier.sort(key=lambda s: (s.caller_file, s.line))
+
+    # Select best from highest-priority non-empty tier
+    best: CallSite | None = None
+    for tier in [external_production, external_test, internal_production, internal_test]:
+        if tier:
+            best = tier[0]
+            break
+
+    if best is None:
         return None, []
 
     # Build others list from all remaining call sites, prefer different files
