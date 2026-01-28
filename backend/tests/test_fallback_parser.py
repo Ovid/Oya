@@ -390,3 +390,20 @@ sub foo {}
     parser = FallbackParser()
     result = parser.parse_string(code, "Module.pm")
     assert result.file.synopsis is None
+
+
+def test_empty_synopsis_returns_none():
+    """Should return None when SYNOPSIS section is empty."""
+    code = """=head1 NAME
+
+Test::Module
+
+=head1 SYNOPSIS
+
+=head1 DESCRIPTION
+
+Some description here.
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Test.pm")
+    assert result.file.synopsis is None
