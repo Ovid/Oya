@@ -136,7 +136,7 @@ def select_best_call_site(
     all_remaining = [s for s in call_sites if s is not best]
     all_remaining.sort(key=lambda s: (s.caller_file, s.line))
 
-    others = []
+    others: list[CallSite] = []
     seen_files = {best.caller_file}
 
     # First pass: prefer sites from different files
