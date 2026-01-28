@@ -21,7 +21,7 @@ ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "head", "
 class PythonParser(BaseParser):
     """Parser for Python source files using the ast module."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize parser with empty module-level names tracking."""
         self._module_level_names: set[str] = set()
 
