@@ -1,7 +1,23 @@
 """Tests for call-site snippet extraction."""
 
-from oya.generation.snippets import select_best_call_site
+import pytest
+
+from oya.generation.snippets import is_test_file, select_best_call_site
 from oya.graph.models import CallSite
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        "Component.test.tsx",
+        "Component.spec.tsx",
+        "src/components/Button.test.tsx",
+        "src/components/Button.spec.tsx",
+    ],
+)
+def test_is_test_file_detects_tsx_test_files(file_path: str):
+    """TSX test files should be detected as test files."""
+    assert is_test_file(file_path) is True
 
 
 def test_select_best_call_site_prefers_external_over_internal():

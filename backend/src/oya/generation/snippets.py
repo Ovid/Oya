@@ -10,6 +10,7 @@ def is_test_file(file_path: str) -> bool:
 
     Patterns detected:
     - test_*.py, *_test.py, *_spec.py
+    - *.test.js, *.spec.js, *.test.ts, *.spec.ts, *.test.tsx, *.spec.tsx
     - Paths containing: tests/, test/, spec/, __tests__/
     - Special files: conftest.py, fixtures.py
 
@@ -30,6 +31,8 @@ def is_test_file(file_path: str) -> bool:
     if name.endswith(".test.js") or name.endswith(".spec.js"):
         return True
     if name.endswith(".test.ts") or name.endswith(".spec.ts"):
+        return True
+    if name.endswith(".test.tsx") or name.endswith(".spec.tsx"):
         return True
 
     # Check special files
