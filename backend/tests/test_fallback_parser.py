@@ -323,3 +323,70 @@ Line 3.
         assert result.file.language == "unknown"
         assert result.file.line_count == 5
         assert len(result.file.symbols) == 0
+
+
+def test_extract_perl_pod_synopsis():
+    """Should extract SYNOPSIS section from Perl POD."""
+    code = """package My::Module;
+
+sub do_something {
+    my $x = 1;
+}
+
+__END__
+
+=head1 NAME
+
+My::Module - Example module
+
+=head1 SYNOPSIS
+
+    use My::Module;
+
+    my $obj = My::Module->new();
+    $obj->do_something();
+
+=head1 DESCRIPTION
+
+This module does something.
+
+=cut
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Module.pm")
+
+    expected = """use My::Module;
+
+my $obj = My::Module->new();
+$obj->do_something();"""
+
+    assert result.file.synopsis == expected
+
+
+def test_extract_perl_pod_synopsis_head2():
+    """Should extract SYNOPSIS from =head2 as well."""
+    code = """__END__
+
+=head1 NAME
+
+Test
+
+=head2 SYNOPSIS
+
+    use Test;
+
+=cut
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Test.pm")
+    assert result.file.synopsis == "use Test;"
+
+
+def test_no_synopsis_when_no_pod():
+    """Should return None when Perl file has no POD."""
+    code = """package My::Module;
+sub foo {}
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Module.pm")
+    assert result.file.synopsis is None

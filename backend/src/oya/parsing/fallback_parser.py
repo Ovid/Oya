@@ -133,6 +133,44 @@ CLASS_PATTERNS = [
 ]
 
 
+def _extract_perl_pod_synopsis(content: str) -> str | None:
+    """Extract SYNOPSIS section from Perl POD documentation.
+
+    Args:
+        content: Full file content
+
+    Returns:
+        Code from SYNOPSIS section or None if not found
+    """
+    # Look for =head1 SYNOPSIS or =head2 SYNOPSIS
+    pattern = r"=head[12]\s+SYNOPSIS\s*\n+(.*?)(?:\n+=head|\n+=cut|\Z)"
+    match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+
+    if not match:
+        return None
+
+    synopsis_content = match.group(1)
+
+    # Remove leading indentation (POD code is typically indented)
+    lines = synopsis_content.split("\n")
+    dedented_lines = []
+
+    for line in lines:
+        # Skip POD formatting commands but keep empty lines
+        if line.strip().startswith("="):
+            continue
+        # Remove common leading whitespace
+        if line.strip():
+            dedented_lines.append(line.lstrip())
+        else:
+            # Preserve blank lines
+            dedented_lines.append("")
+
+    # Join lines and strip outer whitespace
+    result = "\n".join(dedented_lines).strip()
+    return result if result else None
+
+
 class FallbackParser(BaseParser):
     """Regex-based fallback parser for languages without dedicated parsers.
 
@@ -262,12 +300,18 @@ class FallbackParser(BaseParser):
         if content and not content.endswith("\n"):
             line_count += 1
 
+        # Extract synopsis for Perl files
+        synopsis = None
+        if language == "perl":
+            synopsis = _extract_perl_pod_synopsis(content)
+
         parsed_file = ParsedFile(
             path=str(file_path),
             language=language,
             symbols=symbols,
             raw_content=content,
             line_count=line_count,
+            synopsis=synopsis,
         )
 
         return ParseResult.success(parsed_file)
