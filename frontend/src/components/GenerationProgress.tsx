@@ -48,7 +48,7 @@ export function GenerationProgress({
     const cleanup = streamJobProgress(
       jobId,
       (event: ProgressEvent) => {
-        // Parse phase info (format: "1:analysis")
+        // Parse phase info (format: "1:syncing")
         if (event.phase) {
           const [numStr, phaseName] = event.phase.split(':')
           const phaseNum = parseInt(numStr, 10)
@@ -330,11 +330,9 @@ export function GenerationProgress({
                   ? 'Directory'
                   : currentPhase === 'files'
                     ? 'File'
-                    : currentPhase === 'analysis'
-                      ? 'File'
-                      : currentPhase === 'workflows'
-                        ? 'Workflow'
-                        : 'Step'}{' '}
+                    : currentPhase === 'workflows'
+                      ? 'Workflow'
+                      : 'Step'}{' '}
                 {currentStep} of {totalSteps}
               </span>
               <span>{totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0}%</span>

@@ -11,9 +11,7 @@ export interface PhaseInfo {
 }
 
 export const PHASES: Record<string, PhaseInfo> = {
-  starting: { name: 'Starting', description: 'Initializing generation...' },
-  syncing: { name: 'Syncing', description: 'Fetching latest code from repository...' },
-  analysis: { name: 'Analysis', description: 'Scanning repository and parsing code...' },
+  syncing: { name: 'Sync', description: 'Syncing repository and scanning code...' },
   files: { name: 'Files', description: 'Generating file-level documentation...' },
   directories: { name: 'Directories', description: 'Generating directory documentation...' },
   synthesis: { name: 'Synthesis', description: 'Synthesizing codebase understanding...' },
@@ -24,10 +22,9 @@ export const PHASES: Record<string, PhaseInfo> = {
 }
 
 // Ordered list of phases for progress display (bottom-up approach)
-// Order: Syncing → Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
+// Order: Sync → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
 export const PHASE_ORDER = [
   'syncing',
-  'analysis',
   'files',
   'directories',
   'synthesis',

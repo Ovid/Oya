@@ -273,7 +273,7 @@ class TestPromotedDbHasCompletedJobStatus:
         db.execute(
             """
             INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
-            VALUES ('stale-job', 'full', 'running', datetime('now'), 9, '0:starting')
+            VALUES ('stale-job', 'full', 'running', datetime('now'), 8, '1:syncing')
             """
         )
         db.commit()
@@ -317,7 +317,7 @@ class TestPromotedDbHasCompletedJobStatus:
         db.execute(
             """
             INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
-            VALUES ('fixed-job', 'full', 'running', datetime('now'), 9, '0:starting')
+            VALUES ('fixed-job', 'full', 'running', datetime('now'), 8, '1:syncing')
             """
         )
         db.commit()
