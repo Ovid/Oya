@@ -15,7 +15,7 @@ def workspace_with_db(setup_active_repo):
     db.execute(
         """
         INSERT INTO generations (id, type, status, started_at, current_phase, total_phases)
-        VALUES ('test-job-123', 'full', 'running', datetime('now'), 'analysis', 6)
+        VALUES ('test-job-123', 'full', 'running', datetime('now'), 'syncing', 6)
         """
     )
     db.commit()
@@ -41,7 +41,7 @@ async def test_get_job_status(client, workspace_with_db):
     data = response.json()
     assert data["job_id"] == "test-job-123"
     assert data["status"] == "running"
-    assert data["current_phase"] == "analysis"
+    assert data["current_phase"] == "syncing"
 
 
 async def test_get_nonexistent_job_returns_404(client, workspace_with_db):
@@ -101,8 +101,9 @@ class TestPhaseOrderConsistency:
     """Tests to ensure backend phase order matches frontend expectations.
 
     The bottom-up generation pipeline runs phases in this order:
-    Analysis → Files → Directories → Synthesis → Architecture → Overview → Workflows
+    Syncing → Files → Directories → Synthesis → Architecture → Overview → Workflows → Indexing
 
+    Syncing includes both the git sync and analysis steps (merged into a single user-visible phase).
     Both backend and frontend must agree on this ordering for progress display to work correctly.
     """
 
@@ -112,14 +113,13 @@ class TestPhaseOrderConsistency:
         # We test this by checking the expected values directly
         expected_phase_numbers = {
             "syncing": 1,
-            "analysis": 2,
-            "files": 3,
-            "directories": 4,
-            "synthesis": 5,
-            "architecture": 6,
-            "overview": 7,
-            "workflows": 8,
-            "indexing": 9,
+            "files": 2,
+            "directories": 3,
+            "synthesis": 4,
+            "architecture": 5,
+            "overview": 6,
+            "workflows": 7,
+            "indexing": 8,
         }
 
         # Import and check the actual mapping
@@ -135,30 +135,29 @@ class TestPhaseOrderConsistency:
                 f"Phase '{phase}' should have number {expected_num} in repos.py"
             )
 
-    def test_total_phases_is_nine(self):
-        """Total phases should be 9 for the bottom-up pipeline (including syncing and indexing)."""
+    def test_total_phases_is_eight(self):
+        """Total phases should be 8 for the bottom-up pipeline (including syncing and indexing)."""
         from oya.api.routers import repos
         import inspect
 
         source = inspect.getsource(repos.init_repo)
 
-        # Check that total_phases is 9
-        assert '"full", "pending", 9' in source or "'full', 'pending', 9" in source, (
-            "Total phases should be 9 in init_repo"
+        # Check that total_phases is 8
+        assert '"full", "pending", 8' in source or "'full', 'pending', 8" in source, (
+            "Total phases should be 8 in init_repo"
         )
 
     def test_files_before_architecture(self):
         """Files phase number should be less than architecture phase number."""
         expected_phase_numbers = {
             "syncing": 1,
-            "analysis": 2,
-            "files": 3,
-            "directories": 4,
-            "synthesis": 5,
-            "architecture": 6,
-            "overview": 7,
-            "workflows": 8,
-            "indexing": 9,
+            "files": 2,
+            "directories": 3,
+            "synthesis": 4,
+            "architecture": 5,
+            "overview": 6,
+            "workflows": 7,
+            "indexing": 8,
         }
 
         assert expected_phase_numbers["files"] < expected_phase_numbers["architecture"], (
@@ -169,13 +168,12 @@ class TestPhaseOrderConsistency:
         """Synthesis phase should come before architecture and overview."""
         expected_phase_numbers = {
             "syncing": 1,
-            "analysis": 2,
-            "files": 3,
-            "directories": 4,
-            "synthesis": 5,
-            "architecture": 6,
-            "overview": 7,
-            "workflows": 8,
+            "files": 2,
+            "directories": 3,
+            "synthesis": 4,
+            "architecture": 5,
+            "overview": 6,
+            "workflows": 7,
         }
 
         assert expected_phase_numbers["synthesis"] < expected_phase_numbers["architecture"], (
