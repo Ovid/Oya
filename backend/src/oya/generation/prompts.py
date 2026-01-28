@@ -1292,6 +1292,7 @@ def get_file_prompt(
     language: str = "",
     notes: list[dict[str, Any]] | None = None,
     synopsis: str | None = None,
+    call_site_synopsis: str | None = None,
 ) -> str:
     """Generate a prompt for creating a file documentation page.
 
@@ -1304,14 +1305,19 @@ def get_file_prompt(
         language: Programming language for syntax highlighting.
         notes: Optional list of correction notes affecting this file.
         synopsis: Optional extracted synopsis code example from source file documentation.
+        call_site_synopsis: Optional real usage example extracted from call sites in codebase.
 
     Returns:
         The rendered prompt string.
     """
+    # Priority: doc synopsis > call-site synopsis > AI-generated
     if synopsis:
         synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITH_EXTRACTED
         lang_tag = language if language else ""
         extracted_synopsis = f"```{lang_tag}\n{synopsis}\n```"
+    elif call_site_synopsis:
+        synopsis_instructions = "A real usage example from this codebase is provided above. Include it verbatim in the Synopsis section. Do NOT modify the extracted code."
+        extracted_synopsis = call_site_synopsis
     else:
         synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED
         extracted_synopsis = "No synopsis found in source file documentation."

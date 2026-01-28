@@ -42,6 +42,7 @@ class FileGenerator:
         file_imports: dict[str, list[str]] | None = None,
         notes: list[dict] | None = None,
         synopsis: str | None = None,
+        call_site_synopsis: str | None = None,
     ) -> tuple[GeneratedPage, FileSummary]:
         """Generate documentation for a file.
 
@@ -55,6 +56,7 @@ class FileGenerator:
             file_imports: Optional dict of all file imports for dependency diagrams.
             notes: Optional list of human-authored notes to incorporate into documentation.
             synopsis: Optional code synopsis showing key usage patterns for this file.
+            call_site_synopsis: Optional real usage example extracted from call sites in codebase.
 
         Returns:
             Tuple of (GeneratedPage with file documentation, FileSummary extracted from output).
@@ -70,6 +72,7 @@ class FileGenerator:
             language=language,
             notes=notes,
             synopsis=synopsis,
+            call_site_synopsis=call_site_synopsis,
         )
 
         # First attempt
