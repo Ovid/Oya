@@ -6,6 +6,7 @@ making it suitable as a fallback when dedicated parsers are unavailable.
 """
 
 import re
+import textwrap
 from pathlib import Path
 
 from oya.parsing.base import BaseParser
@@ -131,6 +132,69 @@ CLASS_PATTERNS = [
     # impl Name (Rust)
     (re.compile(r"^\s*impl(?:\s*<[^>]*>)?\s+(\w+)", re.MULTILINE), SymbolType.CLASS),
 ]
+
+
+def _extract_perl_pod_synopsis(content: str) -> str | None:
+    """Extract SYNOPSIS section from Perl POD documentation.
+
+    Args:
+        content: Full file content
+
+    Returns:
+        Code from SYNOPSIS section or None if not found
+    """
+    # Look for =head1 SYNOPSIS or =head2 SYNOPSIS
+    pattern = r"=head[12]\s+SYNOPSIS\s*\n(.*?)(?:^=|\Z)"
+    match = re.search(pattern, content, re.DOTALL | re.MULTILINE | re.IGNORECASE)
+
+    if not match:
+        return None
+
+    synopsis_content = match.group(1)
+
+    # Filter out POD formatting commands (lines starting with =)
+    lines = synopsis_content.split("\n")
+    filtered_lines = [line for line in lines if not line.strip().startswith("=")]
+
+    # Use textwrap.dedent to remove common leading whitespace while preserving
+    # relative indentation (e.g., nested blocks stay indented)
+    filtered_content = "\n".join(filtered_lines)
+    dedented = textwrap.dedent(filtered_content)
+
+    result = dedented.strip()
+    return result if result else None
+
+
+def _extract_rust_doc_examples(content: str) -> str | None:
+    """Extract code from Rust //! # Examples sections.
+
+    Args:
+        content: Full file content
+
+    Returns:
+        Code from Examples section or None if not found
+    """
+    # Look for //! # Examples followed by code block
+    pattern = r"//!\s*#\s*Examples?\s*\n(?://!(?!\s*```)[^\n]*\n)*//!\s*```[^\n]*\n((?://!(?!\s*```)[^\n]*\n)+)//!\s*```"
+    match = re.search(pattern, content, re.IGNORECASE)
+
+    if not match:
+        return None
+
+    code_lines = match.group(1).split("\n")
+
+    # Remove //! prefix from each line
+    cleaned_lines: list[str] = []
+    for line in code_lines:
+        cleaned = re.sub(r"^//!\s?", "", line)
+        if cleaned or cleaned_lines:  # Skip leading empty lines
+            cleaned_lines.append(cleaned)
+
+    # Remove trailing empty lines
+    while cleaned_lines and not cleaned_lines[-1]:
+        cleaned_lines.pop()
+
+    return "\n".join(cleaned_lines) if cleaned_lines else None
 
 
 class FallbackParser(BaseParser):
@@ -262,12 +326,20 @@ class FallbackParser(BaseParser):
         if content and not content.endswith("\n"):
             line_count += 1
 
+        # Extract synopsis
+        synopsis = None
+        if language == "perl":
+            synopsis = _extract_perl_pod_synopsis(content)
+        elif language == "rust":
+            synopsis = _extract_rust_doc_examples(content)
+
         parsed_file = ParsedFile(
             path=str(file_path),
             language=language,
             symbols=symbols,
             raw_content=content,
             line_count=line_count,
+            synopsis=synopsis,
         )
 
         return ParseResult.success(parsed_file)

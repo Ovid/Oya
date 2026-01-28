@@ -2,11 +2,12 @@
 """File page generator tests."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from oya.generation.file import FileGenerator
+from oya.generation.prompts import get_file_prompt
 from oya.generation.summaries import FileSummary
 
 
@@ -455,3 +456,45 @@ Simple utilities.
 
     # Should NOT include diagrams section
     assert "## Diagrams" not in page.content
+
+
+# =============================================================================
+# Task 7: Tests for synopsis parameter pass-through
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_file_generator_passes_synopsis_to_prompt(generator, mock_llm_client):
+    """FileGenerator should pass synopsis to get_file_prompt."""
+    synopsis_text = "from test import foo\nfoo()"
+
+    with patch("oya.generation.file.get_file_prompt", wraps=get_file_prompt) as mock_prompt:
+        await generator.generate(
+            file_path="src/auth/login.py",
+            content="def login(user, password): pass",
+            symbols=[{"name": "login", "type": "function", "line": 1}],
+            imports=["from flask import request"],
+            architecture_summary="Authentication module.",
+            synopsis=synopsis_text,
+        )
+
+        mock_prompt.assert_called_once()
+        call_kwargs = mock_prompt.call_args.kwargs
+        assert call_kwargs["synopsis"] == synopsis_text
+
+
+@pytest.mark.asyncio
+async def test_file_generator_passes_none_synopsis_by_default(generator, mock_llm_client):
+    """FileGenerator should pass synopsis=None when not provided."""
+    with patch("oya.generation.file.get_file_prompt", wraps=get_file_prompt) as mock_prompt:
+        await generator.generate(
+            file_path="src/auth/login.py",
+            content="def login(user, password): pass",
+            symbols=[{"name": "login", "type": "function", "line": 1}],
+            imports=["from flask import request"],
+            architecture_summary="Authentication module.",
+        )
+
+        mock_prompt.assert_called_once()
+        call_kwargs = mock_prompt.call_args.kwargs
+        assert call_kwargs["synopsis"] is None

@@ -442,3 +442,70 @@ def process(data):
     func = next(s for s in result.file.symbols if s.name == "process")
     # local_cache is not module-level, so no mutates
     assert "mutates" not in func.metadata or func.metadata["mutates"] == []
+
+
+def test_extract_synopsis_from_docstring_with_example_section(parser):
+    """Should extract code from docstring Example: section."""
+    code = '''"""Module for email validation.
+
+Example:
+    from mymodule import validate_email
+
+    is_valid = validate_email("user@example.com")
+"""
+
+def validate_email(email: str) -> bool:
+    return "@" in email
+'''
+    result = parser.parse_string(code, "test.py")
+    expected = """from mymodule import validate_email
+
+is_valid = validate_email("user@example.com")"""
+    assert result.file.synopsis == expected
+
+
+def test_extract_synopsis_from_docstring_with_usage_section(parser):
+    """Should extract code from docstring Usage: section."""
+    code = '''"""Utility functions.
+
+Usage:
+    >>> from utils import format_phone
+    >>> format_phone("5551234567")
+    '(555) 123-4567'
+"""
+'''
+    result = parser.parse_string(code, "test.py")
+    expected = """from utils import format_phone
+format_phone("5551234567")
+'(555) 123-4567'"""
+    assert result.file.synopsis == expected
+
+
+def test_no_synopsis_when_docstring_has_no_examples(parser):
+    """Should return None when docstring has no example sections."""
+    code = '''"""Module for authentication.
+
+This module handles user authentication.
+"""
+
+def login(username, password):
+    pass
+'''
+    result = parser.parse_string(code, "test.py")
+    assert result.file.synopsis is None
+
+
+def test_no_synopsis_when_example_section_is_empty(parser):
+    """Should return None when Example section has only whitespace."""
+    code = '''"""Module for testing.
+
+Example:
+
+
+"""
+
+def foo():
+    pass
+'''
+    result = parser.parse_string(code, "test.py")
+    assert result.file.synopsis is None

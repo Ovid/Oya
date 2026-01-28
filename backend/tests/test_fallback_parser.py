@@ -323,3 +323,182 @@ Line 3.
         assert result.file.language == "unknown"
         assert result.file.line_count == 5
         assert len(result.file.symbols) == 0
+
+
+def test_extract_perl_pod_synopsis():
+    """Should extract SYNOPSIS section from Perl POD."""
+    code = """package My::Module;
+
+sub do_something {
+    my $x = 1;
+}
+
+__END__
+
+=head1 NAME
+
+My::Module - Example module
+
+=head1 SYNOPSIS
+
+    use My::Module;
+
+    my $obj = My::Module->new();
+    $obj->do_something();
+
+=head1 DESCRIPTION
+
+This module does something.
+
+=cut
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Module.pm")
+
+    expected = """use My::Module;
+
+my $obj = My::Module->new();
+$obj->do_something();"""
+
+    assert result.file.synopsis == expected
+
+
+def test_extract_perl_pod_synopsis_head2():
+    """Should extract SYNOPSIS from =head2 as well."""
+    code = """__END__
+
+=head1 NAME
+
+Test
+
+=head2 SYNOPSIS
+
+    use Test;
+
+=cut
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Test.pm")
+    assert result.file.synopsis == "use Test;"
+
+
+def test_no_synopsis_when_no_pod():
+    """Should return None when Perl file has no POD."""
+    code = """package My::Module;
+sub foo {}
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Module.pm")
+    assert result.file.synopsis is None
+
+
+def test_empty_synopsis_returns_none():
+    """Should return None when SYNOPSIS section is empty."""
+    code = """=head1 NAME
+
+Test::Module
+
+=head1 SYNOPSIS
+
+=head1 DESCRIPTION
+
+Some description here.
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Test.pm")
+    assert result.file.synopsis is None
+
+
+def test_perl_pod_synopsis_preserves_relative_indentation():
+    """Should preserve relative indentation in Perl POD SYNOPSIS.
+
+    POD code is typically indented 4 spaces from the margin. When extracting,
+    we should remove that common indentation but preserve internal nesting.
+    """
+    code = """=head1 SYNOPSIS
+
+    package My::Names {
+        use MooseX::Extended;
+
+        sub name ($self) {
+            my $name = $self->_name;
+            return $name;
+        }
+    }
+
+=head1 DESCRIPTION
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Extended.pm")
+
+    # Should preserve internal indentation (4 spaces inside the package block)
+    expected = """package My::Names {
+    use MooseX::Extended;
+
+    sub name ($self) {
+        my $name = $self->_name;
+        return $name;
+    }
+}"""
+    assert result.file.synopsis == expected
+
+
+def test_extract_rust_doc_examples():
+    """Should extract code from Rust //! # Examples sections."""
+    code = """//! Email validation utilities.
+//!
+//! # Examples
+//!
+//! ```
+//! use mylib::validate_email;
+//!
+//! let is_valid = validate_email("user@example.com");
+//! ```
+
+pub fn validate_email(email: &str) -> bool {
+    email.contains('@')
+}
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "email.rs")
+
+    expected = """use mylib::validate_email;
+
+let is_valid = validate_email("user@example.com");"""
+
+    assert result.file.synopsis == expected
+
+
+def test_no_rust_synopsis_without_examples_section():
+    """Should return None when Rust file has no Examples section."""
+    code = """//! Email validation utilities.
+
+pub fn validate_email(email: &str) -> bool {
+    true
+}
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "email.rs")
+    assert result.file.synopsis is None
+
+
+def test_rust_extracts_first_code_block_when_multiple_exist():
+    """Should extract the FIRST code block when multiple Examples exist."""
+    code = """//! # Examples
+//!
+//! Basic usage:
+//! ```
+//! let x = 1;
+//! ```
+//!
+//! Advanced usage:
+//! ```
+//! let y = 2;
+//! ```
+
+pub fn foo() {}
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "test.rs")
+    # Should extract FIRST block, not last
+    assert result.file.synopsis == "let x = 1;"

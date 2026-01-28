@@ -12,6 +12,8 @@
 
 This is a work in progress. It works, but expect rough edges. File issues when you find them.
 
+Amongst other things, we're using ChromaDB with its built-in embeddings. This is fine for testing, but we need a proper embedding model for production-quality work.
+
 ---
 
 ## The Problem

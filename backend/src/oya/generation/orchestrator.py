@@ -1422,6 +1422,10 @@ class GenerationOrchestrator:
         # Get all parsed symbols from analysis (these are ParsedSymbol objects)
         all_parsed_symbols: list[ParsedSymbol] = analysis.get("symbols", [])
 
+        # Build lookup of parsed files by path for synopsis extraction
+        all_parsed_files: list[ParsedFile] = analysis.get("parsed_files", [])
+        parsed_file_lookup: dict[str, ParsedFile] = {pf.path: pf for pf in all_parsed_files}
+
         # Helper to generate a single file page with hash and return both page and summary
         async def generate_file_page(
             file_path: str, content_hash: str
@@ -1444,6 +1448,10 @@ class GenerationOrchestrator:
             # Load notes for this file
             notes = get_notes_for_target(self.db, "file", file_path)
 
+            # Extract synopsis from parsed file (if available)
+            parsed_file = parsed_file_lookup.get(file_path)
+            synopsis = parsed_file.synopsis if parsed_file else None
+
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
             page, file_summary = await self.file_generator.generate(
                 file_path=file_path,
@@ -1454,6 +1462,7 @@ class GenerationOrchestrator:
                 parsed_symbols=file_parsed_symbols,
                 file_imports=all_file_imports,
                 notes=notes,
+                synopsis=synopsis,
             )
             # Add source hash to the page for storage
             page.source_hash = content_hash
