@@ -568,6 +568,66 @@ Then include the code block with appropriate language syntax highlighting.
 If this file has no public API (only private/internal code), still include a Synopsis section and note: "This file has no public API for external use."
 """
 
+SYNOPSIS_INSTRUCTIONS_WITH_CALL_SITE = """
+A real usage example from this codebase has been extracted and is shown above.
+
+**Include it verbatim in the Synopsis section**, formatted as:
+
+## 2. Synopsis
+
+**From `{caller_file}` line {line}:**
+```{language}
+{snippet}
+```
+
+{other_callers_note}
+
+Do NOT modify the extracted code. It shows actual usage in this codebase.
+"""
+
+SYNOPSIS_NO_CALLERS_NOTE = """
+**Note:** No internal callers found in this codebase. This may be:
+- A public API intended for external consumers
+- An entry point (CLI command, API route, etc.)
+- Potentially unused code
+"""
+
+SYNOPSIS_TEST_ONLY_NOTE = """
+**Note:** Only test usage found in this codebase.
+"""
+
+
+def format_call_site_synopsis(
+    snippet: str,
+    caller_file: str,
+    line: int,
+    language: str,
+    other_callers: list[tuple[str, int]] | None = None,
+) -> str:
+    """Format a call-site synopsis for inclusion in prompt.
+
+    Args:
+        snippet: The extracted code snippet.
+        caller_file: File where the call was found.
+        line: Line number of the call.
+        language: Programming language for syntax highlighting.
+        other_callers: Optional list of (file, line) tuples for other callers.
+
+    Returns:
+        Formatted synopsis string ready for prompt inclusion.
+    """
+    other_note = ""
+    if other_callers:
+        refs = [f"`{filepath}:{lineno}`" for filepath, lineno in other_callers[:5]]
+        if len(other_callers) > 5:
+            refs.append(f"and {len(other_callers) - 5} more")
+        other_note = f"\nAlso called from: {', '.join(refs)}"
+
+    return f"""**From `{caller_file}` line {line}:**
+```{language}
+{snippet}
+```{other_note}"""
+
 
 # =============================================================================
 # Helper Functions
