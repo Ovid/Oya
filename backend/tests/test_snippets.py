@@ -172,3 +172,99 @@ def other_function():
 
         # Should return something reasonable, not crash
         assert isinstance(snippet, str)
+
+
+class TestSelectBestCallSite:
+    """Tests for select_best_call_site function."""
+
+    def test_prefers_production_over_test(self):
+        """Production files are preferred over test files."""
+        from oya.generation.snippets import select_best_call_site
+        from oya.graph.models import CallSite
+
+        sites = [
+            CallSite(
+                caller_file="tests/test_auth.py",
+                caller_symbol="test_verify",
+                line=10,
+                target_symbol="verify",
+            ),
+            CallSite(
+                caller_file="handler.py", caller_symbol="process", line=20, target_symbol="verify"
+            ),
+        ]
+
+        best, others = select_best_call_site(sites, {})
+
+        assert best is not None
+        assert best.caller_file == "handler.py"
+        assert len(others) == 1
+
+    def test_returns_test_if_only_option(self):
+        """Returns test file if it's the only caller."""
+        from oya.generation.snippets import select_best_call_site
+        from oya.graph.models import CallSite
+
+        sites = [
+            CallSite(
+                caller_file="tests/test_auth.py",
+                caller_symbol="test_verify",
+                line=10,
+                target_symbol="verify",
+            ),
+        ]
+
+        best, others = select_best_call_site(sites, {})
+
+        assert best is not None
+        assert best.caller_file == "tests/test_auth.py"
+        assert others == []
+
+    def test_returns_none_for_empty_list(self):
+        """Returns None when no call sites provided."""
+        from oya.generation.snippets import select_best_call_site
+
+        best, others = select_best_call_site([], {})
+
+        assert best is None
+        assert others == []
+
+    def test_prefers_different_files(self):
+        """When multiple callers, prefers showing diversity."""
+        from oya.generation.snippets import select_best_call_site
+        from oya.graph.models import CallSite
+
+        sites = [
+            CallSite(
+                caller_file="handler.py", caller_symbol="func1", line=10, target_symbol="util"
+            ),
+            CallSite(
+                caller_file="handler.py", caller_symbol="func2", line=20, target_symbol="util"
+            ),
+            CallSite(caller_file="api.py", caller_symbol="route", line=30, target_symbol="util"),
+        ]
+
+        best, others = select_best_call_site(sites, {})
+
+        # Should pick one, others should include remaining
+        assert best is not None
+        assert len(others) == 2
+
+    def test_limits_other_callers(self):
+        """Limits other callers list to reasonable size."""
+        from oya.generation.snippets import select_best_call_site
+        from oya.graph.models import CallSite
+
+        # Create 20 call sites
+        sites = [
+            CallSite(
+                caller_file=f"file{i}.py", caller_symbol=f"func{i}", line=i, target_symbol="util"
+            )
+            for i in range(20)
+        ]
+
+        best, others = select_best_call_site(sites, {})
+
+        assert best is not None
+        # Should limit others to reasonable number (design says 5)
+        assert len(others) <= 5

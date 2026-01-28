@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from oya.graph.models import CallSite
+
 
 def is_test_file(file_path: str) -> bool:
     """Check if a file is a test file.
@@ -92,3 +94,64 @@ def extract_call_snippet(
             break
 
     return "\n".join(lines[start:end])
+
+
+def select_best_call_site(
+    call_sites: list[CallSite],
+    file_contents: dict[str, str],
+) -> tuple[CallSite | None, list[CallSite]]:
+    """Select the best call site for synopsis, return others for reference.
+
+    Selection criteria:
+    1. Filter out test files (prefer production code)
+    2. If only test files exist, use best test example
+    3. Prefer diversity (different files over same file)
+
+    Args:
+        call_sites: List of CallSite objects.
+        file_contents: Dict mapping file paths to contents (for future heuristics).
+
+    Returns:
+        Tuple of (best_site, other_sites) where best_site may be None if no callers.
+        other_sites is limited to 5 entries.
+    """
+    if not call_sites:
+        return None, []
+
+    # Separate production and test files
+    production = [s for s in call_sites if not is_test_file(s.caller_file)]
+    tests = [s for s in call_sites if is_test_file(s.caller_file)]
+
+    # Prefer production code for "best"
+    if production:
+        production.sort(key=lambda s: (s.caller_file, s.line))
+        best = production[0]
+    elif tests:
+        tests.sort(key=lambda s: (s.caller_file, s.line))
+        best = tests[0]
+    else:
+        return None, []
+
+    # Build others list from all remaining call sites, prefer different files
+    all_remaining = [s for s in call_sites if s is not best]
+    all_remaining.sort(key=lambda s: (s.caller_file, s.line))
+
+    others = []
+    seen_files = {best.caller_file}
+
+    # First pass: prefer sites from different files
+    for site in all_remaining:
+        if len(others) >= 5:
+            break
+        if site.caller_file not in seen_files:
+            others.append(site)
+            seen_files.add(site.caller_file)
+
+    # Fill remaining slots if we have space
+    for site in all_remaining:
+        if len(others) >= 5:
+            break
+        if site not in others:
+            others.append(site)
+
+    return best, others
