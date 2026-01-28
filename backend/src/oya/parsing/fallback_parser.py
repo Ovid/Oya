@@ -143,8 +143,8 @@ def _extract_perl_pod_synopsis(content: str) -> str | None:
         Code from SYNOPSIS section or None if not found
     """
     # Look for =head1 SYNOPSIS or =head2 SYNOPSIS
-    pattern = r"=head[12]\s+SYNOPSIS\s*\n+(.*?)(?:\n+=head|\n+=cut|\Z)"
-    match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+    pattern = r"=head[12]\s+SYNOPSIS\s*\n(.*?)(?:^=|\Z)"
+    match = re.search(pattern, content, re.DOTALL | re.MULTILINE | re.IGNORECASE)
 
     if not match:
         return None
