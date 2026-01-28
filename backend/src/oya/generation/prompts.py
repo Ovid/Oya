@@ -467,6 +467,9 @@ REQUIREMENT: You MUST always produce documentation. Every file has value to deve
 ## Architecture Context
 {architecture_summary}
 
+## Extracted Synopsis
+{extracted_synopsis}
+
 ---
 
 IMPORTANT: You MUST start your response with a YAML summary block in the following format:
@@ -517,15 +520,53 @@ If no issues are found, use an empty list: `issues: []`
 
 Your documentation MUST include these sections in order:
 1. **Purpose** - What this file does and why it exists
-2. **Public API** - Exported classes, functions, constants (if any)
-3. **Internal Details** - Implementation specifics developers need to know
-4. **Dependencies** - What this file imports and why
-5. **Usage Examples** - How to use the components in this file
+2. **Synopsis** - Caller-perspective code example showing how to use this file's public API
+3. **Public API** - Exported classes, functions, constants (if any)
+4. **Internal Details** - Implementation specifics developers need to know
+5. **Dependencies** - What this file imports and why
+6. **Usage Examples** - How to use the components in this file
+
+## Synopsis Section Guidelines
+
+{synopsis_instructions}
 
 You MAY add additional sections after these if there's important information that doesn't fit (e.g., "Concurrency Notes", "Migration History", "Known Limitations").
 
 Format the output as clean Markdown suitable for a wiki page."""
 )
+
+SYNOPSIS_INSTRUCTIONS_WITH_EXTRACTED = """
+An extracted synopsis from the source file's documentation is provided above.
+
+**You MUST include it verbatim in the Synopsis section.**
+
+However, also check if the extracted synopsis conflicts with the current code:
+- Are functions/classes mentioned in the synopsis still present?
+- Do signatures match?
+- Are there renamed or removed symbols?
+
+If conflicts are detected, include the extracted synopsis unchanged, then add a note:
+
+**Note:** This synopsis may be outdated. The function `old_name` appears to have been renamed to `new_name` in the current code. Please verify the usage before relying on this example.
+"""
+
+SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED = """
+No synopsis was found in the source file's documentation.
+
+**You MUST generate a caller-perspective code example** showing:
+- How to import/use this file's public API
+- The most common/important use case
+- Necessary imports at the top
+- 5-15 lines typically, NO setup boilerplate (no main, no tests, no print)
+
+**Mark it clearly:** Start the synopsis section with:
+
+**AI-Generated Synopsis**
+
+Then include the code block with appropriate language syntax highlighting.
+
+If this file has no public API (only private/internal code), you may omit the Synopsis section or note "This file has no public API for external use."
+"""
 
 
 # =============================================================================
@@ -1212,6 +1253,8 @@ def get_file_prompt(
         imports=_format_imports(imports),
         architecture_summary=architecture_summary or "No architecture context provided.",
         language=language,
+        extracted_synopsis="No synopsis found in source file documentation.",
+        synopsis_instructions=SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED,
     )
 
     if notes:
