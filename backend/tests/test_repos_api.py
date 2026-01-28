@@ -292,6 +292,18 @@ async def test_post_repos_init_starts_generation(client, data_dir, source_repo, 
     assert mock_run_generation.call_count == 1
 
 
+async def test_post_repos_init_rejects_invalid_mode(client, data_dir, source_repo):
+    """POST /api/repos/init returns 422 for invalid mode values."""
+    await _create_and_activate_repo(client, source_repo)
+
+    response = await client.post(
+        "/api/repos/init",
+        json={"mode": "ful"},  # typo — not "full" or "incremental"
+    )
+
+    assert response.status_code == 422
+
+
 # ============================================================================
 # Status Endpoint Tests
 # ============================================================================

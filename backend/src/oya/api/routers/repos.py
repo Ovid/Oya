@@ -4,6 +4,7 @@ import logging
 import os
 import uuid
 import shutil
+from typing import Literal
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Body
 
 from oya.api.deps import (
@@ -342,7 +343,7 @@ async def get_generation_status(
 @router.post("/init", response_model=JobCreated, status_code=202)
 async def init_repo(
     background_tasks: BackgroundTasks,
-    mode: str = Body("incremental", embed=True),
+    mode: Literal["incremental", "full"] = Body("incremental", embed=True),
     repo: GitRepo = Depends(get_repo),
     db: Database = Depends(get_db),
     paths: RepoPaths = Depends(get_active_repo_paths),
