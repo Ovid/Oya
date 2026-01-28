@@ -19,6 +19,7 @@ from oya.generation.summaries import (
     LayerInfo,
     ComponentInfo,
 )
+from oya.parsing.models import ParsedFile, ParsedSymbol, SymbolType
 
 
 @pytest.fixture
@@ -1708,3 +1709,186 @@ class TestCodeIndexBuilding:
         # The callee function should have "caller" in its called_by list
         # (depends on parser extracting calls metadata)
         assert len(callee_entries) > 0, "Should find callee function"
+
+
+# ============================================================================
+# Task 8 (Synopsis): Synopsis Extraction in Orchestrator Tests
+# ============================================================================
+
+
+class TestSynopsisPassedToFileGenerator:
+    """Tests for synopsis extraction from ParsedFile and passing to FileGenerator.
+
+    Verifies that the orchestrator extracts the synopsis field from ParsedFile
+    objects and passes it to FileGenerator.generate().
+    """
+
+    @pytest.fixture
+    def orchestrator_for_synopsis(self, mock_llm_client, mock_repo, mock_db, tmp_path):
+        """Create orchestrator for synopsis testing."""
+        return GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=tmp_path / "wiki",
+        )
+
+    @pytest.mark.asyncio
+    async def test_synopsis_extracted_and_passed_to_file_generator(self, orchestrator_for_synopsis):
+        """Synopsis from ParsedFile is passed to FileGenerator.generate().
+
+        When analysis produces a ParsedFile with a synopsis, the orchestrator
+        should extract it and pass it as the synopsis= keyword argument to
+        FileGenerator.generate().
+        """
+        captured_kwargs: list[dict] = []
+
+        mock_file_summary = FileSummary(
+            file_path="src/main.py",
+            purpose="Main entry point",
+            layer="api",
+            key_abstractions=["main"],
+            internal_deps=[],
+            external_deps=[],
+        )
+        mock_page = GeneratedPage(
+            content="# File",
+            page_type="file",
+            path="files/src-main-py.md",
+            word_count=1,
+            target="src/main.py",
+        )
+
+        async def mock_generate(*args, **kwargs):
+            captured_kwargs.append(kwargs)
+            return mock_page, mock_file_summary
+
+        orchestrator_for_synopsis.file_generator.generate = mock_generate
+
+        # Create a ParsedFile with a synopsis
+        parsed_file = ParsedFile(
+            path="src/main.py",
+            language="python",
+            symbols=[
+                ParsedSymbol(
+                    name="main",
+                    symbol_type=SymbolType.FUNCTION,
+                    start_line=1,
+                    end_line=3,
+                    metadata={"file": "src/main.py"},
+                )
+            ],
+            synopsis="app = FastAPI()\napp.include_router(api_router)",
+        )
+
+        analysis = {
+            "files": ["src/main.py"],
+            "symbols": parsed_file.symbols,
+            "file_tree": "src/main.py",
+            "file_contents": {"src/main.py": "from fastapi import FastAPI\napp = FastAPI()"},
+            "file_imports": {"src/main.py": ["fastapi"]},
+            "parsed_files": [parsed_file],
+        }
+
+        await orchestrator_for_synopsis._run_files(analysis)
+
+        assert len(captured_kwargs) == 1, "FileGenerator.generate should be called once"
+        assert "synopsis" in captured_kwargs[0], "synopsis should be passed as a keyword argument"
+        assert captured_kwargs[0]["synopsis"] == "app = FastAPI()\napp.include_router(api_router)"
+
+    @pytest.mark.asyncio
+    async def test_synopsis_none_when_parsed_file_has_no_synopsis(self, orchestrator_for_synopsis):
+        """When ParsedFile has no synopsis, None is passed to FileGenerator.generate()."""
+        captured_kwargs: list[dict] = []
+
+        mock_file_summary = FileSummary(
+            file_path="src/utils.py",
+            purpose="Utility functions",
+            layer="utility",
+            key_abstractions=["format_date"],
+            internal_deps=[],
+            external_deps=[],
+        )
+        mock_page = GeneratedPage(
+            content="# File",
+            page_type="file",
+            path="files/src-utils-py.md",
+            word_count=1,
+            target="src/utils.py",
+        )
+
+        async def mock_generate(*args, **kwargs):
+            captured_kwargs.append(kwargs)
+            return mock_page, mock_file_summary
+
+        orchestrator_for_synopsis.file_generator.generate = mock_generate
+
+        # Create a ParsedFile WITHOUT a synopsis
+        parsed_file = ParsedFile(
+            path="src/utils.py",
+            language="python",
+            symbols=[
+                ParsedSymbol(
+                    name="format_date",
+                    symbol_type=SymbolType.FUNCTION,
+                    start_line=1,
+                    end_line=3,
+                    metadata={"file": "src/utils.py"},
+                )
+            ],
+            # synopsis defaults to None
+        )
+
+        analysis = {
+            "files": ["src/utils.py"],
+            "symbols": parsed_file.symbols,
+            "file_tree": "src/utils.py",
+            "file_contents": {"src/utils.py": "def format_date(): pass"},
+            "file_imports": {},
+            "parsed_files": [parsed_file],
+        }
+
+        await orchestrator_for_synopsis._run_files(analysis)
+
+        assert len(captured_kwargs) == 1
+        assert "synopsis" in captured_kwargs[0]
+        assert captured_kwargs[0]["synopsis"] is None
+
+    @pytest.mark.asyncio
+    async def test_synopsis_none_when_no_parsed_file_matches(self, orchestrator_for_synopsis):
+        """When no ParsedFile matches the file path, synopsis is None."""
+        captured_kwargs: list[dict] = []
+
+        mock_file_summary = FileSummary(
+            file_path="src/orphan.py",
+            purpose="Orphan file",
+            layer="utility",
+        )
+        mock_page = GeneratedPage(
+            content="# File",
+            page_type="file",
+            path="files/src-orphan-py.md",
+            word_count=1,
+            target="src/orphan.py",
+        )
+
+        async def mock_generate(*args, **kwargs):
+            captured_kwargs.append(kwargs)
+            return mock_page, mock_file_summary
+
+        orchestrator_for_synopsis.file_generator.generate = mock_generate
+
+        analysis = {
+            "files": ["src/orphan.py"],
+            "symbols": [],
+            "file_tree": "src/orphan.py",
+            "file_contents": {"src/orphan.py": "x = 1"},
+            "file_imports": {},
+            "parsed_files": [],  # No parsed files at all
+        }
+
+        await orchestrator_for_synopsis._run_files(analysis)
+
+        assert len(captured_kwargs) == 1
+        assert "synopsis" in captured_kwargs[0]
+        assert captured_kwargs[0]["synopsis"] is None
