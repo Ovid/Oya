@@ -11,7 +11,6 @@ export interface PhaseInfo {
 }
 
 export const PHASES: Record<string, PhaseInfo> = {
-  starting: { name: 'Starting', description: 'Initializing generation...' },
   syncing: { name: 'Sync', description: 'Syncing repository and scanning code...' },
   files: { name: 'Files', description: 'Generating file-level documentation...' },
   directories: { name: 'Directories', description: 'Generating directory documentation...' },

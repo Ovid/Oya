@@ -25,7 +25,6 @@ const EXPECTED_PHASE_ORDER = [
 ]
 
 const EXPECTED_PHASES = {
-  starting: { name: 'Starting', description: 'Initializing generation...' },
   syncing: { name: 'Sync', description: 'Syncing repository and scanning code...' },
   files: { name: 'Files', description: 'Generating file-level documentation...' },
   directories: { name: 'Directories', description: 'Generating directory documentation...' },
