@@ -554,3 +554,33 @@ def test_get_graph_architecture_prompt_handles_empty_flows():
 
     assert "flowchart LR" in prompt
     assert "my-project" in prompt
+
+
+def test_file_template_includes_synopsis_section():
+    """FILE_TEMPLATE should mention Synopsis as section 2."""
+    from oya.generation.prompts import FILE_TEMPLATE
+
+    template_text = FILE_TEMPLATE.template
+
+    # Should mention Synopsis section
+    assert "Synopsis" in template_text or "synopsis" in template_text
+
+    # Should mention it comes after Purpose (section 1)
+    assert "1." in template_text and "Purpose" in template_text
+    assert "2." in template_text and ("Synopsis" in template_text or "synopsis" in template_text)
+
+
+def test_file_template_mentions_ai_generated_marker():
+    """FILE_TEMPLATE should instruct LLM to mark AI-generated synopses."""
+    from oya.generation.prompts import (
+        FILE_TEMPLATE,
+        SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED,
+    )
+
+    template_text = FILE_TEMPLATE.template
+    # The AI-Generated marker should appear in the synopsis instructions
+    assert (
+        "AI-Generated" in template_text
+        or "ai-generated" in template_text.lower()
+        or "AI-Generated" in SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED
+    )
