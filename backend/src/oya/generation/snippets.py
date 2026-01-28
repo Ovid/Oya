@@ -41,3 +41,54 @@ def is_test_file(file_path: str) -> bool:
         return True
 
     return False
+
+
+def extract_call_snippet(
+    file_path: str,
+    call_line: int,
+    file_contents: dict[str, str],
+    context_before: int = 10,
+    context_after: int = 10,
+) -> str:
+    """Extract code context around a call site.
+
+    Args:
+        file_path: Path to the file containing the call.
+        call_line: Line number of the call (1-indexed).
+        file_contents: Dict mapping file paths to their contents.
+        context_before: Maximum lines to include before the call.
+        context_after: Maximum lines to include after the call.
+
+    Returns:
+        Code snippet as string, or empty string if file not found.
+    """
+    content = file_contents.get(file_path)
+    if not content:
+        return ""
+
+    lines = content.split("\n")
+    total_lines = len(lines)
+
+    # Convert to 0-indexed
+    call_idx = call_line - 1
+
+    # Handle out of bounds
+    if call_idx < 0 or call_idx >= total_lines:
+        # Return last few lines if line is beyond file
+        if call_idx >= total_lines and total_lines > 0:
+            start = max(0, total_lines - context_after)
+            return "\n".join(lines[start:])
+        return ""
+
+    # Calculate window
+    start = max(0, call_idx - context_before)
+    end = min(total_lines, call_idx + context_after + 1)
+
+    # Expand upward to find function/class definition if within range
+    for i in range(call_idx, max(start - 1, -1), -1):
+        line = lines[i].lstrip()
+        if line.startswith("def ") or line.startswith("class ") or line.startswith("async def "):
+            start = i
+            break
+
+    return "\n".join(lines[start:end])
