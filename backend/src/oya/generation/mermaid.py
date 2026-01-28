@@ -32,7 +32,7 @@ class LayerDiagramGenerator:
         # Create subgraph for each layer
         for layer_name, layer_info in synthesis_map.layers.items():
             layer_id = sanitize_node_id(layer_name)
-            layer_label = sanitize_label(f"{layer_name}: {layer_info.purpose}", max_length=50)
+            layer_label = sanitize_label(layer_name.capitalize())
 
             lines.append(f'    subgraph {layer_id}["{layer_label}"]')
 
