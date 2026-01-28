@@ -584,3 +584,38 @@ def test_file_template_mentions_ai_generated_marker():
         or "ai-generated" in template_text.lower()
         or "AI-Generated" in SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED
     )
+
+
+def test_get_file_prompt_with_extracted_synopsis():
+    """get_file_prompt should include extracted synopsis in prompt."""
+    from oya.generation.prompts import get_file_prompt
+
+    synopsis = "from mymodule import foo\nfoo()"
+
+    prompt = get_file_prompt(
+        file_path="test.py",
+        content="def foo(): pass",
+        symbols=[],
+        imports=[],
+        architecture_summary="Test arch",
+        synopsis=synopsis,
+    )
+
+    assert synopsis in prompt
+    assert "extracted synopsis" in prompt.lower() or "verbatim" in prompt.lower()
+
+
+def test_get_file_prompt_without_synopsis():
+    """get_file_prompt should include AI-generation instructions when no synopsis."""
+    from oya.generation.prompts import get_file_prompt
+
+    prompt = get_file_prompt(
+        file_path="test.py",
+        content="def foo(): pass",
+        symbols=[],
+        imports=[],
+        architecture_summary="Test arch",
+        synopsis=None,
+    )
+
+    assert "AI-Generated" in prompt or "generate" in prompt.lower()
