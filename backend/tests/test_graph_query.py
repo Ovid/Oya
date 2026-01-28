@@ -242,3 +242,48 @@ def test_get_leaf_nodes(sample_graph):
     assert "response.py::send_response" in leaf_ids
     # Nodes that do call others
     assert "handler.py::process_request" not in leaf_ids
+
+
+def test_get_call_sites_for_file(sample_graph):
+    """get_call_sites returns all calls to symbols in a target file."""
+    from oya.graph.query import get_call_sites
+
+    sites = get_call_sites(sample_graph, "db.py")
+
+    assert len(sites) == 2
+    # Both process_request and verify_token call get_user
+    caller_symbols = [s.caller_symbol for s in sites]
+    assert "process_request" in caller_symbols
+    assert "verify_token" in caller_symbols
+    # All target the same file
+    assert all(s.target_symbol == "get_user" for s in sites)
+
+
+def test_get_call_sites_includes_line_numbers(sample_graph):
+    """get_call_sites includes exact line numbers from edges."""
+    from oya.graph.query import get_call_sites
+
+    sites = get_call_sites(sample_graph, "db.py")
+
+    lines = {s.line for s in sites}
+    assert 20 in lines  # process_request calls get_user at line 20
+    assert 10 in lines  # verify_token calls get_user at line 10
+
+
+def test_get_call_sites_empty_for_uncalled_file(sample_graph):
+    """get_call_sites returns empty list for files with no callers."""
+    from oya.graph.query import get_call_sites
+
+    sites = get_call_sites(sample_graph, "handler.py")
+
+    # handler.py::process_request has no incoming calls
+    assert sites == []
+
+
+def test_get_call_sites_nonexistent_file(sample_graph):
+    """get_call_sites returns empty list for files not in graph."""
+    from oya.graph.query import get_call_sites
+
+    sites = get_call_sites(sample_graph, "nonexistent.py")
+
+    assert sites == []
