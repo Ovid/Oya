@@ -6,6 +6,7 @@ making it suitable as a fallback when dedicated parsers are unavailable.
 """
 
 import re
+import textwrap
 from pathlib import Path
 
 from oya.parsing.base import BaseParser
@@ -151,23 +152,16 @@ def _extract_perl_pod_synopsis(content: str) -> str | None:
 
     synopsis_content = match.group(1)
 
-    # Remove leading indentation (POD code is typically indented)
+    # Filter out POD formatting commands (lines starting with =)
     lines = synopsis_content.split("\n")
-    dedented_lines = []
+    filtered_lines = [line for line in lines if not line.strip().startswith("=")]
 
-    for line in lines:
-        # Skip POD formatting commands but keep empty lines
-        if line.strip().startswith("="):
-            continue
-        # Remove common leading whitespace
-        if line.strip():
-            dedented_lines.append(line.lstrip())
-        else:
-            # Preserve blank lines
-            dedented_lines.append("")
+    # Use textwrap.dedent to remove common leading whitespace while preserving
+    # relative indentation (e.g., nested blocks stay indented)
+    filtered_content = "\n".join(filtered_lines)
+    dedented = textwrap.dedent(filtered_content)
 
-    # Join lines and strip outer whitespace
-    result = "\n".join(dedented_lines).strip()
+    result = dedented.strip()
     return result if result else None
 
 

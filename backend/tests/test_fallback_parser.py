@@ -409,6 +409,40 @@ Some description here.
     assert result.file.synopsis is None
 
 
+def test_perl_pod_synopsis_preserves_relative_indentation():
+    """Should preserve relative indentation in Perl POD SYNOPSIS.
+
+    POD code is typically indented 4 spaces from the margin. When extracting,
+    we should remove that common indentation but preserve internal nesting.
+    """
+    code = """=head1 SYNOPSIS
+
+    package My::Names {
+        use MooseX::Extended;
+
+        sub name ($self) {
+            my $name = $self->_name;
+            return $name;
+        }
+    }
+
+=head1 DESCRIPTION
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "Extended.pm")
+
+    # Should preserve internal indentation (4 spaces inside the package block)
+    expected = """package My::Names {
+    use MooseX::Extended;
+
+    sub name ($self) {
+        my $name = $self->_name;
+        return $name;
+    }
+}"""
+    assert result.file.synopsis == expected
+
+
 def test_extract_rust_doc_examples():
     """Should extract code from Rust //! # Examples sections."""
     code = """//! Email validation utilities.
