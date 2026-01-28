@@ -556,7 +556,7 @@ No synopsis was found in the source file's documentation.
 **You MUST generate a caller-perspective code example** showing:
 - How to import/use this file's public API
 - The most common/important use case
-- Necessary imports at the top
+- Include the import statement when it helps clarify what's being used
 - 5-15 lines typically, NO setup boilerplate (no main, no tests, no print)
 
 **Mark it clearly:** Start the synopsis section with:
