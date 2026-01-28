@@ -59,6 +59,7 @@ class ParsedFile:
     raw_content: str | None = None
     line_count: int = 0
     metadata: dict = field(default_factory=dict)
+    synopsis: str | None = None  # Extracted synopsis code
 
 
 @dataclass
