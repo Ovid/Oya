@@ -1,5 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, act } from '@testing-library/react'
+import { GenerationProgress } from './GenerationProgress'
 import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants'
+import * as client from '../api/client'
+
+// Mock the API client
+vi.mock('../api/client', () => ({
+  streamJobProgress: vi.fn(),
+  cancelJob: vi.fn(),
+}))
 
 /**
  * Tests for GenerationProgress phase ordering.
@@ -122,5 +131,73 @@ describe('GenerationProgress phase definitions', () => {
 
   it('should match expected phase definitions', () => {
     expect(PHASES).toEqual(EXPECTED_PHASES)
+  })
+})
+
+describe('GenerationProgress error modal', () => {
+  let mockStreamJobProgress: ReturnType<typeof vi.fn>
+  let capturedOnError: ((error: Error) => void) | null = null
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    capturedOnError = null
+
+    // Mock streamJobProgress to capture the onError callback
+    mockStreamJobProgress = vi.fn(
+      (
+        _jobId: string,
+        _onProgress: () => void,
+        _onComplete: () => void,
+        onError: (error: Error) => void
+      ) => {
+        capturedOnError = onError
+        return () => {} // cleanup function
+      }
+    )
+    vi.mocked(client.streamJobProgress).mockImplementation(mockStreamJobProgress)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  it('should display error modal when job fails', () => {
+    const onComplete = vi.fn()
+    const onError = vi.fn()
+
+    render(<GenerationProgress jobId="test-job-123" onComplete={onComplete} onError={onError} />)
+
+    // Simulate an error event from the SSE stream
+    act(() => {
+      if (capturedOnError) {
+        capturedOnError(new Error('Pull failed: divergent branches'))
+      }
+    })
+
+    // Error modal should be displayed
+    expect(screen.getByText('Generation Failed')).toBeInTheDocument()
+    expect(screen.getByText('Pull failed: divergent branches')).toBeInTheDocument()
+  })
+
+  it('should call onError when dismiss button is clicked', () => {
+    const onComplete = vi.fn()
+    const onError = vi.fn()
+
+    render(<GenerationProgress jobId="test-job-123" onComplete={onComplete} onError={onError} />)
+
+    // Simulate an error event
+    act(() => {
+      if (capturedOnError) {
+        capturedOnError(new Error('Some error'))
+      }
+    })
+
+    // Click dismiss button
+    const dismissButton = screen.getByRole('button', { name: /dismiss/i })
+    fireEvent.click(dismissButton)
+
+    // onError should be called with the error message
+    expect(onError).toHaveBeenCalledWith('Some error')
   })
 })
