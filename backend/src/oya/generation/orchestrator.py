@@ -1476,7 +1476,7 @@ class GenerationOrchestrator:
                 call_sites = get_call_sites(graph, file_path)
                 if call_sites:
                     best_site, other_sites = select_best_call_site(
-                        call_sites, analysis["file_contents"]
+                        call_sites, analysis["file_contents"], target_file=file_path
                     )
                     if best_site:
                         snippet = extract_call_snippet(
