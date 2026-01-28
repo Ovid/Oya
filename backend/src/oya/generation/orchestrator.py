@@ -34,7 +34,7 @@ from oya.generation.prompts import format_call_site_synopsis, get_notes_for_targ
 from oya.generation.graph_architecture import GraphArchitectureGenerator
 from oya.generation.mermaid import LayerDiagramGenerator
 from oya.generation.snippets import extract_call_snippet, is_test_file, select_best_call_site
-from oya.graph import load_graph
+from oya.graph import build_graph, load_graph, save_graph
 from oya.graph.query import get_call_sites
 from oya.generation.metrics import compute_code_metrics
 from oya.generation.overview import GeneratedPage, OverviewGenerator
@@ -692,7 +692,7 @@ class GenerationOrchestrator:
 
         Returns:
             Analysis results with files, symbols, file_tree, file_contents,
-            file_imports, parse_errors, and parsed_files.
+            file_imports, parse_errors, parsed_files, and graph.
         """
         # Use FileFilter to respect .oyaignore and default exclusions
         file_filter = FileFilter(self.repo.path, ignore_path=self.ignore_path)
@@ -785,6 +785,13 @@ class GenerationOrchestrator:
                     ),
                 )
 
+        # Build the code graph from parsed files
+        graph = build_graph(parsed_files)
+
+        # Save graph to disk for architecture generation and Q&A
+        self.graph_path.mkdir(parents=True, exist_ok=True)
+        save_graph(graph, self.graph_path)
+
         return {
             "files": files,
             "symbols": all_symbols,
@@ -793,6 +800,7 @@ class GenerationOrchestrator:
             "file_imports": file_imports,
             "parse_errors": parse_errors,
             "parsed_files": parsed_files,
+            "graph": graph,
         }
 
     def _build_file_tree(self, files: list[str]) -> str:
