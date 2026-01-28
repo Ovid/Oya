@@ -605,6 +605,46 @@ def test_get_file_prompt_with_extracted_synopsis():
     assert "extracted synopsis" in prompt.lower() or "verbatim" in prompt.lower()
 
 
+def test_get_file_prompt_extracted_synopsis_includes_language_tag():
+    """get_file_prompt should wrap extracted synopsis with language-specific code fence."""
+    from oya.generation.prompts import get_file_prompt
+
+    synopsis = "from mymodule import foo\nfoo()"
+
+    prompt = get_file_prompt(
+        file_path="test.py",
+        content="def foo(): pass",
+        symbols=[],
+        imports=[],
+        architecture_summary="Test arch",
+        language="python",
+        synopsis=synopsis,
+    )
+
+    assert "```python\n" in prompt
+    assert synopsis in prompt
+
+
+def test_get_file_prompt_extracted_synopsis_no_language_omits_tag():
+    """get_file_prompt should use plain code fence when language is empty."""
+    from oya.generation.prompts import get_file_prompt
+
+    synopsis = "some code"
+
+    prompt = get_file_prompt(
+        file_path="test.txt",
+        content="some code",
+        symbols=[],
+        imports=[],
+        architecture_summary="Test arch",
+        language="",
+        synopsis=synopsis,
+    )
+
+    # Should have ``` followed by newline (no language tag)
+    assert "```\nsome code\n```" in prompt
+
+
 def test_get_file_prompt_without_synopsis():
     """get_file_prompt should include AI-generation instructions when no synopsis."""
     from oya.generation.prompts import get_file_prompt
