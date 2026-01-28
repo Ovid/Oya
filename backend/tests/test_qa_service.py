@@ -911,3 +911,148 @@ The authentication system uses JWT tokens stored in cookies.
 
         token_events = [e for e in events if e.startswith("event: token")]
         assert len(token_events) == 0
+
+
+class TestQAServiceModeRouting:
+    """Tests for query classification and mode-specific retrieval."""
+
+    @pytest.mark.asyncio
+    async def test_qa_service_uses_mode_routing(self, mock_vectorstore, mock_db, mock_llm):
+        """QA service should classify query and route to appropriate retriever."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from oya.qa.classifier import QueryMode, ClassificationResult
+
+        # Mock the classifier to return DIAGNOSTIC mode
+        mock_classifier = MagicMock()
+        mock_classifier.classify = AsyncMock(
+            return_value=ClassificationResult(
+                mode=QueryMode.DIAGNOSTIC,
+                reasoning="Error-related query",
+                scope=None,
+            )
+        )
+
+        # Mock code index
+        mock_code_index = MagicMock()
+        mock_code_index.find_by_raises.return_value = []
+        mock_code_index.find_by_error_string.return_value = []
+        mock_code_index.find_by_symbol.return_value = []
+
+        # Patch settings to enable mode routing
+        mock_settings = MagicMock()
+        mock_settings.ask.use_mode_routing = True
+        mock_settings.ask.use_code_index = True
+        mock_settings.ask.max_result_tokens = 1500
+        mock_settings.ask.max_context_tokens = 6000
+        mock_settings.ask.strong_match_threshold = 0.5
+        mock_settings.ask.min_strong_matches = 3
+        mock_settings.ask.high_confidence_threshold = 0.3
+        mock_settings.ask.medium_confidence_threshold = 0.6
+        mock_settings.search.dedup_hash_length = 500
+
+        with patch("oya.qa.service.load_settings", return_value=mock_settings):
+            service = QAService(
+                mock_vectorstore,
+                mock_db,
+                mock_llm,
+                classifier=mock_classifier,
+                code_index=mock_code_index,
+            )
+            request = QARequest(question="Why is ValueError being raised?")
+
+            await service.ask(request)
+
+            # Classifier should have been called
+            mock_classifier.classify.assert_called_once_with("Why is ValueError being raised?")
+
+    @pytest.mark.asyncio
+    async def test_qa_service_skips_classification_when_disabled(
+        self, mock_vectorstore, mock_db, mock_llm
+    ):
+        """QA service should skip classification when mode routing is disabled."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        # Mock the classifier
+        mock_classifier = MagicMock()
+        mock_classifier.classify = AsyncMock()
+
+        # Mock code index
+        mock_code_index = MagicMock()
+
+        # Patch settings to DISABLE mode routing
+        mock_settings = MagicMock()
+        mock_settings.ask.use_mode_routing = False
+        mock_settings.ask.use_code_index = False
+        mock_settings.ask.max_result_tokens = 1500
+        mock_settings.ask.max_context_tokens = 6000
+        mock_settings.ask.strong_match_threshold = 0.5
+        mock_settings.ask.min_strong_matches = 3
+        mock_settings.ask.high_confidence_threshold = 0.3
+        mock_settings.ask.medium_confidence_threshold = 0.6
+        mock_settings.search.dedup_hash_length = 500
+
+        with patch("oya.qa.service.load_settings", return_value=mock_settings):
+            service = QAService(
+                mock_vectorstore,
+                mock_db,
+                mock_llm,
+                classifier=mock_classifier,
+                code_index=mock_code_index,
+            )
+            request = QARequest(question="Why is ValueError being raised?")
+
+            await service.ask(request)
+
+            # Classifier should NOT have been called
+            mock_classifier.classify.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_qa_service_uses_conceptual_mode_for_hybrid_search(
+        self, mock_vectorstore, mock_db, mock_llm
+    ):
+        """CONCEPTUAL mode should use existing hybrid search."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from oya.qa.classifier import QueryMode, ClassificationResult
+
+        # Mock the classifier to return CONCEPTUAL mode
+        mock_classifier = MagicMock()
+        mock_classifier.classify = AsyncMock(
+            return_value=ClassificationResult(
+                mode=QueryMode.CONCEPTUAL,
+                reasoning="General question about functionality",
+                scope=None,
+            )
+        )
+
+        # Mock code index
+        mock_code_index = MagicMock()
+
+        # Patch settings to enable mode routing
+        mock_settings = MagicMock()
+        mock_settings.ask.use_mode_routing = True
+        mock_settings.ask.use_code_index = True
+        mock_settings.ask.max_result_tokens = 1500
+        mock_settings.ask.max_context_tokens = 6000
+        mock_settings.ask.strong_match_threshold = 0.5
+        mock_settings.ask.min_strong_matches = 3
+        mock_settings.ask.high_confidence_threshold = 0.3
+        mock_settings.ask.medium_confidence_threshold = 0.6
+        mock_settings.search.dedup_hash_length = 500
+
+        with patch("oya.qa.service.load_settings", return_value=mock_settings):
+            service = QAService(
+                mock_vectorstore,
+                mock_db,
+                mock_llm,
+                classifier=mock_classifier,
+                code_index=mock_code_index,
+            )
+            request = QARequest(question="What does the auth module do?")
+
+            await service.ask(request)
+
+            # Classifier should have been called
+            mock_classifier.classify.assert_called_once()
+
+            # Hybrid search should still work (vectorstore should be called)
+            mock_vectorstore.query.assert_called()

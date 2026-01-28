@@ -620,3 +620,112 @@ NONE
         assert "JWT" in result.answer or "verify" in result.answer
         # The gap should have been resolved
         assert any("verify_token" in gap for gap in result.gaps_resolved)
+
+
+class TestExtractReferencesFromGap:
+    """Tests for extract_references_from_gap function."""
+
+    def test_extract_file_reference_from_gap(self):
+        """Should extract file paths from gap descriptions."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        gap = "The implementation of get_db() in backend/src/oya/api/deps.py"
+        refs = extract_references_from_gap(gap)
+
+        assert refs.file_path == "backend/src/oya/api/deps.py"
+        assert refs.function_name == "get_db"
+
+    def test_extract_function_only_from_gap(self):
+        """Should extract function name without file."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        gap = "How does promote_staging_to_production() handle the database?"
+        refs = extract_references_from_gap(gap)
+
+        assert refs.file_path is None
+        assert refs.function_name == "promote_staging_to_production"
+
+    def test_extract_partial_file_from_gap(self):
+        """Should extract partial file references."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        gap = "The deps.py module's caching behavior"
+        refs = extract_references_from_gap(gap)
+
+        assert "deps.py" in (refs.file_path or "")
+
+    def test_extract_references_with_backticks(self):
+        """Should handle backtick-wrapped code references from LLMs."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        # Test backticks around "func() in path" pattern
+        gap = "`get_db()` in `backend/src/oya/api/deps.py`"
+        refs = extract_references_from_gap(gap)
+
+        assert refs.file_path == "backend/src/oya/api/deps.py"
+        assert refs.function_name == "get_db"
+
+        # Test backticks around file path only
+        gap2 = "The `auth/verify.py` module"
+        refs2 = extract_references_from_gap(gap2)
+        assert refs2.file_path == "auth/verify.py"
+
+        # Test backticks around function name only
+        gap3 = "How does `process_request()` work?"
+        refs3 = extract_references_from_gap(gap3)
+        assert refs3.function_name == "process_request"
+
+    def test_extract_references_extended_extensions(self):
+        """Should handle extended file extensions like .go, .rs, .tsx."""
+        from oya.qa.cgrag import extract_references_from_gap
+
+        # Test Go files
+        gap = "main() in cmd/server/main.go"
+        refs = extract_references_from_gap(gap)
+        assert refs.file_path == "cmd/server/main.go"
+        assert refs.function_name == "main"
+
+        # Test Rust files
+        gap = "handle_request in src/handlers.rs"
+        refs = extract_references_from_gap(gap)
+        assert refs.file_path == "src/handlers.rs"
+        assert refs.function_name == "handle_request"
+
+        # Test TSX files
+        gap = "Component in src/App.tsx"
+        refs = extract_references_from_gap(gap)
+        assert refs.file_path == "src/App.tsx"
+        assert refs.function_name == "Component"
+
+
+@pytest.mark.asyncio
+async def test_resolve_gap_with_code_index():
+    """Should resolve gap using code index before semantic search."""
+    from unittest.mock import MagicMock
+    from oya.qa.cgrag import resolve_gap_with_code_index
+    from oya.db.code_index import CodeIndexEntry
+
+    mock_code_index = MagicMock()
+    mock_entry = CodeIndexEntry(
+        id=1,
+        file_path="backend/src/oya/api/deps.py",
+        symbol_name="get_db",
+        symbol_type="function",
+        line_start=45,
+        line_end=60,
+        signature="def get_db(repo) -> Database",
+        docstring="Get database connection",
+        calls=[],
+        called_by=[],
+        raises=[],
+        mutates=["_db_instances"],
+        error_strings=[],
+        source_hash="abc",
+    )
+    mock_code_index.find_by_file_and_symbol.return_value = [mock_entry]
+
+    result = await resolve_gap_with_code_index("get_db in deps.py", mock_code_index)
+
+    assert result is not None
+    assert "deps.py" in result.path
+    assert "get_db" in result.content

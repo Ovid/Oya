@@ -261,3 +261,184 @@ from myapp.models import User
     # All imports should have high confidence
     for ref in import_refs:
         assert ref.confidence >= 0.95
+
+
+def test_extracts_raises_from_function(parser):
+    """Parser should extract exception types from raise statements."""
+    source = '''
+def validate_input(data):
+    """Validate input data."""
+    if not data:
+        raise ValueError("Data cannot be empty")
+    if not isinstance(data, dict):
+        raise TypeError("Data must be a dictionary")
+    return True
+'''
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "validate_input")
+    assert "raises" in func.metadata
+    assert set(func.metadata["raises"]) == {"ValueError", "TypeError"}
+
+
+def test_extracts_raises_from_reraise(parser):
+    """Parser should handle re-raise patterns."""
+    source = """
+def wrapper():
+    try:
+        do_something()
+    except Exception as e:
+        logger.error(f"Failed: {e}")
+        raise
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "wrapper")
+    # Re-raise without exception type should not add to raises
+    assert func.metadata.get("raises", []) == []
+
+
+def test_extracts_error_strings_from_raise(parser):
+    """Parser should extract string literals from raise statements."""
+    source = """
+def process(data):
+    if not data:
+        raise ValueError("input cannot be empty")
+    if data.get("type") not in VALID_TYPES:
+        raise ValueError("invalid type specified")
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "process")
+    assert "error_strings" in func.metadata
+    assert "input cannot be empty" in func.metadata["error_strings"]
+    assert "invalid type specified" in func.metadata["error_strings"]
+
+
+def test_extracts_error_strings_from_logging(parser):
+    """Parser should extract strings from logging.error calls."""
+    source = """
+def fetch_data(url):
+    try:
+        response = requests.get(url)
+    except RequestException:
+        logger.error("failed to fetch data from remote server")
+        raise
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "fetch_data")
+    assert "error_strings" in func.metadata
+    assert "failed to fetch data from remote server" in func.metadata["error_strings"]
+
+
+def test_non_logging_error_method_not_detected(parser):
+    """Parser should NOT extract strings from non-logger .error() methods.
+
+    This tests the fix for a bug where any object's .error() method was
+    incorrectly detected as a logging call (e.g., result.error(), handler.error()).
+    """
+    source = """
+def process_result(result):
+    if result.error("validation failed"):
+        return None
+    handler.error("something went wrong")
+    return result.data
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "process_result")
+    # Should NOT have error_strings since result.error() and handler.error()
+    # are not logger objects
+    assert "error_strings" not in func.metadata or func.metadata["error_strings"] == []
+
+
+def test_extracts_mutates_module_level(parser):
+    """Parser should detect assignments to module-level state."""
+    source = """
+_cache = {}
+
+def get_cached(key):
+    if key not in _cache:
+        _cache[key] = compute(key)
+    return _cache[key]
+
+def clear_cache():
+    _cache.clear()
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    get_func = next(s for s in result.file.symbols if s.name == "get_cached")
+    assert "mutates" in get_func.metadata
+    assert "_cache" in get_func.metadata["mutates"]
+
+    clear_func = next(s for s in result.file.symbols if s.name == "clear_cache")
+    assert "mutates" in clear_func.metadata
+    assert "_cache" in clear_func.metadata["mutates"]
+
+
+def test_extracts_mutates_self_attributes(parser):
+    """Parser should detect assignments to self attributes."""
+    source = """
+class Service:
+    def __init__(self):
+        self.connection = None
+
+    def connect(self, url):
+        self.connection = create_connection(url)
+        self.connected = True
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    connect_func = next(s for s in result.file.symbols if s.name == "connect")
+    assert "mutates" in connect_func.metadata
+    assert "self.connection" in connect_func.metadata["mutates"]
+    assert "self.connected" in connect_func.metadata["mutates"]
+
+
+def test_extracts_mutates_augmented_assignment(parser):
+    """Parser should detect augmented assignments to module-level state."""
+    source = """
+counter = 0
+items = []
+
+def increment():
+    global counter
+    counter += 1
+
+def add_item(item):
+    items.append(item)
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    inc_func = next(s for s in result.file.symbols if s.name == "increment")
+    assert "mutates" in inc_func.metadata
+    assert "counter" in inc_func.metadata["mutates"]
+
+    add_func = next(s for s in result.file.symbols if s.name == "add_item")
+    assert "mutates" in add_func.metadata
+    assert "items" in add_func.metadata["mutates"]
+
+
+def test_no_mutates_for_local_variables(parser):
+    """Parser should NOT detect mutations of local variables."""
+    source = """
+def process(data):
+    local_cache = {}
+    local_cache["key"] = data
+    return local_cache
+"""
+    result = parser.parse_string(source, "test.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "process")
+    # local_cache is not module-level, so no mutates
+    assert "mutates" not in func.metadata or func.metadata["mutates"] == []

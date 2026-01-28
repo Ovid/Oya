@@ -67,6 +67,10 @@ CONFIG_SCHEMA: dict[str, dict[str, tuple[type, Any, Any, Any, str]]] = {
         "cgrag_session_ttl_minutes": (int, 30, 5, 120, "CGRAG session timeout"),
         "cgrag_session_max_nodes": (int, 50, 10, 200, "Max nodes in CGRAG session"),
         "cgrag_targeted_top_k": (int, 3, 1, 20, "Top-k for targeted retrieval"),
+        "classification_model": (str, "haiku", None, None, "Model for query classification"),
+        "use_mode_routing": (bool, True, None, None, "Enable query mode routing"),
+        "use_code_index": (bool, True, None, None, "Enable code index queries"),
+        "use_source_fetching": (bool, True, None, None, "Fetch actual source code"),
     },
     "search": {
         "result_limit": (int, 10, 1, 100, "Default search results to return"),
@@ -213,6 +217,10 @@ class AskConfig:
     cgrag_session_ttl_minutes: int
     cgrag_session_max_nodes: int
     cgrag_targeted_top_k: int
+    classification_model: str = "haiku"
+    use_mode_routing: bool = True
+    use_code_index: bool = True
+    use_source_fetching: bool = True
 
 
 @dataclass(frozen=True)

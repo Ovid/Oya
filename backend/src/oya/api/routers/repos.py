@@ -3,7 +3,9 @@
 import logging
 import os
 import uuid
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+import shutil
+from typing import Literal
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Body
 
 from oya.api.deps import (
     get_repo,
@@ -11,7 +13,7 @@ from oya.api.deps import (
     get_settings,
     get_active_repo_paths,
     get_active_repo,
-    invalidate_db_cache_for_repo,
+    reconnect_db,
 )
 from oya.api.schemas import (
     JobCreated,
@@ -341,6 +343,7 @@ async def get_generation_status(
 @router.post("/init", response_model=JobCreated, status_code=202)
 async def init_repo(
     background_tasks: BackgroundTasks,
+    mode: Literal["incremental", "full"] = Body("incremental", embed=True),
     repo: GitRepo = Depends(get_repo),
     db: Database = Depends(get_db),
     paths: RepoPaths = Depends(get_active_repo_paths),
@@ -371,7 +374,7 @@ async def init_repo(
     db.commit()
 
     # Start generation in background
-    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings, repo_id)
+    background_tasks.add_task(_run_generation, job_id, repo, db, paths, settings, repo_id, mode)
 
     return JobCreated(job_id=job_id, message="Wiki generation started")
 
@@ -383,6 +386,7 @@ async def _run_generation(
     paths: RepoPaths,
     settings: Settings,
     repo_id: int,
+    mode: str = "incremental",
 ) -> None:
     """Run wiki generation in background using staging directory.
 
@@ -461,6 +465,24 @@ async def _run_generation(
             (job_id,),
         )
         db.commit()
+
+        # Full regeneration: wipe production directory to force clean rebuild
+        # .oyaignore lives at meta/.oyaignore (outside .oyawiki), so it's unaffected
+        if mode == "full" and production_path.exists():
+            shutil.rmtree(production_path)
+            logger.info("Full regeneration: wiped production directory %s", production_path)
+
+            # The job-tracking db lives inside .oyawiki (at .oyawiki/meta/oya.db),
+            # so wiping production destroyed it. Reconnect and re-insert the job.
+            db = reconnect_db(repo_id, paths)
+            db.execute(
+                """
+                INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
+                VALUES (?, ?, ?, datetime('now'), ?, '0:starting')
+                """,
+                (job_id, "full", "running", 9),
+            )
+            db.commit()
 
         # Prepare staging directory (copies production for incremental, or creates empty)
         prepare_staging_directory(staging_path, production_path)
@@ -564,8 +586,8 @@ async def _run_generation(
             generation_result.files_regenerated or generation_result.directories_regenerated
         )
 
-        # Update status to completed BEFORE promoting staging
-        # (promotion deletes .oyawiki which contains the database file)
+        # Update status in BOTH databases before promoting staging.
+        # Production DB: so current SSE consumers see "completed" immediately.
         db.execute(
             """
             UPDATE generations
@@ -576,6 +598,20 @@ async def _run_generation(
         )
         db.commit()
 
+        # Also update staging DB so the promoted DB has the correct final
+        # status. The staging DB is a copy from before generation started,
+        # so it has the job with stale status "running". Without this,
+        # SSE streams polling get_db() after promotion see "running" forever.
+        staging_db.execute(
+            """
+            UPDATE generations
+            SET status = 'completed', completed_at = datetime('now'), changes_made = ?
+            WHERE id = ?
+            """,
+            (changes_made, job_id),
+        )
+        staging_db.commit()
+
         # Close staging db before promotion (releases file handle)
         staging_db.close()
         staging_db = None
@@ -583,11 +619,10 @@ async def _run_generation(
         # SUCCESS: Promote staging to production
         promote_staging_to_production(staging_path, production_path)
 
-        # CRITICAL: Invalidate cached database connection for this repo.
-        # The promotion replaced the .oyawiki directory (including the DB file),
-        # so any cached connection is now stale and will cause "readonly database"
-        # errors on subsequent writes.
-        invalidate_db_cache_for_repo(repo_id)
+        # CRITICAL: The promotion replaced the .oyawiki directory (including
+        # the DB file), so the cached connection is stale. Reconnect so any
+        # subsequent requests get a fresh connection.
+        reconnect_db(repo_id, paths)
 
     except Exception as e:
         # FAILURE: Leave staging directory for debugging

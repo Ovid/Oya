@@ -19,9 +19,12 @@ from oya.graph.models import Subgraph
 from oya.graph.query import get_neighborhood
 
 if TYPE_CHECKING:
+    from oya.db.code_index import CodeIndexQuery, CodeIndexEntry
     from oya.llm.client import LLMClient
     from oya.qa.session import CGRAGSession
     from oya.vectorstore.store import VectorStore
+
+from oya.qa.retrieval.diagnostic import RetrievalResult
 
 
 def parse_gaps(response: str) -> list[str]:
@@ -205,6 +208,126 @@ class CGRAGResult:
     gaps_resolved: list[str] = field(default_factory=list)
     gaps_unresolved: list[str] = field(default_factory=list)
     context_from_cache: bool = False
+
+
+@dataclass
+class GapReferences:
+    """Extracted references from a gap description."""
+
+    file_path: str | None = None
+    function_name: str | None = None
+
+
+def extract_references_from_gap(gap: str) -> GapReferences:
+    """Extract file and function references from a gap description."""
+    refs = GapReferences()
+
+    # Strip backticks that LLMs often use for code references
+    gap = gap.replace("`", "")
+
+    # Common file extensions pattern (longer extensions first to avoid partial matches)
+    _EXT_PATTERN = (
+        r"\.(?:pyi|py|tsx|ts|jsx|js|java|go|rs|rb|cpp|hpp|cs|swift|kt|scala|php|vue|svelte|c|h)"
+    )
+
+    # Pattern: "func_name() in path/to/file.py" - function with parens before "in"
+    func_in_file = re.search(rf"(\w+)\(\)\s+in\s+([\w/.-]+{_EXT_PATTERN})", gap)
+    if func_in_file:
+        refs.function_name = func_in_file.group(1)
+        refs.file_path = func_in_file.group(2)
+        return refs
+
+    # Pattern: "func_name in path/to/file.py" - simple identifier before "in" + path
+    simple_in_file = re.search(rf"\b(\w+)\s+in\s+([\w/.-]+{_EXT_PATTERN})", gap)
+    if simple_in_file:
+        refs.function_name = simple_in_file.group(1)
+        refs.file_path = simple_in_file.group(2)
+        return refs
+
+    # Pattern: explicit file path
+    file_match = re.search(rf"([\w/.-]+{_EXT_PATTERN})", gap)
+    if file_match:
+        refs.file_path = file_match.group(1)
+
+    # Pattern: function_name() or function_name
+    func_match = re.search(r"\b(\w+)\(\)", gap)
+    if func_match:
+        refs.function_name = func_match.group(1)
+    elif not refs.function_name:
+        # Try to find a function-like name
+        func_match = re.search(r"(?:function|method|implementation of)\s+(\w+)", gap, re.IGNORECASE)
+        if func_match:
+            refs.function_name = func_match.group(1)
+
+    return refs
+
+
+async def resolve_gap_with_code_index(
+    gap: str,
+    code_index: "CodeIndexQuery",
+) -> RetrievalResult | None:
+    """Try to resolve a gap using the code index.
+
+    Returns None if gap cannot be resolved via code index.
+    """
+    refs = extract_references_from_gap(gap)
+
+    # Try specific lookup first (file + function)
+    if refs.file_path and refs.function_name:
+        entries = code_index.find_by_file_and_symbol(refs.file_path, refs.function_name)
+        if entries:
+            entry = entries[0]
+            return RetrievalResult(
+                content=_format_code_index_entry(entry),
+                source="code_index",
+                path=entry.file_path,
+                line_range=(entry.line_start, entry.line_end),
+                relevance=f"Direct lookup: {entry.symbol_name}",
+            )
+
+    # Try file-only lookup
+    if refs.file_path:
+        entries = code_index.find_by_file(refs.file_path)
+        if entries:
+            content = "\n\n".join(_format_code_index_entry(e) for e in entries[:5])
+            return RetrievalResult(
+                content=content,
+                source="code_index",
+                path=refs.file_path,
+                relevance=f"File lookup: {refs.file_path}",
+            )
+
+    # Try function-only lookup
+    if refs.function_name:
+        entries = code_index.find_by_symbol(refs.function_name)
+        if entries:
+            entry = entries[0]  # Take first match
+            return RetrievalResult(
+                content=_format_code_index_entry(entry),
+                source="code_index",
+                path=entry.file_path,
+                line_range=(entry.line_start, entry.line_end),
+                relevance=f"Symbol lookup: {entry.symbol_name}",
+            )
+
+    return None
+
+
+def _format_code_index_entry(entry: "CodeIndexEntry") -> str:
+    """Format a code index entry as context."""
+    lines = [
+        f"# {entry.file_path}:{entry.line_start}-{entry.line_end}",
+        f"# {entry.signature}" if entry.signature else "",
+    ]
+    if entry.docstring:
+        lines.append(f"# {entry.docstring[:100]}")
+    if entry.raises:
+        lines.append(f"# Raises: {', '.join(entry.raises)}")
+    if entry.mutates:
+        lines.append(f"# Mutates: {', '.join(entry.mutates)}")
+    lines.append("")
+    lines.append(f"# [Source for {entry.symbol_name} to be fetched]")
+    return "\n".join(line for line in lines if line is not None)
 
 
 async def run_cgrag_loop(

@@ -21,6 +21,10 @@ ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "head", "
 class PythonParser(BaseParser):
     """Parser for Python source files using the ast module."""
 
+    def __init__(self) -> None:
+        """Initialize parser with empty module-level names tracking."""
+        self._module_level_names: set[str] = set()
+
     @property
     def supported_extensions(self) -> list[str]:
         """File extensions this parser handles."""
@@ -45,6 +49,14 @@ class PythonParser(BaseParser):
             tree = ast.parse(content, filename=str(file_path))
         except SyntaxError as e:
             return ParseResult.failure(str(file_path), f"Syntax error: {e}")
+
+        # Collect module-level names before processing functions
+        self._module_level_names = set()
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        self._module_level_names.add(target.id)
 
         symbols: list[ParsedSymbol] = []
         imports: list[str] = []
@@ -123,6 +135,18 @@ class PythonParser(BaseParser):
         else:
             symbol_type = SymbolType.FUNCTION
 
+        # Build metadata
+        metadata = {}
+        raises = self._extract_raises(node)
+        if raises:
+            metadata["raises"] = raises
+        error_strings = self._extract_error_strings(node)
+        if error_strings:
+            metadata["error_strings"] = error_strings
+        mutates = self._extract_mutates(node, self._module_level_names)
+        if mutates:
+            metadata["mutates"] = mutates
+
         return ParsedSymbol(
             name=node.name,
             symbol_type=symbol_type,
@@ -132,7 +156,130 @@ class PythonParser(BaseParser):
             signature=self._build_signature(node),
             decorators=decorators,
             parent=parent,
+            metadata=metadata,
         )
+
+    def _extract_raises(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+        """Extract exception types from raise statements.
+
+        Args:
+            node: The AST function node.
+
+        Returns:
+            List of unique exception type names.
+        """
+        raises = []
+        for child in ast.walk(node):
+            if isinstance(child, ast.Raise) and child.exc:
+                if isinstance(child.exc, ast.Call):
+                    # raise ValueError("msg")
+                    if isinstance(child.exc.func, ast.Name):
+                        raises.append(child.exc.func.id)
+                    elif isinstance(child.exc.func, ast.Attribute):
+                        # raise module.CustomError()
+                        raises.append(child.exc.func.attr)
+                elif isinstance(child.exc, ast.Name):
+                    # raise existing_exception
+                    raises.append(child.exc.id)
+        return list(set(raises))
+
+    def _is_logging_call(self, node: ast.Call) -> bool:
+        """Check if call is a logging call (logger.error, logging.warning, etc.).
+
+        Args:
+            node: The AST Call node.
+
+        Returns:
+            True if this is a logging call for error/warning/critical/exception.
+        """
+        if isinstance(node.func, ast.Attribute):
+            # Must be an error-level logging method
+            if node.func.attr in ("error", "warning", "critical", "exception"):
+                # Must be on a logger-like object
+                if isinstance(node.func.value, ast.Name):
+                    if node.func.value.id in ("logger", "logging", "log"):
+                        return True
+        return False
+
+    def _extract_error_strings(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+        """Extract string literals from raise statements and logging calls.
+
+        Args:
+            node: The AST function node.
+
+        Returns:
+            List of unique error message strings (truncated to 100 chars).
+        """
+        strings = []
+        for child in ast.walk(node):
+            # From raise statements
+            if isinstance(child, ast.Raise) and child.exc:
+                if isinstance(child.exc, ast.Call) and child.exc.args:
+                    for arg in child.exc.args:
+                        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                            strings.append(arg.value[:100])  # Truncate long strings
+            # From logging calls
+            if isinstance(child, ast.Call) and self._is_logging_call(child):
+                for arg in child.args:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        strings.append(arg.value[:100])
+        return list(set(strings))
+
+    def _extract_mutates(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, module_level_names: set[str]
+    ) -> list[str]:
+        """Extract assignments to module-level state or self attributes.
+
+        Args:
+            node: The AST function node.
+            module_level_names: Set of names defined at module level.
+
+        Returns:
+            List of unique mutated variable names.
+        """
+        mutates = []
+        for child in ast.walk(node):
+            if isinstance(child, ast.Assign):
+                for target in child.targets:
+                    # Module-level variable assignment: _cache[key] = value
+                    if isinstance(target, ast.Subscript):
+                        if (
+                            isinstance(target.value, ast.Name)
+                            and target.value.id in module_level_names
+                        ):
+                            mutates.append(target.value.id)
+                    # Module-level variable reassignment: _cache = {}
+                    elif isinstance(target, ast.Name) and target.id in module_level_names:
+                        mutates.append(target.id)
+                    # Self attribute: self.x = value
+                    elif isinstance(target, ast.Attribute):
+                        if isinstance(target.value, ast.Name) and target.value.id == "self":
+                            mutates.append(f"self.{target.attr}")
+            # Also catch augmented assignments: counter += 1
+            elif isinstance(child, ast.AugAssign):
+                if isinstance(child.target, ast.Name) and child.target.id in module_level_names:
+                    mutates.append(child.target.id)
+                elif isinstance(child.target, ast.Subscript):
+                    if (
+                        isinstance(child.target.value, ast.Name)
+                        and child.target.value.id in module_level_names
+                    ):
+                        mutates.append(child.target.value.id)
+            # Catch .clear(), .append(), .extend(), .update(), .pop(), .remove() on module-level
+            elif isinstance(child, ast.Expr) and isinstance(child.value, ast.Call):
+                if isinstance(child.value.func, ast.Attribute):
+                    if child.value.func.attr in (
+                        "clear",
+                        "append",
+                        "extend",
+                        "update",
+                        "pop",
+                        "remove",
+                    ):
+                        if isinstance(child.value.func.value, ast.Name):
+                            if child.value.func.value.id in module_level_names:
+                                mutates.append(child.value.func.value.id)
+        return list(set(mutates))
 
     def _parse_class(self, node: ast.ClassDef) -> list[ParsedSymbol]:
         """Parse a class definition and its methods.

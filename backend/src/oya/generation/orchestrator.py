@@ -46,8 +46,9 @@ from oya.generation.workflows import (
     find_entry_points,
 )
 from oya.config import ConfigError, load_settings
+from oya.db.code_index import CodeIndexBuilder
 from oya.parsing.fallback_parser import FallbackParser
-from oya.parsing.models import ParsedSymbol
+from oya.parsing.models import ParsedFile, ParsedSymbol
 from oya.parsing.registry import ParserRegistry
 from oya.repo.file_filter import FileFilter, extract_directories_from_files
 
@@ -508,6 +509,9 @@ class GenerationOrchestrator:
         # Phase 1: Analysis (with progress tracking for file parsing)
         analysis = await self._run_analysis(progress_callback)
 
+        # Build code index from parsed files if enabled
+        self._build_code_index(analysis.get("parsed_files", []))
+
         # Phase 2: Files (run before directories to compute content hashes and collect summaries)
         file_pages, file_hashes, file_summaries, file_layers = await self._run_files(
             analysis, progress_callback
@@ -686,7 +690,7 @@ class GenerationOrchestrator:
 
         Returns:
             Analysis results with files, symbols, file_tree, file_contents,
-            file_imports, and parse_errors.
+            file_imports, parse_errors, and parsed_files.
         """
         # Use FileFilter to respect .oyaignore and default exclusions
         file_filter = FileFilter(self.repo.path, ignore_path=self.ignore_path)
@@ -712,6 +716,7 @@ class GenerationOrchestrator:
         # Parse each file
         parse_errors: list[dict] = []
         all_symbols: list[ParsedSymbol] = []
+        parsed_files: list[ParsedFile] = []
         file_imports: dict[str, list[str]] = {}
 
         for idx, file_path in enumerate(files):
@@ -729,6 +734,7 @@ class GenerationOrchestrator:
                 if result.ok and result.file:
                     # Successful parse - use full symbol data
                     file_imports[file_path] = result.file.imports
+                    parsed_files.append(result.file)
                     for symbol in result.file.symbols:
                         symbol.metadata["file"] = file_path
                         all_symbols.append(symbol)
@@ -744,6 +750,7 @@ class GenerationOrchestrator:
                     fallback_result = self._fallback_parser.parse(Path(file_path), content)
                     if fallback_result.ok and fallback_result.file:
                         file_imports[file_path] = fallback_result.file.imports
+                        parsed_files.append(fallback_result.file)
                         for symbol in fallback_result.file.symbols:
                             symbol.metadata["file"] = file_path
                             all_symbols.append(symbol)
@@ -783,6 +790,7 @@ class GenerationOrchestrator:
             "file_contents": file_contents,
             "file_imports": file_imports,
             "parse_errors": parse_errors,
+            "parsed_files": parsed_files,
         }
 
     def _build_file_tree(self, files: list[str]) -> str:
@@ -1505,6 +1513,36 @@ class GenerationOrchestrator:
             "line": symbol.start_line,
             "decorators": symbol.decorators,
         }
+
+    def _build_code_index(self, parsed_files: list[ParsedFile]) -> None:
+        """Build code index from parsed files if enabled in settings.
+
+        Args:
+            parsed_files: List of ParsedFile objects from analysis phase.
+        """
+        # Check if code index is enabled
+        try:
+            settings = load_settings()
+            if not settings.ask.use_code_index:
+                return
+        except (ValueError, OSError, ConfigError):
+            # Settings not available, skip code index
+            return
+
+        # Skip if no database or it's a mock without execute method
+        if not hasattr(self.db, "execute"):
+            return
+
+        # Skip if no parsed files
+        if not parsed_files:
+            return
+
+        # Build code index
+        builder = CodeIndexBuilder(self.db)
+        source_hash = self.repo.get_head_commit()
+
+        builder.build(parsed_files, source_hash)
+        builder.compute_called_by()
 
     async def _save_page(self, page: GeneratedPage) -> None:
         """Save a generated page to the wiki directory.
