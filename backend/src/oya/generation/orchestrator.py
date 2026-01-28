@@ -30,10 +30,12 @@ from oya.generation.architecture import ArchitectureGenerator
 from oya.generation.frontmatter import build_frontmatter
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
-from oya.generation.prompts import get_notes_for_target
+from oya.generation.prompts import format_call_site_synopsis, get_notes_for_target
 from oya.generation.graph_architecture import GraphArchitectureGenerator
 from oya.generation.mermaid import LayerDiagramGenerator
-from oya.graph import load_graph
+from oya.generation.snippets import extract_call_snippet, is_test_file, select_best_call_site
+from oya.graph import build_graph, load_graph, save_graph
+from oya.graph.query import get_call_sites
 from oya.generation.metrics import compute_code_metrics
 from oya.generation.overview import GeneratedPage, OverviewGenerator
 from oya.generation.summaries import DirectorySummary, EntryPointInfo, FileSummary, SynthesisMap
@@ -45,7 +47,7 @@ from oya.generation.workflows import (
     extract_entry_point_description,
     find_entry_points,
 )
-from oya.config import ConfigError, load_settings
+from oya.config import ConfigError, EXTENSION_LANGUAGES, load_settings
 from oya.db.code_index import CodeIndexBuilder
 from oya.parsing.fallback_parser import FallbackParser
 from oya.parsing.models import ParsedFile, ParsedSymbol
@@ -690,7 +692,7 @@ class GenerationOrchestrator:
 
         Returns:
             Analysis results with files, symbols, file_tree, file_contents,
-            file_imports, parse_errors, and parsed_files.
+            file_imports, parse_errors, parsed_files, and graph.
         """
         # Use FileFilter to respect .oyaignore and default exclusions
         file_filter = FileFilter(self.repo.path, ignore_path=self.ignore_path)
@@ -783,6 +785,13 @@ class GenerationOrchestrator:
                     ),
                 )
 
+        # Build the code graph from parsed files
+        graph = build_graph(parsed_files)
+
+        # Save graph to disk for architecture generation and Q&A
+        self.graph_path.mkdir(parents=True, exist_ok=True)
+        save_graph(graph, self.graph_path)
+
         return {
             "files": files,
             "symbols": all_symbols,
@@ -791,6 +800,7 @@ class GenerationOrchestrator:
             "file_imports": file_imports,
             "parse_errors": parse_errors,
             "parsed_files": parsed_files,
+            "graph": graph,
         }
 
     def _build_file_tree(self, files: list[str]) -> str:
@@ -1426,6 +1436,14 @@ class GenerationOrchestrator:
         all_parsed_files: list[ParsedFile] = analysis.get("parsed_files", [])
         parsed_file_lookup: dict[str, ParsedFile] = {pf.path: pf for pf in all_parsed_files}
 
+        # Get graph for call-site extraction (try analysis dict first, then load from disk)
+        graph = analysis.get("graph")
+        if graph is None:
+            graph = load_graph(self.graph_path)
+            # If graph is empty or too small, treat as None
+            if graph.number_of_nodes() == 0:
+                graph = None
+
         # Helper to generate a single file page with hash and return both page and summary
         async def generate_file_page(
             file_path: str, content_hash: str
@@ -1448,9 +1466,47 @@ class GenerationOrchestrator:
             # Load notes for this file
             notes = get_notes_for_target(self.db, "file", file_path)
 
-            # Extract synopsis from parsed file (if available)
+            # Extract synopsis from parsed file (if available) - Tier 1
             parsed_file = parsed_file_lookup.get(file_path)
             synopsis = parsed_file.synopsis if parsed_file else None
+
+            # Try call-site extraction if no doc synopsis - Tier 2
+            call_site_synopsis = None
+            if not synopsis and graph is not None:
+                call_sites = get_call_sites(graph, file_path)
+                if call_sites:
+                    best_site, other_sites = select_best_call_site(
+                        call_sites, analysis["file_contents"], target_file=file_path
+                    )
+                    if best_site:
+                        snippet = extract_call_snippet(
+                            best_site.caller_file,
+                            best_site.line,
+                            analysis["file_contents"],
+                        )
+                        if snippet:
+                            # Detect language from caller file extension (snippet is from caller)
+                            ext = Path(best_site.caller_file).suffix.lower()
+                            lang = EXTENSION_LANGUAGES.get(ext, "")
+
+                            # Format other callers for display
+                            other_refs = [(s.caller_file, s.line) for s in other_sites]
+
+                            # Add note if only test callers
+                            is_test_only = is_test_file(best_site.caller_file)
+
+                            call_site_synopsis = format_call_site_synopsis(
+                                snippet=snippet,
+                                caller_file=best_site.caller_file,
+                                line=best_site.line,
+                                language=lang,
+                                other_callers=other_refs if other_refs else None,
+                            )
+
+                            if is_test_only:
+                                call_site_synopsis += (
+                                    "\n\n**Note:** Only test usage found in this codebase."
+                                )
 
             # FileGenerator.generate() returns (GeneratedPage, FileSummary)
             page, file_summary = await self.file_generator.generate(
@@ -1463,6 +1519,7 @@ class GenerationOrchestrator:
                 file_imports=all_file_imports,
                 notes=notes,
                 synopsis=synopsis,
+                call_site_synopsis=call_site_synopsis,
             )
             # Add source hash to the page for storage
             page.source_hash = content_hash

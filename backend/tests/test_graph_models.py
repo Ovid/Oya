@@ -265,3 +265,20 @@ def test_graph_module_exports():
 
     # Basic smoke test
     assert graph_module.NodeType.FUNCTION.value == "function"
+
+
+def test_call_site_dataclass():
+    """CallSite holds call location metadata."""
+    from oya.graph.models import CallSite
+
+    site = CallSite(
+        caller_file="handler.py",
+        caller_symbol="process_request",
+        line=42,
+        target_symbol="verify_token",
+    )
+
+    assert site.caller_file == "handler.py"
+    assert site.caller_symbol == "process_request"
+    assert site.line == 42
+    assert site.target_symbol == "verify_token"

@@ -2,7 +2,7 @@
 
 import networkx as nx
 
-from oya.graph.models import Node, NodeType, Edge, EdgeType, Subgraph
+from oya.graph.models import Node, NodeType, Edge, EdgeType, Subgraph, CallSite
 
 
 def get_calls(
@@ -220,6 +220,50 @@ def get_leaf_nodes(graph: nx.DiGraph) -> list[Node]:
             nodes.append(_node_from_data(node_id, node_data))
 
     return nodes
+
+
+def get_call_sites(
+    graph: nx.DiGraph,
+    target_file: str,
+) -> list[CallSite]:
+    """Find all call sites targeting symbols defined in a file.
+
+    Args:
+        graph: The code graph with edges containing line numbers.
+        target_file: Path to the file whose callers we want.
+
+    Returns:
+        List of CallSite objects with caller file, symbol, line, and target.
+    """
+    sites = []
+
+    for source, target, edge_data in graph.edges(data=True):
+        # Only consider call edges
+        if edge_data.get("type") != "calls":
+            continue
+
+        # Check if target is in the target file
+        target_node_data = graph.nodes.get(target, {})
+        if target_node_data.get("file_path") != target_file:
+            continue
+
+        # Get source node data for caller info
+        source_node_data = graph.nodes.get(source, {})
+        caller_file = source_node_data.get("file_path", "")
+        caller_symbol = source_node_data.get("name", "")
+        target_symbol = target_node_data.get("name", "")
+        line = edge_data.get("line", 0)
+
+        sites.append(
+            CallSite(
+                caller_file=caller_file,
+                caller_symbol=caller_symbol,
+                line=line,
+                target_symbol=target_symbol,
+            )
+        )
+
+    return sites
 
 
 def _node_from_data(node_id: str, data: dict) -> Node:

@@ -556,7 +556,7 @@ No synopsis was found in the source file's documentation.
 **You MUST generate a caller-perspective code example** showing:
 - How to import/use this file's public API
 - The most common/important use case
-- Necessary imports at the top
+- Include the import statement when it helps clarify what's being used
 - 5-15 lines typically, NO setup boilerplate (no main, no tests, no print)
 
 **Mark it clearly:** Start the synopsis section with:
@@ -567,6 +567,38 @@ Then include the code block with appropriate language syntax highlighting.
 
 If this file has no public API (only private/internal code), still include a Synopsis section and note: "This file has no public API for external use."
 """
+
+
+def format_call_site_synopsis(
+    snippet: str,
+    caller_file: str,
+    line: int,
+    language: str,
+    other_callers: list[tuple[str, int]] | None = None,
+) -> str:
+    """Format a call-site synopsis for inclusion in prompt.
+
+    Args:
+        snippet: The extracted code snippet.
+        caller_file: File where the call was found.
+        line: Line number of the call.
+        language: Programming language for syntax highlighting.
+        other_callers: Optional list of (file, line) tuples for other callers.
+
+    Returns:
+        Formatted synopsis string ready for prompt inclusion.
+    """
+    other_note = ""
+    if other_callers:
+        refs = [f"`{filepath}:{lineno}`" for filepath, lineno in other_callers[:5]]
+        if len(other_callers) > 5:
+            refs.append(f"and {len(other_callers) - 5} more")
+        other_note = f"\nAlso called from: {', '.join(refs)}"
+
+    return f"""**From `{caller_file}` line {line}:**
+```{language}
+{snippet}
+```{other_note}"""
 
 
 # =============================================================================
@@ -1232,6 +1264,7 @@ def get_file_prompt(
     language: str = "",
     notes: list[dict[str, Any]] | None = None,
     synopsis: str | None = None,
+    call_site_synopsis: str | None = None,
 ) -> str:
     """Generate a prompt for creating a file documentation page.
 
@@ -1244,14 +1277,19 @@ def get_file_prompt(
         language: Programming language for syntax highlighting.
         notes: Optional list of correction notes affecting this file.
         synopsis: Optional extracted synopsis code example from source file documentation.
+        call_site_synopsis: Optional real usage example extracted from call sites in codebase.
 
     Returns:
         The rendered prompt string.
     """
+    # Priority: doc synopsis > call-site synopsis > AI-generated
     if synopsis:
         synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITH_EXTRACTED
         lang_tag = language if language else ""
         extracted_synopsis = f"```{lang_tag}\n{synopsis}\n```"
+    elif call_site_synopsis:
+        synopsis_instructions = "A real usage example from this codebase is provided above. Include it verbatim in the Synopsis section. Do NOT modify the extracted code."
+        extracted_synopsis = call_site_synopsis
     else:
         synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED
         extracted_synopsis = "No synopsis found in source file documentation."

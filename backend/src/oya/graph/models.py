@@ -51,6 +51,16 @@ class Edge:
 
 
 @dataclass
+class CallSite:
+    """Location where a symbol is called from."""
+
+    caller_file: str  # File containing the call
+    caller_symbol: str  # Function/method making the call
+    line: int  # Exact line of the call
+    target_symbol: str  # What's being called
+
+
+@dataclass
 class Subgraph:
     """A subset of the code graph (nodes and edges)."""
 
