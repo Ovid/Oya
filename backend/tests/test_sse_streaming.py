@@ -177,7 +177,7 @@ async def test_sse_stream_sees_completed_after_staging_promotion(client, setup_a
     db.execute(
         """
         INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
-        VALUES ('promo-stream-job', 'full', 'running', datetime('now'), 9, '0:starting')
+        VALUES ('promo-stream-job', 'full', 'running', datetime('now'), 8, '1:syncing')
         """
     )
     db.commit()
