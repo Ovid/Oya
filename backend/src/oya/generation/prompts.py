@@ -1231,6 +1231,7 @@ def get_file_prompt(
     architecture_summary: str,
     language: str = "",
     notes: list[dict[str, Any]] | None = None,
+    synopsis: str | None = None,
 ) -> str:
     """Generate a prompt for creating a file documentation page.
 
@@ -1242,10 +1243,18 @@ def get_file_prompt(
         architecture_summary: Summary of how this file fits in the architecture.
         language: Programming language for syntax highlighting.
         notes: Optional list of correction notes affecting this file.
+        synopsis: Optional extracted synopsis code example from source file documentation.
 
     Returns:
         The rendered prompt string.
     """
+    if synopsis:
+        synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITH_EXTRACTED
+        extracted_synopsis = f"```\n{synopsis}\n```"
+    else:
+        synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED
+        extracted_synopsis = "No synopsis found in source file documentation."
+
     prompt = FILE_TEMPLATE.render(
         file_path=file_path,
         content=content,
@@ -1253,8 +1262,8 @@ def get_file_prompt(
         imports=_format_imports(imports),
         architecture_summary=architecture_summary or "No architecture context provided.",
         language=language,
-        extracted_synopsis="No synopsis found in source file documentation.",
-        synopsis_instructions=SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED,
+        extracted_synopsis=extracted_synopsis,
+        synopsis_instructions=synopsis_instructions,
     )
 
     if notes:
