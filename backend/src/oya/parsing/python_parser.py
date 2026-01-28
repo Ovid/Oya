@@ -1,6 +1,8 @@
 """Python AST parser using the built-in ast module."""
 
 import ast
+import re
+import textwrap
 from pathlib import Path
 
 from oya.parsing.base import BaseParser
@@ -16,6 +18,43 @@ from oya.parsing.models import (
 
 # HTTP methods commonly used in web frameworks for route definitions
 ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "head", "options"})
+
+
+def _extract_synopsis_from_docstring(docstring: str | None) -> str | None:
+    """Extract synopsis/example code from Python docstring.
+
+    Looks for sections labeled "Example:", "Usage:", "Synopsis:" or code blocks.
+
+    Args:
+        docstring: Module-level docstring
+
+    Returns:
+        Extracted code block or None if not found
+    """
+    if not docstring:
+        return None
+
+    # Pattern 1: "Example:" or "Usage:" or "Synopsis:" followed by indented code
+    # Match all lines that are either indented or blank, until we hit an unindented line
+    pattern = r"(?:Example|Usage|Synopsis):\s*\n((?:(?:[ \t]+.+|[ \t]*)\n?)+)"
+    match = re.search(pattern, docstring, re.IGNORECASE)
+
+    if match:
+        code_block = match.group(1)
+        # Remove common leading whitespace
+        dedented = textwrap.dedent(code_block)
+        # Remove doctest >>> prefixes if present
+        dedented = re.sub(r"^\s*>>>\s*", "", dedented, flags=re.MULTILINE)
+        return dedented.strip()
+
+    # Pattern 2: Triple backticks code block
+    pattern = r"```(?:python)?\s*\n(.+?)\n```"
+    match = re.search(pattern, docstring, re.DOTALL)
+
+    if match:
+        return match.group(1).strip()
+
+    return None
 
 
 class PythonParser(BaseParser):
@@ -49,6 +88,10 @@ class PythonParser(BaseParser):
             tree = ast.parse(content, filename=str(file_path))
         except SyntaxError as e:
             return ParseResult.failure(str(file_path), f"Syntax error: {e}")
+
+        # Extract module docstring for synopsis
+        module_docstring = ast.get_docstring(tree)
+        synopsis = _extract_synopsis_from_docstring(module_docstring)
 
         # Collect module-level names before processing functions
         self._module_level_names = set()
@@ -94,6 +137,7 @@ class PythonParser(BaseParser):
             references=references,
             raw_content=content,
             line_count=content.count("\n") + 1,
+            synopsis=synopsis,
         )
 
         return ParseResult.success(parsed_file)
