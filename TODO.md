@@ -1,5 +1,6 @@
 # TODO
 
+* Code synopsis for files
 * Load code in reverse dependency order, if feasible. That let's us be able to
   load "top-level" modules and have context for lower-level modules.
 * Generated wiki, hit refresh, and it started regenerating.  Files dropdown
