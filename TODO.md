@@ -1,7 +1,12 @@
 # TODO
 
-* docs/plans/2026-01-28-call-site-synopses-design.md
-* Code synopsis for files
+* When generating, if I refresh the page, all counters reset to 0s.
+* Check for any other places in the code where:
+    * Errors are silently discarded
+    * try/catch isn't robust or has a "pass"
+* Even though the interface for Q&A shows temperature at .3, wiki generation
+  shows 0.7. Perhaps they should be separate, but we really need some kind of
+  "Settings" dialog to let people choose them.
 * Load code in reverse dependency order, if feasible. That let's us be able to
   load "top-level" modules and have context for lower-level modules.
 * Generated wiki, hit refresh, and it started regenerating.  Files dropdown
@@ -196,3 +201,5 @@ The following ideas were identified during Phase 6 overview improvements but def
     * Allow follow-up questions
 * faa427b - (HEAD -> ovid/fix-missing-spec-issues) Move .oyaignore back to
   root directory (15 hours ago) <Ovid>
+* docs/plans/2026-01-28-call-site-synopses-design.md
+* Code synopsis for files
