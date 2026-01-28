@@ -5,6 +5,11 @@
 * Should compress syncing and analysis into a single phase
 * Generated wiki, hit refresh, and it started regenerating.  Files dropdown
   said 47, but there were only 7 files shown.
+* code_index UNIQUE(file_path, symbol_name) loses data when a file has duplicate
+  symbol names in different scopes (e.g. two classes each with `__init__` or
+  `process`). INSERT OR REPLACE silently overwrites the first entry. Consider
+  including scope/class qualification in symbol_name or adding line_start to
+  the unique constraint.
 * When generation is done, it must direct back to the overview page.
 * When I restart the server, I go  "Add your first repository" page, even when
   the page is valid, such as
