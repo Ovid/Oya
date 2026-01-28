@@ -45,14 +45,16 @@ def _extract_synopsis_from_docstring(docstring: str | None) -> str | None:
         dedented = textwrap.dedent(code_block)
         # Remove doctest >>> prefixes if present
         dedented = re.sub(r"^\s*>>>\s*", "", dedented, flags=re.MULTILINE)
-        return dedented.strip()
+        stripped = dedented.strip()
+        return stripped if stripped else None  # Return None for empty synopses
 
     # Pattern 2: Triple backticks code block
     pattern = r"```(?:python)?\s*\n(.+?)\n```"
     match = re.search(pattern, docstring, re.DOTALL)
 
     if match:
-        return match.group(1).strip()
+        stripped = match.group(1).strip()
+        return stripped if stripped else None  # Return None for empty code blocks
 
     return None
 

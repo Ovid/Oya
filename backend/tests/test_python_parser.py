@@ -493,3 +493,19 @@ def login(username, password):
 '''
     result = parser.parse_string(code, "test.py")
     assert result.file.synopsis is None
+
+
+def test_no_synopsis_when_example_section_is_empty(parser):
+    """Should return None when Example section has only whitespace."""
+    code = '''"""Module for testing.
+
+Example:
+
+
+"""
+
+def foo():
+    pass
+'''
+    result = parser.parse_string(code, "test.py")
+    assert result.file.synopsis is None
