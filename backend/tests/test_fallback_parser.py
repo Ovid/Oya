@@ -446,3 +446,25 @@ pub fn validate_email(email: &str) -> bool {
     parser = FallbackParser()
     result = parser.parse_string(code, "email.rs")
     assert result.file.synopsis is None
+
+
+def test_rust_extracts_first_code_block_when_multiple_exist():
+    """Should extract the FIRST code block when multiple Examples exist."""
+    code = """//! # Examples
+//!
+//! Basic usage:
+//! ```
+//! let x = 1;
+//! ```
+//!
+//! Advanced usage:
+//! ```
+//! let y = 2;
+//! ```
+
+pub fn foo() {}
+"""
+    parser = FallbackParser()
+    result = parser.parse_string(code, "test.rs")
+    # Should extract FIRST block, not last
+    assert result.file.synopsis == "let x = 1;"
