@@ -568,23 +568,6 @@ Then include the code block with appropriate language syntax highlighting.
 If this file has no public API (only private/internal code), still include a Synopsis section and note: "This file has no public API for external use."
 """
 
-SYNOPSIS_INSTRUCTIONS_WITH_CALL_SITE = """
-A real usage example from this codebase has been extracted and is shown above.
-
-**Include it verbatim in the Synopsis section**, formatted as:
-
-## 2. Synopsis
-
-**From `{caller_file}` line {line}:**
-```{language}
-{snippet}
-```
-
-{other_callers_note}
-
-Do NOT modify the extracted code. It shows actual usage in this codebase.
-"""
-
 SYNOPSIS_NO_CALLERS_NOTE = """
 **Note:** No internal callers found in this codebase. This may be:
 - A public API intended for external consumers
