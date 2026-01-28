@@ -362,14 +362,14 @@ async def init_repo(
     job_id = str(uuid.uuid4())
 
     # Record job in database
-    # (9 phases: syncing, analysis, files, directories, synthesis, architecture,
+    # (8 phases: sync, files, directories, synthesis, architecture,
     # overview, workflows, indexing)
     db.execute(
         """
         INSERT INTO generations (id, type, status, started_at, total_phases)
         VALUES (?, ?, ?, datetime('now'), ?)
         """,
-        (job_id, "full", "pending", 9),
+        (job_id, "full", "pending", 8),
     )
     db.commit()
 
@@ -408,23 +408,25 @@ async def _run_generation(
     production_path = paths.oyawiki
 
     # Phase number mapping for progress tracking (bottom-up approach)
-    # Order: Syncing → Analysis → Files → Directories → Synthesis → Architecture →
+    # Order: Sync → Files → Directories → Synthesis → Architecture →
     # Overview → Workflows → Indexing
     phase_numbers = {
         "syncing": 1,
-        "analysis": 2,
-        "files": 3,
-        "directories": 4,
-        "synthesis": 5,
-        "architecture": 6,
-        "overview": 7,
-        "workflows": 8,
-        "indexing": 9,
+        "files": 2,
+        "directories": 3,
+        "synthesis": 4,
+        "architecture": 5,
+        "overview": 6,
+        "workflows": 7,
+        "indexing": 8,
     }
 
     async def progress_callback(progress: GenerationProgress) -> None:
         """Update database with current progress."""
         phase_name = progress.phase.value
+        # Analysis is reported as "syncing" to the user (single "Sync" phase)
+        if phase_name == "analysis":
+            phase_name = "syncing"
         phase_num = phase_numbers.get(phase_name, 0)
         db.execute(
             """
@@ -444,7 +446,7 @@ async def _run_generation(
     try:
         # Sync repository to default branch before generation
         db.execute(
-            "UPDATE generations SET status = 'running', current_phase = '0:syncing' WHERE id = ?",
+            "UPDATE generations SET status = 'running', current_phase = '1:syncing' WHERE id = ?",
             (job_id,),
         )
         db.commit()
@@ -459,13 +461,6 @@ async def _run_generation(
             db.commit()
             return
 
-        # Update status to starting (after sync)
-        db.execute(
-            "UPDATE generations SET current_phase = '0:starting' WHERE id = ?",
-            (job_id,),
-        )
-        db.commit()
-
         # Full regeneration: wipe production directory to force clean rebuild
         # .oyaignore lives at meta/.oyaignore (outside .oyawiki), so it's unaffected
         if mode == "full" and production_path.exists():
@@ -478,9 +473,9 @@ async def _run_generation(
             db.execute(
                 """
                 INSERT INTO generations (id, type, status, started_at, total_phases, current_phase)
-                VALUES (?, ?, ?, datetime('now'), ?, '0:starting')
+                VALUES (?, ?, ?, datetime('now'), ?, '1:syncing')
                 """,
-                (job_id, "full", "running", 9),
+                (job_id, "full", "running", 8),
             )
             db.commit()
 
@@ -542,7 +537,7 @@ async def _run_generation(
         # Index wiki content for Q&A search (in staging)
         db.execute(
             """UPDATE generations
-            SET current_phase = '9:indexing', current_step = 0, total_steps = 0
+            SET current_phase = '8:indexing', current_step = 0, total_steps = 0
             WHERE id = ?""",
             (job_id,),
         )
