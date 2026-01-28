@@ -640,9 +640,9 @@ describe('IndexingPreviewModal', () => {
       const confirmButton = screen.getByRole('button', { name: /^generate$/i })
       await userEvent.click(confirmButton)
 
-      // onGenerate should be called
+      // onGenerate should be called with default mode
       await waitFor(() => {
-        expect(onGenerate).toHaveBeenCalled()
+        expect(onGenerate).toHaveBeenCalledWith('incremental')
       })
 
       // Modal should close
@@ -698,8 +698,8 @@ describe('IndexingPreviewModal', () => {
         })
       })
 
-      // onGenerate should be called
-      expect(onGenerate).toHaveBeenCalled()
+      // onGenerate should be called with default mode
+      expect(onGenerate).toHaveBeenCalledWith('incremental')
 
       // Modal should close
       expect(onClose).toHaveBeenCalled()
@@ -751,8 +751,8 @@ describe('IndexingPreviewModal', () => {
         })
       })
 
-      // onGenerate should be called
-      expect(onGenerate).toHaveBeenCalled()
+      // onGenerate should be called with default mode
+      expect(onGenerate).toHaveBeenCalledWith('incremental')
     })
 
     it('does not call API or onGenerate when cancel is clicked in confirmation', async () => {
@@ -948,6 +948,174 @@ describe('IndexingPreviewModal', () => {
       const newSrcRow = screen.getByText('src').closest('div')
       const newCheckbox = newSrcRow?.querySelector('input[type="checkbox"]')
       expect(newCheckbox).toBeChecked()
+    })
+  })
+
+  describe('generation mode toggle', () => {
+    it('defaults to incremental mode with file tree visible', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Incremental radio should be checked
+      const incrementalRadio = screen.getByDisplayValue('incremental')
+      expect(incrementalRadio).toBeChecked()
+
+      // File tree should be visible
+      expect(screen.getByText('Directories')).toBeInTheDocument()
+      expect(screen.getByText('Files')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
+
+      // Warning banner should NOT be visible
+      expect(screen.queryByText(/delete all existing wiki data/i)).not.toBeInTheDocument()
+    })
+
+    it('hides file tree and shows warning when full mode selected', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Select full mode
+      const fullRadio = screen.getByDisplayValue('full')
+      await userEvent.click(fullRadio)
+
+      // File tree should be hidden
+      expect(screen.queryByText('Directories')).not.toBeInTheDocument()
+      expect(screen.queryByText('Files')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument()
+
+      // Warning banner should be visible
+      expect(screen.getByText('Full Regeneration')).toBeInTheDocument()
+      expect(screen.getByText(/delete all existing wiki data/i)).toBeInTheDocument()
+    })
+
+    it('restores file tree when switching back to incremental', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Select full mode
+      const fullRadio = screen.getByDisplayValue('full')
+      await userEvent.click(fullRadio)
+
+      // File tree hidden
+      expect(screen.queryByText('Directories')).not.toBeInTheDocument()
+
+      // Switch back to incremental
+      const incrementalRadio = screen.getByDisplayValue('incremental')
+      await userEvent.click(incrementalRadio)
+
+      // File tree should be back
+      expect(screen.getByText('Directories')).toBeInTheDocument()
+      expect(screen.getByText('Files')).toBeInTheDocument()
+    })
+
+    it('passes full mode to onGenerate when full is selected', async () => {
+      const onGenerate = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onGenerate={onGenerate} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Select full mode
+      const fullRadio = screen.getByDisplayValue('full')
+      await userEvent.click(fullRadio)
+
+      // Click Generate Wiki button
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
+
+      // Confirmation dialog should show Full Regeneration title (banner h3 + dialog h3 = 2)
+      const fullHeadings = screen.getAllByRole('heading', { name: 'Full Regeneration' })
+      expect(fullHeadings.length).toBe(2)
+      expect(screen.getByText(/will be deleted and regenerated/i)).toBeInTheDocument()
+
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
+      await userEvent.click(confirmButton)
+
+      await waitFor(() => {
+        expect(onGenerate).toHaveBeenCalledWith('full')
+      })
+    })
+
+    it('passes incremental mode to onGenerate by default', async () => {
+      const onGenerate = vi.fn()
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} onGenerate={onGenerate} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Click Generate Wiki without changing mode
+      const generateButton = screen.getByRole('button', { name: /generate wiki/i })
+      await userEvent.click(generateButton)
+
+      // Click Generate in dialog
+      const confirmButton = screen.getByRole('button', { name: /^generate$/i })
+      await userEvent.click(confirmButton)
+
+      await waitFor(() => {
+        expect(onGenerate).toHaveBeenCalledWith('incremental')
+      })
+    })
+
+    it('resets mode to incremental when modal closes and reopens', async () => {
+      const { rerender } = render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Select full mode
+      const fullRadio = screen.getByDisplayValue('full')
+      await userEvent.click(fullRadio)
+
+      // Verify full mode is active
+      expect(screen.getByText(/delete all existing wiki data/i)).toBeInTheDocument()
+
+      // Close modal
+      rerender(<IndexingPreviewModal {...defaultProps} isOpen={false} />)
+
+      // Reopen modal
+      rerender(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Should be back to incremental (file tree visible, no warning)
+      expect(screen.queryByText(/delete all existing wiki data/i)).not.toBeInTheDocument()
+      expect(screen.getByDisplayValue('incremental')).toBeChecked()
+    })
+
+    it('shows full regeneration confirmation dialog when full mode selected', async () => {
+      render(<IndexingPreviewModal {...defaultProps} isOpen={true} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Directories')).toBeInTheDocument()
+      })
+
+      // Select full mode
+      await userEvent.click(screen.getByDisplayValue('full'))
+
+      // Click Generate Wiki
+      await userEvent.click(screen.getByRole('button', { name: /generate wiki/i }))
+
+      // Should show Full Regeneration title (banner h3 + dialog h3 = 2)
+      const fullHeadings = screen.getAllByRole('heading', { name: 'Full Regeneration' })
+      expect(fullHeadings.length).toBe(2)
+      expect(screen.getByText(/will be deleted and regenerated/i)).toBeInTheDocument()
+
+      // Should NOT show file count
+      expect(screen.queryByText(/files will be indexed/i)).not.toBeInTheDocument()
     })
   })
 })

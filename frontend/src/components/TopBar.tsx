@@ -225,7 +225,7 @@ export function TopBar({
       <IndexingPreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
-        onGenerate={() => startGeneration()}
+        onGenerate={(mode) => startGeneration(mode)}
       />
 
       {/* Add Repo Modal */}

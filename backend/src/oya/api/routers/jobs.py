@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 
 from oya.api.deps import get_db
 from oya.db.connection import Database
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -167,16 +170,28 @@ async def stream_job_progress(
     async def event_generator():
         """Generate SSE events for job progress."""
         while True:
-            # Get current job status
-            cursor = db.execute(
-                """
-                SELECT id, status, current_phase, total_phases,
-                       current_step, total_steps, error_message
-                FROM generations WHERE id = ?
-                """,
-                (job_id,),
-            )
-            row = cursor.fetchone()
+            # Re-fetch DB each iteration so we pick up the new connection
+            # after reconnect_db replaces it (e.g. during full regeneration wipe).
+            try:
+                current_db = get_db()
+                cursor = current_db.execute(
+                    """
+                    SELECT id, status, current_phase, total_phases,
+                           current_step, total_steps, error_message
+                    FROM generations WHERE id = ?
+                    """,
+                    (job_id,),
+                )
+                row = cursor.fetchone()
+            except Exception:
+                logger.exception("SSE stream DB error for job %s", job_id)
+                error_data = {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "error": "Database connection lost",
+                }
+                yield f"event: error\ndata: {json.dumps(error_data)}\n\n"
+                break
 
             if not row:
                 break

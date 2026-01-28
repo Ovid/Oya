@@ -3,7 +3,7 @@
 from oya.db.connection import Database
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -86,6 +86,26 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
     content_rowid UNINDEXED  -- Reference to wiki_pages.id or notes.id
 );
 
+-- Code index for structured code metadata
+-- Stores extracted metadata about functions/classes for mode-specific Q&A retrieval
+CREATE TABLE IF NOT EXISTS code_index (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT NOT NULL,
+    symbol_name TEXT NOT NULL,
+    symbol_type TEXT NOT NULL,
+    line_start INTEGER NOT NULL,
+    line_end INTEGER NOT NULL,
+    signature TEXT,
+    docstring TEXT,
+    calls TEXT,
+    called_by TEXT,
+    raises TEXT,
+    mutates TEXT,
+    error_strings TEXT,
+    source_hash TEXT NOT NULL,
+    UNIQUE(file_path, symbol_name)
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_wiki_pages_type ON wiki_pages(type);
 CREATE INDEX IF NOT EXISTS idx_wiki_pages_target ON wiki_pages(target);
@@ -93,6 +113,8 @@ CREATE INDEX IF NOT EXISTS idx_notes_scope_target ON notes(scope, target);
 CREATE INDEX IF NOT EXISTS idx_citations_wiki_page ON citations(wiki_page_id);
 CREATE INDEX IF NOT EXISTS idx_citations_source_file ON citations(source_file);
 CREATE INDEX IF NOT EXISTS idx_generations_status ON generations(status);
+CREATE INDEX IF NOT EXISTS idx_code_index_file ON code_index(file_path);
+CREATE INDEX IF NOT EXISTS idx_code_index_symbol ON code_index(symbol_name);
 """
 
 
