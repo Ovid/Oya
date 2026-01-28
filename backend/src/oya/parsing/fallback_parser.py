@@ -171,6 +171,38 @@ def _extract_perl_pod_synopsis(content: str) -> str | None:
     return result if result else None
 
 
+def _extract_rust_doc_examples(content: str) -> str | None:
+    """Extract code from Rust //! # Examples sections.
+
+    Args:
+        content: Full file content
+
+    Returns:
+        Code from Examples section or None if not found
+    """
+    # Look for //! # Examples followed by code block
+    pattern = r"//!\s*#\s*Examples?\s*\n(?://!.*\n)*//!\s*```[^\n]*\n((?://!\s*.*\n)+)//!\s*```"
+    match = re.search(pattern, content, re.IGNORECASE)
+
+    if not match:
+        return None
+
+    code_lines = match.group(1).split("\n")
+
+    # Remove //! prefix from each line
+    cleaned_lines = []
+    for line in code_lines:
+        cleaned = re.sub(r"^//!\s?", "", line)
+        if cleaned or cleaned_lines:  # Skip leading empty lines
+            cleaned_lines.append(cleaned)
+
+    # Remove trailing empty lines
+    while cleaned_lines and not cleaned_lines[-1]:
+        cleaned_lines.pop()
+
+    return "\n".join(cleaned_lines) if cleaned_lines else None
+
+
 class FallbackParser(BaseParser):
     """Regex-based fallback parser for languages without dedicated parsers.
 
@@ -300,10 +332,12 @@ class FallbackParser(BaseParser):
         if content and not content.endswith("\n"):
             line_count += 1
 
-        # Extract synopsis for Perl files
+        # Extract synopsis
         synopsis = None
         if language == "perl":
             synopsis = _extract_perl_pod_synopsis(content)
+        elif language == "rust":
+            synopsis = _extract_rust_doc_examples(content)
 
         parsed_file = ParsedFile(
             path=str(file_path),
