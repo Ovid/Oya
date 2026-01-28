@@ -181,7 +181,7 @@ def _extract_rust_doc_examples(content: str) -> str | None:
         Code from Examples section or None if not found
     """
     # Look for //! # Examples followed by code block
-    pattern = r"//!\s*#\s*Examples?\s*\n(?://!.*\n)*//!\s*```[^\n]*\n((?://!\s*.*\n)+)//!\s*```"
+    pattern = r"//!\s*#\s*Examples?\s*\n(?://!(?!\s*```)[^\n]*\n)*//!\s*```[^\n]*\n((?://!(?!\s*```)[^\n]*\n)+)//!\s*```"
     match = re.search(pattern, content, re.IGNORECASE)
 
     if not match:
