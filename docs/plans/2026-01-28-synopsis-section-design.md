@@ -51,7 +51,6 @@ from myproject.utils import validate_email, format_phone
 is_valid = validate_email("user@example.com")
 formatted = format_phone("5551234567")
 ```
-```
 
 **Example (AI-generated):**
 
@@ -66,7 +65,6 @@ import com.example.UserService;
 UserService service = new UserService(config);
 User user = service.findById(123);
 service.updateEmail(user, "new@example.com");
-```
 ```
 
 ## Synopsis Extraction Strategy
