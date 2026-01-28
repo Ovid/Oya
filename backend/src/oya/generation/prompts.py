@@ -565,7 +565,7 @@ No synopsis was found in the source file's documentation.
 
 Then include the code block with appropriate language syntax highlighting.
 
-If this file has no public API (only private/internal code), you may omit the Synopsis section or note "This file has no public API for external use."
+If this file has no public API (only private/internal code), still include a Synopsis section and note: "This file has no public API for external use."
 """
 
 
@@ -1250,7 +1250,8 @@ def get_file_prompt(
     """
     if synopsis:
         synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITH_EXTRACTED
-        extracted_synopsis = f"```\n{synopsis}\n```"
+        lang_tag = language if language else ""
+        extracted_synopsis = f"```{lang_tag}\n{synopsis}\n```"
     else:
         synopsis_instructions = SYNOPSIS_INSTRUCTIONS_WITHOUT_EXTRACTED
         extracted_synopsis = "No synopsis found in source file documentation."

@@ -190,7 +190,7 @@ def _extract_rust_doc_examples(content: str) -> str | None:
     code_lines = match.group(1).split("\n")
 
     # Remove //! prefix from each line
-    cleaned_lines = []
+    cleaned_lines: list[str] = []
     for line in code_lines:
         cleaned = re.sub(r"^//!\s?", "", line)
         if cleaned or cleaned_lines:  # Skip leading empty lines
