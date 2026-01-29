@@ -1,6 +1,7 @@
 """ChromaDB collection for code issues."""
 
 import gc
+import logging
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -10,6 +11,8 @@ from chromadb.config import Settings
 from chromadb.types import Where
 
 from oya.generation.summaries import FileIssue
+
+logger = logging.getLogger(__name__)
 
 
 class IssuesStore:
@@ -70,8 +73,8 @@ class IssuesStore:
             results = self._collection.get(where={"file_path": file_path})
             if results["ids"]:
                 self._collection.delete(ids=results["ids"])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to delete issues for {file_path}: {e}")
 
     def query_issues(
         self,
@@ -116,8 +119,9 @@ class IssuesStore:
                     issue["content"] = documents[i] if i < len(documents) else ""
                     issues.append(issue)
             return issues
-        except Exception:
-            return []
+        except Exception as e:
+            logger.error(f"Issue query failed: {e}")
+            raise
 
     def clear(self) -> None:
         """Clear all issues from the collection."""
@@ -132,8 +136,9 @@ class IssuesStore:
                     for system in list(self._client._identifier_to_system.values()):
                         if hasattr(system, "stop"):
                             system.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                # Best-effort cleanup - log but don't fail
+                logger.debug(f"Cleanup error (non-critical): {e}")
 
         self._collection = None  # type: ignore[assignment]
         self._client = None  # type: ignore[assignment]
