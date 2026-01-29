@@ -9,7 +9,13 @@ export function ErrorModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="error-modal-title"
+      aria-describedby="error-modal-description"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+    >
       <div
         data-testid="error-modal-backdrop"
         className="fixed inset-0 bg-black/50"
@@ -38,10 +44,13 @@ export function ErrorModal() {
             </div>
           </div>
           <div className="ml-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 id="error-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
               {errorModal.title}
             </h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap">
+            <p
+              id="error-modal-description"
+              className="mt-2 text-sm text-gray-600 dark:text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap"
+            >
               {errorModal.message}
             </p>
           </div>
