@@ -1,11 +1,14 @@
 """ChromaDB vector store implementation."""
 
 import gc
+import logging
 from pathlib import Path
 from typing import Any
 
 import chromadb
 from chromadb.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class VectorStore:
@@ -112,8 +115,9 @@ class VectorStore:
                     for system in list(self._client._identifier_to_system.values()):
                         if hasattr(system, "stop"):
                             system.stop()
-            except Exception:
-                pass  # Best effort cleanup
+            except Exception as e:
+                # Best-effort cleanup - log but don't fail
+                logger.debug(f"Cleanup error (non-critical): {e}")
 
         self._collection = None  # type: ignore[assignment]
         self._client = None  # type: ignore[assignment]
