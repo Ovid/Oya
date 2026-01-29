@@ -64,10 +64,7 @@ describe('generationTiming utilities', () => {
           syncing: { startedAt: 1000000 },
         },
       }
-      localStorage.setItem(
-        `${STORAGE_KEY_GENERATION_TIMING_PREFIX}job-123`,
-        JSON.stringify(timing)
-      )
+      localStorage.setItem(`${STORAGE_KEY_GENERATION_TIMING_PREFIX}job-123`, JSON.stringify(timing))
 
       const loaded = loadPhaseTiming('job-123')
       expect(loaded).toEqual(timing)
@@ -79,10 +76,7 @@ describe('generationTiming utilities', () => {
     })
 
     it('should return null and clear corrupted data', () => {
-      localStorage.setItem(
-        `${STORAGE_KEY_GENERATION_TIMING_PREFIX}job-123`,
-        'not valid json {'
-      )
+      localStorage.setItem(`${STORAGE_KEY_GENERATION_TIMING_PREFIX}job-123`, 'not valid json {')
 
       const loaded = loadPhaseTiming('job-123')
       expect(loaded).toBeNull()
@@ -148,7 +142,9 @@ describe('generationTiming utilities', () => {
       cleanupStaleTiming(24 * 60 * 60 * 1000) // 24 hours
 
       expect(localStorage.getItem(`${STORAGE_KEY_GENERATION_TIMING_PREFIX}old-job`)).toBeNull()
-      expect(localStorage.getItem(`${STORAGE_KEY_GENERATION_TIMING_PREFIX}recent-job`)).not.toBeNull()
+      expect(
+        localStorage.getItem(`${STORAGE_KEY_GENERATION_TIMING_PREFIX}recent-job`)
+      ).not.toBeNull()
     })
 
     it('should handle corrupted entries during cleanup', () => {

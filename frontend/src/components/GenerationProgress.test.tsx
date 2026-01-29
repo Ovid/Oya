@@ -228,11 +228,7 @@ describe('GenerationProgress timing persistence', () => {
     vi.mocked(clearPhaseTiming).mockClear()
 
     vi.mocked(client.streamJobProgress).mockImplementation(
-      (
-        _jobId: string,
-        onProgress: (event: ProgressEvent) => void,
-        onComplete: () => void
-      ) => {
+      (_jobId: string, onProgress: (event: ProgressEvent) => void, onComplete: () => void) => {
         capturedOnProgress = onProgress
         capturedOnComplete = onComplete
         return () => {}
@@ -348,7 +344,14 @@ describe('GenerationProgress timing persistence', () => {
       }
     )
 
-    render(<GenerationProgress jobId="test-job" onComplete={vi.fn()} onError={vi.fn()} onCancelled={vi.fn()} />)
+    render(
+      <GenerationProgress
+        jobId="test-job"
+        onComplete={vi.fn()}
+        onError={vi.fn()}
+        onCancelled={vi.fn()}
+      />
+    )
 
     act(() => {
       if (capturedOnCancelled) {

@@ -1,5 +1,12 @@
 # TODO
 
+## Oya-Specific Indexing
+
+* Why do workflows seem to persist in same names even after complete
+  regeneration?
+* Repos vs Repos V2. Sounds like we have tech debt?
+* Check for SQL inhection. Switch to ORM?
+
 ## Q&A / Chat
 
 * Q&A should allow follow-up questions, not just one-shot
@@ -14,6 +21,9 @@
 ## Wiki Generation
 
 * When generating, if I refresh the page, all counters reset to 0s.
+* If server restarts mid-generation, jobs remain "running" in SQLite but the
+  generation process is dead. UI shows stuck generation with no way to recover.
+  Need detection and cleanup for orphaned running jobs.
 * Generated wiki, hit refresh, and it started regenerating. Files dropdown
   said 47, but there were only 7 files shown.
 * When generation is done, it must direct back to the overview page.

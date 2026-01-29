@@ -36,10 +36,7 @@ function isValidTiming(data: unknown): data is GenerationTiming {
  */
 export function savePhaseTiming(jobId: string, timing: GenerationTiming): void {
   try {
-    localStorage.setItem(
-      `${STORAGE_KEY_GENERATION_TIMING_PREFIX}${jobId}`,
-      JSON.stringify(timing)
-    )
+    localStorage.setItem(`${STORAGE_KEY_GENERATION_TIMING_PREFIX}${jobId}`, JSON.stringify(timing))
   } catch {
     // localStorage unavailable or quota exceeded - graceful degradation
     console.warn('Failed to save generation timing to localStorage')
