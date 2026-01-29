@@ -410,7 +410,6 @@ export function streamJobProgress(
     // Don't call onError for connection issues - this happens during page refresh
     // and we don't want to clear localStorage data. Only server-reported errors
     // (via the 'error' event) should trigger the error callback.
-    console.log('[SSE] Connection closed (likely page navigation or network issue)')
     eventSource.close()
   }
 
