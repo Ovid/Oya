@@ -1,9 +1,16 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import type { ProgressEvent } from '../types'
 import { streamJobProgress, cancelJob } from '../api/client'
 import { ELAPSED_TIME_UPDATE_MS } from '../config'
 import { formatElapsedTime, PHASES, PHASE_ORDER } from './generationConstants'
 import { useUIStore } from '../stores/uiStore'
+import {
+  loadPhaseTiming,
+  savePhaseTiming,
+  clearPhaseTiming,
+  cleanupStaleTiming,
+} from '../utils/generationTiming'
+import type { GenerationTiming } from '../utils/generationTiming'
 
 interface GenerationProgressProps {
   jobId: string | null
@@ -18,21 +25,69 @@ export function GenerationProgress({
   onError,
   onCancelled,
 }: GenerationProgressProps) {
+  // Load persisted timing on initial render
+  // Note: This assumes jobId is available when component mounts. If jobId can be
+  // null initially and then become available, the parent should delay mounting
+  // this component until jobId is ready.
+  const [restoredTiming] = useState<GenerationTiming | null>(() => {
+    cleanupStaleTiming()
+    if (jobId) {
+      return loadPhaseTiming(jobId)
+    }
+    return null
+  })
+
   const [currentPhase, setCurrentPhase] = useState<string>('starting')
   const [currentPhaseNum, setCurrentPhaseNum] = useState<number>(1)
   const [totalPhases, setTotalPhases] = useState<number>(PHASE_ORDER.length)
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [totalSteps, setTotalSteps] = useState<number>(0)
-  const [startTime] = useState<Date>(new Date())
+  const startTime = useMemo(() => {
+    if (restoredTiming?.jobStartedAt) {
+      return new Date(restoredTiming.jobStartedAt)
+    }
+    return new Date()
+  }, [restoredTiming])
   const [elapsed, setElapsed] = useState<number>(0)
   const [isComplete, setIsComplete] = useState<boolean>(false)
   const [isCancelled, setIsCancelled] = useState<boolean>(false)
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false)
   const [isCancelling, setIsCancelling] = useState<boolean>(false)
   const [isFailed, setIsFailed] = useState<boolean>(false)
-  const [phaseElapsedTimes, setPhaseElapsedTimes] = useState<Record<string, number>>({})
-  const [phaseStartElapsedTimes, setPhaseStartElapsedTimes] = useState<Record<string, number>>({})
-  const phaseStartTimesRef = useRef<Record<string, number>>({})
+  const [phaseElapsedTimes, setPhaseElapsedTimes] = useState<Record<string, number>>(() => {
+    if (!restoredTiming) return {}
+    const restoredDurations: Record<string, number> = {}
+    for (const [phase, phaseData] of Object.entries(restoredTiming.phases)) {
+      if (phaseData.duration !== undefined) {
+        restoredDurations[phase] = phaseData.duration
+      }
+    }
+    return restoredDurations
+  })
+  const [phaseStartElapsedTimes, setPhaseStartElapsedTimes] = useState<Record<string, number>>(
+    () => {
+      if (!restoredTiming) return {}
+      const restoredStartElapsed: Record<string, number> = {}
+      for (const [phase, phaseData] of Object.entries(restoredTiming.phases)) {
+        if (phaseData.startedAt) {
+          const elapsedAtStart = Math.floor(
+            (phaseData.startedAt - restoredTiming.jobStartedAt) / 1000
+          )
+          restoredStartElapsed[phase] = elapsedAtStart
+        }
+      }
+      return restoredStartElapsed
+    }
+  )
+  const phaseStartTimesRef = useRef<Record<string, number>>(
+    restoredTiming
+      ? Object.fromEntries(
+          Object.entries(restoredTiming.phases)
+            .filter(([, phaseData]) => phaseData.startedAt !== undefined)
+            .map(([phase, phaseData]) => [phase, phaseData.startedAt])
+        )
+      : {}
+  )
   const currentPhaseRef = useRef<string>('starting')
 
   // Update elapsed time every second
@@ -106,6 +161,45 @@ export function GenerationProgress({
             currentPhaseRef.current = phaseName
             setCurrentPhase(phaseName)
             setCurrentPhaseNum(phaseNum)
+
+            // Save timing to localStorage
+            // Merge with existing data to preserve durations from before page refresh
+            if (jobId) {
+              const now = Date.now()
+              const existingTiming = loadPhaseTiming(jobId)
+              const phasesData: GenerationTiming['phases'] = {
+                ...(existingTiming?.phases ?? {}),
+              }
+
+              for (const [p, startedAtTs] of Object.entries(phaseStartTimesRef.current)) {
+                const existingPhase = phasesData[p] ?? {}
+                phasesData[p] = {
+                  ...existingPhase,
+                  startedAt: startedAtTs,
+                }
+              }
+
+              // Add completion data for previous phase if it just changed
+              if (
+                prevPhase !== 'starting' &&
+                prevPhase !== phaseName &&
+                prevPhase in phaseStartTimesRef.current
+              ) {
+                const duration = Math.floor((now - phaseStartTimesRef.current[prevPhase]) / 1000)
+                phasesData[prevPhase] = {
+                  ...phasesData[prevPhase],
+                  completedAt: now,
+                  duration,
+                }
+              }
+
+              const currentTiming: GenerationTiming = {
+                jobId,
+                jobStartedAt: startTime.getTime(),
+                phases: phasesData,
+              }
+              savePhaseTiming(jobId, currentTiming)
+            }
           }
         }
 
@@ -134,16 +228,25 @@ export function GenerationProgress({
           }))
         }
         setIsComplete(true)
+        if (jobId) {
+          clearPhaseTiming(jobId)
+        }
         onComplete()
       },
       (error: Error) => {
         setIsFailed(true)
+        if (jobId) {
+          clearPhaseTiming(jobId)
+        }
         useUIStore.getState().showErrorModal('Generation Failed', error.message)
         onError(error.message)
       },
       () => {
         // Handle cancellation
         setIsCancelled(true)
+        if (jobId) {
+          clearPhaseTiming(jobId)
+        }
         if (onCancelled) {
           onCancelled()
         }

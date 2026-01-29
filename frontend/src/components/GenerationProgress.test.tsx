@@ -5,11 +5,19 @@ import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants'
 import type { ProgressEvent } from '../types'
 import * as client from '../api/client'
 import { useUIStore, initialState } from '../stores/uiStore'
+import { loadPhaseTiming, savePhaseTiming, clearPhaseTiming } from '../utils/generationTiming'
 
 // Mock the API client
 vi.mock('../api/client', () => ({
   streamJobProgress: vi.fn(),
   cancelJob: vi.fn(),
+}))
+
+vi.mock('../utils/generationTiming', () => ({
+  loadPhaseTiming: vi.fn(),
+  savePhaseTiming: vi.fn(),
+  clearPhaseTiming: vi.fn(),
+  cleanupStaleTiming: vi.fn(),
 }))
 
 /**
@@ -201,5 +209,195 @@ describe('GenerationProgress error handling', () => {
     })
     // onError callback should be called with the error message
     expect(onError).toHaveBeenCalledWith('Some error')
+  })
+})
+
+describe('GenerationProgress timing persistence', () => {
+  let capturedOnProgress: ((event: ProgressEvent) => void) | null = null
+  let capturedOnComplete: ((event: ProgressEvent) => void) | null = null
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-29T12:00:00Z'))
+    capturedOnProgress = null
+    capturedOnComplete = null
+    useUIStore.setState(initialState)
+
+    vi.mocked(loadPhaseTiming).mockReturnValue(null)
+    vi.mocked(savePhaseTiming).mockClear()
+    vi.mocked(clearPhaseTiming).mockClear()
+
+    vi.mocked(client.streamJobProgress).mockImplementation(
+      (
+        _jobId: string,
+        onProgress: (event: ProgressEvent) => void,
+        onComplete: (event: ProgressEvent) => void
+      ) => {
+        capturedOnProgress = onProgress
+        capturedOnComplete = onComplete
+        return () => {}
+      }
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  it('should load timing data on mount', () => {
+    render(<GenerationProgress jobId="test-job" onComplete={vi.fn()} onError={vi.fn()} />)
+    expect(loadPhaseTiming).toHaveBeenCalledWith('test-job')
+  })
+
+  it('should restore completed phase durations from localStorage', () => {
+    vi.mocked(loadPhaseTiming).mockReturnValue({
+      jobId: 'test-job',
+      jobStartedAt: Date.now() - 120000,
+      phases: {
+        syncing: { startedAt: Date.now() - 120000, completedAt: Date.now() - 110000, duration: 10 },
+        files: { startedAt: Date.now() - 110000, completedAt: Date.now() - 60000, duration: 50 },
+        directories: { startedAt: Date.now() - 60000 },
+      },
+    })
+
+    render(<GenerationProgress jobId="test-job" onComplete={vi.fn()} onError={vi.fn()} />)
+
+    act(() => {
+      if (capturedOnProgress) {
+        capturedOnProgress({
+          job_id: 'test-job',
+          status: 'running',
+          phase: '3:directories',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
+      }
+    })
+
+    expect(screen.getByText('10s')).toBeInTheDocument()
+    expect(screen.getByText('50s')).toBeInTheDocument()
+  })
+
+  it('should save timing when phase changes', () => {
+    render(<GenerationProgress jobId="test-job" onComplete={vi.fn()} onError={vi.fn()} />)
+
+    act(() => {
+      if (capturedOnProgress) {
+        capturedOnProgress({
+          job_id: 'test-job',
+          status: 'running',
+          phase: '1:syncing',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
+      }
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    act(() => {
+      if (capturedOnProgress) {
+        capturedOnProgress({
+          job_id: 'test-job',
+          status: 'running',
+          phase: '2:files',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
+      }
+    })
+
+    expect(savePhaseTiming).toHaveBeenCalled()
+  })
+
+  it('should clear timing on job completion', () => {
+    render(<GenerationProgress jobId="test-job" onComplete={vi.fn()} onError={vi.fn()} />)
+
+    act(() => {
+      if (capturedOnComplete) {
+        capturedOnComplete({
+          job_id: 'test-job',
+          status: 'completed',
+          phase: '8:indexing',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
+      }
+    })
+
+    expect(clearPhaseTiming).toHaveBeenCalledWith('test-job')
+  })
+
+  it('should clear timing on job error', () => {
+    let capturedOnError: ((error: Error) => void) | null = null
+
+    vi.mocked(client.streamJobProgress).mockImplementation(
+      (
+        _jobId: string,
+        _onProgress: (event: ProgressEvent) => void,
+        _onComplete: (event: ProgressEvent) => void,
+        onError: (error: Error) => void
+      ) => {
+        capturedOnError = onError
+        return () => {}
+      }
+    )
+
+    render(<GenerationProgress jobId="test-job" onComplete={vi.fn()} onError={vi.fn()} />)
+
+    act(() => {
+      if (capturedOnError) {
+        capturedOnError(new Error('Test error'))
+      }
+    })
+
+    expect(clearPhaseTiming).toHaveBeenCalledWith('test-job')
+  })
+
+  it('should clear timing on job cancellation', () => {
+    let capturedOnCancelled: ((event: ProgressEvent) => void) | null = null
+
+    vi.mocked(client.streamJobProgress).mockImplementation(
+      (
+        _jobId: string,
+        _onProgress: (event: ProgressEvent) => void,
+        _onComplete: (event: ProgressEvent) => void,
+        _onError: (error: Error) => void,
+        onCancelled?: (event: ProgressEvent) => void
+      ) => {
+        capturedOnCancelled = onCancelled || null
+        return () => {}
+      }
+    )
+
+    render(
+      <GenerationProgress
+        jobId="test-job"
+        onComplete={vi.fn()}
+        onError={vi.fn()}
+        onCancelled={vi.fn()}
+      />
+    )
+
+    act(() => {
+      if (capturedOnCancelled) {
+        capturedOnCancelled({
+          job_id: 'test-job',
+          status: 'cancelled',
+          phase: '2:files',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
+      }
+    })
+
+    expect(clearPhaseTiming).toHaveBeenCalledWith('test-job')
   })
 })
