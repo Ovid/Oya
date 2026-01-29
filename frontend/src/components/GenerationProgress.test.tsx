@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import { GenerationProgress } from './GenerationProgress'
 import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants'
+import type { ProgressEvent } from '../types'
 import * as client from '../api/client'
+import { useUIStore, initialState } from '../stores/uiStore'
 
 // Mock the API client
 vi.mock('../api/client', () => ({
@@ -134,27 +136,26 @@ describe('GenerationProgress phase definitions', () => {
   })
 })
 
-describe('GenerationProgress error modal', () => {
-  let mockStreamJobProgress: ReturnType<typeof vi.fn>
+describe('GenerationProgress error handling', () => {
   let capturedOnError: ((error: Error) => void) | null = null
 
   beforeEach(() => {
     vi.useFakeTimers()
     capturedOnError = null
+    useUIStore.setState(initialState)
 
     // Mock streamJobProgress to capture the onError callback
-    mockStreamJobProgress = vi.fn(
+    vi.mocked(client.streamJobProgress).mockImplementation(
       (
         _jobId: string,
-        _onProgress: () => void,
-        _onComplete: () => void,
+        _onProgress: (event: ProgressEvent) => void,
+        _onComplete: (event: ProgressEvent) => void,
         onError: (error: Error) => void
       ) => {
         capturedOnError = onError
         return () => {} // cleanup function
       }
     )
-    vi.mocked(client.streamJobProgress).mockImplementation(mockStreamJobProgress)
   })
 
   afterEach(() => {
@@ -162,7 +163,7 @@ describe('GenerationProgress error modal', () => {
     vi.clearAllMocks()
   })
 
-  it('should display error modal when job fails', () => {
+  it('should display error state when job fails', () => {
     const onComplete = vi.fn()
     const onError = vi.fn()
 
@@ -175,12 +176,12 @@ describe('GenerationProgress error modal', () => {
       }
     })
 
-    // Error modal should be displayed
+    // Error state should be displayed (inline message, not the full error text)
     expect(screen.getByText('Generation Failed')).toBeInTheDocument()
-    expect(screen.getByText('Pull failed: divergent branches')).toBeInTheDocument()
+    expect(screen.getByText('An error occurred during wiki generation.')).toBeInTheDocument()
   })
 
-  it('should call onError when dismiss button is clicked', () => {
+  it('should call showErrorModal and onError when job fails', () => {
     const onComplete = vi.fn()
     const onError = vi.fn()
 
@@ -193,11 +194,12 @@ describe('GenerationProgress error modal', () => {
       }
     })
 
-    // Click dismiss button
-    const dismissButton = screen.getByRole('button', { name: /dismiss/i })
-    fireEvent.click(dismissButton)
-
-    // onError should be called with the error message
+    // showErrorModal should have been called - verify by checking state
+    expect(useUIStore.getState().errorModal).toEqual({
+      title: 'Generation Failed',
+      message: 'Some error',
+    })
+    // onError callback should be called with the error message
     expect(onError).toHaveBeenCalledWith('Some error')
   })
 })

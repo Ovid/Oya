@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useGenerationStore, initialState } from './generationStore'
+import { useUIStore, initialState as uiInitialState } from './uiStore'
 import * as api from '../api/client'
 
 vi.mock('../api/client', () => ({
@@ -10,6 +11,7 @@ vi.mock('../api/client', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   useGenerationStore.setState(initialState)
+  useUIStore.setState(uiInitialState)
 })
 
 describe('generationStore', () => {
@@ -74,7 +76,18 @@ describe('generationStore', () => {
       const jobId = await useGenerationStore.getState().startGeneration()
 
       expect(jobId).toBeNull()
-      expect(useGenerationStore.getState().error).toBe('Failed to start generation')
+      expect(useGenerationStore.getState().error).toBe('Server error')
+    })
+
+    it('shows error modal on failure', async () => {
+      vi.mocked(api.initRepo).mockRejectedValue(new Error('Server error'))
+
+      await useGenerationStore.getState().startGeneration()
+
+      const errorModal = useUIStore.getState().errorModal
+      expect(errorModal).not.toBeNull()
+      expect(errorModal?.title).toBe('Generation Failed')
+      expect(errorModal?.message).toBe('Server error')
     })
 
     it('returns null without calling API if already loading', async () => {

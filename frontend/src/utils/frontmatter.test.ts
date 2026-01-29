@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseFrontmatter, WikiPageMeta } from './frontmatter'
+import { parseFrontmatter } from './frontmatter'
+import type { WikiPageMeta } from './frontmatter'
 
 describe('parseFrontmatter', () => {
   it('extracts frontmatter from content with all fields', () => {

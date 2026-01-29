@@ -1,6 +1,7 @@
 import { useWikiStore } from './wikiStore'
 import { useGenerationStore } from './generationStore'
 import { useReposStore } from './reposStore'
+import { useUIStore } from './uiStore'
 import * as api from '../api/client'
 
 export async function initializeApp(): Promise<void> {
@@ -56,7 +57,7 @@ export async function initializeApp(): Promise<void> {
       })
     }
   } catch {
-    // Ignore errors when checking generation status
+    useUIStore.getState().addToast('Could not check generation status', 'warning')
   }
 
   // Only load wiki tree if build is complete
@@ -72,7 +73,7 @@ export async function initializeApp(): Promise<void> {
       generationStore.setCurrentJob(activeJob)
     }
   } catch {
-    // Ignore errors when checking for running jobs
+    useUIStore.getState().addToast('Could not check for running jobs', 'warning')
   }
 
   wikiStore.setLoading(false)

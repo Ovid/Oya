@@ -36,6 +36,7 @@
 
 ## UI / Interface
 
+* Assess a11y
 * When I restart the server, I go to "Add your first repository" page, even when
   the page is valid, such as
   http://localhost:5173/directories/backend-src-oya-data. Refreshing the page
@@ -89,9 +90,6 @@
 
 * What other uses do we have for synthesis map? Can we use it to generate
   interesting reports? Find potential dead code?
-* Check for any other places in the code where:
-    * Errors are silently discarded
-    * try/catch isn't robust or has a "pass"
 * It's happy to duplicate code. It should search for similar functionality
   to what it's building and reuse when it can.
 * GOD OBJECTS!
@@ -104,6 +102,7 @@
 
 ## Testing
 
+* Separate unit/integration tests
 * Hit minimum code coverage standards and then enforce them.
 * Test suite hitting openai (possibly). Validate and then have ways to skip
   those tests unless requested.
@@ -211,3 +210,8 @@ The following ideas were identified during Phase 6 overview improvements but def
 
 ## Configuration
 * Constants into config file (not .env)
+
+## Code Quality / Architecture
+* Check for any other places in the code where:
+    * Errors are silently discarded
+    * try/catch isn't robust or has a "pass"

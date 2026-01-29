@@ -187,3 +187,58 @@ LLM config (auto-detected from available keys):
 
 - Backend: Python 3.11+, ruff for linting, line length 100
 - Frontend: TypeScript strict, ESLint, Tailwind CSS
+
+## Error Handling
+
+### Never Silently Discard Errors
+Errors that disappear make debugging impossible. Every error must either:
+1. **Propagate** - Let it bubble up to a handler that can deal with it
+2. **Log** - Record what went wrong with context (file, operation, relevant data)
+3. **Transform** - Convert to a user-visible error state or message
+
+### Catch Specific Exceptions
+```python
+# BAD - catches everything including bugs
+except Exception:
+    pass
+
+# GOOD - catches what you expect
+except (FileNotFoundError, PermissionError) as e:
+    logger.warning(f"Could not read {path}: {e}")
+```
+
+### When Generic Except is Acceptable
+Only in these cases, and MUST include a comment explaining why:
+1. **Resource cleanup in finally/close()** - Best-effort cleanup where failure doesn't matter
+2. **Graceful degradation** - Feature works without this, AND you log the fallback
+3. **Top-level handlers** - API endpoints, CLI entry points that must not crash
+
+### Required Documentation for `pass` in Except
+If you must use `pass`, the comment must explain:
+- What errors are expected
+- Why ignoring them is safe
+- What the fallback behavior is
+
+```python
+# ACCEPTABLE - documented, specific scenario
+except sqlite3.OperationalError:
+    # Column already exists from previous migration - safe to ignore
+    pass
+
+# UNACCEPTABLE - no explanation
+except Exception:
+    pass
+```
+
+### Distinguish "No Results" from "Query Failed"
+Never return empty collections on error - this hides failures:
+```python
+# BAD - caller can't tell if search failed or found nothing
+except Exception:
+    return []
+
+# GOOD - caller knows something went wrong
+except ChromaDBError as e:
+    logger.error(f"Vector search failed: {e}")
+    raise SearchError(f"Search unavailable: {e}") from e
+```

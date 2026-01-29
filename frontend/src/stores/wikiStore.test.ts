@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useWikiStore, initialState } from './wikiStore'
+import { useUIStore, initialState as uiInitialState } from './uiStore'
 import * as api from '../api/client'
 
 // Mock the API module
@@ -19,8 +20,9 @@ vi.mock('../api/client', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // Reset store to initial state
+  // Reset stores to initial state
   useWikiStore.setState(initialState)
+  useUIStore.setState(uiInitialState)
 })
 
 const mockRepoStatus = {
@@ -74,6 +76,17 @@ describe('wikiStore', () => {
       await useWikiStore.getState().refreshStatus()
 
       expect(useWikiStore.getState().error).toBe('Failed to fetch repo status')
+    })
+
+    it('shows error toast on failure', async () => {
+      vi.mocked(api.getRepoStatus).mockRejectedValue(new Error('Network error'))
+
+      await useWikiStore.getState().refreshStatus()
+
+      const toasts = useUIStore.getState().toasts
+      expect(toasts).toHaveLength(1)
+      expect(toasts[0].message).toBe('Failed to fetch repo status')
+      expect(toasts[0].type).toBe('error')
     })
   })
 
