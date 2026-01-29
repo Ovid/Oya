@@ -97,4 +97,96 @@ describe('storage module', () => {
       expect(stored.sidebar_left_width).toBe(300)
     })
   })
+
+  describe('migration from old keys', () => {
+    it('migrates oya-dark-mode', () => {
+      localStorage.setItem('oya-dark-mode', 'true')
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(true)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+    })
+
+    it('migrates oya-ask-panel-open', () => {
+      localStorage.setItem('oya-ask-panel-open', 'true')
+      const storage = loadStorage()
+      expect(storage.askPanelOpen).toBe(true)
+      expect(localStorage.getItem('oya-ask-panel-open')).toBeNull()
+    })
+
+    it('migrates oya-sidebar-left-width', () => {
+      localStorage.setItem('oya-sidebar-left-width', '350')
+      const storage = loadStorage()
+      expect(storage.sidebarLeftWidth).toBe(350)
+      expect(localStorage.getItem('oya-sidebar-left-width')).toBeNull()
+    })
+
+    it('migrates oya-sidebar-right-width', () => {
+      localStorage.setItem('oya-sidebar-right-width', '280')
+      const storage = loadStorage()
+      expect(storage.sidebarRightWidth).toBe(280)
+      expect(localStorage.getItem('oya-sidebar-right-width')).toBeNull()
+    })
+
+    it('migrates oya-current-job', () => {
+      const job = {
+        job_id: 'test-123',
+        type: 'full',
+        status: 'running',
+        started_at: '2026-01-30T10:00:00',
+        completed_at: null,
+        current_phase: 'files',
+        total_phases: 8,
+        error_message: null
+      }
+      localStorage.setItem('oya-current-job', JSON.stringify(job))
+      const storage = loadStorage()
+      expect(storage.currentJob?.jobId).toBe('test-123')
+      expect(storage.currentJob?.status).toBe('running')
+      expect(localStorage.getItem('oya-current-job')).toBeNull()
+    })
+
+    it('migrates oya-qa-settings', () => {
+      const settings = { quickMode: false, temperature: 0.8, timeoutMinutes: 7 }
+      localStorage.setItem('oya-qa-settings', JSON.stringify(settings))
+      const storage = loadStorage()
+      expect(storage.qaSettings.quickMode).toBe(false)
+      expect(storage.qaSettings.temperature).toBe(0.8)
+      expect(localStorage.getItem('oya-qa-settings')).toBeNull()
+    })
+
+    it('migrates oya-generation-timing-* keys', () => {
+      const timing = {
+        jobId: 'job-abc',
+        jobStartedAt: 1700000000000,
+        phases: { files: { startedAt: 1700000001000 } }
+      }
+      localStorage.setItem('oya-generation-timing-job-abc', JSON.stringify(timing))
+      const storage = loadStorage()
+      expect(storage.generationTiming['job-abc']).toBeDefined()
+      expect(storage.generationTiming['job-abc'].jobId).toBe('job-abc')
+      expect(localStorage.getItem('oya-generation-timing-job-abc')).toBeNull()
+    })
+
+    it('migrates all old keys together', () => {
+      localStorage.setItem('oya-dark-mode', 'true')
+      localStorage.setItem('oya-sidebar-left-width', '300')
+      localStorage.setItem('oya-qa-settings', JSON.stringify({ quickMode: false, temperature: 0.6, timeoutMinutes: 4 }))
+
+      const storage = loadStorage()
+
+      expect(storage.darkMode).toBe(true)
+      expect(storage.sidebarLeftWidth).toBe(300)
+      expect(storage.qaSettings.quickMode).toBe(false)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+      expect(localStorage.getItem('oya-sidebar-left-width')).toBeNull()
+      expect(localStorage.getItem('oya-qa-settings')).toBeNull()
+    })
+
+    it('new storage takes precedence over old keys', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: false }))
+      localStorage.setItem('oya-dark-mode', 'true')
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(false) // new key wins
+    })
+  })
 })

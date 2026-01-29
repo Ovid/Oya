@@ -107,6 +107,127 @@ function convertKeysToCamel(obj: unknown): unknown {
 }
 
 // =============================================================================
+// Migration from Old Keys
+// =============================================================================
+
+const OLD_KEYS = {
+  darkMode: 'oya-dark-mode',
+  askPanelOpen: 'oya-ask-panel-open',
+  sidebarLeftWidth: 'oya-sidebar-left-width',
+  sidebarRightWidth: 'oya-sidebar-right-width',
+  currentJob: 'oya-current-job',
+  qaSettings: 'oya-qa-settings',
+  generationTimingPrefix: 'oya-generation-timing-',
+} as const
+
+function migrateOldKeys(): Partial<OyaStorage> | null {
+  // Check if any old keys exist
+  const hasOldKeys = Object.values(OLD_KEYS).some((key) =>
+    key.endsWith('-')
+      ? Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
+          .some((k) => k?.startsWith(key))
+      : localStorage.getItem(key) !== null
+  )
+
+  if (!hasOldKeys) return null
+
+  const migrated: Partial<OyaStorage> = {}
+
+  // Migrate simple boolean/number keys
+  const darkModeStr = localStorage.getItem(OLD_KEYS.darkMode)
+  if (darkModeStr !== null) {
+    migrated.darkMode = darkModeStr === 'true'
+    localStorage.removeItem(OLD_KEYS.darkMode)
+  }
+
+  const askPanelStr = localStorage.getItem(OLD_KEYS.askPanelOpen)
+  if (askPanelStr !== null) {
+    migrated.askPanelOpen = askPanelStr === 'true'
+    localStorage.removeItem(OLD_KEYS.askPanelOpen)
+  }
+
+  const leftWidthStr = localStorage.getItem(OLD_KEYS.sidebarLeftWidth)
+  if (leftWidthStr !== null) {
+    const parsed = parseInt(leftWidthStr, 10)
+    if (!isNaN(parsed)) migrated.sidebarLeftWidth = parsed
+    localStorage.removeItem(OLD_KEYS.sidebarLeftWidth)
+  }
+
+  const rightWidthStr = localStorage.getItem(OLD_KEYS.sidebarRightWidth)
+  if (rightWidthStr !== null) {
+    const parsed = parseInt(rightWidthStr, 10)
+    if (!isNaN(parsed)) migrated.sidebarRightWidth = parsed
+    localStorage.removeItem(OLD_KEYS.sidebarRightWidth)
+  }
+
+  // Migrate JSON keys
+  const currentJobStr = localStorage.getItem(OLD_KEYS.currentJob)
+  if (currentJobStr !== null) {
+    try {
+      const parsed = JSON.parse(currentJobStr)
+      // Old format uses snake_case, convert to camelCase
+      migrated.currentJob = {
+        jobId: parsed.job_id,
+        type: parsed.type,
+        status: parsed.status,
+        startedAt: parsed.started_at,
+        completedAt: parsed.completed_at,
+        currentPhase: parsed.current_phase,
+        totalPhases: parsed.total_phases,
+        errorMessage: parsed.error_message,
+      }
+    } catch {
+      // Invalid JSON, skip
+    }
+    localStorage.removeItem(OLD_KEYS.currentJob)
+  }
+
+  const qaSettingsStr = localStorage.getItem(OLD_KEYS.qaSettings)
+  if (qaSettingsStr !== null) {
+    try {
+      const parsed = JSON.parse(qaSettingsStr)
+      migrated.qaSettings = {
+        quickMode: parsed.quickMode ?? DEFAULT_QA_SETTINGS.quickMode,
+        temperature: parsed.temperature ?? DEFAULT_QA_SETTINGS.temperature,
+        timeoutMinutes: parsed.timeoutMinutes ?? DEFAULT_QA_SETTINGS.timeoutMinutes,
+      }
+    } catch {
+      // Invalid JSON, skip
+    }
+    localStorage.removeItem(OLD_KEYS.qaSettings)
+  }
+
+  // Migrate timing keys (dynamic)
+  const timingKeys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key?.startsWith(OLD_KEYS.generationTimingPrefix)) {
+      timingKeys.push(key)
+    }
+  }
+
+  if (timingKeys.length > 0) {
+    migrated.generationTiming = {}
+    for (const key of timingKeys) {
+      const jobId = key.slice(OLD_KEYS.generationTimingPrefix.length)
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key)!)
+        migrated.generationTiming[jobId] = {
+          jobId: parsed.jobId,
+          jobStartedAt: parsed.jobStartedAt,
+          phases: parsed.phases,
+        }
+      } catch {
+        // Invalid JSON, skip
+      }
+      localStorage.removeItem(key)
+    }
+  }
+
+  return migrated
+}
+
+// =============================================================================
 // Core Storage Functions
 // =============================================================================
 
@@ -114,29 +235,50 @@ function convertKeysToCamel(obj: unknown): unknown {
  * Load storage from localStorage.
  * Returns defaults merged with stored values.
  * Clears corrupted data.
+ * Migrates from old keys if new key doesn't exist.
  */
 export function loadStorage(): OyaStorage {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return { ...DEFAULT_STORAGE }
 
-    const parsed = JSON.parse(stored)
-    const converted = convertKeysToCamel(parsed) as Partial<OyaStorage>
+    // If new key exists, use it (skip migration)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      const converted = convertKeysToCamel(parsed) as Partial<OyaStorage>
 
-    // Merge with defaults to handle missing keys
-    return {
-      darkMode: converted.darkMode ?? DEFAULT_STORAGE.darkMode,
-      askPanelOpen: converted.askPanelOpen ?? DEFAULT_STORAGE.askPanelOpen,
-      sidebarLeftWidth: converted.sidebarLeftWidth ?? DEFAULT_STORAGE.sidebarLeftWidth,
-      sidebarRightWidth: converted.sidebarRightWidth ?? DEFAULT_STORAGE.sidebarRightWidth,
-      currentJob: converted.currentJob ?? DEFAULT_STORAGE.currentJob,
-      qaSettings: {
-        quickMode: converted.qaSettings?.quickMode ?? DEFAULT_STORAGE.qaSettings.quickMode,
-        temperature: converted.qaSettings?.temperature ?? DEFAULT_STORAGE.qaSettings.temperature,
-        timeoutMinutes: converted.qaSettings?.timeoutMinutes ?? DEFAULT_STORAGE.qaSettings.timeoutMinutes,
-      },
-      generationTiming: converted.generationTiming ?? DEFAULT_STORAGE.generationTiming,
+      return {
+        darkMode: converted.darkMode ?? DEFAULT_STORAGE.darkMode,
+        askPanelOpen: converted.askPanelOpen ?? DEFAULT_STORAGE.askPanelOpen,
+        sidebarLeftWidth: converted.sidebarLeftWidth ?? DEFAULT_STORAGE.sidebarLeftWidth,
+        sidebarRightWidth: converted.sidebarRightWidth ?? DEFAULT_STORAGE.sidebarRightWidth,
+        currentJob: converted.currentJob ?? DEFAULT_STORAGE.currentJob,
+        qaSettings: {
+          quickMode: converted.qaSettings?.quickMode ?? DEFAULT_STORAGE.qaSettings.quickMode,
+          temperature: converted.qaSettings?.temperature ?? DEFAULT_STORAGE.qaSettings.temperature,
+          timeoutMinutes: converted.qaSettings?.timeoutMinutes ?? DEFAULT_STORAGE.qaSettings.timeoutMinutes,
+        },
+        generationTiming: converted.generationTiming ?? DEFAULT_STORAGE.generationTiming,
+      }
     }
+
+    // Try migrating old keys
+    const migrated = migrateOldKeys()
+    if (migrated) {
+      const storage: OyaStorage = {
+        darkMode: migrated.darkMode ?? DEFAULT_STORAGE.darkMode,
+        askPanelOpen: migrated.askPanelOpen ?? DEFAULT_STORAGE.askPanelOpen,
+        sidebarLeftWidth: migrated.sidebarLeftWidth ?? DEFAULT_STORAGE.sidebarLeftWidth,
+        sidebarRightWidth: migrated.sidebarRightWidth ?? DEFAULT_STORAGE.sidebarRightWidth,
+        currentJob: migrated.currentJob ?? DEFAULT_STORAGE.currentJob,
+        qaSettings: migrated.qaSettings ?? { ...DEFAULT_STORAGE.qaSettings },
+        generationTiming: migrated.generationTiming ?? DEFAULT_STORAGE.generationTiming,
+      }
+      // Save migrated data to new key
+      saveStorage(storage)
+      return storage
+    }
+
+    return { ...DEFAULT_STORAGE }
   } catch {
     // Corrupted - clear and return defaults
     localStorage.removeItem(STORAGE_KEY)
