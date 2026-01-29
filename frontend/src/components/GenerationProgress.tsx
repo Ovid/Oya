@@ -151,7 +151,7 @@ export function GenerationProgress({
     )
 
     return cleanup
-  }, [jobId, onComplete, onCancelled, startTime])
+  }, [jobId, onComplete, onError, onCancelled, startTime])
 
   const handleCancelClick = () => {
     setShowCancelModal(true)
@@ -243,9 +243,7 @@ export function GenerationProgress({
               />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Generation Failed
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Generation Failed</h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             An error occurred during wiki generation.
           </p>
