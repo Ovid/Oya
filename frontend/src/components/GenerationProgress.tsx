@@ -3,6 +3,7 @@ import type { ProgressEvent } from '../types'
 import { streamJobProgress, cancelJob } from '../api/client'
 import { ELAPSED_TIME_UPDATE_MS } from '../config'
 import { formatElapsedTime, PHASES, PHASE_ORDER } from './generationConstants'
+import { useUIStore } from '../stores/uiStore'
 
 interface GenerationProgressProps {
   jobId: string | null
@@ -29,7 +30,6 @@ export function GenerationProgress({
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false)
   const [isCancelling, setIsCancelling] = useState<boolean>(false)
   const [isFailed, setIsFailed] = useState<boolean>(false)
-  const [errorMessage, setErrorMessage] = useState<string>('')
   const [phaseElapsedTimes, setPhaseElapsedTimes] = useState<Record<string, number>>({})
   const [phaseStartElapsedTimes, setPhaseStartElapsedTimes] = useState<Record<string, number>>({})
   const phaseStartTimesRef = useRef<Record<string, number>>({})
@@ -138,7 +138,8 @@ export function GenerationProgress({
       },
       (error: Error) => {
         setIsFailed(true)
-        setErrorMessage(error.message)
+        useUIStore.getState().showErrorModal('Generation Failed', error.message)
+        onError(error.message)
       },
       () => {
         // Handle cancellation
@@ -173,10 +174,6 @@ export function GenerationProgress({
     if (!isCancelling) {
       setShowCancelModal(false)
     }
-  }
-
-  const handleErrorDismiss = () => {
-    onError(errorMessage)
   }
 
   const phaseInfo = PHASES[currentPhase] || { name: currentPhase, description: 'Processing...' }
@@ -226,50 +223,32 @@ export function GenerationProgress({
     )
   }
 
-  // Show error modal
+  // Show error state (modal is handled by global ErrorModal component)
   if (isFailed) {
     return (
       <div className="max-w-xl mx-auto py-8">
-        {/* Error Modal */}
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" />
-          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-lg mx-4">
-            <div className="flex items-start mb-4">
-              <div className="flex-shrink-0">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full">
-                  <svg
-                    className="w-6 h-6 text-red-600 dark:text-red-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </div>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Generation Failed
-                </h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap">
-                  {errorMessage}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                onClick={handleErrorDismiss}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md"
-              >
-                Dismiss
-              </button>
-            </div>
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full mb-4">
+            <svg
+              className="w-8 h-8 text-red-600 dark:text-red-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Generation Failed
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            An error occurred during wiki generation.
+          </p>
         </div>
       </div>
     )
