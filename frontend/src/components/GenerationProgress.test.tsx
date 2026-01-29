@@ -214,7 +214,7 @@ describe('GenerationProgress error handling', () => {
 
 describe('GenerationProgress timing persistence', () => {
   let capturedOnProgress: ((event: ProgressEvent) => void) | null = null
-  let capturedOnComplete: (() => void) | null = null
+  let capturedOnComplete: ((event: ProgressEvent) => void) | null = null
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -228,7 +228,11 @@ describe('GenerationProgress timing persistence', () => {
     vi.mocked(clearPhaseTiming).mockClear()
 
     vi.mocked(client.streamJobProgress).mockImplementation(
-      (_jobId: string, onProgress: (event: ProgressEvent) => void, onComplete: () => void) => {
+      (
+        _jobId: string,
+        onProgress: (event: ProgressEvent) => void,
+        onComplete: (event: ProgressEvent) => void
+      ) => {
         capturedOnProgress = onProgress
         capturedOnComplete = onComplete
         return () => {}
@@ -261,7 +265,14 @@ describe('GenerationProgress timing persistence', () => {
 
     act(() => {
       if (capturedOnProgress) {
-        capturedOnProgress({ phase: '3:directories', total_phases: 8 })
+        capturedOnProgress({
+          job_id: 'test-job',
+          status: 'running',
+          phase: '3:directories',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
       }
     })
 
@@ -274,7 +285,14 @@ describe('GenerationProgress timing persistence', () => {
 
     act(() => {
       if (capturedOnProgress) {
-        capturedOnProgress({ phase: '1:syncing', total_phases: 8 })
+        capturedOnProgress({
+          job_id: 'test-job',
+          status: 'running',
+          phase: '1:syncing',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
       }
     })
 
@@ -283,7 +301,14 @@ describe('GenerationProgress timing persistence', () => {
     })
     act(() => {
       if (capturedOnProgress) {
-        capturedOnProgress({ phase: '2:files', total_phases: 8 })
+        capturedOnProgress({
+          job_id: 'test-job',
+          status: 'running',
+          phase: '2:files',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
       }
     })
 
@@ -295,7 +320,14 @@ describe('GenerationProgress timing persistence', () => {
 
     act(() => {
       if (capturedOnComplete) {
-        capturedOnComplete()
+        capturedOnComplete({
+          job_id: 'test-job',
+          status: 'completed',
+          phase: '8:indexing',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
       }
     })
 
@@ -309,7 +341,7 @@ describe('GenerationProgress timing persistence', () => {
       (
         _jobId: string,
         _onProgress: (event: ProgressEvent) => void,
-        _onComplete: () => void,
+        _onComplete: (event: ProgressEvent) => void,
         onError: (error: Error) => void
       ) => {
         capturedOnError = onError
@@ -329,15 +361,15 @@ describe('GenerationProgress timing persistence', () => {
   })
 
   it('should clear timing on job cancellation', () => {
-    let capturedOnCancelled: (() => void) | null = null
+    let capturedOnCancelled: ((event: ProgressEvent) => void) | null = null
 
     vi.mocked(client.streamJobProgress).mockImplementation(
       (
         _jobId: string,
         _onProgress: (event: ProgressEvent) => void,
-        _onComplete: () => void,
+        _onComplete: (event: ProgressEvent) => void,
         _onError: (error: Error) => void,
-        onCancelled?: () => void
+        onCancelled?: (event: ProgressEvent) => void
       ) => {
         capturedOnCancelled = onCancelled || null
         return () => {}
@@ -355,7 +387,14 @@ describe('GenerationProgress timing persistence', () => {
 
     act(() => {
       if (capturedOnCancelled) {
-        capturedOnCancelled()
+        capturedOnCancelled({
+          job_id: 'test-job',
+          status: 'cancelled',
+          phase: '2:files',
+          total_phases: 8,
+          current_step: null,
+          total_steps: null,
+        })
       }
     })
 
