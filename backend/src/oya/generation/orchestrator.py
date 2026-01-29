@@ -16,6 +16,8 @@ of wiki generation in a bottom-up approach:
 import asyncio
 import hashlib
 import json
+import logging
+import sqlite3
 import tomllib
 import uuid
 from collections import defaultdict
@@ -56,6 +58,8 @@ from oya.repo.file_filter import FileFilter, extract_directories_from_files
 
 if TYPE_CHECKING:
     from oya.vectorstore.issues import IssuesStore
+
+logger = logging.getLogger(__name__)
 
 
 class GenerationPhase(Enum):
@@ -327,8 +331,8 @@ class GenerationOrchestrator:
                     "purpose": metadata.get("purpose"),
                     "layer": metadata.get("layer"),
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to parse cache metadata: {e}")
         return None
 
     def _has_new_notes(self, target: str, generated_at: str | None) -> bool:
@@ -354,8 +358,9 @@ class GenerationOrchestrator:
             )
             row = cursor.fetchone()
             return row[0] > 0 if row else False
-        except Exception:
-            return False
+        except Exception as e:
+            logger.error(f"Database error checking notes: {e}")
+            raise
 
     def _get_direct_child_summaries(
         self,
@@ -883,8 +888,8 @@ class GenerationOrchestrator:
                 package_info["version"] = data.get("version", "")
                 package_info["description"] = data.get("description", "")
                 package_info["dependencies"] = list(data.get("dependencies", {}).keys())
-            except Exception:
-                pass
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.debug(f"Could not parse package.json: {e}")
 
         # Try pyproject.toml
         if "pyproject.toml" in file_contents:
@@ -896,8 +901,8 @@ class GenerationOrchestrator:
                 package_info["description"] = project.get("description", "")
                 deps = project.get("dependencies", [])
                 package_info["dependencies"] = deps if isinstance(deps, list) else []
-            except Exception:
-                pass
+            except (tomllib.TOMLDecodeError, KeyError, TypeError) as e:
+                logger.debug(f"Could not parse pyproject.toml: {e}")
 
         return package_info
 
@@ -1648,9 +1653,12 @@ class GenerationOrchestrator:
                     ),
                 )
                 self.db.commit()
-            except Exception:
-                # Table might not exist yet, skip recording
-                pass
+            except sqlite3.OperationalError as e:
+                if "no such table" in str(e):
+                    logger.debug("Page tracking table not yet created, skipping record")
+                else:
+                    logger.error(f"Failed to record generated page: {e}")
+                    raise
 
     async def _save_page_with_frontmatter(
         self,
@@ -1711,6 +1719,9 @@ class GenerationOrchestrator:
                     ),
                 )
                 self.db.commit()
-            except Exception:
-                # Table might not exist yet, skip recording
-                pass
+            except sqlite3.OperationalError as e:
+                if "no such table" in str(e):
+                    logger.debug("Page tracking table not yet created, skipping record")
+                else:
+                    logger.error(f"Failed to record generated page: {e}")
+                    raise
