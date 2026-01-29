@@ -9,8 +9,8 @@ import {
   savePhaseTiming,
   clearPhaseTiming,
   cleanupStaleTiming,
-  GenerationTiming,
 } from '../utils/generationTiming'
+import type { GenerationTiming } from '../utils/generationTiming'
 
 interface GenerationProgressProps {
   jobId: string | null
