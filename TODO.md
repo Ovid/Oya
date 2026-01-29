@@ -1,5 +1,15 @@
 # TODO
 
+* backend-1   | 2026-01-29 15:07:42 INFO     172.66.0.243:47338 - "OPTIONS
+  /api/jobs/203dafe4-42be-45c1-9cce-68890c8e777d HTTP/1.1" 200
+  backend-1   | 2026-01-29 15:07:42 INFO     172.66.0.243:47338 - "GET
+  /api/jobs/203dafe4-42be-45c1-9cce-68890c8e777d HTTP/1.1" 200
+  backend-1   | 2026-01-29 15:07:42 INFO     172.66.0.243:47338 - "GET
+  /api/jobs/203dafe4-42be-45c1-9cce-68890c8e777d/stream HTTP/1.1" 200
+  backend-1   | 2026-01-29 15:08:04 WARNING  Failed to delete issues for
+  t/lib/HasSigDie.pm: Query error: Database error: error returned from
+  database: (code: 1032) attempt to write a readonly database
+
 ## Oya-Specific Indexing
 
 * Why do workflows seem to persist in same names even after complete
@@ -58,6 +68,16 @@
 
 ## Data / Storage
 
+* Everything in local storage should be under a top-level key
+    oya-ask-panel-open	false
+    oya-dark-mode	true
+    oya-qa-settings	{"quickMode":false,"temperature":0.3,"timeoutMinutes":10}
+    oya-sidebar-left-width	180
+    oya-sidebar-right-width	200
+    todo-app-theme	dark
+    oya-current-job	{"job_id":"91f037f8-d144-4d7a-82a3-370039c5693a","type":"full","status":"running","started_at":"2026-01-29T15:10:30","completed_at":null,"cancelled_at":null,"current_phase":"2:files","total_phases":8,"error_message":null,"changes_made":null}
+    oya-generation-timing-91f037f8-d144-4d7a-82a3-370039c5693a	{"jobId":"91f037f8-d144-4d7a-82a3-370039c5693a","jobStartedAt":1769699442368,"phases":{"files":{"startedAt":1769699442380,"completedAt":1769699506920,"duration":64},"directories":{"startedAt":1769699506920}}}
+ 
 * code_index UNIQUE(file_path, symbol_name) loses data when a file has duplicate
   symbol names in different scopes (e.g. two classes each with `__init__` or
   `process`). INSERT OR REPLACE silently overwrites the first entry. Consider
