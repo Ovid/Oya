@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
-  GenerationTiming,
   savePhaseTiming,
   loadPhaseTiming,
   clearPhaseTiming,
   cleanupStaleTiming,
 } from './generationTiming'
+import type { GenerationTiming } from './generationTiming'
 import { STORAGE_KEY_GENERATION_TIMING_PREFIX } from '../config/storage'
 
 describe('generationTiming utilities', () => {

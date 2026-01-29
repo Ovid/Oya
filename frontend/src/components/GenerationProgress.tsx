@@ -25,7 +25,10 @@ export function GenerationProgress({
   onError,
   onCancelled,
 }: GenerationProgressProps) {
-  // Load persisted timing on initial render (lazy initialization)
+  // Load persisted timing on initial render
+  // Note: This assumes jobId is available when component mounts. If jobId can be
+  // null initially and then become available, the parent should delay mounting
+  // this component until jobId is ready.
   const [restoredTiming] = useState<GenerationTiming | null>(() => {
     cleanupStaleTiming()
     if (jobId) {
