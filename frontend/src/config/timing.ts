@@ -34,3 +34,11 @@ export const RELATIVE_TIME_DAYS_THRESHOLD = 7 // Show days until 7 days
 // Default parameters for API calls.
 
 export const DEFAULT_JOBS_LIST_LIMIT = 20
+
+// =============================================================================
+// Toast Notifications
+// =============================================================================
+// Configuration for toast notification display.
+
+export const TOAST_AUTO_DISMISS_MS = 5000 // Auto-dismiss toasts after 5 seconds
+export const TOAST_MAX_VISIBLE = 3 // Maximum number of toasts shown at once
