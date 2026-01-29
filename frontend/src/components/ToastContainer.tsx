@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useUIStore } from '../stores/uiStore'
 import { TOAST_AUTO_DISMISS_MS, TOAST_MAX_VISIBLE } from '../config'
 import type { Toast, ToastType } from '../types'
@@ -9,7 +9,7 @@ const typeStyles: Record<ToastType, string> = {
   info: 'bg-blue-600 text-white',
 }
 
-const typeIcons: Record<ToastType, JSX.Element> = {
+const typeIcons: Record<ToastType, ReactNode> = {
   error: (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

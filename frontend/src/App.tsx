@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { NotFound } from './components/NotFound'
 import { FirstRunWizard } from './components/FirstRunWizard'
+import { ToastContainer } from './components/ToastContainer'
+import { ErrorModal } from './components/ErrorModal'
 import { useReposStore } from './stores'
 import {
   OverviewPage,
@@ -40,23 +42,33 @@ function App() {
   }
 
   if (showFirstRunWizard) {
-    return <FirstRunWizard onComplete={handleFirstRunComplete} />
+    return (
+      <>
+        <FirstRunWizard onComplete={handleFirstRunComplete} />
+        <ToastContainer />
+        <ErrorModal />
+      </>
+    )
   }
 
   return (
-    <BrowserRouter>
-      <Layout key={activeRepo?.id ?? 'no-repo'}>
-        <Routes>
-          <Route path="/" element={<OverviewPage />} />
-          <Route path="/architecture" element={<ArchitecturePage />} />
-          <Route path="/workflows/:slug" element={<WorkflowPage />} />
-          <Route path="/directories/:slug" element={<DirectoryPage />} />
-          <Route path="/files/:slug" element={<FilePage />} />
-          <Route path="/welcome" element={<WelcomePage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <>
+      <BrowserRouter>
+        <Layout key={activeRepo?.id ?? 'no-repo'}>
+          <Routes>
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/architecture" element={<ArchitecturePage />} />
+            <Route path="/workflows/:slug" element={<WorkflowPage />} />
+            <Route path="/directories/:slug" element={<DirectoryPage />} />
+            <Route path="/files/:slug" element={<FilePage />} />
+            <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+      <ToastContainer />
+      <ErrorModal />
+    </>
   )
 }
 
