@@ -1,152 +1,148 @@
 # TODO
 
+## Q&A / Chat
+
+* Q&A should allow follow-up questions, not just one-shot
+* Q&A should have an "arrow up" history
+* Q&A: Not scrolling down for successive answers
+* The text input should be a text area
+* "Ask" should be disabled while generating wiki
+* We should be able to use `@` syntax for specifying files or directories for
+  additional context. Would be nice if it could auto-complete for current wiki
+  (optional).
+
+## Wiki Generation
+
 * When generating, if I refresh the page, all counters reset to 0s.
-* Check for any other places in the code where:
-    * Errors are silently discarded
-    * try/catch isn't robust or has a "pass"
-* Even though the interface for Q&A shows temperature at .3, wiki generation
-  shows 0.7. Perhaps they should be separate, but we really need some kind of
-  "Settings" dialog to let people choose them.
-* Load code in reverse dependency order, if feasible. That let's us be able to
-  load "top-level" modules and have context for lower-level modules.
-* Generated wiki, hit refresh, and it started regenerating.  Files dropdown
+* Generated wiki, hit refresh, and it started regenerating. Files dropdown
   said 47, but there were only 7 files shown.
+* When generation is done, it must direct back to the overview page.
+* WHEN I REFRESH PAGE, REGENERATION STOPS!
+* When I first generate, it has a spinner for the entire time of the analysis
+  phase (I think).
+    * It needs to load the interface, *then* start analysis and have a timer.
+    * Also, later phases need steps, too.
+    * Should show "current file" and "current directory" while processing.
+    * Should it also try to process files in dependency order like directories?
+* Load code in reverse dependency order, if feasible. That lets us load
+  "top-level" modules and have context for lower-level modules.
+* We no longer have incremental regeneration. Need a better strategy, while
+  still allowing atomic regeneration.
+* The wiki generation might overprioritize docs over code. I'm not sure. Check
+  if this is the case.
+* Mermaid diagrams should omit test files
+* When regenerating and showing what can be excluded, it shouldn't show any
+  files if a directory above it is already excluded. Makes the lists much shorter.
+
+## UI / Interface
+
+* When I restart the server, I go to "Add your first repository" page, even when
+  the page is valid, such as
+  http://localhost:5173/directories/backend-src-oya-data. Refreshing the page
+  gets me to the correct wiki page.
+* lib/MooseX/Extended/Core.pm showing nothing
+* Prompt injections!
+* Fix the LLM chat
+* Allow optional web search? Might pull in more context. Might pull in a mess.
+
+## Data / Storage
+
 * code_index UNIQUE(file_path, symbol_name) loses data when a file has duplicate
   symbol names in different scopes (e.g. two classes each with `__init__` or
   `process`). INSERT OR REPLACE silently overwrites the first entry. Consider
   including scope/class qualification in symbol_name or adding line_start to
   the unique constraint.
-* When generation is done, it must direct back to the overview page.
-* When I restart the server, I go  "Add your first repository" page, even when
-  the page is valid, such as
-  http://localhost:5173/directories/backend-src-oya-data. Refreshing the page
-  gets me to the correct wiki page.
-* No need for .dotfiles and .dotdirs inside of the ~/.oya directory.
+* No need for .dotfiles and .dotdirs inside of the ~/.oya directory:
     ./wikis/github.com/Ovid/Oya/meta/.oyaignore
     ./wikis/github.com/Ovid/Oya/meta/.oyawiki
     ./wikis/github.com/Ovid/Oya/meta/.oya-logs
-* Need to be able to delete a repo from Oya
-* Need to add windows support (paths)
-* Fix this issue which slows us down and eats tokens when we start a worktree:
-    ⏺ Bash(cd
-  /Users/poecurt/projects/oya/.worktrees/collapse-excluded-dirs/backend &&
-  python3 -m venv .venv && source .venv/bin/activate && pip install -e
-  ".[dev]" -q 2>&…)
-    ⎿  ERROR: Cannot install oya because these package versions have
-    conflicting dependencies.
-         ERROR: ResolutionImpossible: for help visit
-         https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts
-
-	⏺ Bash(cd /Users/poecurt/projects/oya/.worktrees/fix-notes-system/backend && source .venv/bin/activate 2>/dev/null || python3 -m venv .venv && source .venv/bin/activat…) timeout: 5m 0s
-	⎿  Error: Exit code 1
-		ERROR: Cannot install oya because these package versions have conflicting dependencies.
-		ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts
-
-	⏺ Bash(cd /Users/poecurt/projects/oya/.worktrees/fix-notes-system/frontend && npm install --silent 2>&1 | tail -5)
-	⎿  (No content)
-
-	⏺ Actually, looking at the CLAUDE.md, it says "Uses existing venv" so there's probably a venv in the original project. Worktrees share the git repo but not non-tracked files like .venv. Let me try creating a
-	fresh venv properly.
-
-	Bash(cd /Users/poecurt/projects/oya/.worktrees/fix-notes-system/backend && python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]" 2>&1 | tail…) timeout: 5m 0s
-	⎿  Running…
-		ctrl+b ctrl+b (twice) to run in background
-
-
-* backend/src/oya/qa/cgrag.py def \_read_source_for_nodes(
-    * This could blow our context window
-
-* Why wasn't my code quality reviewer chosen?
-
-> Review the code quality of the implementation for Task 1: Add
-> app\_settings table to repo\_registry.py
-
-* The logs can get quite long. Need something like logrotate
-* Hit minimum code coverage standards and then enforce them.
-* Q&A should have an "arrow up" history
-* Quick fix:
-    * When regenerating a wiki and it shows what can be excluded, it shouldn't
-      show any files if a directory above it is already excluded. Makes the
-      lists must shorter.
-* Deep Research
-    * CGRAG should also be able to read files now. However, we need to be
-      concerned about blowing context
-    * Extend CGRAG
-        * "Thorough" Shouldn't mention additional files
-        * "Deep Research" will
-    * Can't do it properly if I don't have the files
-        * Need "wikis" directory
-            * Handle github (including private repos)
-            * Handle local directoroes
-            * How to enforce distinction when repo names are the same?
-* Architecture
-    * Claude often imports in functions instead of at the top. How can we
-      catch that?
-    * It's happy to duplicate code. It should search for similar functionality
-      to what it's building and reuse when in can.
-    * GOD OBJECTS!
-
-* Q&A
-    * Not scrolling down for successive answers.
-    * Tried a follow-up question and it looks like it's not chatting. It's
-      one-shot.
-    * The text input should be a text area.
-    * Users should be able to use standard `@` functionality to provide exact
-      context. This implies we actually have a checkout. Should this use RLM?
-* Investigate RLM (Recursive Language Models for "unlimited" context)
-    * https://arxiv.org/abs/2512.24601
-    * https://www.youtube.com/watch?v=huszaaJPjU8
-* CLI? "oya ask 'How does X work?'"
-* Need to start a proper ChangeLog.
-* We're using ChromaDB's default embeddings. That's OK for prototyping, but
-  for prod, we need users to be able to specify the embedding model they want.
-* "Ask" should be disabled while generating wiki
-* Review code to see if it's making language/framework/tool, etc. assumptions
-  which violate the "generic analysis" rule.
-* Test suite hitting openai (possibly). Validate and then have ways to skip
-  those tests unless requested.
-    * Remove provider from .env and see if tests pass
-    * Look at LLM as a Judge for some tests.
-* When I first generate, it has a spinner for the entire time of the analysis
-  phase (I think).
-    * It needs to load the interface, *then* start analysis and have a time.
-    * Also, later phases need steps, too.
-    * Should show "current file" and "current directory" while processing.
-    * Should it also try to process files in dependency order like
-      directories?
-    * Mermaid diagrams should omit test files
-* "Are there any architectural flaws in the frontend?" DeepWiki caught one. We
-  missed it. Investigate it. Check the jsonl logs and feed it back.
-* Have AI use the vector database and code to independently validate logic and
-  behavior.
 * b6d4122 - If we delete .oyawiki while server is running, it dies on
-  rebuild due to bad db connection (16 hours ago) <Ovid>
-* We no longer have incremental regeneration. Need a better strategy, while
-  still allowing atomic regeneration.
-
-* Interface:
-    - Templates (done)
-    - Need left and right search areas to be "widenable" so I can see more
-      content (done)
-    - Proper filenames on left side (done)
-    - lib/MooseX/Extended/Core.pm showing nothing
-    - Prompt injections!
-    - Notes: we should have a single note per file, directory, and it can be
-      edited. (done)
-    - Auto-create .oyaignore with appropriate files (not done: too many
-      programming languages, so not done yet. Do it for popular languages?)
-* Allow optional web search? Might pull in more context. Might pull in a mess.
+  rebuild due to bad db connection
 * Where to put .oyawiki if not using current repo? Currently puts the docs in
   that repo.
     * What if two repos share the same name?
     * Local Wiki metadata and remove ephemeral data so we can easily serve it?
-* The wiki generation might overprioritize docs over code. I'm not sure. Check
-  if this is the case.
+
+## Repository Management
+
+* Need to be able to delete a repo from Oya
+
+## Deep Research / CGRAG
+
+* backend/src/oya/qa/cgrag.py def \_read_source_for_nodes(
+    * This could blow our context window
+* CGRAG should also be able to read files now. However, we need to be
+  concerned about blowing context
+* Extend CGRAG:
+    * "Thorough" shouldn't mention additional files
+    * "Deep Research" will
+* Can't do it properly if I don't have the files
+    * Need "wikis" directory
+        * Handle github (including private repos)
+        * Handle local directories
+        * How to enforce distinction when repo names are the same?
+* Investigate RLM (Recursive Language Models for "unlimited" context)
+    * https://arxiv.org/abs/2512.24601
+    * https://www.youtube.com/watch?v=huszaaJPjU8
+
+## Code Quality / Architecture
+
+* What other uses do we have for synthesis map? Can we use it to generate
+  interesting reports? Find potential dead code?
+* Check for any other places in the code where:
+    * Errors are silently discarded
+    * try/catch isn't robust or has a "pass"
+* It's happy to duplicate code. It should search for similar functionality
+  to what it's building and reuse when it can.
+* GOD OBJECTS!
+* Review code to see if it's making language/framework/tool assumptions
+  which violate the "generic analysis" rule.
+* "Are there any architectural flaws in the frontend?" DeepWiki caught one. We
+  missed it. Investigate it. Check the jsonl logs and feed it back.
+* Have AI use the vector database and code to independently validate logic and
+  behavior.
+
+## Testing
+
+* Hit minimum code coverage standards and then enforce them.
+* Test suite hitting openai (possibly). Validate and then have ways to skip
+  those tests unless requested.
+    * Remove provider from .env and see if tests pass
+    * Look at LLM as a Judge for some tests.
+
+## Configuration / Settings
+
+* Even though the interface for Q&A shows temperature at .3, wiki generation
+  shows 0.7. Perhaps they should be separate, but we really need some kind of
+  "Settings" dialog to let people choose them.
 * Config files for removing hard-coded data.
+* We're using ChromaDB's default embeddings. That's OK for prototyping, but
+  for prod, we need users to be able to specify the embedding model they want.
 * Templates for doc creation? Not sure if they're used, but would standardize
-* some output. Not sure if they're appropriate.
-* Fix the LLM chat
-* WHEN I REFRESH PAGE, REGENERATION STOPS!
+  some output. Not sure if they're appropriate.
+
+## Infrastructure / DevOps
+
+* The logs can get quite long. Need something like logrotate.
+* Need to add Windows support (paths)
+* Fix this issue which slows us down and eats tokens when we start a worktree:
+
+      ⏺ Bash(cd /Users/poecurt/projects/oya/.worktrees/collapse-excluded-dirs/backend &&
+        python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]" -q 2>&…)
+        ⎿  ERROR: Cannot install oya because these package versions have conflicting dependencies.
+           ERROR: ResolutionImpossible...
+
+  Worktrees share the git repo but not non-tracked files like .venv.
+
+## Other / Misc
+
+* Why wasn't my code quality reviewer chosen?
+  > Review the code quality of the implementation for Task 1: Add
+  > app\_settings table to repo\_registry.py
+* CLI? "oya ask 'How does X work?'"
+* Need to start a proper ChangeLog.
+
+---
 
 # Future Enhancements (Suggested by CLAUDE)
 
@@ -169,17 +165,16 @@ The following ideas were identified during Phase 6 overview improvements but def
 
 # Done
 
-* .oyaignore is now in .oyawiki/.oyaignore
+## Q&A / Chat
+* Need to make chat more useful
+    * Have chat persist, even when navigating.
+    * Allow follow-up questions
+
+## Wiki Generation
 * To save token costs and time, we don't need to regenerate a particular file or
   directory if:
     - Files: file hasn't changed (unless a new note is applied)
     - Directories: directory contents haven't changed (same number of files and all files in it unchanged)
-* Where's my dark mode?
-* Before generating:
-    - Preview directories and files so you can see what will be indexed and
-      what should be in .oyaignore
-    - Offer explanation of codebase, if needed, to help guide AI
-* Constants into config file (not .env)
 * Mermaid diagrams should pass through a parser until they render correctly
 * For each file we analyze, we should also look for common design flaws or
   possible bugs and put them in another part of the response. In other
@@ -191,15 +186,28 @@ The following ideas were identified during Phase 6 overview improvements but def
       clear which files are excluded via rules (those cannot be included) and
       via .oyaignore (we should be able to include those, and make it clear
       that .oyaignore will be rewritten).
-    * There will always be a button availabe in modal to regenerate wiki.
+    * There will always be a button available in modal to regenerate wiki.
       Generation does not start until that button is clicked, but now there's
       going to be a confirmation dialog. Reuse confirmation logic already in
       system.
     * While regenerating, the "Ask" Q&A functionality must be disabled.
-* Need to make chat more useful
-    * Have chat persist, even when navigating.
-    * Allow follow-up questions
-* faa427b - (HEAD -> ovid/fix-missing-spec-issues) Move .oyaignore back to
-  root directory (15 hours ago) <Ovid>
 * docs/plans/2026-01-28-call-site-synopses-design.md
 * Code synopsis for files
+
+## UI / Interface
+* Templates (done)
+* Need left and right search areas to be "widenable" so I can see more content
+* Proper filenames on left side
+* Notes: we should have a single note per file, directory, and it can be edited.
+* Where's my dark mode?
+* Before generating:
+    - Preview directories and files so you can see what will be indexed and
+      what should be in .oyaignore
+    - Offer explanation of codebase, if needed, to help guide AI
+
+## Data / Storage
+* .oyaignore is now in .oyawiki/.oyaignore
+* faa427b - Move .oyaignore back to root directory
+
+## Configuration
+* Constants into config file (not .env)
