@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { RepoStatus, WikiTree, WikiPage } from '../types'
 import * as api from '../api/client'
+import { useUIStore } from './uiStore'
 
 interface WikiState {
   repoStatus: RepoStatus | null
@@ -36,6 +37,7 @@ export const useWikiStore = create<WikiState & WikiActions>()((set, get) => ({
       set({ repoStatus: status })
     } catch {
       set({ error: 'Failed to fetch repo status' })
+      useUIStore.getState().addToast('Failed to fetch repo status', 'error')
     }
   },
 
