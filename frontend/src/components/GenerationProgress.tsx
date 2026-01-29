@@ -160,12 +160,20 @@ export function GenerationProgress({
             setCurrentPhaseNum(phaseNum)
 
             // Save timing to localStorage
+            // Merge with existing data to preserve durations from before page refresh
             if (jobId) {
               const now = Date.now()
-              const phasesData: GenerationTiming['phases'] = {}
+              const existingTiming = loadPhaseTiming(jobId)
+              const phasesData: GenerationTiming['phases'] = {
+                ...(existingTiming?.phases ?? {}),
+              }
 
               for (const [p, startedAtTs] of Object.entries(phaseStartTimesRef.current)) {
-                phasesData[p] = { startedAt: startedAtTs }
+                const existingPhase = phasesData[p] ?? {}
+                phasesData[p] = {
+                  ...existingPhase,
+                  startedAt: startedAtTs,
+                }
               }
 
               // Add completion data for previous phase if it just changed
