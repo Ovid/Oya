@@ -74,7 +74,6 @@ export function clearPhaseTiming(jobId: string): void {
     localStorage.removeItem(`${STORAGE_KEY_GENERATION_TIMING_PREFIX}${jobId}`)
   } catch {
     // localStorage unavailable - timing cleanup will happen naturally on next successful access
-    console.warn('Failed to clear generation timing from localStorage')
   }
 }
 
@@ -110,6 +109,5 @@ export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void
     }
   } catch {
     // localStorage unavailable - stale entries will be cleaned up on next successful access
-    console.warn('Failed to cleanup stale generation timing entries')
   }
 }
