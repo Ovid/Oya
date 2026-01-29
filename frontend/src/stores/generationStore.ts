@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { JobStatus, GenerationStatus } from '../types'
 import * as api from '../api/client'
+import { useUIStore } from './uiStore'
 
 interface GenerationState {
   currentJob: JobStatus | null
@@ -43,8 +44,10 @@ export const useGenerationStore = create<GenerationState & GenerationActions>()(
       const job = await api.getJob(result.job_id)
       set({ currentJob: job })
       return result.job_id
-    } catch {
-      set({ error: 'Failed to start generation' })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to start generation'
+      set({ error: message })
+      useUIStore.getState().showErrorModal('Generation Failed', message)
       return null
     } finally {
       set({ isLoading: false })

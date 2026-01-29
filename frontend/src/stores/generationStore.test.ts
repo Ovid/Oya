@@ -74,7 +74,7 @@ describe('generationStore', () => {
       const jobId = await useGenerationStore.getState().startGeneration()
 
       expect(jobId).toBeNull()
-      expect(useGenerationStore.getState().error).toBe('Failed to start generation')
+      expect(useGenerationStore.getState().error).toBe('Server error')
     })
 
     it('returns null without calling API if already loading', async () => {
