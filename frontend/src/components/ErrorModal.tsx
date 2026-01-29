@@ -44,7 +44,10 @@ export function ErrorModal() {
             </div>
           </div>
           <div className="ml-4">
-            <h3 id="error-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3
+              id="error-modal-title"
+              className="text-lg font-semibold text-gray-900 dark:text-white"
+            >
               {errorModal.title}
             </h3>
             <p
