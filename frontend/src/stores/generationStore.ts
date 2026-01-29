@@ -7,8 +7,9 @@ import { STORAGE_KEY_CURRENT_JOB } from '../config/storage'
 /**
  * Load current job from localStorage.
  * Returns null if not found or invalid.
+ * Exported so initializeApp can call this after React is ready.
  */
-function loadStoredJob(): JobStatus | null {
+export function loadStoredJob(): JobStatus | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEY_CURRENT_JOB)
     if (!stored) return null
@@ -28,7 +29,7 @@ function loadStoredJob(): JobStatus | null {
 /**
  * Save current job to localStorage.
  */
-function saveStoredJob(job: JobStatus | null): void {
+export function saveStoredJob(job: JobStatus | null): void {
   try {
     if (job && (job.status === 'running' || job.status === 'pending')) {
       localStorage.setItem(STORAGE_KEY_CURRENT_JOB, JSON.stringify(job))
@@ -56,11 +57,11 @@ interface GenerationActions {
   setError: (error: string | null) => void
 }
 
-// Load persisted job on module init (before store creation)
-const persistedJob = loadStoredJob()
+// Note: Job restoration moved to initializeApp() to ensure localStorage is ready.
+// Module-level localStorage access can be unreliable in Vite dev mode.
 
 export const initialState: GenerationState = {
-  currentJob: persistedJob,
+  currentJob: null,
   generationStatus: null,
   isLoading: false,
   error: null,
