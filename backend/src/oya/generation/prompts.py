@@ -1,10 +1,13 @@
 # backend/src/oya/generation/prompts.py
 """Prompt templates for wiki generation."""
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from oya.generation.summaries import path_to_slug
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -1404,8 +1407,9 @@ def get_notes_for_target(
                 }
             )
         return notes
-    except Exception:
-        return []
+    except Exception as e:
+        logger.error(f"Failed to fetch notes from database: {e}")
+        return []  # Graceful degradation - generation can continue without notes
 
 
 def get_synthesis_prompt(
