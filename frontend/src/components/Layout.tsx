@@ -17,7 +17,6 @@ import {
   RIGHT_PANEL_MIN_WIDTH,
   RIGHT_PANEL_MAX_WIDTH,
 } from '../config/layout'
-import { STORAGE_KEY_SIDEBAR_LEFT_WIDTH, STORAGE_KEY_SIDEBAR_RIGHT_WIDTH } from '../config/storage'
 
 interface LayoutProps {
   children: ReactNode
@@ -45,7 +44,7 @@ export function Layout({ children }: LayoutProps) {
     defaultWidth: SIDEBAR_WIDTH,
     minWidth: SIDEBAR_MIN_WIDTH,
     maxWidth: SIDEBAR_MAX_WIDTH,
-    storageKey: STORAGE_KEY_SIDEBAR_LEFT_WIDTH,
+    storageKey: 'sidebarLeftWidth',
   })
 
   const rightPanel = useResizablePanel({
@@ -53,7 +52,7 @@ export function Layout({ children }: LayoutProps) {
     defaultWidth: RIGHT_PANEL_WIDTH,
     minWidth: RIGHT_PANEL_MIN_WIDTH,
     maxWidth: RIGHT_PANEL_MAX_WIDTH,
-    storageKey: STORAGE_KEY_SIDEBAR_RIGHT_WIDTH,
+    storageKey: 'sidebarRightWidth',
   })
 
   // Determine if any panel is being dragged (for global cursor style)

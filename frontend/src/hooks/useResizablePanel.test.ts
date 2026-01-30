@@ -1,97 +1,76 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useResizablePanel } from './useResizablePanel'
+import * as storage from '../utils/storage'
+
+vi.mock('../utils/storage', () => ({
+  getStorageValue: vi.fn(() => 256),
+  setStorageValue: vi.fn(),
+  DEFAULT_STORAGE: {
+    sidebarLeftWidth: 256,
+    sidebarRightWidth: 200,
+  },
+}))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('useResizablePanel', () => {
-  let localStorageMock: {
-    getItem: ReturnType<typeof vi.fn>
-    setItem: ReturnType<typeof vi.fn>
-    removeItem: ReturnType<typeof vi.fn>
-    clear: ReturnType<typeof vi.fn>
-    length: number
-    key: ReturnType<typeof vi.fn>
-  }
-
-  beforeEach(() => {
-    // Mock localStorage
-    localStorageMock = {
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-      clear: vi.fn(),
-      length: 0,
-      key: vi.fn(),
-    }
-    vi.stubGlobal('localStorage', localStorageMock)
-  })
-
   it('returns default width initially', () => {
+    vi.mocked(storage.getStorageValue).mockReturnValue(256)
     const { result } = renderHook(() =>
       useResizablePanel({
         side: 'left',
         defaultWidth: 256,
         minWidth: 180,
         maxWidth: 400,
-        storageKey: 'test-width',
+        storageKey: 'sidebarLeftWidth',
       })
     )
     expect(result.current.width).toBe(256)
   })
 
-  it('loads width from localStorage', () => {
-    localStorageMock.getItem.mockReturnValue('300')
+  it('loads width from storage', () => {
+    vi.mocked(storage.getStorageValue).mockReturnValue(300)
     const { result } = renderHook(() =>
       useResizablePanel({
         side: 'left',
         defaultWidth: 256,
         minWidth: 180,
         maxWidth: 400,
-        storageKey: 'test-width',
+        storageKey: 'sidebarLeftWidth',
       })
     )
     expect(result.current.width).toBe(300)
   })
 
   it('clamps width to max bounds', () => {
-    localStorageMock.getItem.mockReturnValue('999')
+    vi.mocked(storage.getStorageValue).mockReturnValue(999)
     const { result } = renderHook(() =>
       useResizablePanel({
         side: 'left',
         defaultWidth: 256,
         minWidth: 180,
         maxWidth: 400,
-        storageKey: 'test-width',
+        storageKey: 'sidebarLeftWidth',
       })
     )
     expect(result.current.width).toBe(400)
   })
 
   it('clamps width to minWidth when stored value is too small', () => {
-    localStorageMock.getItem.mockReturnValue('50')
+    vi.mocked(storage.getStorageValue).mockReturnValue(50)
     const { result } = renderHook(() =>
       useResizablePanel({
         side: 'left',
         defaultWidth: 256,
         minWidth: 180,
         maxWidth: 400,
-        storageKey: 'test-width',
+        storageKey: 'sidebarLeftWidth',
       })
     )
     expect(result.current.width).toBe(180)
-  })
-
-  it('ignores invalid stored values', () => {
-    localStorageMock.getItem.mockReturnValue('not-a-number')
-    const { result } = renderHook(() =>
-      useResizablePanel({
-        side: 'left',
-        defaultWidth: 256,
-        minWidth: 180,
-        maxWidth: 400,
-        storageKey: 'test-width',
-      })
-    )
-    expect(result.current.width).toBe(256)
   })
 
   it('provides isDragging state initially false', () => {
@@ -101,7 +80,7 @@ describe('useResizablePanel', () => {
         defaultWidth: 256,
         minWidth: 180,
         maxWidth: 400,
-        storageKey: 'test-width',
+        storageKey: 'sidebarLeftWidth',
       })
     )
     expect(result.current.isDragging).toBe(false)
@@ -114,23 +93,23 @@ describe('useResizablePanel', () => {
         defaultWidth: 256,
         minWidth: 180,
         maxWidth: 400,
-        storageKey: 'test-width',
+        storageKey: 'sidebarLeftWidth',
       })
     )
     expect(typeof result.current.handleMouseDown).toBe('function')
   })
 
-  it('persists width to localStorage after initialization', () => {
+  it('persists width to storage after initialization', () => {
+    vi.mocked(storage.getStorageValue).mockReturnValue(256)
     renderHook(() =>
       useResizablePanel({
         side: 'left',
         defaultWidth: 256,
         minWidth: 180,
         maxWidth: 400,
-        storageKey: 'test-width',
+        storageKey: 'sidebarLeftWidth',
       })
     )
-    // Persistence happens via useEffect
-    expect(localStorageMock.setItem).toHaveBeenCalledWith('test-width', '256')
+    expect(storage.setStorageValue).toHaveBeenCalledWith('sidebarLeftWidth', 256)
   })
 })

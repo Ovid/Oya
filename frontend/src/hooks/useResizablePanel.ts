@@ -1,11 +1,14 @@
 import { useState, useCallback, useEffect } from 'react'
+import { getStorageValue, setStorageValue } from '../utils/storage'
+
+type StorageWidthKey = 'sidebarLeftWidth' | 'sidebarRightWidth'
 
 interface UseResizablePanelOptions {
   side: 'left' | 'right'
   defaultWidth: number
   minWidth: number
   maxWidth: number
-  storageKey: string
+  storageKey: StorageWidthKey
 }
 
 interface UseResizablePanelResult {
@@ -22,12 +25,9 @@ export function useResizablePanel({
   storageKey,
 }: UseResizablePanelOptions): UseResizablePanelResult {
   const [width, setWidth] = useState(() => {
-    const stored = localStorage.getItem(storageKey)
-    if (stored) {
-      const parsed = parseInt(stored, 10)
-      if (!isNaN(parsed)) {
-        return Math.min(maxWidth, Math.max(minWidth, parsed))
-      }
+    const stored = getStorageValue(storageKey)
+    if (stored !== undefined && stored !== null) {
+      return Math.min(maxWidth, Math.max(minWidth, stored))
     }
     return defaultWidth
   })
@@ -54,7 +54,7 @@ export function useResizablePanel({
 
     const handleMouseUp = () => {
       setIsDragging(false)
-      localStorage.setItem(storageKey, width.toString())
+      setStorageValue(storageKey, width)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -69,7 +69,7 @@ export function useResizablePanel({
   // Persist on width change (debounced via mouseup)
   useEffect(() => {
     if (!isDragging) {
-      localStorage.setItem(storageKey, width.toString())
+      setStorageValue(storageKey, width)
     }
   }, [width, isDragging, storageKey])
 
