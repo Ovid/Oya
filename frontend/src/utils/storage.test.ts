@@ -500,6 +500,23 @@ describe('storage module', () => {
         expect(stored.generation_timing['array-phases']).toBeUndefined()
       })
 
+      it('returns null and clears storage for entry with missing jobId', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'no-job-id': { job_started_at: 1000, phases: {} },
+            },
+          })
+        )
+
+        expect(getTimingForJob('no-job-id')).toBeNull()
+
+        // Verify corrupted entry was removed
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['no-job-id']).toBeUndefined()
+      })
+
       it('returns valid entry unchanged', () => {
         const validTiming = {
           job_id: 'valid-job',

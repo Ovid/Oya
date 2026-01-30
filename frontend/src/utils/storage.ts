@@ -472,19 +472,22 @@ export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaSt
 
 /**
  * Validate a GenerationTiming entry has required shape.
- * Returns null if invalid (missing jobStartedAt or phases is not an object).
+ * Returns null if invalid (missing/invalid jobId, jobStartedAt, or phases).
  */
 function validTimingEntry(timing: unknown): GenerationTiming | null {
-  if (
-    timing === null ||
-    typeof timing !== 'object' ||
-    typeof (timing as GenerationTiming).jobStartedAt !== 'number' ||
-    !Number.isFinite((timing as GenerationTiming).jobStartedAt)
-  ) {
+  if (timing === null || typeof timing !== 'object') {
     return null
   }
   const t = timing as GenerationTiming
-  // Ensure phases is an object
+  // Validate jobId is a string
+  if (typeof t.jobId !== 'string') {
+    return null
+  }
+  // Validate jobStartedAt is a finite number
+  if (typeof t.jobStartedAt !== 'number' || !Number.isFinite(t.jobStartedAt)) {
+    return null
+  }
+  // Validate phases is a plain object
   if (t.phases === null || typeof t.phases !== 'object' || Array.isArray(t.phases)) {
     return null
   }
