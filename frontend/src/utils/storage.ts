@@ -250,14 +250,8 @@ function validNumber(value: unknown, defaultValue: number): number {
  * Validate and return a plain object for generationTiming.
  * Returns empty object if value is not a plain object.
  */
-function validGenerationTiming(
-  value: unknown
-): Record<string, GenerationTiming> {
-  if (
-    value === null ||
-    typeof value !== 'object' ||
-    Array.isArray(value)
-  ) {
+function validGenerationTiming(value: unknown): Record<string, GenerationTiming> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return {}
   }
   return value as Record<string, GenerationTiming>
