@@ -410,6 +410,71 @@ describe('storage module', () => {
         expect(getTimingForJob('old-job')).toBeNull()
         expect(getTimingForJob('new-job')).not.toBeNull()
       })
+
+      it('removes corrupted entries with missing jobStartedAt', () => {
+        const now = Date.now()
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
+              'bad-job': { job_id: 'bad-job', phases: {} }, // missing job_started_at
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        expect(getTimingForJob('valid-job')).not.toBeNull()
+        expect(getTimingForJob('bad-job')).toBeNull()
+      })
+
+      it('removes corrupted entries with non-numeric jobStartedAt', () => {
+        const now = Date.now()
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
+              'bad-job': { job_id: 'bad-job', job_started_at: 'not-a-number', phases: {} },
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        expect(getTimingForJob('valid-job')).not.toBeNull()
+        expect(getTimingForJob('bad-job')).toBeNull()
+      })
+
+      it('handles null timing entries gracefully', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'null-job': null,
+            },
+          })
+        )
+
+        // Should not throw
+        expect(() => cleanupStaleTiming()).not.toThrow()
+        expect(getTimingForJob('null-job')).toBeNull()
+      })
+
+      it('resets generationTiming if it is not an object', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: 'not-an-object',
+          })
+        )
+
+        // Should not throw
+        expect(() => cleanupStaleTiming()).not.toThrow()
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toEqual({})
+      })
     })
   })
 })

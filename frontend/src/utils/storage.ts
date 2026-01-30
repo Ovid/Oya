@@ -417,13 +417,38 @@ export function clearTimingForJob(jobId: string): void {
 /**
  * Remove stale timing entries older than maxAge.
  * Default maxAge is 24 hours.
+ * Also removes corrupted entries that lack valid jobStartedAt.
  */
 export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
   const storage = loadStorage()
   const now = Date.now()
   let changed = false
 
+  // Validate generationTiming is an object
+  if (
+    storage.generationTiming === null ||
+    typeof storage.generationTiming !== 'object' ||
+    Array.isArray(storage.generationTiming)
+  ) {
+    storage.generationTiming = {}
+    saveStorage(storage)
+    return
+  }
+
   for (const [jobId, timing] of Object.entries(storage.generationTiming)) {
+    // Validate timing entry has required shape
+    if (
+      timing === null ||
+      typeof timing !== 'object' ||
+      typeof timing.jobStartedAt !== 'number' ||
+      !Number.isFinite(timing.jobStartedAt)
+    ) {
+      // Remove corrupted entry
+      delete storage.generationTiming[jobId]
+      changed = true
+      continue
+    }
+
     if (now - timing.jobStartedAt > maxAgeMs) {
       delete storage.generationTiming[jobId]
       changed = true
