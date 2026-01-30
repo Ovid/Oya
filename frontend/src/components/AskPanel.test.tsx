@@ -8,6 +8,33 @@ vi.mock('../api/client', () => ({
   askQuestionStream: vi.fn(),
 }))
 
+// Mock the storage module
+vi.mock('../utils/storage', () => ({
+  getStorageValue: vi.fn((key: string) => {
+    if (key === 'qaSettings') {
+      return { quickMode: true, temperature: 0.5, timeoutMinutes: 3 }
+    }
+    if (key === 'darkMode') {
+      return false
+    }
+    if (key === 'currentJob') {
+      return null
+    }
+    return null
+  }),
+  setStorageValue: vi.fn(),
+  DEFAULT_QA_SETTINGS: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
+  DEFAULT_STORAGE: {
+    darkMode: false,
+    askPanelOpen: false,
+    sidebarLeftWidth: 256,
+    sidebarRightWidth: 200,
+    currentJob: null,
+    qaSettings: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
+    generationTiming: {},
+  },
+}))
+
 // Setup scrollIntoView mock (localStorage/matchMedia handled by test/setup.ts)
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn()
@@ -18,6 +45,7 @@ import { useWikiStore, useGenerationStore } from '../stores'
 import { initialState as wikiInitial } from '../stores/wikiStore'
 import { initialState as genInitial } from '../stores/generationStore'
 import * as api from '../api/client'
+import * as storage from '../utils/storage'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -137,6 +165,11 @@ describe('AskPanel', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /ask/i })).toBeInTheDocument()
       })
+    })
+
+    it('loads settings from storage on mount', () => {
+      renderAskPanel({ isOpen: true })
+      expect(storage.getStorageValue).toHaveBeenCalledWith('qaSettings')
     })
   })
 

@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { askQuestionStream } from '../api/client'
-import { CONFIDENCE_COLORS, QA_DEFAULTS, QA_STORAGE_KEY } from '../config'
+import { CONFIDENCE_COLORS } from '../config'
+import { getStorageValue, setStorageValue, DEFAULT_QA_SETTINGS } from '../utils/storage'
 import { QASettingsPopover, type QASettings } from './QASettingsPopover'
 import { formatElapsedTime } from './generationConstants'
 import { useWikiStore, useGenerationStore } from '../stores'
@@ -26,24 +27,16 @@ interface AskPanelProps {
 }
 
 function loadSettings(): QASettings {
-  try {
-    const stored = localStorage.getItem(QA_STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      return {
-        quickMode: parsed.quickMode ?? QA_DEFAULTS.quickMode,
-        temperature: parsed.temperature ?? QA_DEFAULTS.temperature,
-        timeoutMinutes: parsed.timeoutMinutes ?? QA_DEFAULTS.timeoutMinutes,
-      }
-    }
-  } catch {
-    // Ignore parse errors, use defaults
+  const stored = getStorageValue('qaSettings')
+  return {
+    quickMode: stored.quickMode ?? DEFAULT_QA_SETTINGS.quickMode,
+    temperature: stored.temperature ?? DEFAULT_QA_SETTINGS.temperature,
+    timeoutMinutes: stored.timeoutMinutes ?? DEFAULT_QA_SETTINGS.timeoutMinutes,
   }
-  return { ...QA_DEFAULTS }
 }
 
 function saveSettings(settings: QASettings): void {
-  localStorage.setItem(QA_STORAGE_KEY, JSON.stringify(settings))
+  setStorageValue('qaSettings', settings)
 }
 
 export function AskPanel({ isOpen, onClose }: AskPanelProps) {
