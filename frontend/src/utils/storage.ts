@@ -187,10 +187,11 @@ function migrateOldKeys(): Partial<OyaStorage> | null {
   if (qaSettingsStr !== null) {
     try {
       const parsed = JSON.parse(qaSettingsStr)
+      // Validate each field to avoid persisting invalid types
       migrated.qaSettings = {
-        quickMode: parsed.quickMode ?? DEFAULT_QA_SETTINGS.quickMode,
-        temperature: parsed.temperature ?? DEFAULT_QA_SETTINGS.temperature,
-        timeoutMinutes: parsed.timeoutMinutes ?? DEFAULT_QA_SETTINGS.timeoutMinutes,
+        quickMode: validBoolean(parsed.quickMode, DEFAULT_QA_SETTINGS.quickMode),
+        temperature: validNumber(parsed.temperature, DEFAULT_QA_SETTINGS.temperature),
+        timeoutMinutes: validNumber(parsed.timeoutMinutes, DEFAULT_QA_SETTINGS.timeoutMinutes),
       }
     } catch {
       // Invalid JSON, skip
@@ -213,11 +214,21 @@ function migrateOldKeys(): Partial<OyaStorage> | null {
       const jobId = key.slice(OLD_KEYS.generationTimingPrefix.length)
       try {
         const parsed = JSON.parse(localStorage.getItem(key)!)
-        migrated.generationTiming[jobId] = {
-          jobId: parsed.jobId,
-          jobStartedAt: parsed.jobStartedAt,
-          phases: parsed.phases,
+        // Validate required fields before migrating
+        if (
+          typeof parsed.jobStartedAt === 'number' &&
+          Number.isFinite(parsed.jobStartedAt) &&
+          parsed.phases !== null &&
+          typeof parsed.phases === 'object' &&
+          !Array.isArray(parsed.phases)
+        ) {
+          migrated.generationTiming[jobId] = {
+            jobId: parsed.jobId,
+            jobStartedAt: parsed.jobStartedAt,
+            phases: parsed.phases,
+          }
         }
+        // Invalid entries are silently dropped during migration
       } catch {
         // Invalid JSON, skip
       }
