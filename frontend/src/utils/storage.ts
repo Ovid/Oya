@@ -402,13 +402,21 @@ export function loadStorage(): OyaStorage {
         )
       }
       if (migrated.currentJob !== undefined) {
-        toSave.currentJob = validStoredJob(migrated.currentJob)
+        // Only include if valid - don't store null for corrupted data (preserves sparse semantics)
+        const validJob = validStoredJob(migrated.currentJob)
+        if (validJob !== null) {
+          toSave.currentJob = validJob
+        }
       }
       if (migrated.qaSettings !== undefined) {
         toSave.qaSettings = migrated.qaSettings
       }
       if (migrated.generationTiming !== undefined) {
-        toSave.generationTiming = validGenerationTiming(migrated.generationTiming)
+        // Only include if non-empty - don't store {} for empty/invalid data (preserves sparse semantics)
+        const validTiming = validGenerationTiming(migrated.generationTiming)
+        if (Object.keys(validTiming).length > 0) {
+          toSave.generationTiming = validTiming
+        }
       }
 
       // Save only migrated keys to new storage
@@ -572,8 +580,10 @@ function getRawTimingData(): Record<string, GenerationTiming> {
     const rawTiming = parsed.generation_timing
     if (rawTiming === null || typeof rawTiming !== 'object' || Array.isArray(rawTiming)) return {}
     // Convert only timing entries from snake_case (shallow conversion for performance)
-    const result: Record<string, GenerationTiming> = {}
+    // Use Object.create(null) and skip dangerous keys to prevent prototype pollution
+    const result = Object.create(null) as Record<string, GenerationTiming>
     for (const [jobId, entry] of Object.entries(rawTiming)) {
+      if (DANGEROUS_KEYS.has(jobId)) continue
       if (entry && typeof entry === 'object') {
         const e = entry as Record<string, unknown>
         result[jobId] = {
@@ -610,8 +620,10 @@ function setRawTimingData(timingData: Record<string, GenerationTiming>): void {
       delete parsed.generation_timing
     } else {
       // Convert timing entries to snake_case
-      const snakeTiming: Record<string, unknown> = {}
+      // Use Object.create(null) and skip dangerous keys to prevent prototype pollution
+      const snakeTiming = Object.create(null) as Record<string, unknown>
       for (const [jobId, entry] of entries) {
+        if (DANGEROUS_KEYS.has(jobId)) continue
         snakeTiming[jobId] = {
           // Use map key as canonical job_id (matches getRawTimingData read behavior)
           job_id: jobId,
