@@ -247,6 +247,23 @@ function validNumber(value: unknown, defaultValue: number): number {
 }
 
 /**
+ * Validate and return a plain object for generationTiming.
+ * Returns empty object if value is not a plain object.
+ */
+function validGenerationTiming(
+  value: unknown
+): Record<string, GenerationTiming> {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    Array.isArray(value)
+  ) {
+    return {}
+  }
+  return value as Record<string, GenerationTiming>
+}
+
+/**
  * Validate and normalize StoredJobStatus shape. Returns null if invalid.
  * Requires jobId and status as strings. Normalizes other fields to ensure
  * they have correct types (coercing missing/invalid to null).
@@ -322,7 +339,7 @@ export function loadStorage(): OyaStorage {
             DEFAULT_STORAGE.qaSettings.timeoutMinutes
           ),
         },
-        generationTiming: converted.generationTiming ?? DEFAULT_STORAGE.generationTiming,
+        generationTiming: validGenerationTiming(converted.generationTiming),
       }
     }
 
@@ -339,7 +356,7 @@ export function loadStorage(): OyaStorage {
         ),
         currentJob: validStoredJob(migrated.currentJob),
         qaSettings: migrated.qaSettings ?? { ...DEFAULT_STORAGE.qaSettings },
-        generationTiming: migrated.generationTiming ?? DEFAULT_STORAGE.generationTiming,
+        generationTiming: validGenerationTiming(migrated.generationTiming),
       }
       // Save migrated data to new key
       saveStorage(storage)

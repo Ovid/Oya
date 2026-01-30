@@ -505,7 +505,7 @@ describe('storage module', () => {
         expect(getTimingForJob('null-job')).toBeNull()
       })
 
-      it('resets generationTiming if it is not an object', () => {
+      it('handles corrupted generationTiming gracefully', () => {
         localStorage.setItem(
           'oya',
           JSON.stringify({
@@ -513,10 +513,11 @@ describe('storage module', () => {
           })
         )
 
-        // Should not throw
+        // Should not throw - loadStorage() sanitizes at read time
         expect(() => cleanupStaleTiming()).not.toThrow()
-        const stored = JSON.parse(localStorage.getItem('oya')!)
-        expect(stored.generation_timing).toEqual({})
+        // Verify loadStorage returns valid data even with corrupted storage
+        const loaded = loadStorage()
+        expect(loaded.generationTiming).toEqual({})
       })
     })
   })
