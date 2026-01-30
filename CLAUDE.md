@@ -121,7 +121,6 @@ Hard-coded values that control application behavior are extracted to config file
 **Frontend:** `frontend/src/config/`
 - `layout.ts` - Panel dimensions, z-index layers
 - `qa.ts` - Confidence level colors
-- `storage.ts` - localStorage keys
 - `timing.ts` - Polling intervals, relative time thresholds
 
 ### localStorage
