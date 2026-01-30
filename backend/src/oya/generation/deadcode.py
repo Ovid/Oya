@@ -5,8 +5,10 @@ categorizing them as "probably unused" (zero edges) or "possibly unused"
 (only low-confidence edges).
 """
 
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -59,3 +61,94 @@ def is_excluded(name: str) -> bool:
         True if the symbol should be excluded.
     """
     return any(pattern.search(name) for pattern in EXCLUDED_PATTERNS)
+
+
+CONFIDENCE_THRESHOLD = 0.7
+
+
+def analyze_deadcode(graph_dir: Path) -> DeadcodeReport:
+    """Analyze graph data to find potentially unused symbols.
+
+    Args:
+        graph_dir: Directory containing nodes.json and edges.json.
+
+    Returns:
+        DeadcodeReport with categorized unused symbols.
+    """
+    graph_dir = Path(graph_dir)
+
+    # Load nodes
+    nodes_file = graph_dir / "nodes.json"
+    if not nodes_file.exists():
+        return DeadcodeReport()
+
+    with open(nodes_file) as f:
+        nodes = json.load(f)
+
+    # Load edges
+    edges_file = graph_dir / "edges.json"
+    edges = []
+    if edges_file.exists():
+        with open(edges_file) as f:
+            edges = json.load(f)
+
+    # Build sets of targets by confidence level
+    high_confidence_targets: set[str] = set()
+    low_confidence_targets: set[str] = set()
+
+    for edge in edges:
+        target = edge.get("target", "")
+        confidence = edge.get("confidence", 0.0)
+        if confidence >= CONFIDENCE_THRESHOLD:
+            high_confidence_targets.add(target)
+        else:
+            low_confidence_targets.add(target)
+
+    # Categorize nodes
+    report = DeadcodeReport()
+
+    for node in nodes:
+        node_id = node.get("id", "")
+        name = node.get("name", "")
+        node_type = node.get("type", "")
+        file_path = node.get("file_path", "")
+        line = node.get("line_start", 0)
+
+        # Skip excluded names
+        if is_excluded(name):
+            continue
+
+        # Check if this node has incoming edges
+        has_high_conf = node_id in high_confidence_targets
+        has_low_conf = node_id in low_confidence_targets
+
+        if has_high_conf:
+            # Used with high confidence - not dead code
+            continue
+
+        symbol = UnusedSymbol(
+            name=name,
+            file_path=file_path,
+            line=line,
+            symbol_type=node_type,
+        )
+
+        if has_low_conf:
+            # Only low-confidence edges - possibly unused
+            if node_type in ("function", "method"):
+                report.possibly_unused_functions.append(symbol)
+            elif node_type == "class":
+                report.possibly_unused_classes.append(symbol)
+            elif node_type == "variable":
+                report.possibly_unused_variables.append(symbol)
+        else:
+            # No edges at all - probably unused
+            # Variables only go to possibly (design decision)
+            if node_type == "variable":
+                report.possibly_unused_variables.append(symbol)
+            elif node_type in ("function", "method"):
+                report.probably_unused_functions.append(symbol)
+            elif node_type == "class":
+                report.probably_unused_classes.append(symbol)
+
+    return report
