@@ -14,7 +14,7 @@ vi.mock('../api/client', () => ({
 }))
 
 vi.mock('../utils/storage', async (importOriginal) => {
-  const actual = await importOriginal() as typeof import('../utils/storage')
+  const actual = (await importOriginal()) as typeof import('../utils/storage')
   return {
     ...actual,
     getTimingForJob: vi.fn(),

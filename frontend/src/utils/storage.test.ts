@@ -24,15 +24,18 @@ describe('storage module', () => {
     })
 
     it('loads existing storage with snake_case keys', () => {
-      localStorage.setItem('oya', JSON.stringify({
-        dark_mode: true,
-        ask_panel_open: true,
-        sidebar_left_width: 300,
-        sidebar_right_width: 250,
-        current_job: null,
-        qa_settings: { quick_mode: false, temperature: 0.7, timeout_minutes: 5 },
-        generation_timing: {}
-      }))
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: true,
+          ask_panel_open: true,
+          sidebar_left_width: 300,
+          sidebar_right_width: 250,
+          current_job: null,
+          qa_settings: { quick_mode: false, temperature: 0.7, timeout_minutes: 5 },
+          generation_timing: {},
+        })
+      )
 
       const storage = loadStorage()
       expect(storage.darkMode).toBe(true)
@@ -49,9 +52,12 @@ describe('storage module', () => {
     })
 
     it('merges partial storage with defaults', () => {
-      localStorage.setItem('oya', JSON.stringify({
-        dark_mode: true
-      }))
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: true,
+        })
+      )
       const storage = loadStorage()
       expect(storage.darkMode).toBe(true)
       expect(storage.askPanelOpen).toBe(false) // default
@@ -68,7 +74,7 @@ describe('storage module', () => {
         sidebarRightWidth: 200,
         currentJob: null,
         qaSettings: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
-        generationTiming: {}
+        generationTiming: {},
       })
 
       const stored = JSON.parse(localStorage.getItem('oya')!)
@@ -97,10 +103,13 @@ describe('storage module', () => {
     })
 
     it('preserves other values', () => {
-      localStorage.setItem('oya', JSON.stringify({
-        dark_mode: false,
-        sidebar_left_width: 300
-      }))
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: false,
+          sidebar_left_width: 300,
+        })
+      )
       setStorageValue('darkMode', true)
       const stored = JSON.parse(localStorage.getItem('oya')!)
       expect(stored.dark_mode).toBe(true)
@@ -146,7 +155,7 @@ describe('storage module', () => {
         completed_at: null,
         current_phase: 'files',
         total_phases: 8,
-        error_message: null
+        error_message: null,
       }
       localStorage.setItem('oya-current-job', JSON.stringify(job))
       const storage = loadStorage()
@@ -168,7 +177,7 @@ describe('storage module', () => {
       const timing = {
         jobId: 'job-abc',
         jobStartedAt: 1700000000000,
-        phases: { files: { startedAt: 1700000001000 } }
+        phases: { files: { startedAt: 1700000001000 } },
       }
       localStorage.setItem('oya-generation-timing-job-abc', JSON.stringify(timing))
       const storage = loadStorage()
@@ -180,7 +189,10 @@ describe('storage module', () => {
     it('migrates all old keys together', () => {
       localStorage.setItem('oya-dark-mode', 'true')
       localStorage.setItem('oya-sidebar-left-width', '300')
-      localStorage.setItem('oya-qa-settings', JSON.stringify({ quickMode: false, temperature: 0.6, timeoutMinutes: 4 }))
+      localStorage.setItem(
+        'oya-qa-settings',
+        JSON.stringify({ quickMode: false, temperature: 0.6, timeoutMinutes: 4 })
+      )
 
       const storage = loadStorage()
 
@@ -204,9 +216,12 @@ describe('storage module', () => {
     describe('getTimingForJob', () => {
       it('returns timing for existing job', () => {
         const timing = { jobId: 'job-1', jobStartedAt: 1000, phases: {} }
-        localStorage.setItem('oya', JSON.stringify({
-          generation_timing: { 'job-1': { job_id: 'job-1', job_started_at: 1000, phases: {} } }
-        }))
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: { 'job-1': { job_id: 'job-1', job_started_at: 1000, phases: {} } },
+          })
+        )
         expect(getTimingForJob('job-1')).toEqual(timing)
       })
 
@@ -217,14 +232,22 @@ describe('storage module', () => {
 
     describe('setTimingForJob', () => {
       it('adds timing for new job', () => {
-        const timing = { jobId: 'job-2', jobStartedAt: 2000, phases: { files: { startedAt: 2001 } } }
+        const timing = {
+          jobId: 'job-2',
+          jobStartedAt: 2000,
+          phases: { files: { startedAt: 2001 } },
+        }
         setTimingForJob('job-2', timing)
         expect(getTimingForJob('job-2')).toEqual(timing)
       })
 
       it('updates timing for existing job', () => {
         setTimingForJob('job-3', { jobId: 'job-3', jobStartedAt: 3000, phases: {} })
-        setTimingForJob('job-3', { jobId: 'job-3', jobStartedAt: 3000, phases: { files: { startedAt: 3001, completedAt: 3005, duration: 4 } } })
+        setTimingForJob('job-3', {
+          jobId: 'job-3',
+          jobStartedAt: 3000,
+          phases: { files: { startedAt: 3001, completedAt: 3005, duration: 4 } },
+        })
         expect(getTimingForJob('job-3')?.phases.files?.completedAt).toBe(3005)
       })
     })
@@ -245,9 +268,17 @@ describe('storage module', () => {
       it('removes entries older than maxAge', () => {
         const now = Date.now()
         // Old entry (25 hours ago)
-        setTimingForJob('old-job', { jobId: 'old-job', jobStartedAt: now - 25 * 60 * 60 * 1000, phases: {} })
+        setTimingForJob('old-job', {
+          jobId: 'old-job',
+          jobStartedAt: now - 25 * 60 * 60 * 1000,
+          phases: {},
+        })
         // Recent entry (1 hour ago)
-        setTimingForJob('new-job', { jobId: 'new-job', jobStartedAt: now - 1 * 60 * 60 * 1000, phases: {} })
+        setTimingForJob('new-job', {
+          jobId: 'new-job',
+          jobStartedAt: now - 1 * 60 * 60 * 1000,
+          phases: {},
+        })
 
         cleanupStaleTiming(24 * 60 * 60 * 1000)
 

@@ -124,8 +124,9 @@ function migrateOldKeys(): Partial<OyaStorage> | null {
   // Check if any old keys exist
   const hasOldKeys = Object.values(OLD_KEYS).some((key) =>
     key.endsWith('-')
-      ? Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
-          .some((k) => k?.startsWith(key))
+      ? Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).some((k) =>
+          k?.startsWith(key)
+        )
       : localStorage.getItem(key) !== null
   )
 
@@ -255,7 +256,8 @@ export function loadStorage(): OyaStorage {
         qaSettings: {
           quickMode: converted.qaSettings?.quickMode ?? DEFAULT_STORAGE.qaSettings.quickMode,
           temperature: converted.qaSettings?.temperature ?? DEFAULT_STORAGE.qaSettings.temperature,
-          timeoutMinutes: converted.qaSettings?.timeoutMinutes ?? DEFAULT_STORAGE.qaSettings.timeoutMinutes,
+          timeoutMinutes:
+            converted.qaSettings?.timeoutMinutes ?? DEFAULT_STORAGE.qaSettings.timeoutMinutes,
         },
         generationTiming: converted.generationTiming ?? DEFAULT_STORAGE.generationTiming,
       }
