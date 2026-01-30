@@ -453,11 +453,43 @@ export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaSt
 // =============================================================================
 
 /**
+ * Validate a GenerationTiming entry has required shape.
+ * Returns null if invalid (missing jobStartedAt or phases is not an object).
+ */
+function validTimingEntry(timing: unknown): GenerationTiming | null {
+  if (
+    timing === null ||
+    typeof timing !== 'object' ||
+    typeof (timing as GenerationTiming).jobStartedAt !== 'number' ||
+    !Number.isFinite((timing as GenerationTiming).jobStartedAt)
+  ) {
+    return null
+  }
+  const t = timing as GenerationTiming
+  // Ensure phases is an object
+  if (t.phases === null || typeof t.phases !== 'object' || Array.isArray(t.phases)) {
+    return null
+  }
+  return t
+}
+
+/**
  * Get timing data for a specific job.
+ * Returns null if not found or entry is corrupted.
  */
 export function getTimingForJob(jobId: string): GenerationTiming | null {
   const storage = loadStorage()
-  return storage.generationTiming[jobId] ?? null
+  const entry = storage.generationTiming[jobId]
+  if (!entry) return null
+
+  const validated = validTimingEntry(entry)
+  if (!validated) {
+    // Clear corrupted entry
+    delete storage.generationTiming[jobId]
+    saveStorage(storage)
+    return null
+  }
+  return validated
 }
 
 /**

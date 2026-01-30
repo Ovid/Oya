@@ -413,6 +413,72 @@ describe('storage module', () => {
       it('returns null for non-existent job', () => {
         expect(getTimingForJob('no-such-job')).toBeNull()
       })
+
+      it('returns null and clears storage for entry with invalid jobStartedAt', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'bad-job': { job_id: 'bad-job', job_started_at: 'not-a-number', phases: {} },
+            },
+          })
+        )
+
+        expect(getTimingForJob('bad-job')).toBeNull()
+
+        // Verify corrupted entry was removed from storage
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['bad-job']).toBeUndefined()
+      })
+
+      it('returns null and clears storage for entry with phases: null', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'null-phases': { job_id: 'null-phases', job_started_at: 1000, phases: null },
+            },
+          })
+        )
+
+        expect(getTimingForJob('null-phases')).toBeNull()
+
+        // Verify corrupted entry was removed
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['null-phases']).toBeUndefined()
+      })
+
+      it('returns null and clears storage for entry with phases as array', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'array-phases': { job_id: 'array-phases', job_started_at: 1000, phases: [] },
+            },
+          })
+        )
+
+        expect(getTimingForJob('array-phases')).toBeNull()
+
+        // Verify corrupted entry was removed
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['array-phases']).toBeUndefined()
+      })
+
+      it('returns valid entry unchanged', () => {
+        const validTiming = { job_id: 'valid-job', job_started_at: 1000, phases: { files: { started_at: 1001 } } }
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: { 'valid-job': validTiming },
+          })
+        )
+
+        const result = getTimingForJob('valid-job')
+        expect(result).not.toBeNull()
+        expect(result?.jobStartedAt).toBe(1000)
+        expect(result?.phases.files?.startedAt).toBe(1001)
+      })
     })
 
     describe('setTimingForJob', () => {
