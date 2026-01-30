@@ -236,3 +236,21 @@ class Labrador extends Dog implements Serializable {}
     # Labrador extends Dog
     lab_inherits = [r for r in inherits if "Labrador" in r.source]
     assert any(r.target == "Dog" for r in lab_inherits)
+
+
+def test_extracts_type_annotation_simple(parser):
+    """Extracts simple type annotations from function parameters."""
+    code = """
+function createUser(request: CreateRequest): UserResponse {
+    return {} as UserResponse;
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "CreateRequest" in targets
+    assert "UserResponse" in targets
+    assert all(r.confidence == 0.9 for r in type_refs)
