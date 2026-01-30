@@ -257,21 +257,20 @@ def test_generate_deadcode_page_content():
     content = generate_deadcode_page(report)
 
     # Check header
-    assert "# Potential Dead Code" in content
+    assert "Code Health" in content
+    assert "Potential Dead Code" in content
 
-    # Check probably unused section
-    assert "## Probably Unused" in content
-    assert "### Functions (1)" in content
+    # Check functions section
+    assert "### Functions" in content
     assert "old_func" in content
     assert "utils/legacy.py" in content
 
     # Check classes section
-    assert "### Classes (1)" in content
+    assert "### Classes" in content
     assert "DeprecatedParser" in content
 
-    # Check possibly unused section
-    assert "## Possibly Unused" in content
-    assert "### Variables (1)" in content
+    # Check variables section
+    assert "### Variables" in content
     assert "OLD_CONFIG" in content
 
 
@@ -305,3 +304,28 @@ def test_generate_deadcode_page_links_to_files():
 
     # Check for markdown link format
     assert "[old_func](files/utils/legacy.py#L42)" in content
+
+
+def test_generate_deadcode_page_cautious_content():
+    """Page content includes false positive warnings."""
+    from oya.generation.deadcode import generate_deadcode_page
+
+    report = DeadcodeReport(
+        probably_unused_functions=[
+            UnusedSymbol(
+                name="old_func",
+                file_path="utils/legacy.py",
+                line=42,
+                symbol_type="function",
+            ),
+        ],
+    )
+
+    content = generate_deadcode_page(report)
+
+    # Check for cautious language
+    assert "false positives" in content.lower() or "False Positives" in content
+    assert "Review" in content or "review" in content
+    assert "Test code" in content or "test" in content.lower()
+    # Should NOT use "Probably Unused" language
+    assert "Review Candidates" in content or "Potential" in content

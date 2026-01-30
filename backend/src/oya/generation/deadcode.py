@@ -164,34 +164,39 @@ def generate_deadcode_page(report: DeadcodeReport) -> str:
         Markdown string for the wiki page.
     """
     lines = [
-        "# Potential Dead Code",
+        "# Code Health: Potential Dead Code",
         "",
-        "Analysis of code symbols with no detected callers. Review before removing -",
-        "some may be entry points, event handlers, or called via reflection.",
+        "This page lists symbols where static analysis found no callers.",
+        "**Many of these are false positives.** Review each carefully before removing.",
         "",
-        "**Note:** Cross-language calls are not tracked. A Python function called from",
-        "JavaScript (or vice versa) may appear unused.",
+        "## Common False Positives",
+        "",
+        "Before removing anything, consider whether the symbol is:",
+        "",
+        "- **Test code** - pytest discovers `Test*` classes and `test_*` functions",
+        "- **Entry points** - CLI commands, route handlers, event listeners",
+        "- **Framework hooks** - `__init__`, lifecycle methods, signal handlers",
+        "- **Public API** - Symbols intended for external consumers",
+        "- **Dynamic calls** - Code invoked via `getattr()` or reflection",
         "",
     ]
 
-    # Probably Unused section
-    lines.append("## Probably Unused")
+    # Review Candidates section
+    lines.append("## Review Candidates")
     lines.append("")
-    lines.append("These symbols have no incoming references in the codebase.")
-    lines.append("")
-
-    _add_symbol_section(lines, "Functions", report.probably_unused_functions)
-    _add_symbol_section(lines, "Classes", report.probably_unused_classes)
-
-    # Possibly Unused section
-    lines.append("## Possibly Unused")
-    lines.append("")
-    lines.append("These symbols only have low-confidence references (may be false positives).")
+    lines.append(
+        "The following symbols have no detected callers. This does NOT mean they are unused."
+    )
     lines.append("")
 
-    _add_symbol_section(lines, "Functions", report.possibly_unused_functions)
-    _add_symbol_section(lines, "Classes", report.possibly_unused_classes)
-    _add_symbol_section(lines, "Variables", report.possibly_unused_variables)
+    # Combine probably and possibly into single lists (less judgmental)
+    all_functions = report.probably_unused_functions + report.possibly_unused_functions
+    all_classes = report.probably_unused_classes + report.possibly_unused_classes
+    all_variables = report.possibly_unused_variables
+
+    _add_symbol_section(lines, "Functions", all_functions)
+    _add_symbol_section(lines, "Classes", all_classes)
+    _add_symbol_section(lines, "Variables", all_variables)
 
     return "\n".join(lines)
 
