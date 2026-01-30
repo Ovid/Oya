@@ -84,12 +84,17 @@ function toCamelCase(str: string): string {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
 }
 
+// Keys that could cause prototype pollution if assigned to a regular object
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
 function convertKeysToSnake(obj: unknown): unknown {
   if (obj === null || typeof obj !== 'object') return obj
   if (Array.isArray(obj)) return obj.map(convertKeysToSnake)
 
-  const result: Record<string, unknown> = {}
+  // Use Object.create(null) to prevent prototype pollution
+  const result: Record<string, unknown> = Object.create(null)
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (DANGEROUS_KEYS.has(key)) continue // Skip dangerous keys
     result[toSnakeCase(key)] = convertKeysToSnake(value)
   }
   return result
@@ -99,8 +104,10 @@ function convertKeysToCamel(obj: unknown): unknown {
   if (obj === null || typeof obj !== 'object') return obj
   if (Array.isArray(obj)) return obj.map(convertKeysToCamel)
 
-  const result: Record<string, unknown> = {}
+  // Use Object.create(null) to prevent prototype pollution
+  const result: Record<string, unknown> = Object.create(null)
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (DANGEROUS_KEYS.has(key)) continue // Skip dangerous keys
     result[toCamelCase(key)] = convertKeysToCamel(value)
   }
   return result
