@@ -441,11 +441,22 @@ export function hasStorageValue<K extends keyof OyaStorage>(key: K): boolean {
 
 /**
  * Set a specific value in storage, preserving other values.
+ * Uses sparse writes to avoid polluting storage with defaults.
  */
 export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaStorage[K]): void {
-  const storage = loadStorage()
-  storage[key] = value
-  saveStorage(storage)
+  try {
+    // Read raw storage without merging defaults to preserve sparseness
+    const stored = localStorage.getItem(STORAGE_KEY)
+    const parsed = stored ? JSON.parse(stored) : {}
+
+    // Update only the requested key (convert key and value to snake_case)
+    const snakeKey = toSnakeCase(key)
+    parsed[snakeKey] = convertKeysToSnake(value)
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+  } catch {
+    // localStorage unavailable or quota exceeded - graceful degradation
+  }
 }
 
 // =============================================================================

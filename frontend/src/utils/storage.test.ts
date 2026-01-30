@@ -257,6 +257,34 @@ describe('storage module', () => {
       expect(stored.dark_mode).toBe(true)
       expect(stored.sidebar_left_width).toBe(300)
     })
+
+    it('does not write defaults for other keys (sparse writes)', () => {
+      // Start with empty storage
+      expect(localStorage.getItem('oya')).toBeNull()
+
+      // Set only sidebarLeftWidth
+      setStorageValue('sidebarLeftWidth', 300)
+
+      // Verify only that key was written, not defaults for other keys
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.sidebar_left_width).toBe(300)
+      expect('dark_mode' in stored).toBe(false) // not polluted with default
+      expect('ask_panel_open' in stored).toBe(false)
+      expect('sidebar_right_width' in stored).toBe(false)
+
+      // hasStorageValue should still reflect what was actually stored
+      expect(hasStorageValue('sidebarLeftWidth')).toBe(true)
+      expect(hasStorageValue('darkMode')).toBe(false) // system preference still honored
+    })
+
+    it('converts nested object values to snake_case', () => {
+      setStorageValue('qaSettings', { quickMode: false, temperature: 0.8, timeoutMinutes: 5 })
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.qa_settings.quick_mode).toBe(false)
+      expect(stored.qa_settings.temperature).toBe(0.8)
+      expect(stored.qa_settings.timeout_minutes).toBe(5)
+    })
   })
 
   describe('hasStorageValue', () => {
