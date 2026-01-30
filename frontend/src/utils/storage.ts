@@ -481,9 +481,9 @@ export function getExplicitStorageValue<K extends keyof OyaStorage>(
     if (!Object.prototype.hasOwnProperty.call(parsed, snakeKey)) {
       return undefined
     }
-    // Key exists - convert and return value
-    const rawValue = parsed[snakeKey]
-    return convertKeysToCamel(rawValue) as OyaStorage[K]
+    // Key exists - delegate to validated getter to ensure type safety
+    // (e.g., handles stored "true" string being treated as boolean)
+    return loadStorage()[key]
   } catch {
     return undefined
   }

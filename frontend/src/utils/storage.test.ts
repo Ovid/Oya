@@ -410,6 +410,20 @@ describe('storage module', () => {
       const result = getExplicitStorageValue('qaSettings')
       expect(result).toEqual({ quickMode: false, temperature: 0.8, timeoutMinutes: 5 })
     })
+
+    it('validates and corrects invalid types', () => {
+      // Store string "true" instead of boolean true
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: 'true' }))
+      // Should return validated boolean, not the raw string
+      const result = getExplicitStorageValue('darkMode')
+      expect(result).toBe(false) // "true" (string) is not a boolean, falls back to default
+    })
+
+    it('validates numbers and falls back to defaults for invalid', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 'wide' }))
+      const result = getExplicitStorageValue('sidebarLeftWidth')
+      expect(result).toBe(256) // Default, since "wide" is not a number
+    })
   })
 
   describe('migration from old keys', () => {
