@@ -48,7 +48,7 @@ function fromStoredJob(stored: StoredJobStatus): JobStatus {
 const VALID_JOB_STATUSES = ['pending', 'running', 'completed', 'failed', 'cancelled'] as const
 
 /**
- * Load current job from localStorage.
+ * Load current job from consolidated storage.
  * Returns null if not found or invalid.
  * Exported so initializeApp can call this after React is ready.
  */
@@ -77,7 +77,8 @@ export function loadStoredJob(): JobStatus | null {
 }
 
 /**
- * Save current job to localStorage.
+ * Save current job to consolidated storage.
+ * Only persists running/pending jobs; clears for other statuses.
  */
 export function saveStoredJob(job: JobStatus | null): void {
   if (job && (job.status === 'running' || job.status === 'pending')) {
