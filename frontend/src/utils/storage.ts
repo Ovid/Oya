@@ -341,29 +341,32 @@ export function loadStorage(): OyaStorage {
         const converted = convertKeysToCamel(parsed) as Partial<OyaStorage>
 
         return {
-        darkMode: validBoolean(converted.darkMode, DEFAULT_STORAGE.darkMode),
-        askPanelOpen: validBoolean(converted.askPanelOpen, DEFAULT_STORAGE.askPanelOpen),
-        sidebarLeftWidth: validNumber(converted.sidebarLeftWidth, DEFAULT_STORAGE.sidebarLeftWidth),
-        sidebarRightWidth: validNumber(
-          converted.sidebarRightWidth,
-          DEFAULT_STORAGE.sidebarRightWidth
-        ),
-        currentJob: validStoredJob(converted.currentJob),
-        qaSettings: {
-          quickMode: validBoolean(
-            converted.qaSettings?.quickMode,
-            DEFAULT_STORAGE.qaSettings.quickMode
+          darkMode: validBoolean(converted.darkMode, DEFAULT_STORAGE.darkMode),
+          askPanelOpen: validBoolean(converted.askPanelOpen, DEFAULT_STORAGE.askPanelOpen),
+          sidebarLeftWidth: validNumber(
+            converted.sidebarLeftWidth,
+            DEFAULT_STORAGE.sidebarLeftWidth
           ),
-          temperature: validNumber(
-            converted.qaSettings?.temperature,
-            DEFAULT_STORAGE.qaSettings.temperature
+          sidebarRightWidth: validNumber(
+            converted.sidebarRightWidth,
+            DEFAULT_STORAGE.sidebarRightWidth
           ),
-          timeoutMinutes: validNumber(
-            converted.qaSettings?.timeoutMinutes,
-            DEFAULT_STORAGE.qaSettings.timeoutMinutes
-          ),
-        },
-        generationTiming: validGenerationTiming(converted.generationTiming),
+          currentJob: validStoredJob(converted.currentJob),
+          qaSettings: {
+            quickMode: validBoolean(
+              converted.qaSettings?.quickMode,
+              DEFAULT_STORAGE.qaSettings.quickMode
+            ),
+            temperature: validNumber(
+              converted.qaSettings?.temperature,
+              DEFAULT_STORAGE.qaSettings.temperature
+            ),
+            timeoutMinutes: validNumber(
+              converted.qaSettings?.timeoutMinutes,
+              DEFAULT_STORAGE.qaSettings.timeoutMinutes
+            ),
+          },
+          generationTiming: validGenerationTiming(converted.generationTiming),
         }
       }
     }
