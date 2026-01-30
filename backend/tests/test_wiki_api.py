@@ -17,6 +17,11 @@ def workspace_with_wiki(setup_active_repo):
     # Create architecture
     (wiki_path / "architecture.md").write_text("# Architecture\n\nSystem design here.")
 
+    # Create code health
+    (wiki_path / "code-health.md").write_text(
+        "# Potential Dead Code\n\nAnalysis of unused symbols."
+    )
+
     # Create workflow
     workflows = wiki_path / "workflows"
     workflows.mkdir()
@@ -65,6 +70,16 @@ async def test_get_architecture_page(client, workspace_with_wiki):
     assert "Architecture" in data["content"]
 
 
+async def test_get_code_health_page(client, workspace_with_wiki):
+    """GET /api/wiki/code-health returns code health page."""
+    response = await client.get("/api/wiki/code-health")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "Potential Dead Code" in data["content"]
+    assert data["page_type"] == "code-health"
+
+
 async def test_get_workflow_page(client, workspace_with_wiki):
     """GET /api/wiki/workflows/{slug} returns workflow page."""
     response = await client.get("/api/wiki/workflows/authentication")
@@ -105,8 +120,9 @@ async def test_get_wiki_tree(client, workspace_with_wiki):
 
     assert response.status_code == 200
     data = response.json()
-    assert "overview" in data
-    assert "architecture" in data
+    assert data["overview"] is True
+    assert data["architecture"] is True
+    assert data["code_health"] is True
     assert "workflows" in data
     assert "directories" in data
     assert "files" in data
