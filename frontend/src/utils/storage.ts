@@ -340,21 +340,56 @@ export function loadStorage(): OyaStorage {
     // Try migrating old keys
     const migrated = migrateOldKeys()
     if (migrated) {
-      const storage: OyaStorage = {
-        darkMode: validBoolean(migrated.darkMode, DEFAULT_STORAGE.darkMode),
-        askPanelOpen: validBoolean(migrated.askPanelOpen, DEFAULT_STORAGE.askPanelOpen),
-        sidebarLeftWidth: validNumber(migrated.sidebarLeftWidth, DEFAULT_STORAGE.sidebarLeftWidth),
-        sidebarRightWidth: validNumber(
+      // Only save the keys that were actually migrated, not defaults.
+      // This preserves hasStorageValue() semantics - only explicitly set
+      // values should be considered "stored".
+      const toSave: Partial<OyaStorage> = {}
+      if (migrated.darkMode !== undefined) {
+        toSave.darkMode = validBoolean(migrated.darkMode, DEFAULT_STORAGE.darkMode)
+      }
+      if (migrated.askPanelOpen !== undefined) {
+        toSave.askPanelOpen = validBoolean(migrated.askPanelOpen, DEFAULT_STORAGE.askPanelOpen)
+      }
+      if (migrated.sidebarLeftWidth !== undefined) {
+        toSave.sidebarLeftWidth = validNumber(
+          migrated.sidebarLeftWidth,
+          DEFAULT_STORAGE.sidebarLeftWidth
+        )
+      }
+      if (migrated.sidebarRightWidth !== undefined) {
+        toSave.sidebarRightWidth = validNumber(
           migrated.sidebarRightWidth,
           DEFAULT_STORAGE.sidebarRightWidth
-        ),
-        currentJob: validStoredJob(migrated.currentJob),
-        qaSettings: migrated.qaSettings ?? { ...DEFAULT_STORAGE.qaSettings },
-        generationTiming: validGenerationTiming(migrated.generationTiming),
+        )
       }
-      // Save migrated data to new key
-      saveStorage(storage)
-      return storage
+      if (migrated.currentJob !== undefined) {
+        toSave.currentJob = validStoredJob(migrated.currentJob)
+      }
+      if (migrated.qaSettings !== undefined) {
+        toSave.qaSettings = migrated.qaSettings
+      }
+      if (migrated.generationTiming !== undefined) {
+        toSave.generationTiming = validGenerationTiming(migrated.generationTiming)
+      }
+
+      // Save only migrated keys to new storage
+      try {
+        const converted = convertKeysToSnake(toSave)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(converted))
+      } catch {
+        // localStorage unavailable - continue with defaults
+      }
+
+      // Return full object with defaults for missing keys
+      return {
+        darkMode: toSave.darkMode ?? DEFAULT_STORAGE.darkMode,
+        askPanelOpen: toSave.askPanelOpen ?? DEFAULT_STORAGE.askPanelOpen,
+        sidebarLeftWidth: toSave.sidebarLeftWidth ?? DEFAULT_STORAGE.sidebarLeftWidth,
+        sidebarRightWidth: toSave.sidebarRightWidth ?? DEFAULT_STORAGE.sidebarRightWidth,
+        currentJob: toSave.currentJob ?? DEFAULT_STORAGE.currentJob,
+        qaSettings: toSave.qaSettings ?? { ...DEFAULT_STORAGE.qaSettings },
+        generationTiming: toSave.generationTiming ?? DEFAULT_STORAGE.generationTiming,
+      }
     }
 
     return { ...DEFAULT_STORAGE }

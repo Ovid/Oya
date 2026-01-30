@@ -378,6 +378,23 @@ describe('storage module', () => {
       const storage = loadStorage()
       expect(storage.darkMode).toBe(false) // new key wins
     })
+
+    it('only saves migrated keys, not defaults', () => {
+      // Only set dark mode in old key
+      localStorage.setItem('oya-dark-mode', 'true')
+      loadStorage()
+
+      // Verify only dark_mode was saved to new key, not other defaults
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+      expect('ask_panel_open' in stored).toBe(false) // not migrated, shouldn't be saved
+      expect('sidebar_left_width' in stored).toBe(false)
+      expect('sidebar_right_width' in stored).toBe(false)
+
+      // hasStorageValue should reflect what was actually migrated
+      expect(hasStorageValue('darkMode')).toBe(true)
+      expect(hasStorageValue('askPanelOpen')).toBe(false) // not migrated
+    })
   })
 
   describe('generation timing helpers', () => {
