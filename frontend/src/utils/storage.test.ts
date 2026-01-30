@@ -162,6 +162,49 @@ describe('storage module', () => {
       expect(storage.currentJob?.jobId).toBe('test-123')
       expect(storage.currentJob?.status).toBe('running')
     })
+
+    it('normalizes partial current_job with missing fields', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: {
+            job_id: 'test-456',
+            status: 'pending',
+            // missing: type, started_at, completed_at, current_phase, total_phases, error_message
+          },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).not.toBeNull()
+      expect(storage.currentJob?.jobId).toBe('test-456')
+      expect(storage.currentJob?.status).toBe('pending')
+      expect(storage.currentJob?.type).toBe('') // normalized to empty string
+      expect(storage.currentJob?.startedAt).toBeNull()
+      expect(storage.currentJob?.completedAt).toBeNull()
+      expect(storage.currentJob?.currentPhase).toBeNull()
+      expect(storage.currentJob?.totalPhases).toBeNull()
+      expect(storage.currentJob?.errorMessage).toBeNull()
+    })
+
+    it('normalizes current_job with wrong field types', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: {
+            job_id: 'test-789',
+            status: 'running',
+            type: 123, // should be string
+            started_at: true, // should be string
+            total_phases: 'five', // should be number
+          },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).not.toBeNull()
+      expect(storage.currentJob?.type).toBe('') // normalized to empty string
+      expect(storage.currentJob?.startedAt).toBeNull() // normalized to null
+      expect(storage.currentJob?.totalPhases).toBeNull() // normalized to null
+    })
   })
 
   describe('saveStorage', () => {

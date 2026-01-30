@@ -247,19 +247,37 @@ function validNumber(value: unknown, defaultValue: number): number {
 }
 
 /**
- * Validate StoredJobStatus shape. Returns null if invalid.
- * Requires at minimum jobId and status as strings.
+ * Validate and normalize StoredJobStatus shape. Returns null if invalid.
+ * Requires jobId and status as strings. Normalizes other fields to ensure
+ * they have correct types (coercing missing/invalid to null).
  */
 function validStoredJob(value: unknown): StoredJobStatus | null {
   if (
     typeof value !== 'object' ||
     value === null ||
-    typeof (value as StoredJobStatus).jobId !== 'string' ||
-    typeof (value as StoredJobStatus).status !== 'string'
+    typeof (value as { jobId?: unknown }).jobId !== 'string' ||
+    typeof (value as { status?: unknown }).status !== 'string'
   ) {
     return null
   }
-  return value as StoredJobStatus
+
+  const raw = value as Partial<StoredJobStatus>
+  return {
+    jobId: raw.jobId as string,
+    status: raw.status as string,
+    // Ensure type is always a defined string
+    type: typeof raw.type === 'string' ? raw.type : '',
+    // Nullable string fields: coerce non-strings/missing to null
+    startedAt: typeof raw.startedAt === 'string' ? raw.startedAt : null,
+    completedAt: typeof raw.completedAt === 'string' ? raw.completedAt : null,
+    currentPhase: typeof raw.currentPhase === 'string' ? raw.currentPhase : null,
+    errorMessage: typeof raw.errorMessage === 'string' ? raw.errorMessage : null,
+    // Nullable number field: coerce invalid/missing to null
+    totalPhases:
+      typeof raw.totalPhases === 'number' && Number.isFinite(raw.totalPhases)
+        ? raw.totalPhases
+        : null,
+  }
 }
 
 // =============================================================================
