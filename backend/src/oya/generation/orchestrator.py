@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 
 from oya.generation.architecture import ArchitectureGenerator
+from oya.generation.deadcode import analyze_deadcode, generate_deadcode_page
 from oya.generation.frontmatter import build_frontmatter
 from oya.generation.directory import DirectoryGenerator
 from oya.generation.file import FileGenerator
@@ -651,6 +652,20 @@ class GenerationOrchestrator:
             for page in workflow_pages:
                 await self._save_page_with_frontmatter(page)
 
+        # Phase 8: Code Health (dead code analysis)
+        # Cascade: regenerate only if synthesis was regenerated
+        if should_regenerate_synthesis:
+            await self._emit_progress(
+                progress_callback,
+                GenerationProgress(
+                    phase=GenerationPhase.SYNTHESIS,
+                    message="Analyzing code health...",
+                ),
+            )
+            code_health_page = self._generate_code_health_page()
+            if code_health_page:
+                await self._save_page_with_frontmatter(code_health_page)
+
         # Convert ParsedSymbol objects to dicts for indexing
         analysis_symbols = [
             {
@@ -905,6 +920,27 @@ class GenerationOrchestrator:
                 logger.debug(f"Could not parse pyproject.toml: {e}")
 
         return package_info
+
+    def _generate_code_health_page(self) -> GeneratedPage | None:
+        """Generate the Code Health page from graph analysis.
+
+        Returns:
+            GeneratedPage with dead code analysis, or None if graph doesn't exist.
+        """
+        if not self.graph_path.exists():
+            return None
+
+        report = analyze_deadcode(self.graph_path)
+        content = generate_deadcode_page(report)
+        word_count = len(content.split())
+
+        return GeneratedPage(
+            content=content,
+            page_type="code-health",
+            path="code-health.md",
+            word_count=word_count,
+            target=None,
+        )
 
     async def _run_architecture(
         self,
