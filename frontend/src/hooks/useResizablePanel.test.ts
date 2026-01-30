@@ -6,6 +6,7 @@ import * as storage from '../utils/storage'
 vi.mock('../utils/storage', () => ({
   getStorageValue: vi.fn(() => 256),
   setStorageValue: vi.fn(),
+  hasStorageValue: vi.fn(() => false),
   DEFAULT_STORAGE: {
     sidebarLeftWidth: 256,
     sidebarRightWidth: 200,

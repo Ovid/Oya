@@ -23,6 +23,7 @@ vi.mock('../utils/storage', () => ({
     return null
   }),
   setStorageValue: vi.fn(),
+  hasStorageValue: vi.fn(() => false),
   DEFAULT_QA_SETTINGS: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
   DEFAULT_STORAGE: {
     darkMode: false,

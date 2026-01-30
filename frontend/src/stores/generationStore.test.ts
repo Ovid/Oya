@@ -12,6 +12,7 @@ vi.mock('../api/client', () => ({
 vi.mock('../utils/storage', () => ({
   getStorageValue: vi.fn(() => null),
   setStorageValue: vi.fn(),
+  hasStorageValue: vi.fn(() => false),
   DEFAULT_STORAGE: {
     darkMode: false,
     askPanelOpen: false,
