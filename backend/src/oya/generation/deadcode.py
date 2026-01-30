@@ -5,6 +5,7 @@ categorizing them as "probably unused" (zero edges) or "possibly unused"
 (only low-confidence edges).
 """
 
+import re
 from dataclasses import dataclass, field
 
 
@@ -35,3 +36,26 @@ class DeadcodeReport:
     possibly_unused_functions: list[UnusedSymbol] = field(default_factory=list)
     possibly_unused_classes: list[UnusedSymbol] = field(default_factory=list)
     possibly_unused_variables: list[UnusedSymbol] = field(default_factory=list)
+
+
+# Patterns for symbols that should never be flagged as dead code
+EXCLUDED_PATTERNS = [
+    re.compile(r"^test_"),  # Test functions (prefix)
+    re.compile(r"_test$"),  # Test functions (suffix)
+    re.compile(r"^__.*__$"),  # Python dunders
+    re.compile(r"^main$"),  # Entry points
+    re.compile(r"^app$"),  # FastAPI/Flask app
+    re.compile(r"^_"),  # Private by convention
+]
+
+
+def is_excluded(name: str) -> bool:
+    """Check if a symbol name should be excluded from dead code detection.
+
+    Args:
+        name: Symbol name to check.
+
+    Returns:
+        True if the symbol should be excluded.
+    """
+    return any(pattern.search(name) for pattern in EXCLUDED_PATTERNS)
