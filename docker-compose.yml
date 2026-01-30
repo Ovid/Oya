@@ -6,6 +6,8 @@ services:
     volumes:
       # Data directory (bind mount to host for easy access)
       - ~/.oya:/root/.oya
+      # Cache directory (persists ChromaDB's ONNX embedding model)
+      - ~/.cache/chroma:/root/.cache/chroma
       # Uncomment to enable SSH key access for cloning private repositories:
       # - ~/.ssh:/root/.ssh:ro
     extra_hosts:
