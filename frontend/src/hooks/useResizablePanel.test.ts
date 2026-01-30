@@ -112,8 +112,8 @@ describe('useResizablePanel', () => {
     expect(typeof result.current.handleMouseDown).toBe('function')
   })
 
-  it('persists width to storage after initialization', () => {
-    vi.mocked(storage.getStorageValue).mockReturnValue(256)
+  it('does not persist width on initialization (preserves no-preference state)', () => {
+    vi.mocked(storage.hasStorageValue).mockReturnValue(false)
     renderHook(() =>
       useResizablePanel({
         side: 'left',
@@ -123,6 +123,7 @@ describe('useResizablePanel', () => {
         storageKey: 'sidebarLeftWidth',
       })
     )
-    expect(storage.setStorageValue).toHaveBeenCalledWith('sidebarLeftWidth', 256)
+    // Should NOT write to storage on mount - only on drag end
+    expect(storage.setStorageValue).not.toHaveBeenCalled()
   })
 })

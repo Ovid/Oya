@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { getStorageValue, setStorageValue, hasStorageValue } from '../utils/storage'
 
 type StorageWidthKey = 'sidebarLeftWidth' | 'sidebarRightWidth'
@@ -33,6 +33,7 @@ export function useResizablePanel({
     return defaultWidth
   })
   const [isDragging, setIsDragging] = useState(false)
+  const wasDraggingRef = useRef(false)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -55,7 +56,7 @@ export function useResizablePanel({
 
     const handleMouseUp = () => {
       setIsDragging(false)
-      setStorageValue(storageKey, width)
+      // Persistence handled by the useEffect that watches isDragging transitions
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -67,11 +68,13 @@ export function useResizablePanel({
     }
   }, [isDragging, side, minWidth, maxWidth, storageKey, width])
 
-  // Persist on width change (debounced via mouseup)
+  // Persist only on drag end (transition from dragging to not dragging)
+  // This avoids writing defaults on mount when user hasn't resized
   useEffect(() => {
-    if (!isDragging) {
+    if (wasDraggingRef.current && !isDragging) {
       setStorageValue(storageKey, width)
     }
+    wasDraggingRef.current = isDragging
   }, [width, isDragging, storageKey])
 
   return { width, isDragging, handleMouseDown }
