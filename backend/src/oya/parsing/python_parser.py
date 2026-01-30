@@ -190,6 +190,9 @@ class PythonParser(BaseParser):
             elif isinstance(node, ast.Assign):
                 symbols.extend(self._parse_assignment(node))
 
+        # Extract type annotation references
+        references.extend(self._extract_type_annotation_references(tree, str(file_path)))
+
         parsed_file = ParsedFile(
             path=str(file_path),
             language="python",
@@ -783,5 +786,139 @@ class PythonParser(BaseParser):
                         line=node.lineno,
                     )
                 )
+
+        return references
+
+    def _extract_types_from_annotation(self, node: ast.expr, line: int) -> list[str]:
+        """Recursively extract type names from a type annotation AST node.
+
+        Handles simple types, generics (List[X]), unions (X | Y), and forward refs ("X").
+
+        Args:
+            node: The annotation AST node.
+            line: Line number for the reference.
+
+        Returns:
+            List of type names found (excluding built-ins).
+        """
+        types: list[str] = []
+
+        if isinstance(node, ast.Name):
+            if node.id not in PYTHON_BUILTIN_TYPES:
+                types.append(node.id)
+
+        elif isinstance(node, ast.Attribute):
+            if node.attr not in PYTHON_BUILTIN_TYPES:
+                types.append(node.attr)
+
+        elif isinstance(node, ast.Subscript):
+            types.extend(self._extract_types_from_annotation(node.value, line))
+            if isinstance(node.slice, ast.Tuple):
+                for elt in node.slice.elts:
+                    types.extend(self._extract_types_from_annotation(elt, line))
+            else:
+                types.extend(self._extract_types_from_annotation(node.slice, line))
+
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+            types.extend(self._extract_types_from_annotation(node.left, line))
+            types.extend(self._extract_types_from_annotation(node.right, line))
+
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            value = node.value.strip()
+            if value and value[0].isupper() and value not in PYTHON_BUILTIN_TYPES:
+                types.append(value)
+
+        return types
+
+    def _extract_type_annotation_references(self, node: ast.AST, file_path: str) -> list[Reference]:
+        """Extract references from type annotations in functions and variables.
+
+        Args:
+            node: The AST node to analyze (typically module or function).
+            file_path: Path to the file being parsed.
+
+        Returns:
+            List of Reference objects for type annotations.
+        """
+        references: list[Reference] = []
+        file_scope = str(file_path)
+
+        for child in ast.walk(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # Parameter annotations
+                for arg in child.args.args + child.args.posonlyargs + child.args.kwonlyargs:
+                    if arg.annotation:
+                        for type_name in self._extract_types_from_annotation(
+                            arg.annotation, arg.lineno
+                        ):
+                            references.append(
+                                Reference(
+                                    source=file_scope,
+                                    target=type_name,
+                                    reference_type=ReferenceType.TYPE_ANNOTATION,
+                                    confidence=0.9,
+                                    line=arg.lineno,
+                                )
+                            )
+
+                # *args annotation
+                if child.args.vararg and child.args.vararg.annotation:
+                    for type_name in self._extract_types_from_annotation(
+                        child.args.vararg.annotation, child.args.vararg.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=file_scope,
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.args.vararg.lineno,
+                            )
+                        )
+
+                # **kwargs annotation
+                if child.args.kwarg and child.args.kwarg.annotation:
+                    for type_name in self._extract_types_from_annotation(
+                        child.args.kwarg.annotation, child.args.kwarg.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=file_scope,
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.args.kwarg.lineno,
+                            )
+                        )
+
+                # Return annotation
+                if child.returns:
+                    for type_name in self._extract_types_from_annotation(
+                        child.returns, child.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=file_scope,
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.lineno,
+                            )
+                        )
+
+            elif isinstance(child, ast.AnnAssign):
+                if child.annotation:
+                    for type_name in self._extract_types_from_annotation(
+                        child.annotation, child.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=file_scope,
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.lineno,
+                            )
+                        )
 
         return references

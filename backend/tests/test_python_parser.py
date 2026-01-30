@@ -523,3 +523,20 @@ def process(data: str, items: list, count: int) -> bool:
     # Should have no type annotation references for built-ins
     type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
     assert len(type_refs) == 0
+
+
+def test_extracts_type_annotation_simple(parser):
+    """Extracts simple type annotations from function parameters."""
+    code = """
+def create_user(request: CreateRequest) -> UserResponse:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "CreateRequest" in targets
+    assert "UserResponse" in targets
+    assert all(r.confidence == 0.9 for r in type_refs)
