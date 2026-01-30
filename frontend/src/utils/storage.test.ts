@@ -76,7 +76,7 @@ describe('storage module', () => {
       )
       const storage = loadStorage()
       expect(storage.sidebarLeftWidth).toBe(256) // default
-      expect(storage.sidebarRightWidth).toBe(200) // default
+      expect(storage.sidebarRightWidth).toBe(320) // default
       expect(storage.qaSettings.temperature).toBe(0.5) // default
       expect(storage.qaSettings.timeoutMinutes).toBe(3) // default
     })
@@ -170,7 +170,7 @@ describe('storage module', () => {
         darkMode: true,
         askPanelOpen: false,
         sidebarLeftWidth: 300,
-        sidebarRightWidth: 200,
+        sidebarRightWidth: 320,
         currentJob: null,
         qaSettings: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
         generationTiming: {},

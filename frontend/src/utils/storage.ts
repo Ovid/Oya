@@ -66,7 +66,7 @@ export const DEFAULT_STORAGE: OyaStorage = {
   darkMode: false,
   askPanelOpen: false,
   sidebarLeftWidth: 256,
-  sidebarRightWidth: 200,
+  sidebarRightWidth: 320,
   currentJob: null,
   qaSettings: { ...DEFAULT_QA_SETTINGS },
   generationTiming: {},

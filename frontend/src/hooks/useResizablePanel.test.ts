@@ -9,7 +9,7 @@ vi.mock('../utils/storage', () => ({
   hasStorageValue: vi.fn(() => false),
   DEFAULT_STORAGE: {
     sidebarLeftWidth: 256,
-    sidebarRightWidth: 200,
+    sidebarRightWidth: 320,
   },
 }))
 
