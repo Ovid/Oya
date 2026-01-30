@@ -327,8 +327,9 @@ export function loadStorage(): OyaStorage {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
 
-    // If new key exists, use it (skip migration)
-    if (stored) {
+    // If new key exists with valid content, use it (skip migration)
+    // Use explicit null check - empty string is treated as corrupted
+    if (stored !== null && stored !== '') {
       const parsed = JSON.parse(stored)
       const converted = convertKeysToCamel(parsed) as Partial<OyaStorage>
 
@@ -357,6 +358,11 @@ export function loadStorage(): OyaStorage {
         },
         generationTiming: validGenerationTiming(converted.generationTiming),
       }
+    }
+
+    // Clear corrupted empty string before attempting migration
+    if (stored === '') {
+      localStorage.removeItem(STORAGE_KEY)
     }
 
     // Try migrating old keys
@@ -440,7 +446,8 @@ export function getStorageValue<K extends keyof OyaStorage>(key: K): OyaStorage[
 export function hasStorageValue<K extends keyof OyaStorage>(key: K): boolean {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return false
+    // Explicit null check - empty string treated as no storage
+    if (stored === null || stored === '') return false
     const parsed = JSON.parse(stored)
     // Ensure parsed is a non-null plain object
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -464,7 +471,8 @@ export function getExplicitStorageValue<K extends keyof OyaStorage>(
 ): OyaStorage[K] | undefined {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return undefined
+    // Explicit null check - empty string treated as no storage
+    if (stored === null || stored === '') return undefined
     const parsed = JSON.parse(stored)
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return undefined
@@ -488,8 +496,9 @@ export function getExplicitStorageValue<K extends keyof OyaStorage>(
 export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaStorage[K]): void {
   try {
     // Read raw storage without merging defaults to preserve sparseness
+    // Explicit null/empty check - treat empty string as no storage
     const stored = localStorage.getItem(STORAGE_KEY)
-    let parsed = stored ? JSON.parse(stored) : {}
+    let parsed = stored !== null && stored !== '' ? JSON.parse(stored) : {}
 
     // Normalize non-object values to {} (handles corrupted storage like 'true', 'null', '[]')
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -514,7 +523,8 @@ export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaSt
 export function clearStorageValue<K extends keyof OyaStorage>(key: K): void {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return
+    // Explicit null/empty check - nothing to clear if no valid storage
+    if (stored === null || stored === '') return
 
     const parsed = JSON.parse(stored)
 
@@ -544,7 +554,8 @@ export function clearStorageValue<K extends keyof OyaStorage>(key: K): void {
 function getRawTimingData(): Record<string, GenerationTiming> {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return {}
+    // Explicit null/empty check
+    if (stored === null || stored === '') return {}
     const parsed = JSON.parse(stored)
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
     const rawTiming = parsed.generation_timing
@@ -576,7 +587,8 @@ function getRawTimingData(): Record<string, GenerationTiming> {
 function setRawTimingData(timingData: Record<string, GenerationTiming>): void {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    let parsed = stored ? JSON.parse(stored) : {}
+    // Explicit null/empty check - treat empty string as no storage
+    let parsed = stored !== null && stored !== '' ? JSON.parse(stored) : {}
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
       parsed = {}
     }

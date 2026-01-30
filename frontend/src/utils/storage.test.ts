@@ -53,6 +53,25 @@ describe('storage module', () => {
       expect(localStorage.getItem('oya')).toBeNull()
     })
 
+    it('handles empty string as corrupted and removes it', () => {
+      localStorage.setItem('oya', '')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      // Empty string should be removed to allow migration on next load
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('runs migration after clearing empty string storage', () => {
+      // Set up empty string in consolidated key AND old key
+      localStorage.setItem('oya', '')
+      localStorage.setItem('oya-dark-mode', 'true')
+
+      const storage = loadStorage()
+      // Migration should run since empty string was cleared
+      expect(storage.darkMode).toBe(true)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+    })
+
     it('merges partial storage with defaults', () => {
       localStorage.setItem(
         'oya',
