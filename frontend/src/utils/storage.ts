@@ -435,7 +435,12 @@ export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaSt
   try {
     // Read raw storage without merging defaults to preserve sparseness
     const stored = localStorage.getItem(STORAGE_KEY)
-    const parsed = stored ? JSON.parse(stored) : {}
+    let parsed = stored ? JSON.parse(stored) : {}
+
+    // Normalize non-object values to {} (handles corrupted storage like 'true', 'null', '[]')
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      parsed = {}
+    }
 
     // Update only the requested key (convert key and value to snake_case)
     const snakeKey = toSnakeCase(key)

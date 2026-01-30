@@ -265,6 +265,33 @@ describe('storage module', () => {
       expect(stored.qa_settings.temperature).toBe(0.8)
       expect(stored.qa_settings.timeout_minutes).toBe(5)
     })
+
+    it('handles corrupted storage containing null', () => {
+      localStorage.setItem('oya', 'null')
+
+      setStorageValue('darkMode', true)
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+    })
+
+    it('handles corrupted storage containing array', () => {
+      localStorage.setItem('oya', '[]')
+
+      setStorageValue('darkMode', true)
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+    })
+
+    it('handles corrupted storage containing primitive', () => {
+      localStorage.setItem('oya', 'true')
+
+      setStorageValue('darkMode', false)
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(false)
+    })
   })
 
   describe('hasStorageValue', () => {
