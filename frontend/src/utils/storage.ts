@@ -442,8 +442,13 @@ export function hasStorageValue<K extends keyof OyaStorage>(key: K): boolean {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (!stored) return false
     const parsed = JSON.parse(stored)
+    // Ensure parsed is a non-null plain object
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return false
+    }
     const snakeKey = toSnakeCase(key)
-    return snakeKey in parsed
+    // Use hasOwnProperty to avoid prototype chain lookup
+    return Object.prototype.hasOwnProperty.call(parsed, snakeKey)
   } catch {
     return false
   }
