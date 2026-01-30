@@ -540,3 +540,81 @@ def create_user(request: CreateRequest) -> UserResponse:
     assert "CreateRequest" in targets
     assert "UserResponse" in targets
     assert all(r.confidence == 0.9 for r in type_refs)
+
+
+def test_extracts_type_annotation_nested_generics(parser):
+    """Extracts types from nested generics like Dict[str, List[Item]]."""
+    code = """
+def process(data: Dict[str, List[Item]], mapping: Mapping[Key, Tuple[Value, Status]]) -> None:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    # Should extract custom types from inside generics
+    assert "Item" in targets
+    assert "Key" in targets
+    assert "Value" in targets
+    assert "Status" in targets
+    # Should NOT extract built-in types
+    assert "str" not in targets
+    assert "Dict" not in targets
+    assert "List" not in targets
+
+
+def test_extracts_type_annotation_union_types(parser):
+    """Extracts types from union annotations (X | Y)."""
+    code = """
+def handle(result: Success | Failure | None) -> Response | Error:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "Success" in targets
+    assert "Failure" in targets
+    assert "Response" in targets
+    assert "Error" in targets
+    # None is a built-in, should not appear
+    assert "None" not in targets
+
+
+def test_extracts_type_annotation_forward_refs(parser):
+    """Extracts types from forward references (string annotations)."""
+    code = """
+def create() -> "MyClass":
+    pass
+
+class MyClass:
+    def clone(self) -> "MyClass":
+        pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "MyClass" in targets
+
+
+def test_extracts_type_annotation_variable(parser):
+    """Extracts types from variable annotations."""
+    code = """
+config: Settings
+users: List[User] = []
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "Settings" in targets
+    assert "User" in targets
