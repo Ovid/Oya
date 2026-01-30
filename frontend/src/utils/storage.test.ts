@@ -1,6 +1,16 @@
 // frontend/src/utils/storage.test.ts
 import { describe, it, expect, beforeEach } from 'vitest'
-import { loadStorage, saveStorage, getStorageValue, setStorageValue, DEFAULT_STORAGE } from './storage'
+import {
+  loadStorage,
+  saveStorage,
+  getStorageValue,
+  setStorageValue,
+  DEFAULT_STORAGE,
+  getTimingForJob,
+  setTimingForJob,
+  clearTimingForJob,
+  cleanupStaleTiming,
+} from './storage'
 
 describe('storage module', () => {
   beforeEach(() => {
@@ -187,6 +197,63 @@ describe('storage module', () => {
       localStorage.setItem('oya-dark-mode', 'true')
       const storage = loadStorage()
       expect(storage.darkMode).toBe(false) // new key wins
+    })
+  })
+
+  describe('generation timing helpers', () => {
+    describe('getTimingForJob', () => {
+      it('returns timing for existing job', () => {
+        const timing = { jobId: 'job-1', jobStartedAt: 1000, phases: {} }
+        localStorage.setItem('oya', JSON.stringify({
+          generation_timing: { 'job-1': { job_id: 'job-1', job_started_at: 1000, phases: {} } }
+        }))
+        expect(getTimingForJob('job-1')).toEqual(timing)
+      })
+
+      it('returns null for non-existent job', () => {
+        expect(getTimingForJob('no-such-job')).toBeNull()
+      })
+    })
+
+    describe('setTimingForJob', () => {
+      it('adds timing for new job', () => {
+        const timing = { jobId: 'job-2', jobStartedAt: 2000, phases: { files: { startedAt: 2001 } } }
+        setTimingForJob('job-2', timing)
+        expect(getTimingForJob('job-2')).toEqual(timing)
+      })
+
+      it('updates timing for existing job', () => {
+        setTimingForJob('job-3', { jobId: 'job-3', jobStartedAt: 3000, phases: {} })
+        setTimingForJob('job-3', { jobId: 'job-3', jobStartedAt: 3000, phases: { files: { startedAt: 3001, completedAt: 3005, duration: 4 } } })
+        expect(getTimingForJob('job-3')?.phases.files?.completedAt).toBe(3005)
+      })
+    })
+
+    describe('clearTimingForJob', () => {
+      it('removes timing for job', () => {
+        setTimingForJob('job-4', { jobId: 'job-4', jobStartedAt: 4000, phases: {} })
+        clearTimingForJob('job-4')
+        expect(getTimingForJob('job-4')).toBeNull()
+      })
+
+      it('does not throw for non-existent job', () => {
+        expect(() => clearTimingForJob('no-job')).not.toThrow()
+      })
+    })
+
+    describe('cleanupStaleTiming', () => {
+      it('removes entries older than maxAge', () => {
+        const now = Date.now()
+        // Old entry (25 hours ago)
+        setTimingForJob('old-job', { jobId: 'old-job', jobStartedAt: now - 25 * 60 * 60 * 1000, phases: {} })
+        // Recent entry (1 hour ago)
+        setTimingForJob('new-job', { jobId: 'new-job', jobStartedAt: now - 1 * 60 * 60 * 1000, phases: {} })
+
+        cleanupStaleTiming(24 * 60 * 60 * 1000)
+
+        expect(getTimingForJob('old-job')).toBeNull()
+        expect(getTimingForJob('new-job')).not.toBeNull()
+      })
     })
   })
 })

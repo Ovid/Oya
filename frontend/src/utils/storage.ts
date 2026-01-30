@@ -313,3 +313,54 @@ export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaSt
   storage[key] = value
   saveStorage(storage)
 }
+
+// =============================================================================
+// Generation Timing Helpers
+// =============================================================================
+
+/**
+ * Get timing data for a specific job.
+ */
+export function getTimingForJob(jobId: string): GenerationTiming | null {
+  const storage = loadStorage()
+  return storage.generationTiming[jobId] ?? null
+}
+
+/**
+ * Set timing data for a specific job.
+ */
+export function setTimingForJob(jobId: string, timing: GenerationTiming): void {
+  const storage = loadStorage()
+  storage.generationTiming[jobId] = timing
+  saveStorage(storage)
+}
+
+/**
+ * Clear timing data for a specific job.
+ */
+export function clearTimingForJob(jobId: string): void {
+  const storage = loadStorage()
+  delete storage.generationTiming[jobId]
+  saveStorage(storage)
+}
+
+/**
+ * Remove stale timing entries older than maxAge.
+ * Default maxAge is 24 hours.
+ */
+export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
+  const storage = loadStorage()
+  const now = Date.now()
+  let changed = false
+
+  for (const [jobId, timing] of Object.entries(storage.generationTiming)) {
+    if (now - timing.jobStartedAt > maxAgeMs) {
+      delete storage.generationTiming[jobId]
+      changed = true
+    }
+  }
+
+  if (changed) {
+    saveStorage(storage)
+  }
+}
