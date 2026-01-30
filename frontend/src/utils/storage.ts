@@ -331,9 +331,16 @@ export function loadStorage(): OyaStorage {
     // Use explicit null check - empty string is treated as corrupted
     if (stored !== null && stored !== '') {
       const parsed = JSON.parse(stored)
-      const converted = convertKeysToCamel(parsed) as Partial<OyaStorage>
 
-      return {
+      // Validate parsed is a non-null plain object, not a primitive or array
+      // (e.g., "true", "[]", "null", "123" are valid JSON but not valid storage)
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        // Corrupted storage - remove and fall through to migration
+        localStorage.removeItem(STORAGE_KEY)
+      } else {
+        const converted = convertKeysToCamel(parsed) as Partial<OyaStorage>
+
+        return {
         darkMode: validBoolean(converted.darkMode, DEFAULT_STORAGE.darkMode),
         askPanelOpen: validBoolean(converted.askPanelOpen, DEFAULT_STORAGE.askPanelOpen),
         sidebarLeftWidth: validNumber(converted.sidebarLeftWidth, DEFAULT_STORAGE.sidebarLeftWidth),
@@ -357,6 +364,7 @@ export function loadStorage(): OyaStorage {
           ),
         },
         generationTiming: validGenerationTiming(converted.generationTiming),
+        }
       }
     }
 

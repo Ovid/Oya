@@ -72,6 +72,38 @@ describe('storage module', () => {
       expect(localStorage.getItem('oya-dark-mode')).toBeNull()
     })
 
+    it('handles non-object JSON as corrupted and removes it', () => {
+      // Valid JSON but not a valid storage object
+      localStorage.setItem('oya', 'true')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('handles JSON array as corrupted and removes it', () => {
+      localStorage.setItem('oya', '[]')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('handles JSON null as corrupted and removes it', () => {
+      localStorage.setItem('oya', 'null')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('runs migration after clearing non-object JSON', () => {
+      localStorage.setItem('oya', 'true')
+      localStorage.setItem('oya-dark-mode', 'true')
+
+      const storage = loadStorage()
+      // Migration should run since corrupted value was cleared
+      expect(storage.darkMode).toBe(true)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+    })
+
     it('merges partial storage with defaults', () => {
       localStorage.setItem(
         'oya',
