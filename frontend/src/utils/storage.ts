@@ -330,8 +330,12 @@ export function loadStorage(): OyaStorage {
 
     return { ...DEFAULT_STORAGE }
   } catch {
-    // Corrupted - clear and return defaults
-    localStorage.removeItem(STORAGE_KEY)
+    // Corrupted or unavailable - try to clear, then return defaults
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // localStorage unavailable (e.g., blocked storage, disabled cookies)
+    }
     return { ...DEFAULT_STORAGE }
   }
 }
