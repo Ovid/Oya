@@ -1,18 +1,25 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { getStorageValue, setStorageValue, hasStorageValue, loadStorage } from '../utils/storage'
+import {
+  getStorageValue,
+  setStorageValue,
+  getExplicitStorageValue,
+  loadStorage,
+} from '../utils/storage'
 import type { Toast, ToastType, ErrorModalState } from '../types'
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') return false
-  // Trigger migration from old keys before checking hasStorageValue.
+  // Trigger migration from old keys before checking stored value.
   // Without this, users with old keys (e.g., oya-dark-mode) would lose
-  // their preference on first load since hasStorageValue only checks
-  // the consolidated storage key.
+  // their preference on first load since the consolidated storage key
+  // would not be populated yet.
   loadStorage()
   // Check if user has explicitly set a preference (including false)
-  if (hasStorageValue('darkMode')) {
-    return getStorageValue('darkMode')
+  // Uses single-parse helper to avoid redundant JSON parsing
+  const explicit = getExplicitStorageValue('darkMode')
+  if (explicit !== undefined) {
+    return explicit
   }
   // No stored preference - use system preference
   return window.matchMedia('(prefers-color-scheme: dark)').matches

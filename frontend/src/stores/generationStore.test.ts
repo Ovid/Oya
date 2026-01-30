@@ -14,6 +14,7 @@ vi.mock('../utils/storage', () => ({
   setStorageValue: vi.fn(),
   clearStorageValue: vi.fn(),
   hasStorageValue: vi.fn(() => false),
+  getExplicitStorageValue: vi.fn(() => undefined),
   loadStorage: vi.fn(() => ({
     darkMode: false,
     askPanelOpen: false,

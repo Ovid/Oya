@@ -455,6 +455,33 @@ export function hasStorageValue<K extends keyof OyaStorage>(key: K): boolean {
 }
 
 /**
+ * Get a value only if it was explicitly stored, otherwise undefined.
+ * Combines hasStorageValue + getStorageValue in a single parse.
+ * Useful when you need to distinguish "not set" from "explicitly set to default".
+ */
+export function getExplicitStorageValue<K extends keyof OyaStorage>(
+  key: K
+): OyaStorage[K] | undefined {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) return undefined
+    const parsed = JSON.parse(stored)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return undefined
+    }
+    const snakeKey = toSnakeCase(key)
+    if (!Object.prototype.hasOwnProperty.call(parsed, snakeKey)) {
+      return undefined
+    }
+    // Key exists - convert and return value
+    const rawValue = parsed[snakeKey]
+    return convertKeysToCamel(rawValue) as OyaStorage[K]
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Set a specific value in storage, preserving other values.
  * Uses sparse writes to avoid polluting storage with defaults.
  */
@@ -544,6 +571,7 @@ function getRawTimingData(): Record<string, GenerationTiming> {
 /**
  * Write timing data directly to storage without full object conversion.
  * Optimized for frequent timing updates during SSE progress.
+ * Maintains sparse storage: deletes generation_timing key when empty.
  */
 function setRawTimingData(timingData: Record<string, GenerationTiming>): void {
   try {
@@ -552,17 +580,25 @@ function setRawTimingData(timingData: Record<string, GenerationTiming>): void {
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
       parsed = {}
     }
-    // Convert timing entries to snake_case
-    const snakeTiming: Record<string, unknown> = {}
-    for (const [jobId, entry] of Object.entries(timingData)) {
-      snakeTiming[jobId] = {
-        // Use map key as canonical job_id (matches getRawTimingData read behavior)
-        job_id: jobId,
-        job_started_at: entry.jobStartedAt,
-        phases: convertKeysToSnake(entry.phases),
+
+    const entries = Object.entries(timingData)
+    if (entries.length === 0) {
+      // Delete key entirely for sparse storage semantics
+      delete parsed.generation_timing
+    } else {
+      // Convert timing entries to snake_case
+      const snakeTiming: Record<string, unknown> = {}
+      for (const [jobId, entry] of entries) {
+        snakeTiming[jobId] = {
+          // Use map key as canonical job_id (matches getRawTimingData read behavior)
+          job_id: jobId,
+          job_started_at: entry.jobStartedAt,
+          phases: convertKeysToSnake(entry.phases),
+        }
       }
+      parsed.generation_timing = snakeTiming
     }
-    parsed.generation_timing = snakeTiming
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
   } catch {
     // localStorage unavailable - graceful degradation

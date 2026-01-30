@@ -6,6 +6,7 @@ import {
   setStorageValue,
   clearStorageValue,
   hasStorageValue,
+  getExplicitStorageValue,
   DEFAULT_STORAGE,
   getTimingForJob,
   setTimingForJob,
@@ -355,6 +356,43 @@ describe('storage module', () => {
     })
   })
 
+  describe('getExplicitStorageValue', () => {
+    it('returns undefined when no storage exists', () => {
+      expect(getExplicitStorageValue('darkMode')).toBeUndefined()
+    })
+
+    it('returns value when key is explicitly stored', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: true }))
+      expect(getExplicitStorageValue('darkMode')).toBe(true)
+    })
+
+    it('returns false when key is explicitly stored as false', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: false }))
+      expect(getExplicitStorageValue('darkMode')).toBe(false)
+    })
+
+    it('returns undefined when key is not in storage', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 300 }))
+      expect(getExplicitStorageValue('darkMode')).toBeUndefined()
+    })
+
+    it('returns undefined for corrupted storage', () => {
+      localStorage.setItem('oya', 'not valid json')
+      expect(getExplicitStorageValue('darkMode')).toBeUndefined()
+    })
+
+    it('converts nested objects from snake_case', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          qa_settings: { quick_mode: false, temperature: 0.8, timeout_minutes: 5 },
+        })
+      )
+      const result = getExplicitStorageValue('qaSettings')
+      expect(result).toEqual({ quickMode: false, temperature: 0.8, timeoutMinutes: 5 })
+    })
+  })
+
   describe('migration from old keys', () => {
     it('migrates oya-dark-mode', () => {
       localStorage.setItem('oya-dark-mode', 'true')
@@ -496,9 +534,9 @@ describe('storage module', () => {
 
         expect(getTimingForJob('bad-job')).toBeNull()
 
-        // Verify corrupted entry was removed from storage
+        // Verify corrupted entry was removed (key deleted entirely when last entry removed)
         const stored = JSON.parse(localStorage.getItem('oya')!)
-        expect(stored.generation_timing['bad-job']).toBeUndefined()
+        expect(stored.generation_timing).toBeUndefined()
       })
 
       it('returns null and clears storage for entry with phases: null', () => {
@@ -513,9 +551,9 @@ describe('storage module', () => {
 
         expect(getTimingForJob('null-phases')).toBeNull()
 
-        // Verify corrupted entry was removed
+        // Verify corrupted entry was removed (key deleted entirely when last entry removed)
         const stored = JSON.parse(localStorage.getItem('oya')!)
-        expect(stored.generation_timing['null-phases']).toBeUndefined()
+        expect(stored.generation_timing).toBeUndefined()
       })
 
       it('returns null and clears storage for entry with phases as array', () => {
@@ -530,9 +568,9 @@ describe('storage module', () => {
 
         expect(getTimingForJob('array-phases')).toBeNull()
 
-        // Verify corrupted entry was removed
+        // Verify corrupted entry was removed (key deleted entirely when last entry removed)
         const stored = JSON.parse(localStorage.getItem('oya')!)
-        expect(stored.generation_timing['array-phases']).toBeUndefined()
+        expect(stored.generation_timing).toBeUndefined()
       })
 
       it('normalizes entry with missing job_id using map key', () => {
@@ -621,6 +659,15 @@ describe('storage module', () => {
 
       it('does not throw for non-existent job', () => {
         expect(() => clearTimingForJob('no-job')).not.toThrow()
+      })
+
+      it('removes generation_timing key entirely when last job is cleared', () => {
+        setTimingForJob('only-job', { jobId: 'only-job', jobStartedAt: 1000, phases: {} })
+        clearTimingForJob('only-job')
+
+        // Verify generation_timing key is removed, not just set to {}
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
       })
     })
 
