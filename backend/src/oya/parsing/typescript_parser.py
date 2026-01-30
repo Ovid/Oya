@@ -748,14 +748,14 @@ class TypeScriptParser(BaseParser):
         types: list[str] = []
         node_type = node.type
 
-        if node_type in ("type_identifier", "identifier"):
+        if node_type == "type_identifier":
             name = self._get_node_text(node, content)
             if name not in TS_BUILTIN_TYPES:
                 types.append(name)
 
         elif node_type == "generic_type":
             for child in node.children:
-                if child.type in ("type_identifier", "identifier"):
+                if child.type == "type_identifier":
                     name = self._get_node_text(child, content)
                     if name not in TS_BUILTIN_TYPES:
                         types.append(name)
@@ -785,6 +785,27 @@ class TypeScriptParser(BaseParser):
             for child in node.children:
                 if child.type != ":":
                     types.extend(self._extract_types_from_ts_annotation(child, content))
+
+        elif node_type == "function_type":
+            # Function type: (x: A, y: B) => C
+            # Only extract types from type annotations, not parameter names
+            for child in node.children:
+                if child.type == "formal_parameters":
+                    for param in child.children:
+                        if param.type in ("required_parameter", "optional_parameter"):
+                            for param_child in param.children:
+                                if param_child.type == "type_annotation":
+                                    types.extend(
+                                        self._extract_types_from_ts_annotation(param_child, content)
+                                    )
+                elif child.type == "type_annotation":
+                    # Return type annotation
+                    types.extend(self._extract_types_from_ts_annotation(child, content))
+                elif child.type == "type_identifier":
+                    # Direct return type
+                    name = self._get_node_text(child, content)
+                    if name not in TS_BUILTIN_TYPES:
+                        types.append(name)
 
         else:
             for child in node.children:
