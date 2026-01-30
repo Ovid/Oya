@@ -18,8 +18,8 @@ beforeEach(() => {
 })
 
 describe('useResizablePanel', () => {
-  it('returns default width initially', () => {
-    vi.mocked(storage.getStorageValue).mockReturnValue(256)
+  it('returns default width when no stored preference exists', () => {
+    vi.mocked(storage.hasStorageValue).mockReturnValue(false)
     const { result } = renderHook(() =>
       useResizablePanel({
         side: 'left',
@@ -32,7 +32,8 @@ describe('useResizablePanel', () => {
     expect(result.current.width).toBe(256)
   })
 
-  it('loads width from storage', () => {
+  it('loads width from storage when preference exists', () => {
+    vi.mocked(storage.hasStorageValue).mockReturnValue(true)
     vi.mocked(storage.getStorageValue).mockReturnValue(300)
     const { result } = renderHook(() =>
       useResizablePanel({
@@ -47,6 +48,7 @@ describe('useResizablePanel', () => {
   })
 
   it('clamps width to max bounds', () => {
+    vi.mocked(storage.hasStorageValue).mockReturnValue(true)
     vi.mocked(storage.getStorageValue).mockReturnValue(999)
     const { result } = renderHook(() =>
       useResizablePanel({
@@ -61,6 +63,7 @@ describe('useResizablePanel', () => {
   })
 
   it('clamps width to minWidth when stored value is too small', () => {
+    vi.mocked(storage.hasStorageValue).mockReturnValue(true)
     vi.mocked(storage.getStorageValue).mockReturnValue(50)
     const { result } = renderHook(() =>
       useResizablePanel({

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { getStorageValue, setStorageValue } from '../utils/storage'
+import { getStorageValue, setStorageValue, hasStorageValue } from '../utils/storage'
 
 type StorageWidthKey = 'sidebarLeftWidth' | 'sidebarRightWidth'
 
@@ -25,8 +25,9 @@ export function useResizablePanel({
   storageKey,
 }: UseResizablePanelOptions): UseResizablePanelResult {
   const [width, setWidth] = useState(() => {
-    const stored = getStorageValue(storageKey)
-    if (stored !== undefined && stored !== null) {
+    // Only use stored value if user has explicitly set a preference
+    if (hasStorageValue(storageKey)) {
+      const stored = getStorageValue(storageKey)
       return Math.min(maxWidth, Math.max(minWidth, stored))
     }
     return defaultWidth
