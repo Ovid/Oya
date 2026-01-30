@@ -4,6 +4,7 @@ import {
   loadStorage,
   getStorageValue,
   setStorageValue,
+  clearStorageValue,
   hasStorageValue,
   DEFAULT_STORAGE,
   getTimingForJob,
@@ -320,6 +321,40 @@ describe('storage module', () => {
     })
   })
 
+  describe('clearStorageValue', () => {
+    it('removes key from storage', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: true, sidebar_left_width: 300 }))
+      expect(hasStorageValue('darkMode')).toBe(true)
+
+      clearStorageValue('darkMode')
+
+      expect(hasStorageValue('darkMode')).toBe(false)
+      // Other keys remain
+      expect(hasStorageValue('sidebarLeftWidth')).toBe(true)
+    })
+
+    it('does nothing when key does not exist', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 300 }))
+
+      clearStorageValue('darkMode')
+
+      // Storage unchanged
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored).toEqual({ sidebar_left_width: 300 })
+    })
+
+    it('does nothing when no storage exists', () => {
+      clearStorageValue('darkMode')
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('handles corrupted storage gracefully', () => {
+      localStorage.setItem('oya', 'not valid json')
+      // Should not throw
+      expect(() => clearStorageValue('darkMode')).not.toThrow()
+    })
+  })
+
   describe('migration from old keys', () => {
     it('migrates oya-dark-mode', () => {
       localStorage.setItem('oya-dark-mode', 'true')
@@ -500,7 +535,7 @@ describe('storage module', () => {
         expect(stored.generation_timing['array-phases']).toBeUndefined()
       })
 
-      it('returns null and clears storage for entry with missing jobId', () => {
+      it('normalizes entry with missing job_id using map key', () => {
         localStorage.setItem(
           'oya',
           JSON.stringify({
@@ -510,11 +545,11 @@ describe('storage module', () => {
           })
         )
 
-        expect(getTimingForJob('no-job-id')).toBeNull()
-
-        // Verify corrupted entry was removed
-        const stored = JSON.parse(localStorage.getItem('oya')!)
-        expect(stored.generation_timing['no-job-id']).toBeUndefined()
+        // Entry is valid - jobId is derived from map key
+        const result = getTimingForJob('no-job-id')
+        expect(result).not.toBeNull()
+        expect(result?.jobId).toBe('no-job-id')
+        expect(result?.jobStartedAt).toBe(1000)
       })
 
       it('returns valid entry unchanged', () => {

@@ -479,6 +479,33 @@ export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaSt
   }
 }
 
+/**
+ * Remove a specific key from storage entirely.
+ * Maintains sparse storage semantics - key will no longer exist.
+ * Use this instead of setStorageValue(key, null) when you want to truly clear a value.
+ */
+export function clearStorageValue<K extends keyof OyaStorage>(key: K): void {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) return
+
+    const parsed = JSON.parse(stored)
+
+    // Normalize non-object values to {} (handles corrupted storage)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return // Nothing to clear
+    }
+
+    const snakeKey = toSnakeCase(key)
+    if (Object.prototype.hasOwnProperty.call(parsed, snakeKey)) {
+      delete parsed[snakeKey]
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+    }
+  } catch {
+    // localStorage unavailable - graceful degradation
+  }
+}
+
 // =============================================================================
 // Generation Timing Helpers
 // =============================================================================
@@ -501,7 +528,8 @@ function getRawTimingData(): Record<string, GenerationTiming> {
       if (entry && typeof entry === 'object') {
         const e = entry as Record<string, unknown>
         result[jobId] = {
-          jobId: e.job_id as string,
+          // Use map key as authoritative jobId (handles corrupted/inconsistent data)
+          jobId,
           jobStartedAt: e.job_started_at as number,
           phases: convertKeysToCamel(e.phases) as Record<string, PhaseTiming>,
         }
@@ -528,7 +556,8 @@ function setRawTimingData(timingData: Record<string, GenerationTiming>): void {
     const snakeTiming: Record<string, unknown> = {}
     for (const [jobId, entry] of Object.entries(timingData)) {
       snakeTiming[jobId] = {
-        job_id: entry.jobId,
+        // Use map key as canonical job_id (matches getRawTimingData read behavior)
+        job_id: jobId,
         job_started_at: entry.jobStartedAt,
         phases: convertKeysToSnake(entry.phases),
       }
@@ -588,10 +617,13 @@ export function getTimingForJob(jobId: string): GenerationTiming | null {
 /**
  * Set timing data for a specific job.
  * Uses optimized direct storage access for performance during SSE updates.
+ * Normalizes timing.jobId to match the jobId parameter for consistency.
  */
 export function setTimingForJob(jobId: string, timing: GenerationTiming): void {
   const timingData = getRawTimingData()
-  setRawTimingData({ ...timingData, [jobId]: timing })
+  // Normalize timing.jobId to match the map key for consistency
+  const normalizedTiming = { ...timing, jobId }
+  setRawTimingData({ ...timingData, [jobId]: normalizedTiming })
 }
 
 /**

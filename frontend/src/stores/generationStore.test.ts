@@ -12,6 +12,7 @@ vi.mock('../api/client', () => ({
 vi.mock('../utils/storage', () => ({
   getStorageValue: vi.fn(() => null),
   setStorageValue: vi.fn(),
+  clearStorageValue: vi.fn(),
   hasStorageValue: vi.fn(() => false),
   loadStorage: vi.fn(() => ({
     darkMode: false,
@@ -237,7 +238,7 @@ describe('generationStore', () => {
     it('clears job from storage when set to null', () => {
       useGenerationStore.getState().setCurrentJob(null)
 
-      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+      expect(storage.clearStorageValue).toHaveBeenCalledWith('currentJob')
     })
 
     it('clears job from storage when job status is completed', () => {
@@ -254,7 +255,7 @@ describe('generationStore', () => {
 
       useGenerationStore.getState().setCurrentJob(job)
 
-      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+      expect(storage.clearStorageValue).toHaveBeenCalledWith('currentJob')
     })
 
     it('clears job from storage when job status is failed', () => {
@@ -271,7 +272,7 @@ describe('generationStore', () => {
 
       useGenerationStore.getState().setCurrentJob(job)
 
-      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+      expect(storage.clearStorageValue).toHaveBeenCalledWith('currentJob')
     })
   })
 
@@ -321,7 +322,7 @@ describe('generationStore', () => {
       const job = loadStoredJob()
 
       expect(job).toBeNull()
-      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+      expect(storage.clearStorageValue).toHaveBeenCalledWith('currentJob')
     })
 
     it('clears storage and returns null for invalid shape (missing status)', async () => {
@@ -333,7 +334,7 @@ describe('generationStore', () => {
       const job = loadStoredJob()
 
       expect(job).toBeNull()
-      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+      expect(storage.clearStorageValue).toHaveBeenCalledWith('currentJob')
     })
 
     it('clears storage and returns null for wrong types', async () => {
@@ -346,7 +347,7 @@ describe('generationStore', () => {
       const job = loadStoredJob()
 
       expect(job).toBeNull()
-      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+      expect(storage.clearStorageValue).toHaveBeenCalledWith('currentJob')
     })
 
     it('clears storage and returns null for invalid status value', async () => {
@@ -359,7 +360,7 @@ describe('generationStore', () => {
       const job = loadStoredJob()
 
       expect(job).toBeNull()
-      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+      expect(storage.clearStorageValue).toHaveBeenCalledWith('currentJob')
     })
   })
 

@@ -2,7 +2,12 @@ import { create } from 'zustand'
 import type { JobStatus, GenerationStatus } from '../types'
 import * as api from '../api/client'
 import { useUIStore } from './uiStore'
-import { getStorageValue, setStorageValue, type StoredJobStatus } from '../utils/storage'
+import {
+  getStorageValue,
+  setStorageValue,
+  clearStorageValue,
+  type StoredJobStatus,
+} from '../utils/storage'
 
 // =============================================================================
 // Storage Conversion Functions
@@ -63,13 +68,13 @@ export function loadStoredJob(): JobStatus | null {
     typeof stored.jobId !== 'string' ||
     typeof stored.status !== 'string'
   ) {
-    setStorageValue('currentJob', null)
+    clearStorageValue('currentJob')
     return null
   }
 
   // Validate status is one of the allowed values
   if (!VALID_JOB_STATUSES.includes(stored.status as (typeof VALID_JOB_STATUSES)[number])) {
-    setStorageValue('currentJob', null)
+    clearStorageValue('currentJob')
     return null
   }
 
@@ -84,7 +89,7 @@ export function saveStoredJob(job: JobStatus | null): void {
   if (job && (job.status === 'running' || job.status === 'pending')) {
     setStorageValue('currentJob', toStoredJob(job))
   } else {
-    setStorageValue('currentJob', null)
+    clearStorageValue('currentJob')
   }
 }
 
