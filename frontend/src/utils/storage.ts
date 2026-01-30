@@ -222,8 +222,10 @@ function migrateOldKeys(): Partial<OyaStorage> | null {
           typeof parsed.phases === 'object' &&
           !Array.isArray(parsed.phases)
         ) {
+          // Use parsed.jobId if valid string, otherwise fall back to key-derived jobId
+          const migratedJobId = typeof parsed.jobId === 'string' ? parsed.jobId : jobId
           migrated.generationTiming[jobId] = {
-            jobId: parsed.jobId,
+            jobId: migratedJobId,
             jobStartedAt: parsed.jobStartedAt,
             phases: parsed.phases,
           }
