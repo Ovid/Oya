@@ -794,34 +794,83 @@ describe('storage module', () => {
         expect(getTimingForJob('bad-job')).toBeNull()
       })
 
-      it('handles null timing entries gracefully', () => {
+      it('removes null timing entries from storage', () => {
+        const now = Date.now()
         localStorage.setItem(
           'oya',
           JSON.stringify({
             generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
               'null-job': null,
             },
           })
         )
 
-        // Should not throw
-        expect(() => cleanupStaleTiming()).not.toThrow()
-        expect(getTimingForJob('null-job')).toBeNull()
+        cleanupStaleTiming()
+
+        // Null entry should be removed
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['null-job']).toBeUndefined()
+        expect(stored.generation_timing['valid-job']).toBeDefined()
       })
 
-      it('handles corrupted generationTiming gracefully', () => {
+      it('removes non-object timing entries (string, number, array)', () => {
+        const now = Date.now()
         localStorage.setItem(
           'oya',
           JSON.stringify({
+            generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
+              'string-job': 'not an object',
+              'number-job': 12345,
+              'array-job': [1, 2, 3],
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['valid-job']).toBeDefined()
+        expect(stored.generation_timing['string-job']).toBeUndefined()
+        expect(stored.generation_timing['number-job']).toBeUndefined()
+        expect(stored.generation_timing['array-job']).toBeUndefined()
+      })
+
+      it('removes generation_timing key entirely when all entries cleaned', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            dark_mode: true,
+            generation_timing: {
+              'null-job': null,
+              'bad-job': 'not an object',
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        // All entries were invalid, so generation_timing should be removed entirely
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+        expect(stored.dark_mode).toBe(true) // Other keys preserved
+      })
+
+      it('removes corrupted generationTiming (non-object) entirely', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            dark_mode: true,
             generation_timing: 'not-an-object',
           })
         )
 
-        // Should not throw - loadStorage() sanitizes at read time
-        expect(() => cleanupStaleTiming()).not.toThrow()
-        // Verify loadStorage returns valid data even with corrupted storage
-        const loaded = loadStorage()
-        expect(loaded.generationTiming).toEqual({})
+        cleanupStaleTiming()
+
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+        expect(stored.dark_mode).toBe(true) // Other keys preserved
       })
     })
   })

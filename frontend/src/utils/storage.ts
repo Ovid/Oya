@@ -710,36 +710,70 @@ export function clearTimingForJob(jobId: string): void {
 /**
  * Remove stale timing entries older than maxAge.
  * Default maxAge is 24 hours.
- * Also removes corrupted entries that lack valid jobStartedAt.
+ * Also removes corrupted entries (non-objects, invalid jobStartedAt, etc.)
+ * Works directly on raw storage to catch entries that getRawTimingData() skips.
  */
 export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
-  const timingData = getRawTimingData()
-  const now = Date.now()
-  let changed = false
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored === null || stored === '') return
 
-  const updated = { ...timingData }
+    const parsed = JSON.parse(stored)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return
 
-  for (const [jobId, timing] of Object.entries(updated)) {
-    // Validate timing entry has required shape
-    if (
-      timing === null ||
-      typeof timing !== 'object' ||
-      typeof timing.jobStartedAt !== 'number' ||
-      !Number.isFinite(timing.jobStartedAt)
-    ) {
-      // Remove corrupted entry
-      delete updated[jobId]
-      changed = true
-      continue
+    const rawTiming = parsed.generation_timing
+    if (rawTiming === null || typeof rawTiming !== 'object' || Array.isArray(rawTiming)) {
+      // If generation_timing itself is corrupted, remove it entirely
+      if (rawTiming !== undefined) {
+        delete parsed.generation_timing
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+      }
+      return
     }
 
-    if (now - timing.jobStartedAt > maxAgeMs) {
-      delete updated[jobId]
-      changed = true
-    }
-  }
+    const now = Date.now()
+    let changed = false
 
-  if (changed) {
-    setRawTimingData(updated)
+    for (const [jobId, entry] of Object.entries(rawTiming)) {
+      // Skip dangerous keys
+      if (DANGEROUS_KEYS.has(jobId)) {
+        delete rawTiming[jobId]
+        changed = true
+        continue
+      }
+
+      // Remove non-object entries (null, string, number, array, etc.)
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+        delete rawTiming[jobId]
+        changed = true
+        continue
+      }
+
+      const e = entry as Record<string, unknown>
+      const jobStartedAt = e.job_started_at
+
+      // Remove entries with invalid jobStartedAt
+      if (typeof jobStartedAt !== 'number' || !Number.isFinite(jobStartedAt)) {
+        delete rawTiming[jobId]
+        changed = true
+        continue
+      }
+
+      // Remove stale entries
+      if (now - jobStartedAt > maxAgeMs) {
+        delete rawTiming[jobId]
+        changed = true
+      }
+    }
+
+    if (changed) {
+      // If all entries removed, delete the key entirely (sparse storage)
+      if (Object.keys(rawTiming).length === 0) {
+        delete parsed.generation_timing
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+    }
+  } catch {
+    // Storage unavailable or corrupted - nothing to clean
   }
 }
