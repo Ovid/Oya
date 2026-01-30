@@ -2,7 +2,47 @@ import { create } from 'zustand'
 import type { JobStatus, GenerationStatus } from '../types'
 import * as api from '../api/client'
 import { useUIStore } from './uiStore'
-import { STORAGE_KEY_CURRENT_JOB } from '../config/storage'
+import { getStorageValue, setStorageValue, type StoredJobStatus } from '../utils/storage'
+
+// =============================================================================
+// Storage Conversion Functions
+// =============================================================================
+
+/**
+ * Convert API JobStatus (snake_case) to storage format (camelCase).
+ */
+function toStoredJob(job: JobStatus): StoredJobStatus {
+  return {
+    jobId: job.job_id,
+    type: job.type,
+    status: job.status,
+    startedAt: job.started_at,
+    completedAt: job.completed_at,
+    currentPhase: job.current_phase,
+    totalPhases: job.total_phases,
+    errorMessage: job.error_message,
+  }
+}
+
+/**
+ * Convert storage format (camelCase) to API JobStatus (snake_case).
+ */
+function fromStoredJob(stored: StoredJobStatus): JobStatus {
+  return {
+    job_id: stored.jobId,
+    type: stored.type,
+    status: stored.status as JobStatus['status'],
+    started_at: stored.startedAt,
+    completed_at: stored.completedAt,
+    current_phase: stored.currentPhase,
+    total_phases: stored.totalPhases,
+    error_message: stored.errorMessage,
+  }
+}
+
+// =============================================================================
+// Storage Functions
+// =============================================================================
 
 /**
  * Load current job from localStorage.
@@ -10,34 +50,19 @@ import { STORAGE_KEY_CURRENT_JOB } from '../config/storage'
  * Exported so initializeApp can call this after React is ready.
  */
 export function loadStoredJob(): JobStatus | null {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY_CURRENT_JOB)
-    if (!stored) return null
-    const parsed = JSON.parse(stored)
-    // Validate basic shape
-    if (parsed && typeof parsed.job_id === 'string' && typeof parsed.status === 'string') {
-      return parsed as JobStatus
-    }
-    localStorage.removeItem(STORAGE_KEY_CURRENT_JOB)
-    return null
-  } catch {
-    localStorage.removeItem(STORAGE_KEY_CURRENT_JOB)
-    return null
-  }
+  const stored = getStorageValue('currentJob')
+  if (!stored) return null
+  return fromStoredJob(stored)
 }
 
 /**
  * Save current job to localStorage.
  */
 export function saveStoredJob(job: JobStatus | null): void {
-  try {
-    if (job && (job.status === 'running' || job.status === 'pending')) {
-      localStorage.setItem(STORAGE_KEY_CURRENT_JOB, JSON.stringify(job))
-    } else {
-      localStorage.removeItem(STORAGE_KEY_CURRENT_JOB)
-    }
-  } catch {
-    // localStorage unavailable - graceful degradation
+  if (job && (job.status === 'running' || job.status === 'pending')) {
+    setStorageValue('currentJob', toStoredJob(job))
+  } else {
+    setStorageValue('currentJob', null)
   }
 }
 
