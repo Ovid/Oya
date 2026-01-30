@@ -5,7 +5,7 @@ import { formatElapsedTime, PHASE_ORDER, PHASES } from './generationConstants'
 import type { ProgressEvent } from '../types'
 import * as client from '../api/client'
 import { useUIStore, initialState } from '../stores/uiStore'
-import { loadPhaseTiming, savePhaseTiming, clearPhaseTiming } from '../utils/generationTiming'
+import { getTimingForJob, setTimingForJob, clearTimingForJob } from '../utils/storage'
 
 // Mock the API client
 vi.mock('../api/client', () => ({
@@ -13,12 +13,16 @@ vi.mock('../api/client', () => ({
   cancelJob: vi.fn(),
 }))
 
-vi.mock('../utils/generationTiming', () => ({
-  loadPhaseTiming: vi.fn(),
-  savePhaseTiming: vi.fn(),
-  clearPhaseTiming: vi.fn(),
-  cleanupStaleTiming: vi.fn(),
-}))
+vi.mock('../utils/storage', async (importOriginal) => {
+  const actual = await importOriginal() as typeof import('../utils/storage')
+  return {
+    ...actual,
+    getTimingForJob: vi.fn(),
+    setTimingForJob: vi.fn(),
+    clearTimingForJob: vi.fn(),
+    cleanupStaleTiming: vi.fn(),
+  }
+})
 
 /**
  * Tests for GenerationProgress phase ordering.
@@ -223,9 +227,9 @@ describe('GenerationProgress timing persistence', () => {
     capturedOnComplete = null
     useUIStore.setState(initialState)
 
-    vi.mocked(loadPhaseTiming).mockReturnValue(null)
-    vi.mocked(savePhaseTiming).mockClear()
-    vi.mocked(clearPhaseTiming).mockClear()
+    vi.mocked(getTimingForJob).mockReturnValue(null)
+    vi.mocked(setTimingForJob).mockClear()
+    vi.mocked(clearTimingForJob).mockClear()
 
     vi.mocked(client.streamJobProgress).mockImplementation(
       (
@@ -247,11 +251,11 @@ describe('GenerationProgress timing persistence', () => {
 
   it('should load timing data on mount', () => {
     render(<GenerationProgress jobId="test-job" onComplete={vi.fn()} onError={vi.fn()} />)
-    expect(loadPhaseTiming).toHaveBeenCalledWith('test-job')
+    expect(getTimingForJob).toHaveBeenCalledWith('test-job')
   })
 
   it('should restore completed phase durations from localStorage', () => {
-    vi.mocked(loadPhaseTiming).mockReturnValue({
+    vi.mocked(getTimingForJob).mockReturnValue({
       jobId: 'test-job',
       jobStartedAt: Date.now() - 120000,
       phases: {
@@ -312,7 +316,7 @@ describe('GenerationProgress timing persistence', () => {
       }
     })
 
-    expect(savePhaseTiming).toHaveBeenCalled()
+    expect(setTimingForJob).toHaveBeenCalled()
   })
 
   it('should clear timing on job completion', () => {
@@ -331,7 +335,7 @@ describe('GenerationProgress timing persistence', () => {
       }
     })
 
-    expect(clearPhaseTiming).toHaveBeenCalledWith('test-job')
+    expect(clearTimingForJob).toHaveBeenCalledWith('test-job')
   })
 
   it('should clear timing on job error', () => {
@@ -357,7 +361,7 @@ describe('GenerationProgress timing persistence', () => {
       }
     })
 
-    expect(clearPhaseTiming).toHaveBeenCalledWith('test-job')
+    expect(clearTimingForJob).toHaveBeenCalledWith('test-job')
   })
 
   it('should clear timing on job cancellation', () => {
@@ -398,6 +402,6 @@ describe('GenerationProgress timing persistence', () => {
       }
     })
 
-    expect(clearPhaseTiming).toHaveBeenCalledWith('test-job')
+    expect(clearTimingForJob).toHaveBeenCalledWith('test-job')
   })
 })
