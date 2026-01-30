@@ -66,7 +66,7 @@ export function useResizablePanel({
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDragging, side, minWidth, maxWidth, storageKey, width])
+  }, [isDragging, side, minWidth, maxWidth])
 
   // Persist only on drag end (transition from dragging to not dragging)
   // This avoids writing defaults on mount when user hasn't resized
