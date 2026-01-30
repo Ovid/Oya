@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { QASettingsPopover } from './QASettingsPopover'
-import { QA_DEFAULTS } from '../config/qa'
+import { DEFAULT_QA_SETTINGS } from '../utils/storage'
 
 describe('QASettingsPopover', () => {
-  const defaultSettings = { ...QA_DEFAULTS }
+  const defaultSettings = { ...DEFAULT_QA_SETTINGS }
   const mockOnChange = vi.fn()
 
   beforeEach(() => {
@@ -66,6 +66,6 @@ describe('QASettingsPopover', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings/i }))
     fireEvent.click(screen.getByText(/reset to defaults/i))
 
-    expect(mockOnChange).toHaveBeenCalledWith({ ...QA_DEFAULTS })
+    expect(mockOnChange).toHaveBeenCalledWith({ ...DEFAULT_QA_SETTINGS })
   })
 })

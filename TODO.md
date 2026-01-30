@@ -68,16 +68,6 @@
 
 ## Data / Storage
 
-* Everything in local storage should be under a top-level key
-    oya-ask-panel-open	false
-    oya-dark-mode	true
-    oya-qa-settings	{"quickMode":false,"temperature":0.3,"timeoutMinutes":10}
-    oya-sidebar-left-width	180
-    oya-sidebar-right-width	200
-    todo-app-theme	dark
-    oya-current-job	{"job_id":"91f037f8-d144-4d7a-82a3-370039c5693a","type":"full","status":"running","started_at":"2026-01-29T15:10:30","completed_at":null,"cancelled_at":null,"current_phase":"2:files","total_phases":8,"error_message":null,"changes_made":null}
-    oya-generation-timing-91f037f8-d144-4d7a-82a3-370039c5693a	{"jobId":"91f037f8-d144-4d7a-82a3-370039c5693a","jobStartedAt":1769699442368,"phases":{"files":{"startedAt":1769699442380,"completedAt":1769699506920,"duration":64},"directories":{"startedAt":1769699506920}}}
- 
 * code_index UNIQUE(file_path, symbol_name) loses data when a file has duplicate
   symbol names in different scopes (e.g. two classes each with `__init__` or
   `process`). INSERT OR REPLACE silently overwrites the first entry. Consider
@@ -245,3 +235,16 @@ The following ideas were identified during Phase 6 overview improvements but def
 * Check for any other places in the code where:
     * Errors are silently discarded
     * try/catch isn't robust or has a "pass"
+
+## Data / Storage
+
+* Everything in local storage should be under a top-level key
+    oya-ask-panel-open	false
+    oya-dark-mode	true
+    oya-qa-settings	{"quickMode":false,"temperature":0.3,"timeoutMinutes":10}
+    oya-sidebar-left-width	180
+    oya-sidebar-right-width	200
+    todo-app-theme	dark
+    oya-current-job	{"job_id":"91f037f8-d144-4d7a-82a3-370039c5693a","type":"full","status":"running","started_at":"2026-01-29T15:10:30","completed_at":null,"cancelled_at":null,"current_phase":"2:files","total_phases":8,"error_message":null,"changes_made":null}
+    oya-generation-timing-91f037f8-d144-4d7a-82a3-370039c5693a	{"jobId":"91f037f8-d144-4d7a-82a3-370039c5693a","jobStartedAt":1769699442368,"phases":{"files":{"startedAt":1769699442380,"completedAt":1769699506920,"duration":64},"directories":{"startedAt":1769699506920}}}
+ 

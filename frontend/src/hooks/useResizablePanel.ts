@@ -1,11 +1,14 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { getStorageValue, setStorageValue, hasStorageValue } from '../utils/storage'
+
+type StorageWidthKey = 'sidebarLeftWidth' | 'sidebarRightWidth'
 
 interface UseResizablePanelOptions {
   side: 'left' | 'right'
   defaultWidth: number
   minWidth: number
   maxWidth: number
-  storageKey: string
+  storageKey: StorageWidthKey
 }
 
 interface UseResizablePanelResult {
@@ -22,16 +25,15 @@ export function useResizablePanel({
   storageKey,
 }: UseResizablePanelOptions): UseResizablePanelResult {
   const [width, setWidth] = useState(() => {
-    const stored = localStorage.getItem(storageKey)
-    if (stored) {
-      const parsed = parseInt(stored, 10)
-      if (!isNaN(parsed)) {
-        return Math.min(maxWidth, Math.max(minWidth, parsed))
-      }
+    // Only use stored value if user has explicitly set a preference
+    if (hasStorageValue(storageKey)) {
+      const stored = getStorageValue(storageKey)
+      return Math.min(maxWidth, Math.max(minWidth, stored))
     }
     return defaultWidth
   })
   const [isDragging, setIsDragging] = useState(false)
+  const wasDraggingRef = useRef(false)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -54,7 +56,7 @@ export function useResizablePanel({
 
     const handleMouseUp = () => {
       setIsDragging(false)
-      localStorage.setItem(storageKey, width.toString())
+      // Persistence handled by the useEffect that watches isDragging transitions
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -64,13 +66,15 @@ export function useResizablePanel({
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDragging, side, minWidth, maxWidth, storageKey, width])
+  }, [isDragging, side, minWidth, maxWidth])
 
-  // Persist on width change (debounced via mouseup)
+  // Persist only on drag end (transition from dragging to not dragging)
+  // This avoids writing defaults on mount when user hasn't resized
   useEffect(() => {
-    if (!isDragging) {
-      localStorage.setItem(storageKey, width.toString())
+    if (wasDraggingRef.current && !isDragging) {
+      setStorageValue(storageKey, width)
     }
+    wasDraggingRef.current = isDragging
   }, [width, isDragging, storageKey])
 
   return { width, isDragging, handleMouseDown }

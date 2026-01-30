@@ -5,12 +5,12 @@ import { ELAPSED_TIME_UPDATE_MS } from '../config'
 import { formatElapsedTime, PHASES, PHASE_ORDER } from './generationConstants'
 import { useUIStore } from '../stores/uiStore'
 import {
-  loadPhaseTiming,
-  savePhaseTiming,
-  clearPhaseTiming,
+  getTimingForJob,
+  setTimingForJob,
+  clearTimingForJob,
   cleanupStaleTiming,
-} from '../utils/generationTiming'
-import type { GenerationTiming } from '../utils/generationTiming'
+} from '../utils/storage'
+import type { GenerationTiming } from '../utils/storage'
 
 interface GenerationProgressProps {
   jobId: string | null
@@ -32,7 +32,7 @@ export function GenerationProgress({
   const [restoredTiming] = useState<GenerationTiming | null>(() => {
     cleanupStaleTiming()
     if (jobId) {
-      return loadPhaseTiming(jobId)
+      return getTimingForJob(jobId)
     }
     return null
   })
@@ -166,7 +166,7 @@ export function GenerationProgress({
             // Merge with existing data to preserve durations from before page refresh
             if (jobId) {
               const now = Date.now()
-              const existingTiming = loadPhaseTiming(jobId)
+              const existingTiming = getTimingForJob(jobId)
               const phasesData: GenerationTiming['phases'] = {
                 ...(existingTiming?.phases ?? {}),
               }
@@ -198,7 +198,7 @@ export function GenerationProgress({
                 jobStartedAt: startTime.getTime(),
                 phases: phasesData,
               }
-              savePhaseTiming(jobId, currentTiming)
+              setTimingForJob(jobId, currentTiming)
             }
           }
         }
@@ -229,14 +229,14 @@ export function GenerationProgress({
         }
         setIsComplete(true)
         if (jobId) {
-          clearPhaseTiming(jobId)
+          clearTimingForJob(jobId)
         }
         onComplete()
       },
       (error: Error) => {
         setIsFailed(true)
         if (jobId) {
-          clearPhaseTiming(jobId)
+          clearTimingForJob(jobId)
         }
         useUIStore.getState().showErrorModal('Generation Failed', error.message)
         onError(error.message)
@@ -245,7 +245,7 @@ export function GenerationProgress({
         // Handle cancellation
         setIsCancelled(true)
         if (jobId) {
-          clearPhaseTiming(jobId)
+          clearTimingForJob(jobId)
         }
         if (onCancelled) {
           onCancelled()

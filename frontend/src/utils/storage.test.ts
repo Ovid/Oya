@@ -1,0 +1,877 @@
+// frontend/src/utils/storage.test.ts
+import { describe, it, expect, beforeEach } from 'vitest'
+import {
+  loadStorage,
+  getStorageValue,
+  setStorageValue,
+  clearStorageValue,
+  hasStorageValue,
+  getExplicitStorageValue,
+  DEFAULT_STORAGE,
+  getTimingForJob,
+  setTimingForJob,
+  clearTimingForJob,
+  cleanupStaleTiming,
+} from './storage'
+
+describe('storage module', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  describe('loadStorage', () => {
+    it('returns default values when no storage exists', () => {
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+    })
+
+    it('loads existing storage with snake_case keys', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: true,
+          ask_panel_open: true,
+          sidebar_left_width: 300,
+          sidebar_right_width: 250,
+          current_job: null,
+          qa_settings: { quick_mode: false, temperature: 0.7, timeout_minutes: 5 },
+          generation_timing: {},
+        })
+      )
+
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(true)
+      expect(storage.askPanelOpen).toBe(true)
+      expect(storage.sidebarLeftWidth).toBe(300)
+      expect(storage.qaSettings.quickMode).toBe(false)
+    })
+
+    it('handles corrupted JSON gracefully', () => {
+      localStorage.setItem('oya', 'not valid json {')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('handles empty string as corrupted and removes it', () => {
+      localStorage.setItem('oya', '')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      // Empty string should be removed to allow migration on next load
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('runs migration after clearing empty string storage', () => {
+      // Set up empty string in consolidated key AND old key
+      localStorage.setItem('oya', '')
+      localStorage.setItem('oya-dark-mode', 'true')
+
+      const storage = loadStorage()
+      // Migration should run since empty string was cleared
+      expect(storage.darkMode).toBe(true)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+    })
+
+    it('handles non-object JSON as corrupted and removes it', () => {
+      // Valid JSON but not a valid storage object
+      localStorage.setItem('oya', 'true')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('handles JSON array as corrupted and removes it', () => {
+      localStorage.setItem('oya', '[]')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('handles JSON null as corrupted and removes it', () => {
+      localStorage.setItem('oya', 'null')
+      const storage = loadStorage()
+      expect(storage).toEqual(DEFAULT_STORAGE)
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('runs migration after clearing non-object JSON', () => {
+      localStorage.setItem('oya', 'true')
+      localStorage.setItem('oya-dark-mode', 'true')
+
+      const storage = loadStorage()
+      // Migration should run since corrupted value was cleared
+      expect(storage.darkMode).toBe(true)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+    })
+
+    it('merges partial storage with defaults', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: true,
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(true)
+      expect(storage.askPanelOpen).toBe(false) // default
+      expect(storage.sidebarLeftWidth).toBe(256) // default
+    })
+
+    it('falls back to defaults for invalid number types', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          sidebar_left_width: 'not-a-number',
+          sidebar_right_width: null,
+          qa_settings: { temperature: 'high', timeout_minutes: {} },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.sidebarLeftWidth).toBe(256) // default
+      expect(storage.sidebarRightWidth).toBe(320) // default
+      expect(storage.qaSettings.temperature).toBe(0.5) // default
+      expect(storage.qaSettings.timeoutMinutes).toBe(3) // default
+    })
+
+    it('falls back to defaults for invalid boolean types', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: 'true', // string, not boolean
+          ask_panel_open: 1, // number, not boolean
+          qa_settings: { quick_mode: 'yes' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(false) // default
+      expect(storage.askPanelOpen).toBe(false) // default
+      expect(storage.qaSettings.quickMode).toBe(true) // default
+    })
+
+    it('falls back to defaults for NaN number values', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          sidebar_left_width: NaN,
+        })
+      )
+      const storage = loadStorage()
+      // NaN is serialized as null in JSON, so it becomes default
+      expect(storage.sidebarLeftWidth).toBe(256)
+    })
+
+    it('returns null for invalid current_job (missing job_id)', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: { status: 'running' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).toBeNull()
+    })
+
+    it('returns null for invalid current_job (missing status)', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: { job_id: 'test-123' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).toBeNull()
+    })
+
+    it('returns null for invalid current_job (wrong types)', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: { job_id: 123, status: 'running' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).toBeNull()
+    })
+
+    it('returns valid current_job when shape is correct', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: {
+            job_id: 'test-123',
+            type: 'generation',
+            status: 'running',
+            started_at: '2024-01-01T00:00:00Z',
+            completed_at: null,
+            current_phase: 'parsing',
+            total_phases: 5,
+            error_message: null,
+          },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).not.toBeNull()
+      expect(storage.currentJob?.jobId).toBe('test-123')
+      expect(storage.currentJob?.status).toBe('running')
+    })
+
+    it('normalizes partial current_job with missing fields', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: {
+            job_id: 'test-456',
+            status: 'pending',
+            // missing: type, started_at, completed_at, current_phase, total_phases, error_message
+          },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).not.toBeNull()
+      expect(storage.currentJob?.jobId).toBe('test-456')
+      expect(storage.currentJob?.status).toBe('pending')
+      expect(storage.currentJob?.type).toBe('') // normalized to empty string
+      expect(storage.currentJob?.startedAt).toBeNull()
+      expect(storage.currentJob?.completedAt).toBeNull()
+      expect(storage.currentJob?.currentPhase).toBeNull()
+      expect(storage.currentJob?.totalPhases).toBeNull()
+      expect(storage.currentJob?.errorMessage).toBeNull()
+    })
+
+    it('normalizes current_job with wrong field types', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: {
+            job_id: 'test-789',
+            status: 'running',
+            type: 123, // should be string
+            started_at: true, // should be string
+            total_phases: 'five', // should be number
+          },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).not.toBeNull()
+      expect(storage.currentJob?.type).toBe('') // normalized to empty string
+      expect(storage.currentJob?.startedAt).toBeNull() // normalized to null
+      expect(storage.currentJob?.totalPhases).toBeNull() // normalized to null
+    })
+  })
+
+  describe('getStorageValue', () => {
+    it('returns specific value from storage', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: true }))
+      expect(getStorageValue('darkMode')).toBe(true)
+    })
+
+    it('returns default when key missing', () => {
+      expect(getStorageValue('darkMode')).toBe(false)
+    })
+  })
+
+  describe('setStorageValue', () => {
+    it('updates specific value in storage', () => {
+      setStorageValue('darkMode', true)
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+    })
+
+    it('preserves other values', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: false,
+          sidebar_left_width: 300,
+        })
+      )
+      setStorageValue('darkMode', true)
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+      expect(stored.sidebar_left_width).toBe(300)
+    })
+
+    it('does not write defaults for other keys (sparse writes)', () => {
+      // Start with empty storage
+      expect(localStorage.getItem('oya')).toBeNull()
+
+      // Set only sidebarLeftWidth
+      setStorageValue('sidebarLeftWidth', 300)
+
+      // Verify only that key was written, not defaults for other keys
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.sidebar_left_width).toBe(300)
+      expect('dark_mode' in stored).toBe(false) // not polluted with default
+      expect('ask_panel_open' in stored).toBe(false)
+      expect('sidebar_right_width' in stored).toBe(false)
+
+      // hasStorageValue should still reflect what was actually stored
+      expect(hasStorageValue('sidebarLeftWidth')).toBe(true)
+      expect(hasStorageValue('darkMode')).toBe(false) // system preference still honored
+    })
+
+    it('converts nested object values to snake_case', () => {
+      setStorageValue('qaSettings', { quickMode: false, temperature: 0.8, timeoutMinutes: 5 })
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.qa_settings.quick_mode).toBe(false)
+      expect(stored.qa_settings.temperature).toBe(0.8)
+      expect(stored.qa_settings.timeout_minutes).toBe(5)
+    })
+
+    it('handles corrupted storage containing null', () => {
+      localStorage.setItem('oya', 'null')
+
+      setStorageValue('darkMode', true)
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+    })
+
+    it('handles corrupted storage containing array', () => {
+      localStorage.setItem('oya', '[]')
+
+      setStorageValue('darkMode', true)
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+    })
+
+    it('handles corrupted storage containing primitive', () => {
+      localStorage.setItem('oya', 'true')
+
+      setStorageValue('darkMode', false)
+
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(false)
+    })
+  })
+
+  describe('hasStorageValue', () => {
+    it('returns false when no storage exists', () => {
+      expect(hasStorageValue('darkMode')).toBe(false)
+    })
+
+    it('returns true when key is explicitly stored', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: true }))
+      expect(hasStorageValue('darkMode')).toBe(true)
+    })
+
+    it('returns true when key is explicitly stored as false', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: false }))
+      expect(hasStorageValue('darkMode')).toBe(true)
+    })
+
+    it('returns false when key is not in storage', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 300 }))
+      expect(hasStorageValue('darkMode')).toBe(false)
+    })
+
+    it('returns false for corrupted storage', () => {
+      localStorage.setItem('oya', 'not valid json')
+      expect(hasStorageValue('darkMode')).toBe(false)
+    })
+  })
+
+  describe('clearStorageValue', () => {
+    it('removes key from storage', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: true, sidebar_left_width: 300 }))
+      expect(hasStorageValue('darkMode')).toBe(true)
+
+      clearStorageValue('darkMode')
+
+      expect(hasStorageValue('darkMode')).toBe(false)
+      // Other keys remain
+      expect(hasStorageValue('sidebarLeftWidth')).toBe(true)
+    })
+
+    it('does nothing when key does not exist', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 300 }))
+
+      clearStorageValue('darkMode')
+
+      // Storage unchanged
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored).toEqual({ sidebar_left_width: 300 })
+    })
+
+    it('does nothing when no storage exists', () => {
+      clearStorageValue('darkMode')
+      expect(localStorage.getItem('oya')).toBeNull()
+    })
+
+    it('handles corrupted storage gracefully', () => {
+      localStorage.setItem('oya', 'not valid json')
+      // Should not throw
+      expect(() => clearStorageValue('darkMode')).not.toThrow()
+    })
+  })
+
+  describe('getExplicitStorageValue', () => {
+    it('returns undefined when no storage exists', () => {
+      expect(getExplicitStorageValue('darkMode')).toBeUndefined()
+    })
+
+    it('returns value when key is explicitly stored', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: true }))
+      expect(getExplicitStorageValue('darkMode')).toBe(true)
+    })
+
+    it('returns false when key is explicitly stored as false', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: false }))
+      expect(getExplicitStorageValue('darkMode')).toBe(false)
+    })
+
+    it('returns undefined when key is not in storage', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 300 }))
+      expect(getExplicitStorageValue('darkMode')).toBeUndefined()
+    })
+
+    it('returns undefined for corrupted storage', () => {
+      localStorage.setItem('oya', 'not valid json')
+      expect(getExplicitStorageValue('darkMode')).toBeUndefined()
+    })
+
+    it('converts nested objects from snake_case', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          qa_settings: { quick_mode: false, temperature: 0.8, timeout_minutes: 5 },
+        })
+      )
+      const result = getExplicitStorageValue('qaSettings')
+      expect(result).toEqual({ quickMode: false, temperature: 0.8, timeoutMinutes: 5 })
+    })
+
+    it('validates and corrects invalid types', () => {
+      // Store string "true" instead of boolean true
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: 'true' }))
+      // Should return validated boolean, not the raw string
+      const result = getExplicitStorageValue('darkMode')
+      expect(result).toBe(false) // "true" (string) is not a boolean, falls back to default
+    })
+
+    it('validates numbers and falls back to defaults for invalid', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 'wide' }))
+      const result = getExplicitStorageValue('sidebarLeftWidth')
+      expect(result).toBe(256) // Default, since "wide" is not a number
+    })
+  })
+
+  describe('migration from old keys', () => {
+    it('migrates oya-dark-mode', () => {
+      localStorage.setItem('oya-dark-mode', 'true')
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(true)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+    })
+
+    it('migrates oya-ask-panel-open', () => {
+      localStorage.setItem('oya-ask-panel-open', 'true')
+      const storage = loadStorage()
+      expect(storage.askPanelOpen).toBe(true)
+      expect(localStorage.getItem('oya-ask-panel-open')).toBeNull()
+    })
+
+    it('migrates oya-sidebar-left-width', () => {
+      localStorage.setItem('oya-sidebar-left-width', '350')
+      const storage = loadStorage()
+      expect(storage.sidebarLeftWidth).toBe(350)
+      expect(localStorage.getItem('oya-sidebar-left-width')).toBeNull()
+    })
+
+    it('migrates oya-sidebar-right-width', () => {
+      localStorage.setItem('oya-sidebar-right-width', '280')
+      const storage = loadStorage()
+      expect(storage.sidebarRightWidth).toBe(280)
+      expect(localStorage.getItem('oya-sidebar-right-width')).toBeNull()
+    })
+
+    it('migrates oya-current-job', () => {
+      const job = {
+        job_id: 'test-123',
+        type: 'full',
+        status: 'running',
+        started_at: '2026-01-30T10:00:00',
+        completed_at: null,
+        current_phase: 'files',
+        total_phases: 8,
+        error_message: null,
+      }
+      localStorage.setItem('oya-current-job', JSON.stringify(job))
+      const storage = loadStorage()
+      expect(storage.currentJob?.jobId).toBe('test-123')
+      expect(storage.currentJob?.status).toBe('running')
+      expect(localStorage.getItem('oya-current-job')).toBeNull()
+    })
+
+    it('migrates oya-qa-settings', () => {
+      const settings = { quickMode: false, temperature: 0.8, timeoutMinutes: 7 }
+      localStorage.setItem('oya-qa-settings', JSON.stringify(settings))
+      const storage = loadStorage()
+      expect(storage.qaSettings.quickMode).toBe(false)
+      expect(storage.qaSettings.temperature).toBe(0.8)
+      expect(localStorage.getItem('oya-qa-settings')).toBeNull()
+    })
+
+    it('migrates oya-generation-timing-* keys', () => {
+      const timing = {
+        jobId: 'job-abc',
+        jobStartedAt: 1700000000000,
+        phases: { files: { startedAt: 1700000001000 } },
+      }
+      localStorage.setItem('oya-generation-timing-job-abc', JSON.stringify(timing))
+      const storage = loadStorage()
+      expect(storage.generationTiming['job-abc']).toBeDefined()
+      expect(storage.generationTiming['job-abc'].jobId).toBe('job-abc')
+      expect(localStorage.getItem('oya-generation-timing-job-abc')).toBeNull()
+    })
+
+    it('migrates all old keys together', () => {
+      localStorage.setItem('oya-dark-mode', 'true')
+      localStorage.setItem('oya-sidebar-left-width', '300')
+      localStorage.setItem(
+        'oya-qa-settings',
+        JSON.stringify({ quickMode: false, temperature: 0.6, timeoutMinutes: 4 })
+      )
+
+      const storage = loadStorage()
+
+      expect(storage.darkMode).toBe(true)
+      expect(storage.sidebarLeftWidth).toBe(300)
+      expect(storage.qaSettings.quickMode).toBe(false)
+      expect(localStorage.getItem('oya-dark-mode')).toBeNull()
+      expect(localStorage.getItem('oya-sidebar-left-width')).toBeNull()
+      expect(localStorage.getItem('oya-qa-settings')).toBeNull()
+    })
+
+    it('new storage takes precedence over old keys', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: false }))
+      localStorage.setItem('oya-dark-mode', 'true')
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(false) // new key wins
+    })
+
+    it('only saves migrated keys, not defaults', () => {
+      // Only set dark mode in old key
+      localStorage.setItem('oya-dark-mode', 'true')
+      loadStorage()
+
+      // Verify only dark_mode was saved to new key, not other defaults
+      const stored = JSON.parse(localStorage.getItem('oya')!)
+      expect(stored.dark_mode).toBe(true)
+      expect('ask_panel_open' in stored).toBe(false) // not migrated, shouldn't be saved
+      expect('sidebar_left_width' in stored).toBe(false)
+      expect('sidebar_right_width' in stored).toBe(false)
+
+      // hasStorageValue should reflect what was actually migrated
+      expect(hasStorageValue('darkMode')).toBe(true)
+      expect(hasStorageValue('askPanelOpen')).toBe(false) // not migrated
+    })
+  })
+
+  describe('generation timing helpers', () => {
+    describe('getTimingForJob', () => {
+      it('returns timing for existing job', () => {
+        const timing = { jobId: 'job-1', jobStartedAt: 1000, phases: {} }
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: { 'job-1': { job_id: 'job-1', job_started_at: 1000, phases: {} } },
+          })
+        )
+        expect(getTimingForJob('job-1')).toEqual(timing)
+      })
+
+      it('returns null for non-existent job', () => {
+        expect(getTimingForJob('no-such-job')).toBeNull()
+      })
+
+      it('returns null and clears storage for entry with invalid jobStartedAt', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'bad-job': { job_id: 'bad-job', job_started_at: 'not-a-number', phases: {} },
+            },
+          })
+        )
+
+        expect(getTimingForJob('bad-job')).toBeNull()
+
+        // Verify corrupted entry was removed (key deleted entirely when last entry removed)
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+      })
+
+      it('returns null and clears storage for entry with phases: null', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'null-phases': { job_id: 'null-phases', job_started_at: 1000, phases: null },
+            },
+          })
+        )
+
+        expect(getTimingForJob('null-phases')).toBeNull()
+
+        // Verify corrupted entry was removed (key deleted entirely when last entry removed)
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+      })
+
+      it('returns null and clears storage for entry with phases as array', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'array-phases': { job_id: 'array-phases', job_started_at: 1000, phases: [] },
+            },
+          })
+        )
+
+        expect(getTimingForJob('array-phases')).toBeNull()
+
+        // Verify corrupted entry was removed (key deleted entirely when last entry removed)
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+      })
+
+      it('normalizes entry with missing job_id using map key', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'no-job-id': { job_started_at: 1000, phases: {} },
+            },
+          })
+        )
+
+        // Entry is valid - jobId is derived from map key
+        const result = getTimingForJob('no-job-id')
+        expect(result).not.toBeNull()
+        expect(result?.jobId).toBe('no-job-id')
+        expect(result?.jobStartedAt).toBe(1000)
+      })
+
+      it('returns valid entry unchanged', () => {
+        const validTiming = {
+          job_id: 'valid-job',
+          job_started_at: 1000,
+          phases: { files: { started_at: 1001 } },
+        }
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: { 'valid-job': validTiming },
+          })
+        )
+
+        const result = getTimingForJob('valid-job')
+        expect(result).not.toBeNull()
+        expect(result?.jobStartedAt).toBe(1000)
+        expect(result?.phases.files?.startedAt).toBe(1001)
+      })
+    })
+
+    describe('setTimingForJob', () => {
+      it('adds timing for new job', () => {
+        const timing = {
+          jobId: 'job-2',
+          jobStartedAt: 2000,
+          phases: { files: { startedAt: 2001 } },
+        }
+        setTimingForJob('job-2', timing)
+        expect(getTimingForJob('job-2')).toEqual(timing)
+      })
+
+      it('updates timing for existing job', () => {
+        setTimingForJob('job-3', { jobId: 'job-3', jobStartedAt: 3000, phases: {} })
+        setTimingForJob('job-3', {
+          jobId: 'job-3',
+          jobStartedAt: 3000,
+          phases: { files: { startedAt: 3001, completedAt: 3005, duration: 4 } },
+        })
+        expect(getTimingForJob('job-3')?.phases.files?.completedAt).toBe(3005)
+      })
+
+      it('does not pollute storage with defaults (sparse writes)', () => {
+        // Start with empty storage
+        expect(localStorage.getItem('oya')).toBeNull()
+
+        // Set timing for a job
+        setTimingForJob('job-sparse', { jobId: 'job-sparse', jobStartedAt: 5000, phases: {} })
+
+        // Verify only generation_timing was written, not defaults for other keys
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['job-sparse']).toBeDefined()
+        expect('dark_mode' in stored).toBe(false) // not polluted with default
+        expect('sidebar_left_width' in stored).toBe(false)
+
+        // hasStorageValue should reflect what was actually stored
+        expect(hasStorageValue('generationTiming')).toBe(true)
+        expect(hasStorageValue('darkMode')).toBe(false) // system preference still honored
+      })
+    })
+
+    describe('clearTimingForJob', () => {
+      it('removes timing for job', () => {
+        setTimingForJob('job-4', { jobId: 'job-4', jobStartedAt: 4000, phases: {} })
+        clearTimingForJob('job-4')
+        expect(getTimingForJob('job-4')).toBeNull()
+      })
+
+      it('does not throw for non-existent job', () => {
+        expect(() => clearTimingForJob('no-job')).not.toThrow()
+      })
+
+      it('removes generation_timing key entirely when last job is cleared', () => {
+        setTimingForJob('only-job', { jobId: 'only-job', jobStartedAt: 1000, phases: {} })
+        clearTimingForJob('only-job')
+
+        // Verify generation_timing key is removed, not just set to {}
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+      })
+    })
+
+    describe('cleanupStaleTiming', () => {
+      it('removes entries older than maxAge', () => {
+        const now = Date.now()
+        // Old entry (25 hours ago)
+        setTimingForJob('old-job', {
+          jobId: 'old-job',
+          jobStartedAt: now - 25 * 60 * 60 * 1000,
+          phases: {},
+        })
+        // Recent entry (1 hour ago)
+        setTimingForJob('new-job', {
+          jobId: 'new-job',
+          jobStartedAt: now - 1 * 60 * 60 * 1000,
+          phases: {},
+        })
+
+        cleanupStaleTiming(24 * 60 * 60 * 1000)
+
+        expect(getTimingForJob('old-job')).toBeNull()
+        expect(getTimingForJob('new-job')).not.toBeNull()
+      })
+
+      it('removes corrupted entries with missing jobStartedAt', () => {
+        const now = Date.now()
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
+              'bad-job': { job_id: 'bad-job', phases: {} }, // missing job_started_at
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        expect(getTimingForJob('valid-job')).not.toBeNull()
+        expect(getTimingForJob('bad-job')).toBeNull()
+      })
+
+      it('removes corrupted entries with non-numeric jobStartedAt', () => {
+        const now = Date.now()
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
+              'bad-job': { job_id: 'bad-job', job_started_at: 'not-a-number', phases: {} },
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        expect(getTimingForJob('valid-job')).not.toBeNull()
+        expect(getTimingForJob('bad-job')).toBeNull()
+      })
+
+      it('removes null timing entries from storage', () => {
+        const now = Date.now()
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
+              'null-job': null,
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        // Null entry should be removed
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['null-job']).toBeUndefined()
+        expect(stored.generation_timing['valid-job']).toBeDefined()
+      })
+
+      it('removes non-object timing entries (string, number, array)', () => {
+        const now = Date.now()
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            generation_timing: {
+              'valid-job': { job_id: 'valid-job', job_started_at: now, phases: {} },
+              'string-job': 'not an object',
+              'number-job': 12345,
+              'array-job': [1, 2, 3],
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['valid-job']).toBeDefined()
+        expect(stored.generation_timing['string-job']).toBeUndefined()
+        expect(stored.generation_timing['number-job']).toBeUndefined()
+        expect(stored.generation_timing['array-job']).toBeUndefined()
+      })
+
+      it('removes generation_timing key entirely when all entries cleaned', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            dark_mode: true,
+            generation_timing: {
+              'null-job': null,
+              'bad-job': 'not an object',
+            },
+          })
+        )
+
+        cleanupStaleTiming()
+
+        // All entries were invalid, so generation_timing should be removed entirely
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+        expect(stored.dark_mode).toBe(true) // Other keys preserved
+      })
+
+      it('removes corrupted generationTiming (non-object) entirely', () => {
+        localStorage.setItem(
+          'oya',
+          JSON.stringify({
+            dark_mode: true,
+            generation_timing: 'not-an-object',
+          })
+        )
+
+        cleanupStaleTiming()
+
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing).toBeUndefined()
+        expect(stored.dark_mode).toBe(true) // Other keys preserved
+      })
+    })
+  })
+})

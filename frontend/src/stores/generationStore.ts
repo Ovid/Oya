@@ -2,42 +2,94 @@ import { create } from 'zustand'
 import type { JobStatus, GenerationStatus } from '../types'
 import * as api from '../api/client'
 import { useUIStore } from './uiStore'
-import { STORAGE_KEY_CURRENT_JOB } from '../config/storage'
+import {
+  getStorageValue,
+  setStorageValue,
+  clearStorageValue,
+  type StoredJobStatus,
+} from '../utils/storage'
+
+// =============================================================================
+// Storage Conversion Functions
+// =============================================================================
 
 /**
- * Load current job from localStorage.
- * Returns null if not found or invalid.
- * Exported so initializeApp can call this after React is ready.
+ * Convert API JobStatus (snake_case) to storage format (camelCase).
  */
-export function loadStoredJob(): JobStatus | null {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY_CURRENT_JOB)
-    if (!stored) return null
-    const parsed = JSON.parse(stored)
-    // Validate basic shape
-    if (parsed && typeof parsed.job_id === 'string' && typeof parsed.status === 'string') {
-      return parsed as JobStatus
-    }
-    localStorage.removeItem(STORAGE_KEY_CURRENT_JOB)
-    return null
-  } catch {
-    localStorage.removeItem(STORAGE_KEY_CURRENT_JOB)
-    return null
+function toStoredJob(job: JobStatus): StoredJobStatus {
+  return {
+    jobId: job.job_id,
+    type: job.type,
+    status: job.status,
+    startedAt: job.started_at,
+    completedAt: job.completed_at,
+    currentPhase: job.current_phase,
+    totalPhases: job.total_phases,
+    errorMessage: job.error_message,
   }
 }
 
 /**
- * Save current job to localStorage.
+ * Convert storage format (camelCase) to API JobStatus (snake_case).
+ */
+function fromStoredJob(stored: StoredJobStatus): JobStatus {
+  return {
+    job_id: stored.jobId,
+    type: stored.type,
+    status: stored.status as JobStatus['status'],
+    started_at: stored.startedAt,
+    completed_at: stored.completedAt,
+    current_phase: stored.currentPhase,
+    total_phases: stored.totalPhases,
+    error_message: stored.errorMessage,
+  }
+}
+
+// =============================================================================
+// Storage Functions
+// =============================================================================
+
+// Valid job status values
+const VALID_JOB_STATUSES = ['pending', 'running', 'completed', 'failed', 'cancelled'] as const
+
+/**
+ * Load current job from consolidated storage.
+ * Returns null if not found or invalid.
+ * Exported so initializeApp can call this after React is ready.
+ */
+export function loadStoredJob(): JobStatus | null {
+  const stored = getStorageValue('currentJob')
+  if (!stored) return null
+
+  // Validate minimal shape before converting to JobStatus.
+  // Handles corrupted/partial writes, older app versions, or manual edits.
+  if (
+    typeof stored !== 'object' ||
+    typeof stored.jobId !== 'string' ||
+    typeof stored.status !== 'string'
+  ) {
+    clearStorageValue('currentJob')
+    return null
+  }
+
+  // Validate status is one of the allowed values
+  if (!VALID_JOB_STATUSES.includes(stored.status as (typeof VALID_JOB_STATUSES)[number])) {
+    clearStorageValue('currentJob')
+    return null
+  }
+
+  return fromStoredJob(stored)
+}
+
+/**
+ * Save current job to consolidated storage.
+ * Only persists running/pending jobs; clears for other statuses.
  */
 export function saveStoredJob(job: JobStatus | null): void {
-  try {
-    if (job && (job.status === 'running' || job.status === 'pending')) {
-      localStorage.setItem(STORAGE_KEY_CURRENT_JOB, JSON.stringify(job))
-    } else {
-      localStorage.removeItem(STORAGE_KEY_CURRENT_JOB)
-    }
-  } catch {
-    // localStorage unavailable - graceful degradation
+  if (job && (job.status === 'running' || job.status === 'pending')) {
+    setStorageValue('currentJob', toStoredJob(job))
+  } else {
+    clearStorageValue('currentJob')
   }
 }
 

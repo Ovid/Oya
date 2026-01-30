@@ -1,19 +1,33 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { STORAGE_KEY_DARK_MODE, STORAGE_KEY_ASK_PANEL_OPEN } from '../config'
+import {
+  getStorageValue,
+  setStorageValue,
+  getExplicitStorageValue,
+  loadStorage,
+} from '../utils/storage'
 import type { Toast, ToastType, ErrorModalState } from '../types'
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') return false
-  const stored = localStorage.getItem(STORAGE_KEY_DARK_MODE)
-  if (stored !== null) return stored === 'true'
+  // Trigger migration from old keys before checking stored value.
+  // Without this, users with old keys (e.g., oya-dark-mode) would lose
+  // their preference on first load since the consolidated storage key
+  // would not be populated yet.
+  loadStorage()
+  // Check if user has explicitly set a preference (including false)
+  // Uses single-parse helper to avoid redundant JSON parsing
+  const explicit = getExplicitStorageValue('darkMode')
+  if (explicit !== undefined) {
+    return explicit
+  }
+  // No stored preference - use system preference
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
 function getInitialAskPanelOpen(): boolean {
   if (typeof window === 'undefined') return false
-  const stored = localStorage.getItem(STORAGE_KEY_ASK_PANEL_OPEN)
-  return stored === 'true'
+  return getStorageValue('askPanelOpen')
 }
 
 let toastIdCounter = 0
@@ -56,12 +70,12 @@ export const useUIStore = create<UIState & UIActions>()(
 
     toggleDarkMode: () => {
       const newValue = !get().darkMode
-      localStorage.setItem(STORAGE_KEY_DARK_MODE, String(newValue))
+      setStorageValue('darkMode', newValue)
       set({ darkMode: newValue })
     },
 
     setAskPanelOpen: (open) => {
-      localStorage.setItem(STORAGE_KEY_ASK_PANEL_OPEN, String(open))
+      setStorageValue('askPanelOpen', open)
       set({ askPanelOpen: open })
     },
 
