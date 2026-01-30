@@ -472,6 +472,63 @@ export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaSt
 // =============================================================================
 
 /**
+ * Read raw timing data directly from storage without full object conversion.
+ * Optimized for frequent timing updates during SSE progress.
+ */
+function getRawTimingData(): Record<string, GenerationTiming> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) return {}
+    const parsed = JSON.parse(stored)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const rawTiming = parsed.generation_timing
+    if (rawTiming === null || typeof rawTiming !== 'object' || Array.isArray(rawTiming)) return {}
+    // Convert only timing entries from snake_case (shallow conversion for performance)
+    const result: Record<string, GenerationTiming> = {}
+    for (const [jobId, entry] of Object.entries(rawTiming)) {
+      if (entry && typeof entry === 'object') {
+        const e = entry as Record<string, unknown>
+        result[jobId] = {
+          jobId: e.job_id as string,
+          jobStartedAt: e.job_started_at as number,
+          phases: convertKeysToCamel(e.phases) as Record<string, PhaseTiming>,
+        }
+      }
+    }
+    return result
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Write timing data directly to storage without full object conversion.
+ * Optimized for frequent timing updates during SSE progress.
+ */
+function setRawTimingData(timingData: Record<string, GenerationTiming>): void {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    let parsed = stored ? JSON.parse(stored) : {}
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      parsed = {}
+    }
+    // Convert timing entries to snake_case
+    const snakeTiming: Record<string, unknown> = {}
+    for (const [jobId, entry] of Object.entries(timingData)) {
+      snakeTiming[jobId] = {
+        job_id: entry.jobId,
+        job_started_at: entry.jobStartedAt,
+        phases: convertKeysToSnake(entry.phases),
+      }
+    }
+    parsed.generation_timing = snakeTiming
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+  } catch {
+    // localStorage unavailable - graceful degradation
+  }
+}
+
+/**
  * Validate a GenerationTiming entry has required shape.
  * Returns null if invalid (missing/invalid jobId, jobStartedAt, or phases).
  */
@@ -498,18 +555,19 @@ function validTimingEntry(timing: unknown): GenerationTiming | null {
 /**
  * Get timing data for a specific job.
  * Returns null if not found or entry is corrupted.
+ * Uses optimized direct storage access for performance.
  */
 export function getTimingForJob(jobId: string): GenerationTiming | null {
-  const timingData = getStorageValue('generationTiming')
+  const timingData = getRawTimingData()
   const entry = timingData[jobId]
   if (!entry) return null
 
   const validated = validTimingEntry(entry)
   if (!validated) {
-    // Clear corrupted entry using sparse write
+    // Clear corrupted entry
     const updated = { ...timingData }
     delete updated[jobId]
-    setStorageValue('generationTiming', updated)
+    setRawTimingData(updated)
     return null
   }
   return validated
@@ -517,20 +575,21 @@ export function getTimingForJob(jobId: string): GenerationTiming | null {
 
 /**
  * Set timing data for a specific job.
+ * Uses optimized direct storage access for performance during SSE updates.
  */
 export function setTimingForJob(jobId: string, timing: GenerationTiming): void {
-  const timingData = getStorageValue('generationTiming')
-  setStorageValue('generationTiming', { ...timingData, [jobId]: timing })
+  const timingData = getRawTimingData()
+  setRawTimingData({ ...timingData, [jobId]: timing })
 }
 
 /**
  * Clear timing data for a specific job.
  */
 export function clearTimingForJob(jobId: string): void {
-  const timingData = getStorageValue('generationTiming')
+  const timingData = getRawTimingData()
   const updated = { ...timingData }
   delete updated[jobId]
-  setStorageValue('generationTiming', updated)
+  setRawTimingData(updated)
 }
 
 /**
@@ -539,11 +598,10 @@ export function clearTimingForJob(jobId: string): void {
  * Also removes corrupted entries that lack valid jobStartedAt.
  */
 export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
-  const timingData = getStorageValue('generationTiming')
+  const timingData = getRawTimingData()
   const now = Date.now()
   let changed = false
 
-  // Validate generationTiming is an object (getStorageValue returns {} for invalid)
   const updated = { ...timingData }
 
   for (const [jobId, timing] of Object.entries(updated)) {
@@ -567,6 +625,6 @@ export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void
   }
 
   if (changed) {
-    setStorageValue('generationTiming', updated)
+    setRawTimingData(updated)
   }
 }
