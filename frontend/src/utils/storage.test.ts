@@ -64,6 +64,49 @@ describe('storage module', () => {
       expect(storage.askPanelOpen).toBe(false) // default
       expect(storage.sidebarLeftWidth).toBe(256) // default
     })
+
+    it('falls back to defaults for invalid number types', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          sidebar_left_width: 'not-a-number',
+          sidebar_right_width: null,
+          qa_settings: { temperature: 'high', timeout_minutes: {} },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.sidebarLeftWidth).toBe(256) // default
+      expect(storage.sidebarRightWidth).toBe(200) // default
+      expect(storage.qaSettings.temperature).toBe(0.5) // default
+      expect(storage.qaSettings.timeoutMinutes).toBe(3) // default
+    })
+
+    it('falls back to defaults for invalid boolean types', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          dark_mode: 'true', // string, not boolean
+          ask_panel_open: 1, // number, not boolean
+          qa_settings: { quick_mode: 'yes' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.darkMode).toBe(false) // default
+      expect(storage.askPanelOpen).toBe(false) // default
+      expect(storage.qaSettings.quickMode).toBe(true) // default
+    })
+
+    it('falls back to defaults for NaN number values', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          sidebar_left_width: NaN,
+        })
+      )
+      const storage = loadStorage()
+      // NaN is serialized as null in JSON, so it becomes default
+      expect(storage.sidebarLeftWidth).toBe(256)
+    })
   })
 
   describe('saveStorage', () => {

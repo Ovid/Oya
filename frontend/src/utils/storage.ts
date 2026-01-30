@@ -229,6 +229,24 @@ function migrateOldKeys(): Partial<OyaStorage> | null {
 }
 
 // =============================================================================
+// Type Validation Helpers
+// =============================================================================
+
+/**
+ * Validate and return a boolean value, falling back to default if invalid.
+ */
+function validBoolean(value: unknown, defaultValue: boolean): boolean {
+  return typeof value === 'boolean' ? value : defaultValue
+}
+
+/**
+ * Validate and return a number value, falling back to default if invalid.
+ */
+function validNumber(value: unknown, defaultValue: number): number {
+  return typeof value === 'number' && !isNaN(value) ? value : defaultValue
+}
+
+// =============================================================================
 // Core Storage Functions
 // =============================================================================
 
@@ -248,16 +266,27 @@ export function loadStorage(): OyaStorage {
       const converted = convertKeysToCamel(parsed) as Partial<OyaStorage>
 
       return {
-        darkMode: converted.darkMode ?? DEFAULT_STORAGE.darkMode,
-        askPanelOpen: converted.askPanelOpen ?? DEFAULT_STORAGE.askPanelOpen,
-        sidebarLeftWidth: converted.sidebarLeftWidth ?? DEFAULT_STORAGE.sidebarLeftWidth,
-        sidebarRightWidth: converted.sidebarRightWidth ?? DEFAULT_STORAGE.sidebarRightWidth,
+        darkMode: validBoolean(converted.darkMode, DEFAULT_STORAGE.darkMode),
+        askPanelOpen: validBoolean(converted.askPanelOpen, DEFAULT_STORAGE.askPanelOpen),
+        sidebarLeftWidth: validNumber(converted.sidebarLeftWidth, DEFAULT_STORAGE.sidebarLeftWidth),
+        sidebarRightWidth: validNumber(
+          converted.sidebarRightWidth,
+          DEFAULT_STORAGE.sidebarRightWidth
+        ),
         currentJob: converted.currentJob ?? DEFAULT_STORAGE.currentJob,
         qaSettings: {
-          quickMode: converted.qaSettings?.quickMode ?? DEFAULT_STORAGE.qaSettings.quickMode,
-          temperature: converted.qaSettings?.temperature ?? DEFAULT_STORAGE.qaSettings.temperature,
-          timeoutMinutes:
-            converted.qaSettings?.timeoutMinutes ?? DEFAULT_STORAGE.qaSettings.timeoutMinutes,
+          quickMode: validBoolean(
+            converted.qaSettings?.quickMode,
+            DEFAULT_STORAGE.qaSettings.quickMode
+          ),
+          temperature: validNumber(
+            converted.qaSettings?.temperature,
+            DEFAULT_STORAGE.qaSettings.temperature
+          ),
+          timeoutMinutes: validNumber(
+            converted.qaSettings?.timeoutMinutes,
+            DEFAULT_STORAGE.qaSettings.timeoutMinutes
+          ),
         },
         generationTiming: converted.generationTiming ?? DEFAULT_STORAGE.generationTiming,
       }
@@ -267,10 +296,13 @@ export function loadStorage(): OyaStorage {
     const migrated = migrateOldKeys()
     if (migrated) {
       const storage: OyaStorage = {
-        darkMode: migrated.darkMode ?? DEFAULT_STORAGE.darkMode,
-        askPanelOpen: migrated.askPanelOpen ?? DEFAULT_STORAGE.askPanelOpen,
-        sidebarLeftWidth: migrated.sidebarLeftWidth ?? DEFAULT_STORAGE.sidebarLeftWidth,
-        sidebarRightWidth: migrated.sidebarRightWidth ?? DEFAULT_STORAGE.sidebarRightWidth,
+        darkMode: validBoolean(migrated.darkMode, DEFAULT_STORAGE.darkMode),
+        askPanelOpen: validBoolean(migrated.askPanelOpen, DEFAULT_STORAGE.askPanelOpen),
+        sidebarLeftWidth: validNumber(migrated.sidebarLeftWidth, DEFAULT_STORAGE.sidebarLeftWidth),
+        sidebarRightWidth: validNumber(
+          migrated.sidebarRightWidth,
+          DEFAULT_STORAGE.sidebarRightWidth
+        ),
         currentJob: migrated.currentJob ?? DEFAULT_STORAGE.currentJob,
         qaSettings: migrated.qaSettings ?? { ...DEFAULT_STORAGE.qaSettings },
         generationTiming: migrated.generationTiming ?? DEFAULT_STORAGE.generationTiming,
