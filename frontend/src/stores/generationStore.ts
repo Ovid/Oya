@@ -44,6 +44,9 @@ function fromStoredJob(stored: StoredJobStatus): JobStatus {
 // Storage Functions
 // =============================================================================
 
+// Valid job status values
+const VALID_JOB_STATUSES = ['pending', 'running', 'completed', 'failed', 'cancelled'] as const
+
 /**
  * Load current job from localStorage.
  * Returns null if not found or invalid.
@@ -60,6 +63,12 @@ export function loadStoredJob(): JobStatus | null {
     typeof stored.jobId !== 'string' ||
     typeof stored.status !== 'string'
   ) {
+    setStorageValue('currentJob', null)
+    return null
+  }
+
+  // Validate status is one of the allowed values
+  if (!VALID_JOB_STATUSES.includes(stored.status as (typeof VALID_JOB_STATUSES)[number])) {
     setStorageValue('currentJob', null)
     return null
   }

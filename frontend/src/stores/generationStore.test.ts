@@ -348,6 +348,19 @@ describe('generationStore', () => {
       expect(job).toBeNull()
       expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
     })
+
+    it('clears storage and returns null for invalid status value', async () => {
+      vi.mocked(storage.getStorageValue).mockReturnValue({
+        jobId: 'job-123',
+        status: 'invalid-status', // not a valid status
+      })
+
+      const { loadStoredJob } = await import('./generationStore')
+      const job = loadStoredJob()
+
+      expect(job).toBeNull()
+      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+    })
   })
 
   describe('dismissGenerationStatus', () => {
