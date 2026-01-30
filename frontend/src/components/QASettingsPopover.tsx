@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { QA_CONSTRAINTS, QA_DEFAULTS } from '../config/qa'
+import { QA_CONSTRAINTS } from '../config/qa'
+import { DEFAULT_QA_SETTINGS } from '../utils/storage'
 
 export interface QASettings {
   quickMode: boolean
@@ -157,7 +158,7 @@ export function QASettingsPopover({ settings, onChange }: QASettingsPopoverProps
 
             {/* Reset Button */}
             <button
-              onClick={() => onChange({ ...QA_DEFAULTS })}
+              onClick={() => onChange({ ...DEFAULT_QA_SETTINGS })}
               className="w-full text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
             >
               Reset to defaults
