@@ -107,6 +107,61 @@ describe('storage module', () => {
       // NaN is serialized as null in JSON, so it becomes default
       expect(storage.sidebarLeftWidth).toBe(256)
     })
+
+    it('returns null for invalid current_job (missing job_id)', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: { status: 'running' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).toBeNull()
+    })
+
+    it('returns null for invalid current_job (missing status)', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: { job_id: 'test-123' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).toBeNull()
+    })
+
+    it('returns null for invalid current_job (wrong types)', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: { job_id: 123, status: 'running' },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).toBeNull()
+    })
+
+    it('returns valid current_job when shape is correct', () => {
+      localStorage.setItem(
+        'oya',
+        JSON.stringify({
+          current_job: {
+            job_id: 'test-123',
+            type: 'generation',
+            status: 'running',
+            started_at: '2024-01-01T00:00:00Z',
+            completed_at: null,
+            current_phase: 'parsing',
+            total_phases: 5,
+            error_message: null,
+          },
+        })
+      )
+      const storage = loadStorage()
+      expect(storage.currentJob).not.toBeNull()
+      expect(storage.currentJob?.jobId).toBe('test-123')
+      expect(storage.currentJob?.status).toBe('running')
+    })
   })
 
   describe('saveStorage', () => {

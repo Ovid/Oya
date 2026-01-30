@@ -246,6 +246,22 @@ function validNumber(value: unknown, defaultValue: number): number {
   return typeof value === 'number' && !isNaN(value) ? value : defaultValue
 }
 
+/**
+ * Validate StoredJobStatus shape. Returns null if invalid.
+ * Requires at minimum jobId and status as strings.
+ */
+function validStoredJob(value: unknown): StoredJobStatus | null {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    typeof (value as StoredJobStatus).jobId !== 'string' ||
+    typeof (value as StoredJobStatus).status !== 'string'
+  ) {
+    return null
+  }
+  return value as StoredJobStatus
+}
+
 // =============================================================================
 // Core Storage Functions
 // =============================================================================
@@ -273,7 +289,7 @@ export function loadStorage(): OyaStorage {
           converted.sidebarRightWidth,
           DEFAULT_STORAGE.sidebarRightWidth
         ),
-        currentJob: converted.currentJob ?? DEFAULT_STORAGE.currentJob,
+        currentJob: validStoredJob(converted.currentJob),
         qaSettings: {
           quickMode: validBoolean(
             converted.qaSettings?.quickMode,
@@ -303,7 +319,7 @@ export function loadStorage(): OyaStorage {
           migrated.sidebarRightWidth,
           DEFAULT_STORAGE.sidebarRightWidth
         ),
-        currentJob: migrated.currentJob ?? DEFAULT_STORAGE.currentJob,
+        currentJob: validStoredJob(migrated.currentJob),
         qaSettings: migrated.qaSettings ?? { ...DEFAULT_STORAGE.qaSettings },
         generationTiming: migrated.generationTiming ?? DEFAULT_STORAGE.generationTiming,
       }
