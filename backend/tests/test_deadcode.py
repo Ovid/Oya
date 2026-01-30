@@ -219,3 +219,89 @@ def test_analyze_deadcode_low_confidence_to_possibly(tmp_path):
     assert len(report.probably_unused_functions) == 0
     assert len(report.possibly_unused_functions) == 1
     assert report.possibly_unused_functions[0].name == "maybe_used"
+
+
+def test_generate_deadcode_page_content():
+    """generate_deadcode_page creates markdown with tables."""
+    from oya.generation.deadcode import generate_deadcode_page
+
+    report = DeadcodeReport(
+        probably_unused_functions=[
+            UnusedSymbol(
+                name="old_func",
+                file_path="utils/legacy.py",
+                line=42,
+                symbol_type="function",
+            ),
+        ],
+        probably_unused_classes=[
+            UnusedSymbol(
+                name="DeprecatedParser",
+                file_path="parsing/old.py",
+                line=10,
+                symbol_type="class",
+            ),
+        ],
+        possibly_unused_functions=[],
+        possibly_unused_classes=[],
+        possibly_unused_variables=[
+            UnusedSymbol(
+                name="OLD_CONFIG",
+                file_path="config.py",
+                line=5,
+                symbol_type="variable",
+            ),
+        ],
+    )
+
+    content = generate_deadcode_page(report)
+
+    # Check header
+    assert "# Potential Dead Code" in content
+
+    # Check probably unused section
+    assert "## Probably Unused" in content
+    assert "### Functions (1)" in content
+    assert "old_func" in content
+    assert "utils/legacy.py" in content
+
+    # Check classes section
+    assert "### Classes (1)" in content
+    assert "DeprecatedParser" in content
+
+    # Check possibly unused section
+    assert "## Possibly Unused" in content
+    assert "### Variables (1)" in content
+    assert "OLD_CONFIG" in content
+
+
+def test_generate_deadcode_page_empty_sections():
+    """Empty sections show 'None detected'."""
+    from oya.generation.deadcode import generate_deadcode_page
+
+    report = DeadcodeReport()
+
+    content = generate_deadcode_page(report)
+
+    assert "None detected" in content
+
+
+def test_generate_deadcode_page_links_to_files():
+    """Symbol names link to file pages."""
+    from oya.generation.deadcode import generate_deadcode_page
+
+    report = DeadcodeReport(
+        probably_unused_functions=[
+            UnusedSymbol(
+                name="old_func",
+                file_path="utils/legacy.py",
+                line=42,
+                symbol_type="function",
+            ),
+        ],
+    )
+
+    content = generate_deadcode_page(report)
+
+    # Check for markdown link format
+    assert "[old_func](files/utils/legacy.py#L42)" in content

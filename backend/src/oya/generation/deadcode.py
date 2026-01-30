@@ -152,3 +152,77 @@ def analyze_deadcode(graph_dir: Path) -> DeadcodeReport:
                 report.probably_unused_classes.append(symbol)
 
     return report
+
+
+def generate_deadcode_page(report: DeadcodeReport) -> str:
+    """Generate markdown content for the Code Health wiki page.
+
+    Args:
+        report: DeadcodeReport with categorized unused symbols.
+
+    Returns:
+        Markdown string for the wiki page.
+    """
+    lines = [
+        "# Potential Dead Code",
+        "",
+        "Analysis of code symbols with no detected callers. Review before removing -",
+        "some may be entry points, event handlers, or called via reflection.",
+        "",
+        "**Note:** Cross-language calls are not tracked. A Python function called from",
+        "JavaScript (or vice versa) may appear unused.",
+        "",
+    ]
+
+    # Probably Unused section
+    lines.append("## Probably Unused")
+    lines.append("")
+    lines.append("These symbols have no incoming references in the codebase.")
+    lines.append("")
+
+    _add_symbol_section(lines, "Functions", report.probably_unused_functions)
+    _add_symbol_section(lines, "Classes", report.probably_unused_classes)
+
+    # Possibly Unused section
+    lines.append("## Possibly Unused")
+    lines.append("")
+    lines.append("These symbols only have low-confidence references (may be false positives).")
+    lines.append("")
+
+    _add_symbol_section(lines, "Functions", report.possibly_unused_functions)
+    _add_symbol_section(lines, "Classes", report.possibly_unused_classes)
+    _add_symbol_section(lines, "Variables", report.possibly_unused_variables)
+
+    return "\n".join(lines)
+
+
+def _add_symbol_section(lines: list[str], title: str, symbols: list[UnusedSymbol]) -> None:
+    """Add a section for a category of symbols.
+
+    Args:
+        lines: List of lines to append to.
+        title: Section title (e.g., "Functions").
+        symbols: List of unused symbols.
+    """
+    count = len(symbols)
+    lines.append(f"### {title} ({count})")
+    lines.append("")
+
+    if not symbols:
+        lines.append("None detected.")
+        lines.append("")
+        return
+
+    # Table header
+    lines.append("| Name | File | Line |")
+    lines.append("|------|------|------|")
+
+    # Sort by file path, then line for determinism
+    sorted_symbols = sorted(symbols, key=lambda s: (s.file_path, s.line))
+
+    for symbol in sorted_symbols:
+        # Link to file page with line anchor
+        link = f"[{symbol.name}](files/{symbol.file_path}#L{symbol.line})"
+        lines.append(f"| {link} | {symbol.file_path} | {symbol.line} |")
+
+    lines.append("")
