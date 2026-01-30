@@ -254,9 +254,10 @@ function validBoolean(value: unknown, defaultValue: boolean): boolean {
 
 /**
  * Validate and return a number value, falling back to default if invalid.
+ * Only finite numbers are accepted (excludes NaN and ±Infinity).
  */
 function validNumber(value: unknown, defaultValue: number): number {
-  return typeof value === 'number' && !isNaN(value) ? value : defaultValue
+  return Number.isFinite(value) ? (value as number) : defaultValue
 }
 
 /**
