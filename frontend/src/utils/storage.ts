@@ -489,15 +489,16 @@ function validTimingEntry(timing: unknown): GenerationTiming | null {
  * Returns null if not found or entry is corrupted.
  */
 export function getTimingForJob(jobId: string): GenerationTiming | null {
-  const storage = loadStorage()
-  const entry = storage.generationTiming[jobId]
+  const timingData = getStorageValue('generationTiming')
+  const entry = timingData[jobId]
   if (!entry) return null
 
   const validated = validTimingEntry(entry)
   if (!validated) {
-    // Clear corrupted entry
-    delete storage.generationTiming[jobId]
-    saveStorage(storage)
+    // Clear corrupted entry using sparse write
+    const updated = { ...timingData }
+    delete updated[jobId]
+    setStorageValue('generationTiming', updated)
     return null
   }
   return validated
@@ -507,18 +508,18 @@ export function getTimingForJob(jobId: string): GenerationTiming | null {
  * Set timing data for a specific job.
  */
 export function setTimingForJob(jobId: string, timing: GenerationTiming): void {
-  const storage = loadStorage()
-  storage.generationTiming[jobId] = timing
-  saveStorage(storage)
+  const timingData = getStorageValue('generationTiming')
+  setStorageValue('generationTiming', { ...timingData, [jobId]: timing })
 }
 
 /**
  * Clear timing data for a specific job.
  */
 export function clearTimingForJob(jobId: string): void {
-  const storage = loadStorage()
-  delete storage.generationTiming[jobId]
-  saveStorage(storage)
+  const timingData = getStorageValue('generationTiming')
+  const updated = { ...timingData }
+  delete updated[jobId]
+  setStorageValue('generationTiming', updated)
 }
 
 /**
@@ -527,22 +528,14 @@ export function clearTimingForJob(jobId: string): void {
  * Also removes corrupted entries that lack valid jobStartedAt.
  */
 export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
-  const storage = loadStorage()
+  const timingData = getStorageValue('generationTiming')
   const now = Date.now()
   let changed = false
 
-  // Validate generationTiming is an object
-  if (
-    storage.generationTiming === null ||
-    typeof storage.generationTiming !== 'object' ||
-    Array.isArray(storage.generationTiming)
-  ) {
-    storage.generationTiming = {}
-    saveStorage(storage)
-    return
-  }
+  // Validate generationTiming is an object (getStorageValue returns {} for invalid)
+  const updated = { ...timingData }
 
-  for (const [jobId, timing] of Object.entries(storage.generationTiming)) {
+  for (const [jobId, timing] of Object.entries(updated)) {
     // Validate timing entry has required shape
     if (
       timing === null ||
@@ -551,18 +544,18 @@ export function cleanupStaleTiming(maxAgeMs: number = 24 * 60 * 60 * 1000): void
       !Number.isFinite(timing.jobStartedAt)
     ) {
       // Remove corrupted entry
-      delete storage.generationTiming[jobId]
+      delete updated[jobId]
       changed = true
       continue
     }
 
     if (now - timing.jobStartedAt > maxAgeMs) {
-      delete storage.generationTiming[jobId]
+      delete updated[jobId]
       changed = true
     }
   }
 
   if (changed) {
-    saveStorage(storage)
+    setStorageValue('generationTiming', updated)
   }
 }

@@ -533,6 +533,24 @@ describe('storage module', () => {
         })
         expect(getTimingForJob('job-3')?.phases.files?.completedAt).toBe(3005)
       })
+
+      it('does not pollute storage with defaults (sparse writes)', () => {
+        // Start with empty storage
+        expect(localStorage.getItem('oya')).toBeNull()
+
+        // Set timing for a job
+        setTimingForJob('job-sparse', { jobId: 'job-sparse', jobStartedAt: 5000, phases: {} })
+
+        // Verify only generation_timing was written, not defaults for other keys
+        const stored = JSON.parse(localStorage.getItem('oya')!)
+        expect(stored.generation_timing['job-sparse']).toBeDefined()
+        expect('dark_mode' in stored).toBe(false) // not polluted with default
+        expect('sidebar_left_width' in stored).toBe(false)
+
+        // hasStorageValue should reflect what was actually stored
+        expect(hasStorageValue('generationTiming')).toBe(true)
+        expect(hasStorageValue('darkMode')).toBe(false) // system preference still honored
+      })
     })
 
     describe('clearTimingForJob', () => {
