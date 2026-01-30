@@ -2,7 +2,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   loadStorage,
-  saveStorage,
   getStorageValue,
   setStorageValue,
   hasStorageValue,
@@ -204,25 +203,6 @@ describe('storage module', () => {
       expect(storage.currentJob?.type).toBe('') // normalized to empty string
       expect(storage.currentJob?.startedAt).toBeNull() // normalized to null
       expect(storage.currentJob?.totalPhases).toBeNull() // normalized to null
-    })
-  })
-
-  describe('saveStorage', () => {
-    it('saves storage with snake_case keys', () => {
-      saveStorage({
-        darkMode: true,
-        askPanelOpen: false,
-        sidebarLeftWidth: 300,
-        sidebarRightWidth: 320,
-        currentJob: null,
-        qaSettings: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
-        generationTiming: {},
-      })
-
-      const stored = JSON.parse(localStorage.getItem('oya')!)
-      expect(stored.dark_mode).toBe(true)
-      expect(stored.sidebar_left_width).toBe(300)
-      expect(stored.qa_settings.quick_mode).toBe(true)
     })
   })
 

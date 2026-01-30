@@ -405,18 +405,6 @@ export function loadStorage(): OyaStorage {
 }
 
 /**
- * Save full storage object to localStorage.
- */
-export function saveStorage(storage: OyaStorage): void {
-  try {
-    const converted = convertKeysToSnake(storage)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(converted))
-  } catch {
-    // localStorage unavailable or quota exceeded - graceful degradation
-  }
-}
-
-/**
  * Get a specific value from storage.
  */
 export function getStorageValue<K extends keyof OyaStorage>(key: K): OyaStorage[K] {
