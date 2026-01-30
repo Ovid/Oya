@@ -5,6 +5,7 @@ import {
   saveStorage,
   getStorageValue,
   setStorageValue,
+  hasStorageValue,
   DEFAULT_STORAGE,
   getTimingForJob,
   setTimingForJob,
@@ -114,6 +115,32 @@ describe('storage module', () => {
       const stored = JSON.parse(localStorage.getItem('oya')!)
       expect(stored.dark_mode).toBe(true)
       expect(stored.sidebar_left_width).toBe(300)
+    })
+  })
+
+  describe('hasStorageValue', () => {
+    it('returns false when no storage exists', () => {
+      expect(hasStorageValue('darkMode')).toBe(false)
+    })
+
+    it('returns true when key is explicitly stored', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: true }))
+      expect(hasStorageValue('darkMode')).toBe(true)
+    })
+
+    it('returns true when key is explicitly stored as false', () => {
+      localStorage.setItem('oya', JSON.stringify({ dark_mode: false }))
+      expect(hasStorageValue('darkMode')).toBe(true)
+    })
+
+    it('returns false when key is not in storage', () => {
+      localStorage.setItem('oya', JSON.stringify({ sidebar_left_width: 300 }))
+      expect(hasStorageValue('darkMode')).toBe(false)
+    })
+
+    it('returns false for corrupted storage', () => {
+      localStorage.setItem('oya', 'not valid json')
+      expect(hasStorageValue('darkMode')).toBe(false)
     })
   })
 

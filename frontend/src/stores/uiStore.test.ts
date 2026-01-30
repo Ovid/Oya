@@ -5,6 +5,7 @@ import * as storage from '../utils/storage'
 vi.mock('../utils/storage', () => ({
   getStorageValue: vi.fn(),
   setStorageValue: vi.fn(),
+  hasStorageValue: vi.fn(() => false),
   DEFAULT_STORAGE: {
     darkMode: false,
     askPanelOpen: false,

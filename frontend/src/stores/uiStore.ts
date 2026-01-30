@@ -1,12 +1,15 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { getStorageValue, setStorageValue, DEFAULT_STORAGE } from '../utils/storage'
+import { getStorageValue, setStorageValue, hasStorageValue } from '../utils/storage'
 import type { Toast, ToastType, ErrorModalState } from '../types'
 
 function getInitialDarkMode(): boolean {
   if (typeof window === 'undefined') return false
-  const stored = getStorageValue('darkMode')
-  if (stored !== DEFAULT_STORAGE.darkMode) return stored
+  // Check if user has explicitly set a preference (including false)
+  if (hasStorageValue('darkMode')) {
+    return getStorageValue('darkMode')
+  }
+  // No stored preference - use system preference
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 

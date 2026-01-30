@@ -308,6 +308,22 @@ export function getStorageValue<K extends keyof OyaStorage>(key: K): OyaStorage[
 }
 
 /**
+ * Check if a specific key has been explicitly stored (vs using default).
+ * Useful for distinguishing "no preference set" from "explicitly set to default value".
+ */
+export function hasStorageValue<K extends keyof OyaStorage>(key: K): boolean {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    const snakeKey = toSnakeCase(key)
+    return snakeKey in parsed
+  } catch {
+    return false
+  }
+}
+
+/**
  * Set a specific value in storage, preserving other values.
  */
 export function setStorageValue<K extends keyof OyaStorage>(key: K, value: OyaStorage[K]): void {
