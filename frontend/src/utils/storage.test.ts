@@ -494,7 +494,11 @@ describe('storage module', () => {
       })
 
       it('returns valid entry unchanged', () => {
-        const validTiming = { job_id: 'valid-job', job_started_at: 1000, phases: { files: { started_at: 1001 } } }
+        const validTiming = {
+          job_id: 'valid-job',
+          job_started_at: 1000,
+          phases: { files: { started_at: 1001 } },
+        }
         localStorage.setItem(
           'oya',
           JSON.stringify({
