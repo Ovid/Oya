@@ -124,6 +124,41 @@ Hard-coded values that control application behavior are extracted to config file
 - `storage.ts` - localStorage keys
 - `timing.ts` - Polling intervals, relative time thresholds
 
+### localStorage
+
+All Oya data is stored under a single `oya` key in localStorage. The storage module (`frontend/src/utils/storage.ts`) handles all access with automatic snake_case conversion.
+
+**Key conventions:**
+- All property names use `snake_case` in storage
+- Runtime TypeScript types use `camelCase`
+- Conversion happens at the storage boundary
+
+**Storage structure:**
+```typescript
+{
+  dark_mode: boolean,
+  ask_panel_open: boolean,
+  sidebar_left_width: number,
+  sidebar_right_width: number,
+  current_job: { job_id, status, ... } | null,
+  qa_settings: { quick_mode, temperature, timeout_minutes },
+  generation_timing: { [job_id]: { job_id, job_started_at, phases } }
+}
+```
+
+**Usage:**
+```typescript
+import { getStorageValue, setStorageValue } from '../utils/storage'
+
+// Read
+const darkMode = getStorageValue('darkMode')
+
+// Write
+setStorageValue('darkMode', true)
+```
+
+Do not access localStorage directly. Always use the storage module.
+
 ## Architectural Discipline
 
 Before implementing new functionality:
