@@ -24,6 +24,15 @@ vi.mock('../utils/storage', () => ({
   }),
   setStorageValue: vi.fn(),
   hasStorageValue: vi.fn(() => false),
+  loadStorage: vi.fn(() => ({
+    darkMode: false,
+    askPanelOpen: false,
+    sidebarLeftWidth: 256,
+    sidebarRightWidth: 320,
+    currentJob: null,
+    qaSettings: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
+    generationTiming: {},
+  })),
   DEFAULT_QA_SETTINGS: { quickMode: true, temperature: 0.5, timeoutMinutes: 3 },
   DEFAULT_STORAGE: {
     darkMode: false,
