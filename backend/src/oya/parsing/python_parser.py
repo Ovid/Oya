@@ -19,6 +19,65 @@ from oya.parsing.models import (
 # HTTP methods commonly used in web frameworks for route definitions
 ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "head", "options"})
 
+# Built-in types that should not create type annotation references
+PYTHON_BUILTIN_TYPES = frozenset(
+    {
+        # Primitives
+        "int",
+        "str",
+        "float",
+        "bool",
+        "bytes",
+        "None",
+        "type",
+        "object",
+        # Built-in collections (lowercase)
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "frozenset",
+        # typing module capitalized versions
+        "List",
+        "Dict",
+        "Set",
+        "Tuple",
+        "FrozenSet",
+        # typing module special forms
+        "Optional",
+        "Union",
+        "Any",
+        "Callable",
+        "Type",
+        "Literal",
+        "Final",
+        "ClassVar",
+        "Annotated",
+        # typing module protocols
+        "Sequence",
+        "Mapping",
+        "Iterable",
+        "Iterator",
+        "Generator",
+        "Coroutine",
+        "AsyncIterator",
+        "AsyncIterable",
+        "AsyncGenerator",
+        "Awaitable",
+        "ContextManager",
+        "AsyncContextManager",
+        # Other common typing constructs
+        "TypeVar",
+        "Generic",
+        "Protocol",
+        "NamedTuple",
+        "TypedDict",
+        "NoReturn",
+        "Self",
+        "Never",
+    }
+)
+
 
 def _extract_synopsis_from_docstring(docstring: str | None) -> str | None:
     """Extract synopsis/example code from Python docstring.

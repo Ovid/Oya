@@ -509,3 +509,17 @@ def foo():
 '''
     result = parser.parse_string(code, "test.py")
     assert result.file.synopsis is None
+
+
+def test_builtin_types_not_in_references(parser):
+    """Built-in types like int, str, List should not create references."""
+    code = """
+def process(data: str, items: list, count: int) -> bool:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    # Should have no type annotation references for built-ins
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+    assert len(type_refs) == 0
