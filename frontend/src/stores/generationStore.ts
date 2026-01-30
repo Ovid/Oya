@@ -52,6 +52,18 @@ function fromStoredJob(stored: StoredJobStatus): JobStatus {
 export function loadStoredJob(): JobStatus | null {
   const stored = getStorageValue('currentJob')
   if (!stored) return null
+
+  // Validate minimal shape before converting to JobStatus.
+  // Handles corrupted/partial writes, older app versions, or manual edits.
+  if (
+    typeof stored !== 'object' ||
+    typeof stored.jobId !== 'string' ||
+    typeof stored.status !== 'string'
+  ) {
+    setStorageValue('currentJob', null)
+    return null
+  }
+
   return fromStoredJob(stored)
 }
 

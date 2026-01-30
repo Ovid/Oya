@@ -302,6 +302,43 @@ describe('generationStore', () => {
         error_message: null,
       })
     })
+
+    it('clears storage and returns null for invalid shape (missing jobId)', async () => {
+      vi.mocked(storage.getStorageValue).mockReturnValue({
+        status: 'running',
+      })
+
+      const { loadStoredJob } = await import('./generationStore')
+      const job = loadStoredJob()
+
+      expect(job).toBeNull()
+      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+    })
+
+    it('clears storage and returns null for invalid shape (missing status)', async () => {
+      vi.mocked(storage.getStorageValue).mockReturnValue({
+        jobId: 'job-123',
+      })
+
+      const { loadStoredJob } = await import('./generationStore')
+      const job = loadStoredJob()
+
+      expect(job).toBeNull()
+      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+    })
+
+    it('clears storage and returns null for wrong types', async () => {
+      vi.mocked(storage.getStorageValue).mockReturnValue({
+        jobId: 123, // should be string
+        status: 'running',
+      })
+
+      const { loadStoredJob } = await import('./generationStore')
+      const job = loadStoredJob()
+
+      expect(job).toBeNull()
+      expect(storage.setStorageValue).toHaveBeenCalledWith('currentJob', null)
+    })
   })
 
   describe('dismissGenerationStatus', () => {
