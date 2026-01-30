@@ -25,8 +25,8 @@ Trust this file as the source of truth; only search the repo when details are mi
 - Docker: `/home/runner/work/Oya/Oya/docker-compose.yml`, `/home/runner/work/Oya/Oya/backend/Dockerfile`, `/home/runner/work/Oya/Oya/frontend/Dockerfile`.
 
 ## Root files & key directories
-- Root files: `README.md`, `SETUP.md`, `CONTRIBUTING.md`, `LICENSE`, `Makefile`, `docker-compose.yml`, `.env.example`, `config.ini.example`, `.pre-commit-config.yaml`, `TODO.md`.
-- Key dirs: `backend/`, `frontend/`, `docs/`, `images/`, `prds/`.
+- Root files: `README.md`, `SETUP.md`, `CONTRIBUTING.md`, `LICENSE`, `Makefile`, `docker-compose.yml`, `.env.example`, `config.ini.example`, `.pre-commit-config.yaml`
+- Key dirs: `backend/`, `frontend/`
 
 ## Dependencies
 - Backend deps: `/home/runner/work/Oya/Oya/backend/pyproject.toml` (FastAPI, ChromaDB, LiteLLM, Tree-sitter, etc.).
