@@ -16,6 +16,63 @@ from oya.parsing.models import (
     ReferenceType,
 )
 
+# Built-in types that should not create type annotation references
+TS_BUILTIN_TYPES = frozenset(
+    {
+        # Primitives
+        "string",
+        "number",
+        "boolean",
+        "void",
+        "null",
+        "undefined",
+        "any",
+        "unknown",
+        "never",
+        "object",
+        "symbol",
+        "bigint",
+        # Capitalized primitives
+        "String",
+        "Number",
+        "Boolean",
+        "Object",
+        "Symbol",
+        "BigInt",
+        # Built-in objects
+        "Array",
+        "Promise",
+        "Map",
+        "Set",
+        "WeakMap",
+        "WeakSet",
+        "Date",
+        "RegExp",
+        "Error",
+        "Function",
+        # Utility types
+        "Record",
+        "Partial",
+        "Required",
+        "Readonly",
+        "Pick",
+        "Omit",
+        "Exclude",
+        "Extract",
+        "NonNullable",
+        "ReturnType",
+        "Parameters",
+        "InstanceType",
+        "ThisType",
+        "Awaited",
+        # React types (common enough to exclude)
+        "React",
+        "ReactNode",
+        "ReactElement",
+        "JSX",
+    }
+)
+
 
 class TypeScriptParser(BaseParser):
     """Parser for TypeScript and JavaScript files using tree-sitter."""
