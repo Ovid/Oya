@@ -291,7 +291,7 @@ class TypeScriptParser(BaseParser):
 
         # Extract type annotations
         if references is not None:
-            references.extend(self._extract_type_annotation_references(node, content, file_path))
+            references.extend(self._extract_type_annotation_references(node, content, scope))
 
     def _extract_lexical_declaration(
         self,
@@ -343,9 +343,7 @@ class TypeScriptParser(BaseParser):
                         # Extract type annotations from arrow function
                         if references is not None:
                             references.extend(
-                                self._extract_type_annotation_references(
-                                    value_node, content, file_path
-                                )
+                                self._extract_type_annotation_references(value_node, content, scope)
                             )
                     else:
                         # Regular variable/constant
@@ -472,7 +470,7 @@ class TypeScriptParser(BaseParser):
 
         # Extract type annotations
         if references is not None:
-            references.extend(self._extract_type_annotation_references(node, content, file_path))
+            references.extend(self._extract_type_annotation_references(node, content, scope))
 
     def _extract_interface(
         self,
@@ -814,20 +812,19 @@ class TypeScriptParser(BaseParser):
         return types
 
     def _extract_type_annotation_references(
-        self, node, content: str, file_path: str
+        self, node, content: str, scope: str
     ) -> list[Reference]:
         """Extract type annotation references from a function or method node.
 
         Args:
             node: The function_declaration or method_definition node.
             content: Original source content.
-            file_path: Path to the file being parsed.
+            scope: The scope identifier (e.g., "file.ts::functionName").
 
         Returns:
             List of Reference objects for type annotations.
         """
         references: list[Reference] = []
-        file_scope = str(file_path)
 
         # Find parameters node
         params_node = node.child_by_field_name("parameters")
@@ -842,7 +839,7 @@ class TypeScriptParser(BaseParser):
                             ):
                                 references.append(
                                     Reference(
-                                        source=file_scope,
+                                        source=scope,
                                         target=type_name,
                                         reference_type=ReferenceType.TYPE_ANNOTATION,
                                         confidence=0.9,
@@ -857,7 +854,7 @@ class TypeScriptParser(BaseParser):
             for type_name in self._extract_types_from_ts_annotation(return_type, content):
                 references.append(
                     Reference(
-                        source=file_scope,
+                        source=scope,
                         target=type_name,
                         reference_type=ReferenceType.TYPE_ANNOTATION,
                         confidence=0.9,

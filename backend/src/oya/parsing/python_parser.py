@@ -841,10 +841,28 @@ class PythonParser(BaseParser):
             List of Reference objects for type annotations.
         """
         references: list[Reference] = []
-        file_scope = str(file_path)
+
+        # Build a map of function -> class for methods
+        # ast.walk doesn't preserve parent context, so we need to iterate manually
+        method_to_class: dict[int, str] = {}  # id(func_node) -> class_name
+        if isinstance(node, ast.Module):
+            for item in node.body:
+                if isinstance(item, ast.ClassDef):
+                    for class_item in item.body:
+                        if isinstance(class_item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            method_to_class[id(class_item)] = item.name
+
+        def get_scope(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+            """Get the proper scope for a function/method."""
+            class_name = method_to_class.get(id(func_node))
+            if class_name:
+                return f"{file_path}::{class_name}.{func_node.name}"
+            return f"{file_path}::{func_node.name}"
 
         for child in ast.walk(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                func_scope = get_scope(child)
+
                 # Parameter annotations
                 for arg in child.args.args + child.args.posonlyargs + child.args.kwonlyargs:
                     if arg.annotation:
@@ -853,7 +871,7 @@ class PythonParser(BaseParser):
                         ):
                             references.append(
                                 Reference(
-                                    source=file_scope,
+                                    source=func_scope,
                                     target=type_name,
                                     reference_type=ReferenceType.TYPE_ANNOTATION,
                                     confidence=0.9,
@@ -868,7 +886,7 @@ class PythonParser(BaseParser):
                     ):
                         references.append(
                             Reference(
-                                source=file_scope,
+                                source=func_scope,
                                 target=type_name,
                                 reference_type=ReferenceType.TYPE_ANNOTATION,
                                 confidence=0.9,
@@ -883,7 +901,7 @@ class PythonParser(BaseParser):
                     ):
                         references.append(
                             Reference(
-                                source=file_scope,
+                                source=func_scope,
                                 target=type_name,
                                 reference_type=ReferenceType.TYPE_ANNOTATION,
                                 confidence=0.9,
@@ -898,7 +916,7 @@ class PythonParser(BaseParser):
                     ):
                         references.append(
                             Reference(
-                                source=file_scope,
+                                source=func_scope,
                                 target=type_name,
                                 reference_type=ReferenceType.TYPE_ANNOTATION,
                                 confidence=0.9,
@@ -907,13 +925,16 @@ class PythonParser(BaseParser):
                         )
 
             elif isinstance(child, ast.AnnAssign):
+                # Variable annotations - use file path as source
+                # Note: Module-level annotations won't create graph edges since there's
+                # no file-level node, but we still extract them for completeness
                 if child.annotation:
                     for type_name in self._extract_types_from_annotation(
                         child.annotation, child.lineno
                     ):
                         references.append(
                             Reference(
-                                source=file_scope,
+                                source=str(file_path),
                                 target=type_name,
                                 reference_type=ReferenceType.TYPE_ANNOTATION,
                                 confidence=0.9,
