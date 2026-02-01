@@ -78,28 +78,68 @@ Even with these fixes, false positives will remain for:
 
 The page content is deliberately cautious, framing results as "review candidates" rather than confirmed dead code.
 
-## Next Phase: Decorator Pattern Detection
+## Decorator Pattern Detection - IMPLEMENTED
 
 An accuracy report (2026-02-01) showed 94% false positive rate - 34 of 36 reported classes were actually used via FastAPI decorator arguments (`response_model=MyClass`).
 
-**Design completed:** `docs/plans/2026-02-01-decorator-pattern-detection-design.md`
+**Status: IMPLEMENTED** (2026-02-01)
 
-**Key design decisions:**
-- Declarative pattern registry in `parsing/decorator_patterns.py`
-- Pattern matching helpers in base parser class
-- AST extraction implemented per-language parser
-- Entry points marked via `is_entry_point` node metadata
-- Dead code analyzer filters entry points
+The decorator pattern detection was fully implemented following the design in `docs/plans/2026-02-01-decorator-pattern-detection-design.md`.
 
-**Files to create/modify:**
-| File | Action |
+### What Was Implemented
+
+1. **Pattern Registry** (`backend/src/oya/parsing/decorator_patterns.py`)
+   - `ReferencePattern` dataclass for decorators that create type references
+   - `EntryPointPattern` dataclass for decorators that mark entry points
+   - Pre-configured patterns for FastAPI, pytest, Click, Celery, SQLAlchemy
+
+2. **Base Parser Helpers** (`backend/src/oya/parsing/base.py`)
+   - `_get_reference_patterns()` - returns patterns for parser's language
+   - `_get_entry_point_patterns()` - returns entry point patterns
+   - `_matches_decorator_pattern()` - checks decorator against pattern
+
+3. **Python Parser AST Extraction** (`backend/src/oya/parsing/python_parser.py`)
+   - `_extract_decorator_info()` - extracts decorator_name/object_name from AST
+   - `_extract_decorator_argument_values()` - gets keyword argument values
+   - `_process_decorator()` - extracts references and entry point status
+   - Modified `_parse_function()` to process decorators and set `is_entry_point` metadata
+   - Added `DECORATOR_ARGUMENT` to `ReferenceType` enum
+
+4. **Graph Builder** (`backend/src/oya/graph/builder.py`)
+   - Propagates `is_entry_point` metadata from symbols to graph nodes
+
+5. **Dead Code Analyzer** (`backend/src/oya/generation/deadcode.py`)
+   - Skips symbols with `is_entry_point=True` in analysis
+
+6. **Documentation** (`docs/language-customization/`)
+   - `README.md` - index of language customization guides
+   - `extending-decorator-patterns.md` - how to add patterns for new frameworks
+
+### Files Modified
+
+| File | Status |
 |------|--------|
-| `backend/src/oya/parsing/decorator_patterns.py` | Create |
-| `backend/src/oya/parsing/base.py` | Modify |
-| `backend/src/oya/parsing/python_parser.py` | Modify |
-| `backend/src/oya/graph/builder.py` | Modify |
-| `backend/src/oya/generation/deadcode.py` | Modify |
-| `docs/language-customization/README.md` | Create |
-| `docs/language-customization/extending-decorator-patterns.md` | Create |
+| `backend/src/oya/parsing/decorator_patterns.py` | Created |
+| `backend/src/oya/parsing/base.py` | Modified |
+| `backend/src/oya/parsing/python_parser.py` | Modified |
+| `backend/src/oya/parsing/models.py` | Modified (added DECORATOR_ARGUMENT) |
+| `backend/src/oya/graph/builder.py` | Modified |
+| `backend/src/oya/generation/deadcode.py` | Modified |
+| `docs/language-customization/README.md` | Created |
+| `docs/language-customization/extending-decorator-patterns.md` | Created |
 
-**Implementation not yet started.**
+### Test Coverage
+
+- `tests/test_decorator_patterns.py` - 6 tests for pattern registry
+- `tests/test_base_parser.py` - 7 tests for pattern matching helpers
+- `tests/test_python_parser.py` - 6 new tests for decorator extraction
+- `tests/test_graph_builder.py` - 1 new test for is_entry_point propagation
+- `tests/test_deadcode.py` - 1 new test for entry point filtering
+
+All 1112 backend tests pass.
+
+### Next Steps
+
+1. **Run full wiki regeneration** on a test repository to rebuild the graph with the new parser logic
+2. **Verify false positive reduction** - FastAPI route handlers and response models should no longer appear as dead code
+3. **Consider TypeScript patterns** - NestJS decorators, Jest test decorators, etc.
