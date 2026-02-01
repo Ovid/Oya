@@ -390,6 +390,28 @@ def test_is_test_file_non_test_files():
     assert is_test_file("latest/feature.py") is False
 
 
+def test_is_test_file_special_pytest_files():
+    """is_test_file detects conftest.py and fixtures.py."""
+    from oya.generation.deadcode import is_test_file
+
+    # Root-level special files
+    assert is_test_file("conftest.py") is True
+    assert is_test_file("fixtures.py") is True
+
+    # Nested special files
+    assert is_test_file("tests/conftest.py") is True
+    assert is_test_file("src/tests/fixtures.py") is True
+
+
+def test_is_test_file_perl_convention():
+    """is_test_file detects t/ directory (Perl convention)."""
+    from oya.generation.deadcode import is_test_file
+
+    assert is_test_file("t/basic.t") is True
+    assert is_test_file("t/lib/helper.pm") is True
+    assert is_test_file("src/t/integration.t") is True
+
+
 def test_analyze_deadcode_excludes_entry_points(tmp_path):
     """Entry points are not flagged even without callers."""
     from oya.generation.deadcode import analyze_deadcode

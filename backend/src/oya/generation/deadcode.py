@@ -61,11 +61,14 @@ TEST_PATH_PATTERNS = [
     re.compile(r"(^|[/\\])tests?[/\\]"),  # test/ or tests/ directory
     re.compile(r"(^|[/\\])__tests__[/\\]"),  # __tests__/ (Jest convention)
     re.compile(r"(^|[/\\])specs?[/\\]"),  # spec/ or specs/ directory
+    re.compile(r"(^|[/\\])t[/\\]"),  # t/ directory (Perl convention)
     re.compile(r"(^|[/\\])test_[^/\\]+$"),  # test_*.py etc
     re.compile(r"(^|[/\\])[^/\\]+_test\.[^/\\]+$"),  # *_test.py, *_test.go etc
     re.compile(r"(^|[/\\])[^/\\]+\.test\.[^/\\]+$"),  # *.test.ts, *.test.js etc
     re.compile(r"(^|[/\\])[^/\\]+\.spec\.[^/\\]+$"),  # *.spec.ts, *.spec.js etc
     re.compile(r"(^|[/\\])[^/\\]+_spec\.[^/\\]+$"),  # *_spec.rb etc
+    re.compile(r"(^|[/\\])conftest\.py$"),  # pytest configuration
+    re.compile(r"(^|[/\\])fixtures\.py$"),  # test fixtures
 ]
 
 
@@ -73,8 +76,9 @@ def is_test_file(file_path: str) -> bool:
     """Check if a file path represents a test file.
 
     Uses language-agnostic patterns to identify test files:
-    - Files in test/tests/__tests__/spec/specs directories
+    - Files in test/tests/__tests__/spec/specs/t directories
     - Files named test_*, *_test.*, *.test.*, *.spec.*
+    - Special files: conftest.py, fixtures.py
 
     Args:
         file_path: Path to the file (can be relative or absolute).
