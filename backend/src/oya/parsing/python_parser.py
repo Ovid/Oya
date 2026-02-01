@@ -169,11 +169,15 @@ class PythonParser(BaseParser):
         # Process top-level nodes
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                symbols.append(self._parse_function(node, parent=None))
+                symbol, dec_refs = self._parse_function(node, parent=None, file_path=str(file_path))
+                symbols.append(symbol)
+                references.extend(dec_refs)
                 scope = f"{file_path}::{node.name}"
                 references.extend(self._extract_calls(node, scope))
             elif isinstance(node, ast.ClassDef):
-                symbols.extend(self._parse_class(node))
+                class_symbols, class_dec_refs = self._parse_class(node, str(file_path))
+                symbols.extend(class_symbols)
+                references.extend(class_dec_refs)
                 # Extract inheritance
                 references.extend(self._extract_inheritance(node, str(file_path)))
                 # Extract calls from methods
@@ -222,15 +226,17 @@ class PythonParser(BaseParser):
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
         parent: str | None,
-    ) -> ParsedSymbol:
+        file_path: str | None = None,
+    ) -> tuple[ParsedSymbol, list[Reference]]:
         """Parse a function or async function definition.
 
         Args:
             node: The AST function node.
             parent: Name of the parent class, if any.
+            file_path: Path to the file being parsed (for scope).
 
         Returns:
-            ParsedSymbol representing the function.
+            Tuple of (ParsedSymbol, list of decorator references).
         """
         decorators = self._extract_decorators(node)
         is_route = self._is_route_handler(decorators)
@@ -255,7 +261,26 @@ class PythonParser(BaseParser):
         if mutates:
             metadata["mutates"] = mutates
 
-        return ParsedSymbol(
+        # Process decorators for references and entry point status
+        decorator_refs: list[Reference] = []
+        is_entry_point = False
+
+        if file_path:
+            if parent:
+                scope = f"{file_path}::{parent}.{node.name}"
+            else:
+                scope = f"{file_path}::{node.name}"
+
+            for dec in node.decorator_list:
+                refs, is_ep = self._process_decorator(dec, scope)
+                decorator_refs.extend(refs)
+                if is_ep:
+                    is_entry_point = True
+
+        if is_entry_point:
+            metadata["is_entry_point"] = True
+
+        symbol = ParsedSymbol(
             name=node.name,
             symbol_type=symbol_type,
             start_line=node.lineno,
@@ -266,6 +291,115 @@ class PythonParser(BaseParser):
             parent=parent,
             metadata=metadata,
         )
+
+        return symbol, decorator_refs
+
+    def _extract_decorator_info(self, node: ast.expr) -> tuple[str, str | None]:
+        """Extract decorator_name and object_name from a decorator AST node.
+
+        Args:
+            node: The decorator AST node (Call, Attribute, or Name).
+
+        Returns:
+            Tuple of (decorator_name, object_name). object_name is None for bare decorators.
+        """
+        # Handle @decorator(...) - called decorator
+        if isinstance(node, ast.Call):
+            return self._extract_decorator_info(node.func)
+
+        # Handle @obj.method - attribute decorator
+        if isinstance(node, ast.Attribute):
+            decorator_name = node.attr
+            # Get the object part
+            if isinstance(node.value, ast.Name):
+                object_name = node.value.id
+            elif isinstance(node.value, ast.Attribute):
+                # e.g., pytest.mark.parametrize -> object="pytest.mark", name="parametrize"
+                object_name = self._get_attribute_name(node.value)
+            else:
+                object_name = None
+            return decorator_name, object_name
+
+        # Handle @decorator - bare decorator
+        if isinstance(node, ast.Name):
+            return node.id, None
+
+        return "", None
+
+    def _extract_decorator_argument_values(
+        self,
+        decorator: ast.Call,
+        argument_names: tuple[str, ...],
+    ) -> list[tuple[str, int]]:
+        """Extract values from specific keyword arguments in a decorator call.
+
+        Args:
+            decorator: The decorator Call AST node.
+            argument_names: Names of arguments to extract.
+
+        Returns:
+            List of (value_name, line_number) tuples for found arguments.
+        """
+        values: list[tuple[str, int]] = []
+
+        if not isinstance(decorator, ast.Call):
+            return values
+
+        for keyword in decorator.keywords:
+            if keyword.arg in argument_names:
+                # Extract the name from the value
+                if isinstance(keyword.value, ast.Name):
+                    values.append((keyword.value.id, keyword.value.lineno))
+                elif isinstance(keyword.value, ast.Attribute):
+                    values.append((keyword.value.attr, keyword.value.lineno))
+
+        return values
+
+    def _process_decorator(
+        self,
+        decorator: ast.expr,
+        scope: str,
+    ) -> tuple[list[Reference], bool]:
+        """Extract references and entry point status from a decorator.
+
+        Args:
+            decorator: The decorator AST node.
+            scope: The current function/method scope (e.g., "file.py::func_name").
+
+        Returns:
+            Tuple of (references, is_entry_point).
+        """
+        decorator_name, object_name = self._extract_decorator_info(decorator)
+        if not decorator_name:
+            return [], False
+
+        references: list[Reference] = []
+        is_entry_point = False
+
+        # Check reference patterns
+        for pattern in self._get_reference_patterns():
+            if self._matches_decorator_pattern(decorator_name, object_name, pattern):
+                if isinstance(decorator, ast.Call):
+                    for value, line in self._extract_decorator_argument_values(
+                        decorator, pattern.arguments
+                    ):
+                        references.append(
+                            Reference(
+                                source=scope,
+                                target=value,
+                                reference_type=ReferenceType.DECORATOR_ARGUMENT,
+                                confidence=0.95,
+                                line=line,
+                            )
+                        )
+
+        # Check entry point patterns
+        for pattern in self._get_entry_point_patterns():
+            if self._matches_decorator_pattern(decorator_name, object_name, pattern):
+                is_entry_point = True
+                break
+
+        return references, is_entry_point
 
     def _extract_raises(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
         """Extract exception types from raise statements.
@@ -389,16 +523,20 @@ class PythonParser(BaseParser):
                                 mutates.append(child.value.func.value.id)
         return list(set(mutates))
 
-    def _parse_class(self, node: ast.ClassDef) -> list[ParsedSymbol]:
+    def _parse_class(
+        self, node: ast.ClassDef, file_path: str | None = None
+    ) -> tuple[list[ParsedSymbol], list[Reference]]:
         """Parse a class definition and its methods.
 
         Args:
             node: The AST class node.
+            file_path: Path to the file being parsed (for scope).
 
         Returns:
-            List of symbols (class + methods).
+            Tuple of (list of symbols, list of decorator references).
         """
         symbols = []
+        decorator_refs: list[Reference] = []
 
         # Add the class itself
         class_symbol = ParsedSymbol(
@@ -415,9 +553,11 @@ class PythonParser(BaseParser):
         # Process methods
         for item in node.body:
             if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                symbols.append(self._parse_function(item, parent=node.name))
+                symbol, dec_refs = self._parse_function(item, parent=node.name, file_path=file_path)
+                symbols.append(symbol)
+                decorator_refs.extend(dec_refs)
 
-        return symbols
+        return symbols, decorator_refs
 
     def _parse_import(self, node: ast.Import) -> list[str]:
         """Parse an import statement.
