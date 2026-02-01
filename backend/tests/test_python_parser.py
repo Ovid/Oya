@@ -620,6 +620,46 @@ users: List[User] = []
     assert "User" in targets
 
 
+def test_extracts_class_attribute_annotation_with_correct_scope(parser):
+    """Class attribute annotations have class-scoped source for graph edges.
+
+    This is critical for Pydantic models and dataclasses where attribute
+    types need to create edges to prevent false positives in dead code detection.
+    """
+    code = """
+from pydantic import BaseModel
+
+class CreateUserRequest(BaseModel):
+    name: str
+    email: EmailStr
+    role: UserRole
+
+class UserResponse(BaseModel):
+    id: int
+    profile: UserProfile
+"""
+    result = parser.parse_string(code, "models.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    # Class attribute annotations should have class-scoped source
+    # so graph builder can create edges from the class node
+    email_ref = next((r for r in type_refs if r.target == "EmailStr"), None)
+    assert email_ref is not None
+    assert email_ref.source == "models.py::CreateUserRequest", (
+        f"Expected 'models.py::CreateUserRequest', got '{email_ref.source}'"
+    )
+
+    role_ref = next((r for r in type_refs if r.target == "UserRole"), None)
+    assert role_ref is not None
+    assert role_ref.source == "models.py::CreateUserRequest"
+
+    profile_ref = next((r for r in type_refs if r.target == "UserProfile"), None)
+    assert profile_ref is not None
+    assert profile_ref.source == "models.py::UserResponse"
+
+
 def test_extracts_fastapi_response_model_reference(parser):
     """Extracts reference from response_model decorator argument."""
     code = """

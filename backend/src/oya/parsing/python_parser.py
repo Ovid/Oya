@@ -982,15 +982,17 @@ class PythonParser(BaseParser):
         """
         references: list[Reference] = []
 
-        # Build a map of function -> class for methods
-        # ast.walk doesn't preserve parent context, so we need to iterate manually
+        # Build maps for parent context (ast.walk doesn't preserve parent info)
         method_to_class: dict[int, str] = {}  # id(func_node) -> class_name
+        annassign_to_class: dict[int, str] = {}  # id(AnnAssign) -> class_name
         if isinstance(node, ast.Module):
             for item in node.body:
                 if isinstance(item, ast.ClassDef):
                     for class_item in item.body:
                         if isinstance(class_item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                             method_to_class[id(class_item)] = item.name
+                        elif isinstance(class_item, ast.AnnAssign):
+                            annassign_to_class[id(class_item)] = item.name
 
         def get_scope(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
             """Get the proper scope for a function/method."""
@@ -1065,16 +1067,24 @@ class PythonParser(BaseParser):
                         )
 
             elif isinstance(child, ast.AnnAssign):
-                # Variable annotations - use file path as source
-                # Note: Module-level annotations won't create graph edges since there's
-                # no file-level node, but we still extract them for completeness
+                # Variable annotations - use class scope for attributes, file for module-level
+                # Class attributes (e.g., Pydantic models, dataclasses) need proper scoping
+                # so graph edges connect the class to referenced types
                 if child.annotation:
+                    class_name = annassign_to_class.get(id(child))
+                    if class_name:
+                        scope = f"{file_path}::{class_name}"
+                    else:
+                        # Module-level annotations won't create graph edges since there's
+                        # no file-level node, but we still extract them for completeness
+                        scope = str(file_path)
+
                     for type_name in self._extract_types_from_annotation(
                         child.annotation, child.lineno
                     ):
                         references.append(
                             Reference(
-                                source=str(file_path),
+                                source=scope,
                                 target=type_name,
                                 reference_type=ReferenceType.TYPE_ANNOTATION,
                                 confidence=0.9,
