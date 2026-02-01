@@ -1,5 +1,6 @@
 export { OverviewPage } from './OverviewPage'
 export { ArchitecturePage } from './ArchitecturePage'
+export { CodeHealthPage } from './CodeHealthPage'
 export { WorkflowPage } from './WorkflowPage'
 export { DirectoryPage } from './DirectoryPage'
 export { FilePage } from './FilePage'

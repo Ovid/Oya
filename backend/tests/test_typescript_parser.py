@@ -236,3 +236,111 @@ class Labrador extends Dog implements Serializable {}
     # Labrador extends Dog
     lab_inherits = [r for r in inherits if "Labrador" in r.source]
     assert any(r.target == "Dog" for r in lab_inherits)
+
+
+def test_extracts_type_annotation_simple(parser):
+    """Extracts simple type annotations from function parameters."""
+    code = """
+function createUser(request: CreateRequest): UserResponse {
+    return {} as UserResponse;
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "CreateRequest" in targets
+    assert "UserResponse" in targets
+    assert all(r.confidence == 0.9 for r in type_refs)
+
+
+def test_extracts_type_annotation_nested_generics(parser):
+    """Extracts types from nested generics like Map<string, Array<Item>>."""
+    code = """
+function process(data: Map<string, Array<Item>>, config: Record<Key, Value>): void {
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "Item" in targets
+    assert "Key" in targets
+    assert "Value" in targets
+    # Built-ins should not appear
+    assert "string" not in targets
+    assert "Map" not in targets
+    assert "Array" not in targets
+
+
+def test_extracts_type_annotation_union_types(parser):
+    """Extracts types from union annotations (A | B)."""
+    code = """
+function handle(result: Success | Failure | null): Response | ApiError {
+    return {} as Response;
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "Success" in targets
+    assert "Failure" in targets
+    assert "Response" in targets
+    assert "ApiError" in targets
+    # null is built-in
+    assert "null" not in targets
+
+
+def test_extracts_type_annotation_array_shorthand(parser):
+    """Extracts types from array shorthand syntax (Item[])."""
+    code = """
+function getItems(): Item[] {
+    return [];
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "Item" in targets
+
+
+def test_extracts_type_annotation_arrow_function(parser):
+    """Extracts types from arrow function parameters and return type."""
+    code = """
+const createUser = (request: CreateRequest): UserResponse => {
+    return {} as UserResponse;
+};
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "CreateRequest" in targets
+    assert "UserResponse" in targets
+
+
+def test_builtin_types_not_in_references(parser):
+    """Built-in types like string, number should not create references."""
+    code = """
+function process(name: string, count: number, items: Array<string>): boolean {
+    return true;
+}
+"""
+    result = parser.parse_string(code, "test.ts")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+    # Should have no type annotation references for built-ins only
+    assert len(type_refs) == 0

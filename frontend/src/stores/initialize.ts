@@ -50,6 +50,7 @@ export async function initializeApp(): Promise<void> {
         wikiTree: {
           overview: false,
           architecture: false,
+          code_health: false,
           workflows: [],
           directories: [],
           files: [],

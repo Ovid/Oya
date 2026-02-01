@@ -76,3 +76,42 @@ def test_build_graph_node_attributes():
     assert node_data["line_start"] == 5
     assert node_data["line_end"] == 50
     assert node_data["docstring"] == "A user entity."
+
+
+def test_propagates_is_entry_point_to_node():
+    """Graph nodes include is_entry_point metadata from symbols."""
+    from oya.graph.builder import build_graph
+
+    files = [
+        ParsedFile(
+            path="api/routes.py",
+            language="python",
+            symbols=[
+                ParsedSymbol(
+                    name="get_users",
+                    symbol_type=SymbolType.ROUTE,
+                    start_line=10,
+                    end_line=20,
+                    metadata={"is_entry_point": True},
+                ),
+                ParsedSymbol(
+                    name="helper",
+                    symbol_type=SymbolType.FUNCTION,
+                    start_line=25,
+                    end_line=30,
+                    metadata={},  # Not an entry point
+                ),
+            ],
+            references=[],
+        )
+    ]
+
+    G = build_graph(files)
+
+    # Entry point should have is_entry_point=True
+    entry_node = G.nodes["api/routes.py::get_users"]
+    assert entry_node.get("is_entry_point") is True
+
+    # Regular function should have is_entry_point=False
+    helper_node = G.nodes["api/routes.py::helper"]
+    assert helper_node.get("is_entry_point", False) is False

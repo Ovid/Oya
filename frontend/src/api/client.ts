@@ -181,6 +181,10 @@ export async function getArchitecture(): Promise<WikiPage> {
   return fetchJson<WikiPage>('/api/wiki/architecture')
 }
 
+export async function getCodeHealth(): Promise<WikiPage> {
+  return fetchJson<WikiPage>('/api/wiki/code-health')
+}
+
 export async function getWorkflow(slug: string): Promise<WikiPage> {
   return fetchJson<WikiPage>(`/api/wiki/workflows/${slug}`)
 }

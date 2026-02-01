@@ -11,6 +11,8 @@ class ReferenceType(Enum):
     INSTANTIATES = "instantiates"
     INHERITS = "inherits"
     IMPORTS = "imports"
+    TYPE_ANNOTATION = "type_annotation"  # Types used in annotations
+    DECORATOR_ARGUMENT = "decorator_argument"  # Types in decorator arguments
 
 
 class SymbolType(Enum):

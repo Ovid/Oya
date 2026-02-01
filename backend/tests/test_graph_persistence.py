@@ -183,3 +183,42 @@ def test_load_graph_missing_dir_returns_empty():
 
     assert loaded.number_of_nodes() == 0
     assert loaded.number_of_edges() == 0
+
+
+def test_is_entry_point_roundtrip(tmp_path):
+    """is_entry_point attribute survives save/load roundtrip."""
+    from oya.graph.persistence import save_graph, load_graph
+
+    G = nx.DiGraph()
+    G.add_node(
+        "api.py::get_users",
+        name="get_users",
+        type="function",
+        file_path="api.py",
+        line_start=10,
+        line_end=20,
+        docstring=None,
+        signature=None,
+        parent=None,
+        is_entry_point=True,  # FastAPI route handler
+    )
+    G.add_node(
+        "utils.py::helper",
+        name="helper",
+        type="function",
+        file_path="utils.py",
+        line_start=1,
+        line_end=5,
+        docstring=None,
+        signature=None,
+        parent=None,
+        is_entry_point=False,  # Regular function
+    )
+
+    output_dir = tmp_path / "graph"
+    save_graph(G, output_dir)
+    loaded = load_graph(output_dir)
+
+    # Entry point flag preserved
+    assert loaded.nodes["api.py::get_users"]["is_entry_point"] is True
+    assert loaded.nodes["utils.py::helper"]["is_entry_point"] is False

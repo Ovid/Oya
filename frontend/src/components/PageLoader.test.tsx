@@ -72,6 +72,7 @@ const mockRepoStatusWithoutWiki: RepoStatus = {
 const mockWikiTree: WikiTree = {
   overview: true,
   architecture: true,
+  code_health: false,
   workflows: [],
   directories: [],
   files: [],
