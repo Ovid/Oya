@@ -36,6 +36,7 @@ def save_graph(graph: nx.DiGraph, output_dir: Path) -> None:
                 "docstring": attrs.get("docstring"),
                 "signature": attrs.get("signature"),
                 "parent": attrs.get("parent"),
+                "is_entry_point": attrs.get("is_entry_point", False),
             }
         )
 
@@ -108,6 +109,7 @@ def load_graph(input_dir: Path) -> nx.DiGraph:
             docstring=node.get("docstring"),
             signature=node.get("signature"),
             parent=node.get("parent"),
+            is_entry_point=node.get("is_entry_point", False),
         )
 
     # Load edges
