@@ -250,7 +250,7 @@ class PythonParser(BaseParser):
             symbol_type = SymbolType.FUNCTION
 
         # Build metadata
-        metadata = {}
+        metadata: dict[str, list[str] | bool] = {}
         raises = self._extract_raises(node)
         if raises:
             metadata["raises"] = raises
@@ -394,8 +394,8 @@ class PythonParser(BaseParser):
                         )
 
         # Check entry point patterns
-        for pattern in self._get_entry_point_patterns():
-            if self._matches_decorator_pattern(decorator_name, object_name, pattern):
+        for ep_pattern in self._get_entry_point_patterns():
+            if self._matches_decorator_pattern(decorator_name, object_name, ep_pattern):
                 is_entry_point = True
                 break
 
