@@ -1973,3 +1973,147 @@ class TestCodeHealthPageGeneration:
         page = orchestrator._generate_code_health_page()
 
         assert page is None
+
+    @pytest.mark.asyncio
+    async def test_code_health_generated_even_when_synthesis_skipped(
+        self, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """Code health is generated even when synthesis regeneration is skipped.
+
+        This ensures parser fixes are reflected in code-health.md immediately,
+        since the graph is rebuilt every run regardless of file content changes.
+        """
+        import json
+
+        wiki_path = tmp_path / "wiki"
+        wiki_path.mkdir(parents=True)
+        meta_path = wiki_path.parent / "meta"
+        meta_path.mkdir(parents=True)
+
+        # Create existing synthesis.json so synthesis regeneration is skipped
+        synthesis_data = {
+            "layers": {},
+            "entry_points": [],
+            "key_patterns": [],
+            "cross_cutting": [],
+        }
+        (meta_path / "synthesis.json").write_text(json.dumps(synthesis_data))
+
+        # Create graph directory with test data
+        graph_path = wiki_path.parent / "graph"
+        graph_path.mkdir(parents=True)
+
+        nodes = [
+            {
+                "id": "utils.py::newly_detected_unused",
+                "name": "newly_detected_unused",
+                "type": "function",
+                "file_path": "utils.py",
+                "line_start": 10,
+            },
+        ]
+        edges = []
+
+        (graph_path / "nodes.json").write_text(json.dumps(nodes))
+        (graph_path / "edges.json").write_text(json.dumps(edges))
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=wiki_path,
+        )
+
+        # Verify synthesis would NOT be regenerated (no files/dirs changed)
+        should_regen = orchestrator._should_regenerate_synthesis(
+            files_regenerated=False,
+            directories_regenerated=False,
+        )
+        assert should_regen is False, "Synthesis should be skipped for this test setup"
+
+        # But code health should still be generated
+        page = orchestrator._generate_code_health_page()
+
+        assert page is not None
+        assert "newly_detected_unused" in page.content
+
+    @pytest.mark.asyncio
+    async def test_run_generates_code_health_when_synthesis_skipped(
+        self, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """run() generates code health even when synthesis regeneration is skipped.
+
+        This is an integration test verifying the orchestrator calls
+        _generate_code_health_page unconditionally during run().
+        """
+        import json
+        from unittest.mock import patch, AsyncMock
+
+        from oya.generation.synthesis import SynthesisMap
+
+        wiki_path = tmp_path / "wiki"
+        wiki_path.mkdir(parents=True)
+        meta_path = wiki_path.parent / "meta"
+        meta_path.mkdir(parents=True)
+
+        # Create existing synthesis.json so synthesis regeneration is skipped
+        synthesis_data = {
+            "layers": {},
+            "entry_points": [],
+            "key_patterns": [],
+            "cross_cutting": [],
+        }
+        (meta_path / "synthesis.json").write_text(json.dumps(synthesis_data))
+
+        # Create graph with dead code
+        graph_path = wiki_path.parent / "graph"
+        graph_path.mkdir(parents=True)
+        nodes = [
+            {
+                "id": "utils.py::dead_func",
+                "name": "dead_func",
+                "type": "function",
+                "file_path": "utils.py",
+                "line_start": 10,
+            },
+        ]
+        (graph_path / "nodes.json").write_text(json.dumps(nodes))
+        (graph_path / "edges.json").write_text(json.dumps([]))
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=wiki_path,
+        )
+
+        # Mock internal methods to isolate the test
+        with patch.object(orchestrator, "_run_analysis", new_callable=AsyncMock) as mock_analysis:
+            mock_analysis.return_value = {"files": [], "symbols": [], "parsed_files": []}
+            with patch.object(orchestrator, "_run_files", new_callable=AsyncMock) as mock_files:
+                # No files regenerated
+                mock_files.return_value = ([], {}, [], {})
+                with patch.object(
+                    orchestrator, "_run_directories", new_callable=AsyncMock
+                ) as mock_dirs:
+                    # No directories regenerated
+                    mock_dirs.return_value = ([], [])
+                    with patch.object(
+                        orchestrator, "_run_synthesis", new_callable=AsyncMock
+                    ) as mock_synthesis:
+                        mock_synthesis.return_value = SynthesisMap()
+                        with patch.object(
+                            orchestrator,
+                            "_generate_code_health_page",
+                            wraps=orchestrator._generate_code_health_page,
+                        ) as mock_code_health:
+                            await orchestrator.run()
+
+                            # Verify code health was called even though synthesis was skipped
+                            mock_code_health.assert_called_once()
+
+        # Verify the page was actually written
+        code_health_path = wiki_path / "code-health.md"
+        assert code_health_path.exists()
+        content = code_health_path.read_text()
+        assert "dead_func" in content
