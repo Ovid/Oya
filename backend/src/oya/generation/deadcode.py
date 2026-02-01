@@ -41,7 +41,9 @@ class DeadcodeReport:
 
 
 # Patterns for symbols that should never be flagged as dead code
-EXCLUDED_PATTERNS = [
+# Note: Test code is primarily filtered at the file level via is_test_file(),
+# but we keep test name patterns here for defense in depth
+EXCLUDED_NAME_PATTERNS = [
     re.compile(r"^test_"),  # Test functions (prefix)
     re.compile(r"_test$"),  # Test functions (suffix)
     re.compile(r"^__.*__$"),  # Python dunders
@@ -49,6 +51,37 @@ EXCLUDED_PATTERNS = [
     re.compile(r"^app$"),  # FastAPI/Flask app
     re.compile(r"^_"),  # Private by convention
 ]
+
+# Patterns for identifying test files (language-agnostic)
+# These patterns match against the full file path
+TEST_PATH_PATTERNS = [
+    re.compile(r"[/\\]tests?[/\\]"),  # /test/ or /tests/ directory
+    re.compile(r"[/\\]__tests__[/\\]"),  # /__tests__/ (Jest convention)
+    re.compile(r"[/\\]specs?[/\\]"),  # /spec/ or /specs/ directory
+    re.compile(r"[/\\]test_[^/\\]+$"),  # /test_*.py etc
+    re.compile(r"[/\\][^/\\]+_test\.[^/\\]+$"),  # /*_test.py, /*_test.go etc
+    re.compile(r"[/\\][^/\\]+\.test\.[^/\\]+$"),  # /*.test.ts, /*.test.js etc
+    re.compile(r"[/\\][^/\\]+\.spec\.[^/\\]+$"),  # /*.spec.ts, /*.spec.js etc
+    re.compile(r"[/\\][^/\\]+_spec\.[^/\\]+$"),  # /*_spec.rb etc
+]
+
+
+def is_test_file(file_path: str) -> bool:
+    """Check if a file path represents a test file.
+
+    Uses language-agnostic patterns to identify test files:
+    - Files in test/tests/__tests__/spec/specs directories
+    - Files named test_*, *_test.*, *.test.*, *.spec.*
+
+    Args:
+        file_path: Path to the file (can be relative or absolute).
+
+    Returns:
+        True if the file appears to be a test file.
+    """
+    # Normalize path separators for consistent matching
+    normalized = file_path.replace("\\", "/")
+    return any(pattern.search(normalized) for pattern in TEST_PATH_PATTERNS)
 
 
 def is_excluded(name: str) -> bool:
@@ -60,10 +93,17 @@ def is_excluded(name: str) -> bool:
     Returns:
         True if the symbol should be excluded.
     """
-    return any(pattern.search(name) for pattern in EXCLUDED_PATTERNS)
+    return any(pattern.search(name) for pattern in EXCLUDED_NAME_PATTERNS)
 
 
 CONFIDENCE_THRESHOLD = 0.7
+
+
+def _get_file_path_from_node_id(node_id: str) -> str:
+    """Extract file path from a node ID like 'path/to/file.py::symbol_name'."""
+    if "::" in node_id:
+        return node_id.split("::")[0]
+    return node_id
 
 
 def analyze_deadcode(graph_dir: Path) -> DeadcodeReport:
@@ -93,12 +133,21 @@ def analyze_deadcode(graph_dir: Path) -> DeadcodeReport:
             edges = json.load(f)
 
     # Build sets of targets by confidence level
+    # IMPORTANT: Only count edges from non-test code as "usage"
+    # Code that is only called by tests is effectively dead from production perspective
     high_confidence_targets: set[str] = set()
     low_confidence_targets: set[str] = set()
 
     for edge in edges:
+        source = edge.get("source", "")
         target = edge.get("target", "")
         confidence = edge.get("confidence", 0.0)
+
+        # Skip edges from test files - test calls don't count as production usage
+        source_file = _get_file_path_from_node_id(source)
+        if is_test_file(source_file):
+            continue
+
         if confidence >= CONFIDENCE_THRESHOLD:
             high_confidence_targets.add(target)
         else:
@@ -114,11 +163,15 @@ def analyze_deadcode(graph_dir: Path) -> DeadcodeReport:
         file_path = node.get("file_path", "")
         line = node.get("line_start", 0)
 
+        # Skip symbols in test files - we don't analyze test code for deadness
+        if is_test_file(file_path):
+            continue
+
         # Skip excluded names
         if is_excluded(name):
             continue
 
-        # Check if this node has incoming edges
+        # Check if this node has incoming edges (from non-test code)
         has_high_conf = node_id in high_confidence_targets
         has_low_conf = node_id in low_confidence_targets
 
