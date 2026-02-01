@@ -286,7 +286,7 @@ def test_generate_deadcode_page_empty_sections():
 
 
 def test_generate_deadcode_page_links_to_files():
-    """Symbol names link to file pages."""
+    """Symbol names link to file pages using URL-safe slugs."""
     from oya.generation.deadcode import generate_deadcode_page
 
     report = DeadcodeReport(
@@ -302,8 +302,10 @@ def test_generate_deadcode_page_links_to_files():
 
     content = generate_deadcode_page(report)
 
-    # Check for markdown link format
-    assert "[old_func](files/utils/legacy.py#L42)" in content
+    # Link should use slug (utils-legacy-py) not raw path (utils/legacy.py)
+    # The table should still show the human-readable file_path
+    assert "[old_func](files/utils-legacy-py#L42)" in content
+    assert "utils/legacy.py" in content  # Human-readable path still in table
 
 
 def test_generate_deadcode_page_cautious_content():

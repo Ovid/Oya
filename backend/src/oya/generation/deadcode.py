@@ -10,6 +10,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from oya.generation.summaries import path_to_slug
+
 
 @dataclass
 class UnusedSymbol:
@@ -284,8 +286,9 @@ def _add_symbol_section(lines: list[str], title: str, symbols: list[UnusedSymbol
     sorted_symbols = sorted(symbols, key=lambda s: (s.file_path, s.line))
 
     for symbol in sorted_symbols:
-        # Link to file page with line anchor
-        link = f"[{symbol.name}](files/{symbol.file_path}#L{symbol.line})"
+        # Link to file page using URL-safe slug, display human-readable path
+        slug = path_to_slug(symbol.file_path)
+        link = f"[{symbol.name}](files/{slug}#L{symbol.line})"
         lines.append(f"| {link} | {symbol.file_path} | {symbol.line} |")
 
     lines.append("")
