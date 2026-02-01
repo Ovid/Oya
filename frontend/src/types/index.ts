@@ -132,7 +132,13 @@ export interface AppState {
   error: string | null
 }
 
-export type PageType = 'overview' | 'architecture' | 'code-health' | 'workflow' | 'directory' | 'file'
+export type PageType =
+  | 'overview'
+  | 'architecture'
+  | 'code-health'
+  | 'workflow'
+  | 'directory'
+  | 'file'
 
 // Workspace Switching Types
 export interface WorkspaceSwitchRequest {
