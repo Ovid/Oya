@@ -108,6 +108,12 @@
 
 ## Code Quality / Architecture
 
+* Consolidate duplicate `is_test_file` implementations into a single shared module.
+  Currently there are three versions with divergent patterns:
+    * `oya/generation/snippets.py` - most complete (includes conftest.py, fixtures.py)
+    * `oya/generation/deadcode.py` - uses pre-compiled regexes, now includes conftest/fixtures/t/
+    * `oya/graph/analysis.py` - minimal version, missing several patterns
+  Should create `oya/utils/test_detection.py` with a canonical implementation.
 * What other uses do we have for synthesis map? Can we use it to generate
   interesting reports? Find potential dead code?
 * It's happy to duplicate code. It should search for similar functionality
