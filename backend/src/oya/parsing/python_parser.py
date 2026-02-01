@@ -19,6 +19,65 @@ from oya.parsing.models import (
 # HTTP methods commonly used in web frameworks for route definitions
 ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "head", "options"})
 
+# Built-in types that should not create type annotation references
+PYTHON_BUILTIN_TYPES = frozenset(
+    {
+        # Primitives
+        "int",
+        "str",
+        "float",
+        "bool",
+        "bytes",
+        "None",
+        "type",
+        "object",
+        # Built-in collections (lowercase)
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "frozenset",
+        # typing module capitalized versions
+        "List",
+        "Dict",
+        "Set",
+        "Tuple",
+        "FrozenSet",
+        # typing module special forms
+        "Optional",
+        "Union",
+        "Any",
+        "Callable",
+        "Type",
+        "Literal",
+        "Final",
+        "ClassVar",
+        "Annotated",
+        # typing module protocols
+        "Sequence",
+        "Mapping",
+        "Iterable",
+        "Iterator",
+        "Generator",
+        "Coroutine",
+        "AsyncIterator",
+        "AsyncIterable",
+        "AsyncGenerator",
+        "Awaitable",
+        "ContextManager",
+        "AsyncContextManager",
+        # Other common typing constructs
+        "TypeVar",
+        "Generic",
+        "Protocol",
+        "NamedTuple",
+        "TypedDict",
+        "NoReturn",
+        "Self",
+        "Never",
+    }
+)
+
 
 def _extract_synopsis_from_docstring(docstring: str | None) -> str | None:
     """Extract synopsis/example code from Python docstring.
@@ -110,11 +169,15 @@ class PythonParser(BaseParser):
         # Process top-level nodes
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                symbols.append(self._parse_function(node, parent=None))
+                symbol, dec_refs = self._parse_function(node, parent=None, file_path=str(file_path))
+                symbols.append(symbol)
+                references.extend(dec_refs)
                 scope = f"{file_path}::{node.name}"
                 references.extend(self._extract_calls(node, scope))
             elif isinstance(node, ast.ClassDef):
-                symbols.extend(self._parse_class(node))
+                class_symbols, class_dec_refs = self._parse_class(node, str(file_path))
+                symbols.extend(class_symbols)
+                references.extend(class_dec_refs)
                 # Extract inheritance
                 references.extend(self._extract_inheritance(node, str(file_path)))
                 # Extract calls from methods
@@ -130,6 +193,9 @@ class PythonParser(BaseParser):
                 references.extend(self._extract_import_references(node, str(file_path)))
             elif isinstance(node, ast.Assign):
                 symbols.extend(self._parse_assignment(node))
+
+        # Extract type annotation references
+        references.extend(self._extract_type_annotation_references(tree, str(file_path)))
 
         parsed_file = ParsedFile(
             path=str(file_path),
@@ -160,15 +226,17 @@ class PythonParser(BaseParser):
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
         parent: str | None,
-    ) -> ParsedSymbol:
+        file_path: str | None = None,
+    ) -> tuple[ParsedSymbol, list[Reference]]:
         """Parse a function or async function definition.
 
         Args:
             node: The AST function node.
             parent: Name of the parent class, if any.
+            file_path: Path to the file being parsed (for scope).
 
         Returns:
-            ParsedSymbol representing the function.
+            Tuple of (ParsedSymbol, list of decorator references).
         """
         decorators = self._extract_decorators(node)
         is_route = self._is_route_handler(decorators)
@@ -182,7 +250,7 @@ class PythonParser(BaseParser):
             symbol_type = SymbolType.FUNCTION
 
         # Build metadata
-        metadata = {}
+        metadata: dict[str, list[str] | bool] = {}
         raises = self._extract_raises(node)
         if raises:
             metadata["raises"] = raises
@@ -193,7 +261,26 @@ class PythonParser(BaseParser):
         if mutates:
             metadata["mutates"] = mutates
 
-        return ParsedSymbol(
+        # Process decorators for references and entry point status
+        decorator_refs: list[Reference] = []
+        is_entry_point = False
+
+        if file_path:
+            if parent:
+                scope = f"{file_path}::{parent}.{node.name}"
+            else:
+                scope = f"{file_path}::{node.name}"
+
+            for dec in node.decorator_list:
+                refs, is_ep = self._process_decorator(dec, scope)
+                decorator_refs.extend(refs)
+                if is_ep:
+                    is_entry_point = True
+
+        if is_entry_point:
+            metadata["is_entry_point"] = True
+
+        symbol = ParsedSymbol(
             name=node.name,
             symbol_type=symbol_type,
             start_line=node.lineno,
@@ -204,6 +291,115 @@ class PythonParser(BaseParser):
             parent=parent,
             metadata=metadata,
         )
+
+        return symbol, decorator_refs
+
+    def _extract_decorator_info(self, node: ast.expr) -> tuple[str, str | None]:
+        """Extract decorator_name and object_name from a decorator AST node.
+
+        Args:
+            node: The decorator AST node (Call, Attribute, or Name).
+
+        Returns:
+            Tuple of (decorator_name, object_name). object_name is None for bare decorators.
+        """
+        # Handle @decorator(...) - called decorator
+        if isinstance(node, ast.Call):
+            return self._extract_decorator_info(node.func)
+
+        # Handle @obj.method - attribute decorator
+        if isinstance(node, ast.Attribute):
+            decorator_name = node.attr
+            # Get the object part
+            if isinstance(node.value, ast.Name):
+                object_name = node.value.id
+            elif isinstance(node.value, ast.Attribute):
+                # e.g., pytest.mark.parametrize -> object="pytest.mark", name="parametrize"
+                object_name = self._get_attribute_name(node.value)
+            else:
+                object_name = None
+            return decorator_name, object_name
+
+        # Handle @decorator - bare decorator
+        if isinstance(node, ast.Name):
+            return node.id, None
+
+        return "", None
+
+    def _extract_decorator_argument_values(
+        self,
+        decorator: ast.Call,
+        argument_names: tuple[str, ...],
+    ) -> list[tuple[str, int]]:
+        """Extract values from specific keyword arguments in a decorator call.
+
+        Args:
+            decorator: The decorator Call AST node.
+            argument_names: Names of arguments to extract.
+
+        Returns:
+            List of (value_name, line_number) tuples for found arguments.
+        """
+        values: list[tuple[str, int]] = []
+
+        if not isinstance(decorator, ast.Call):
+            return values
+
+        for keyword in decorator.keywords:
+            if keyword.arg in argument_names:
+                # Extract the name from the value
+                if isinstance(keyword.value, ast.Name):
+                    values.append((keyword.value.id, keyword.value.lineno))
+                elif isinstance(keyword.value, ast.Attribute):
+                    values.append((keyword.value.attr, keyword.value.lineno))
+
+        return values
+
+    def _process_decorator(
+        self,
+        decorator: ast.expr,
+        scope: str,
+    ) -> tuple[list[Reference], bool]:
+        """Extract references and entry point status from a decorator.
+
+        Args:
+            decorator: The decorator AST node.
+            scope: The current function/method scope (e.g., "file.py::func_name").
+
+        Returns:
+            Tuple of (references, is_entry_point).
+        """
+        decorator_name, object_name = self._extract_decorator_info(decorator)
+        if not decorator_name:
+            return [], False
+
+        references: list[Reference] = []
+        is_entry_point = False
+
+        # Check reference patterns
+        for pattern in self._get_reference_patterns():
+            if self._matches_decorator_pattern(decorator_name, object_name, pattern):
+                if isinstance(decorator, ast.Call):
+                    for value, line in self._extract_decorator_argument_values(
+                        decorator, pattern.arguments
+                    ):
+                        references.append(
+                            Reference(
+                                source=scope,
+                                target=value,
+                                reference_type=ReferenceType.DECORATOR_ARGUMENT,
+                                confidence=0.95,
+                                line=line,
+                            )
+                        )
+
+        # Check entry point patterns
+        for ep_pattern in self._get_entry_point_patterns():
+            if self._matches_decorator_pattern(decorator_name, object_name, ep_pattern):
+                is_entry_point = True
+                break
+
+        return references, is_entry_point
 
     def _extract_raises(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
         """Extract exception types from raise statements.
@@ -327,16 +523,20 @@ class PythonParser(BaseParser):
                                 mutates.append(child.value.func.value.id)
         return list(set(mutates))
 
-    def _parse_class(self, node: ast.ClassDef) -> list[ParsedSymbol]:
+    def _parse_class(
+        self, node: ast.ClassDef, file_path: str | None = None
+    ) -> tuple[list[ParsedSymbol], list[Reference]]:
         """Parse a class definition and its methods.
 
         Args:
             node: The AST class node.
+            file_path: Path to the file being parsed (for scope).
 
         Returns:
-            List of symbols (class + methods).
+            Tuple of (list of symbols, list of decorator references).
         """
         symbols = []
+        decorator_refs: list[Reference] = []
 
         # Add the class itself
         class_symbol = ParsedSymbol(
@@ -353,9 +553,11 @@ class PythonParser(BaseParser):
         # Process methods
         for item in node.body:
             if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                symbols.append(self._parse_function(item, parent=node.name))
+                symbol, dec_refs = self._parse_function(item, parent=node.name, file_path=file_path)
+                symbols.append(symbol)
+                decorator_refs.extend(dec_refs)
 
-        return symbols
+        return symbols, decorator_refs
 
     def _parse_import(self, node: ast.Import) -> list[str]:
         """Parse an import statement.
@@ -724,5 +926,160 @@ class PythonParser(BaseParser):
                         line=node.lineno,
                     )
                 )
+
+        return references
+
+    def _extract_types_from_annotation(self, node: ast.expr, line: int) -> list[str]:
+        """Recursively extract type names from a type annotation AST node.
+
+        Handles simple types, generics (List[X]), unions (X | Y), and forward refs ("X").
+
+        Args:
+            node: The annotation AST node.
+            line: Line number for the reference.
+
+        Returns:
+            List of type names found (excluding built-ins).
+        """
+        types: list[str] = []
+
+        if isinstance(node, ast.Name):
+            if node.id not in PYTHON_BUILTIN_TYPES:
+                types.append(node.id)
+
+        elif isinstance(node, ast.Attribute):
+            if node.attr not in PYTHON_BUILTIN_TYPES:
+                types.append(node.attr)
+
+        elif isinstance(node, ast.Subscript):
+            types.extend(self._extract_types_from_annotation(node.value, line))
+            if isinstance(node.slice, ast.Tuple):
+                for elt in node.slice.elts:
+                    types.extend(self._extract_types_from_annotation(elt, line))
+            else:
+                types.extend(self._extract_types_from_annotation(node.slice, line))
+
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+            types.extend(self._extract_types_from_annotation(node.left, line))
+            types.extend(self._extract_types_from_annotation(node.right, line))
+
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            value = node.value.strip()
+            if value and value[0].isupper() and value not in PYTHON_BUILTIN_TYPES:
+                types.append(value)
+
+        return types
+
+    def _extract_type_annotation_references(self, node: ast.AST, file_path: str) -> list[Reference]:
+        """Extract references from type annotations in functions and variables.
+
+        Args:
+            node: The AST node to analyze (typically module or function).
+            file_path: Path to the file being parsed.
+
+        Returns:
+            List of Reference objects for type annotations.
+        """
+        references: list[Reference] = []
+
+        # Build a map of function -> class for methods
+        # ast.walk doesn't preserve parent context, so we need to iterate manually
+        method_to_class: dict[int, str] = {}  # id(func_node) -> class_name
+        if isinstance(node, ast.Module):
+            for item in node.body:
+                if isinstance(item, ast.ClassDef):
+                    for class_item in item.body:
+                        if isinstance(class_item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            method_to_class[id(class_item)] = item.name
+
+        def get_scope(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+            """Get the proper scope for a function/method."""
+            class_name = method_to_class.get(id(func_node))
+            if class_name:
+                return f"{file_path}::{class_name}.{func_node.name}"
+            return f"{file_path}::{func_node.name}"
+
+        for child in ast.walk(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                func_scope = get_scope(child)
+
+                # Parameter annotations
+                for arg in child.args.args + child.args.posonlyargs + child.args.kwonlyargs:
+                    if arg.annotation:
+                        for type_name in self._extract_types_from_annotation(
+                            arg.annotation, arg.lineno
+                        ):
+                            references.append(
+                                Reference(
+                                    source=func_scope,
+                                    target=type_name,
+                                    reference_type=ReferenceType.TYPE_ANNOTATION,
+                                    confidence=0.9,
+                                    line=arg.lineno,
+                                )
+                            )
+
+                # *args annotation
+                if child.args.vararg and child.args.vararg.annotation:
+                    for type_name in self._extract_types_from_annotation(
+                        child.args.vararg.annotation, child.args.vararg.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=func_scope,
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.args.vararg.lineno,
+                            )
+                        )
+
+                # **kwargs annotation
+                if child.args.kwarg and child.args.kwarg.annotation:
+                    for type_name in self._extract_types_from_annotation(
+                        child.args.kwarg.annotation, child.args.kwarg.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=func_scope,
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.args.kwarg.lineno,
+                            )
+                        )
+
+                # Return annotation
+                if child.returns:
+                    for type_name in self._extract_types_from_annotation(
+                        child.returns, child.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=func_scope,
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.lineno,
+                            )
+                        )
+
+            elif isinstance(child, ast.AnnAssign):
+                # Variable annotations - use file path as source
+                # Note: Module-level annotations won't create graph edges since there's
+                # no file-level node, but we still extract them for completeness
+                if child.annotation:
+                    for type_name in self._extract_types_from_annotation(
+                        child.annotation, child.lineno
+                    ):
+                        references.append(
+                            Reference(
+                                source=str(file_path),
+                                target=type_name,
+                                reference_type=ReferenceType.TYPE_ANNOTATION,
+                                confidence=0.9,
+                                line=child.lineno,
+                            )
+                        )
 
         return references

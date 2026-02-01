@@ -38,6 +38,7 @@ def build_graph(parsed_files: list[ParsedFile]) -> nx.DiGraph:
                 docstring=symbol.docstring,
                 signature=symbol.signature,
                 parent=symbol.parent,
+                is_entry_point=symbol.metadata.get("is_entry_point", False),
             )
 
     # Add edges for all resolved references

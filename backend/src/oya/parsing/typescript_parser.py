@@ -16,6 +16,63 @@ from oya.parsing.models import (
     ReferenceType,
 )
 
+# Built-in types that should not create type annotation references
+TS_BUILTIN_TYPES = frozenset(
+    {
+        # Primitives
+        "string",
+        "number",
+        "boolean",
+        "void",
+        "null",
+        "undefined",
+        "any",
+        "unknown",
+        "never",
+        "object",
+        "symbol",
+        "bigint",
+        # Capitalized primitives
+        "String",
+        "Number",
+        "Boolean",
+        "Object",
+        "Symbol",
+        "BigInt",
+        # Built-in objects
+        "Array",
+        "Promise",
+        "Map",
+        "Set",
+        "WeakMap",
+        "WeakSet",
+        "Date",
+        "RegExp",
+        "Error",
+        "Function",
+        # Utility types
+        "Record",
+        "Partial",
+        "Required",
+        "Readonly",
+        "Pick",
+        "Omit",
+        "Exclude",
+        "Extract",
+        "NonNullable",
+        "ReturnType",
+        "Parameters",
+        "InstanceType",
+        "ThisType",
+        "Awaited",
+        # React types (common enough to exclude)
+        "React",
+        "ReactNode",
+        "ReactElement",
+        "JSX",
+    }
+)
+
 
 class TypeScriptParser(BaseParser):
     """Parser for TypeScript and JavaScript files using tree-sitter."""
@@ -232,6 +289,10 @@ class TypeScriptParser(BaseParser):
             if body_node:
                 self._extract_calls_from_node(body_node, references, content, scope)
 
+        # Extract type annotations
+        if references is not None:
+            references.extend(self._extract_type_annotation_references(node, content, scope))
+
     def _extract_lexical_declaration(
         self,
         node,
@@ -279,6 +340,11 @@ class TypeScriptParser(BaseParser):
                             body_node = value_node.child_by_field_name("body")
                             if body_node:
                                 self._extract_calls_from_node(body_node, references, content, scope)
+                        # Extract type annotations from arrow function
+                        if references is not None:
+                            references.extend(
+                                self._extract_type_annotation_references(value_node, content, scope)
+                            )
                     else:
                         # Regular variable/constant
                         is_const = any(
@@ -401,6 +467,10 @@ class TypeScriptParser(BaseParser):
             body_node = node.child_by_field_name("body")
             if body_node:
                 self._extract_calls_from_node(body_node, references, content, scope)
+
+        # Extract type annotations
+        if references is not None:
+            references.extend(self._extract_type_annotation_references(node, content, scope))
 
     def _extract_interface(
         self,
@@ -662,3 +732,134 @@ class TypeScriptParser(BaseParser):
             return text, 0.7, ReferenceType.CALLS
 
         return None, 0.0, ReferenceType.CALLS
+
+    def _extract_types_from_ts_annotation(self, node, content: str) -> list[str]:
+        """Recursively extract type names from a tree-sitter type annotation node.
+
+        Args:
+            node: Tree-sitter node representing a type.
+            content: Original source content.
+
+        Returns:
+            List of type names found (excluding built-ins).
+        """
+        types: list[str] = []
+        node_type = node.type
+
+        if node_type == "type_identifier":
+            name = self._get_node_text(node, content)
+            if name not in TS_BUILTIN_TYPES:
+                types.append(name)
+
+        elif node_type == "generic_type":
+            for child in node.children:
+                if child.type == "type_identifier":
+                    name = self._get_node_text(child, content)
+                    if name not in TS_BUILTIN_TYPES:
+                        types.append(name)
+                elif child.type == "type_arguments":
+                    for arg in child.children:
+                        types.extend(self._extract_types_from_ts_annotation(arg, content))
+
+        elif node_type == "union_type":
+            for child in node.children:
+                if child.type != "|":
+                    types.extend(self._extract_types_from_ts_annotation(child, content))
+
+        elif node_type == "intersection_type":
+            for child in node.children:
+                if child.type != "&":
+                    types.extend(self._extract_types_from_ts_annotation(child, content))
+
+        elif node_type == "array_type":
+            for child in node.children:
+                types.extend(self._extract_types_from_ts_annotation(child, content))
+
+        elif node_type == "parenthesized_type":
+            for child in node.children:
+                types.extend(self._extract_types_from_ts_annotation(child, content))
+
+        elif node_type == "type_annotation":
+            for child in node.children:
+                if child.type != ":":
+                    types.extend(self._extract_types_from_ts_annotation(child, content))
+
+        elif node_type == "function_type":
+            # Function type: (x: A, y: B) => C
+            # Only extract types from type annotations, not parameter names
+            for child in node.children:
+                if child.type == "formal_parameters":
+                    for param in child.children:
+                        if param.type in ("required_parameter", "optional_parameter"):
+                            for param_child in param.children:
+                                if param_child.type == "type_annotation":
+                                    types.extend(
+                                        self._extract_types_from_ts_annotation(param_child, content)
+                                    )
+                elif child.type == "type_annotation":
+                    # Return type annotation
+                    types.extend(self._extract_types_from_ts_annotation(child, content))
+                elif child.type == "type_identifier":
+                    # Direct return type
+                    name = self._get_node_text(child, content)
+                    if name not in TS_BUILTIN_TYPES:
+                        types.append(name)
+
+        else:
+            for child in node.children:
+                types.extend(self._extract_types_from_ts_annotation(child, content))
+
+        return types
+
+    def _extract_type_annotation_references(
+        self, node, content: str, scope: str
+    ) -> list[Reference]:
+        """Extract type annotation references from a function or method node.
+
+        Args:
+            node: The function_declaration or method_definition node.
+            content: Original source content.
+            scope: The scope identifier (e.g., "file.ts::functionName").
+
+        Returns:
+            List of Reference objects for type annotations.
+        """
+        references: list[Reference] = []
+
+        # Find parameters node
+        params_node = node.child_by_field_name("parameters")
+        if params_node:
+            for child in params_node.children:
+                if child.type in ("required_parameter", "optional_parameter"):
+                    for param_child in child.children:
+                        if param_child.type == "type_annotation":
+                            line = param_child.start_point[0] + 1
+                            for type_name in self._extract_types_from_ts_annotation(
+                                param_child, content
+                            ):
+                                references.append(
+                                    Reference(
+                                        source=scope,
+                                        target=type_name,
+                                        reference_type=ReferenceType.TYPE_ANNOTATION,
+                                        confidence=0.9,
+                                        line=line,
+                                    )
+                                )
+
+        # Find return type annotation
+        return_type = node.child_by_field_name("return_type")
+        if return_type:
+            line = return_type.start_point[0] + 1
+            for type_name in self._extract_types_from_ts_annotation(return_type, content):
+                references.append(
+                    Reference(
+                        source=scope,
+                        target=type_name,
+                        reference_type=ReferenceType.TYPE_ANNOTATION,
+                        confidence=0.9,
+                        line=line,
+                    )
+                )
+
+        return references

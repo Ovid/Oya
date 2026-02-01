@@ -8,7 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Storage:** Wikis stored in `~/.oya/wikis/{local_path}/` with `source/` (git clone) and `meta/` (wiki artifacts) subdirectories
 
-IMPORTANT: this is a generic repository analysis tool. DO NOT MAKE ASSUMPTIONS ABOUT THE CODEBASE BEING ANALYZED. For example, we often use Oya to analyze itself and you often create designs assuming the same tech stack as Oya. THIS IS AN ERROR. Do not make assumptions about the programming languages, frameworks, tools, etc. These must be discovered, not assumed.
+### Language-Agnostic Design
+
+Ọya analyzes arbitrary codebases in any programming language. While we have specialized tree-sitter parsers for some languages (Python, TypeScript, Java), the system is designed to work with any language via the fallback parser.
+
+**Critical rules:**
+- **Never assume a repository's language.** Repositories contain multiple languages (e.g., Python backend + TypeScript frontend + shell scripts + config files).
+- **Language-specific code paths require discovery.** Check file extensions, detect from parsing, or use the language field in `ParsedFile`. Never hardcode assumptions.
+- **The fallback parser handles unknown languages.** It extracts what it can without language-specific AST knowledge.
+- **When designing features, think language-agnostically first.** Only add language-specific behavior when the generic approach fails and you've confirmed the target language.
+
+This is especially important when using Oya to analyze itself—don't assume the target repo uses Python/FastAPI/React just because Oya does.
 
 ## Development Commands
 
@@ -98,6 +108,35 @@ docker-compose up  # Runs both services
 3. Progress streamed via SSE at `/api/jobs/{id}/stream`
 4. Wiki written to `.oyawiki-building/` (staging), then atomically promoted to `.oyawiki/`
 5. Frontend polls `/api/wiki/tree` and renders markdown pages
+
+### Wiki Generation Pipeline
+
+The pipeline runs in `orchestrator.py` (main coordinator, ~66KB) through 7 sequential phases:
+
+1. **Analysis** (`_run_analysis`) - Parse files using tree-sitter parsers → `ParsedFile` with symbols, imports, references
+2. **Files** (`_run_files`) - Generate markdown for each file → `FileSummary` extracted from LLM response
+3. **Directories** (`_run_directories`) - Aggregate FileSummaries into directory docs
+4. **Synthesis** (`_run_synthesis`) - Combine all summaries → `SynthesisMap` with layers, entry points, patterns
+5. **Architecture** (`_run_architecture`) - Generate architecture.md using SynthesisMap
+6. **Overview** (`_run_overview`) - Generate overview.md with project description
+7. **Workflows** (`_run_workflows`) - Trace entry points through call graph
+
+**Key data flow:**
+- `ParsedFile` → (parsing) symbols, references with confidence scores
+- `Reference` → (graph/builder.py) edges in call graph (nodes.json, edges.json)
+- `FileSummary` → (from LLM) structured data extracted from file page generation
+- `SynthesisMap` → (synthesis) combined view used by architecture/overview/workflows
+
+**Incremental regeneration:** Files are content-hashed. Unchanged files skip regeneration unless `--full-regeneration` is passed.
+
+**Graph module (`oya/graph/`):**
+- `builder.py` - Builds networkx graph from parsed references
+- `query.py` - Query functions (get_call_sites, get_callers, find_unused)
+- `persistence.py` - Load/save nodes.json, edges.json
+
+When modifying parsing (extracting new reference types), remember:
+- References need correct `source` scope (e.g., `file.py::ClassName.method`, not just `file.py`)
+- Graph nodes use these scopes as IDs; mismatched scopes break edge creation
 
 ### Key Patterns
 
@@ -221,6 +260,40 @@ LLM config (auto-detected from available keys):
 
 - Backend: Python 3.11+, ruff for linting, line length 100
 - Frontend: TypeScript strict, ESLint, Tailwind CSS
+
+## Testing Requirements
+
+**TDD is mandatory.** Follow red/green/refactor for all code changes where tests are possible:
+
+1. **Red** - Write a failing test that defines the expected behavior
+2. **Green** - Write minimal code to make the test pass
+3. **Refactor** - Clean up while keeping tests green
+
+This applies to:
+- New features
+- Bug fixes (write a test that reproduces the bug first)
+- Refactoring (ensure existing tests cover the behavior, add tests if not)
+
+**Deviations require explicit user approval.** If you believe TDD doesn't apply to a specific change, ask before proceeding. Valid exceptions are rare (e.g., pure config changes, documentation-only changes).
+
+**Running tests:**
+```bash
+# Backend
+cd backend && source .venv/bin/activate
+pytest                          # All tests
+pytest tests/test_file.py -v    # Single file
+pytest -k "test_name" -v        # By pattern
+pytest --tb=short               # Shorter tracebacks
+
+# Frontend
+cd frontend
+npm run test                    # Run once
+npm run test:watch              # Watch mode
+```
+
+**Test locations:**
+- Backend: `backend/tests/test_*.py`
+- Frontend: `frontend/src/**/*.test.ts(x)`
 
 ## Error Handling
 

@@ -68,6 +68,7 @@ beforeEach(() => {
 const mockWikiTree: WikiTree = {
   overview: true,
   architecture: true,
+  code_health: false,
   workflows: [],
   directories: [],
   files: [],
@@ -109,6 +110,7 @@ const mockPendingJob: JobStatus = {
 const emptyWikiTree: WikiTree = {
   overview: false,
   architecture: false,
+  code_health: false,
   workflows: [],
   directories: [],
   files: [],
@@ -318,6 +320,7 @@ describe('AskPanel', () => {
       const wikiWithFiles: WikiTree = {
         overview: false,
         architecture: false,
+        code_health: false,
         workflows: [],
         directories: [],
         files: ['src-main-ts'],

@@ -8,6 +8,7 @@ import { useReposStore } from './stores'
 import {
   OverviewPage,
   ArchitecturePage,
+  CodeHealthPage,
   WorkflowPage,
   DirectoryPage,
   FilePage,
@@ -58,6 +59,7 @@ function App() {
           <Routes>
             <Route path="/" element={<OverviewPage />} />
             <Route path="/architecture" element={<ArchitecturePage />} />
+            <Route path="/code-health" element={<CodeHealthPage />} />
             <Route path="/workflows/:slug" element={<WorkflowPage />} />
             <Route path="/directories/:slug" element={<DirectoryPage />} />
             <Route path="/files/:slug" element={<FilePage />} />

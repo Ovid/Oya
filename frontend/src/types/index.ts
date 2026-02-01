@@ -50,6 +50,7 @@ export interface WikiPage {
 export interface WikiTree {
   overview: boolean
   architecture: boolean
+  code_health: boolean
   workflows: string[]
   directories: string[]
   files: string[]

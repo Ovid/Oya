@@ -1892,3 +1892,84 @@ class TestSynopsisPassedToFileGenerator:
         assert len(captured_kwargs) == 1
         assert "synopsis" in captured_kwargs[0]
         assert captured_kwargs[0]["synopsis"] is None
+
+
+# ============================================================================
+# Code Health Page Generation Tests
+# ============================================================================
+
+
+class TestCodeHealthPageGeneration:
+    """Tests for dead code detection page generation."""
+
+    @pytest.mark.asyncio
+    async def test_generate_code_health_page_with_graph(
+        self, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """_generate_code_health_page creates page from graph data."""
+        import json
+
+        wiki_path = tmp_path / "wiki"
+        wiki_path.mkdir(parents=True)
+
+        # Create graph directory with test data
+        graph_path = wiki_path.parent / "graph"
+        graph_path.mkdir(parents=True)
+
+        nodes = [
+            {
+                "id": "main.py::main",
+                "name": "main",
+                "type": "function",
+                "file_path": "main.py",
+                "line_start": 1,
+            },
+            {
+                "id": "utils.py::unused_func",
+                "name": "unused_func",
+                "type": "function",
+                "file_path": "utils.py",
+                "line_start": 10,
+            },
+        ]
+        edges = []  # No edges means unused_func is dead code
+
+        (graph_path / "nodes.json").write_text(json.dumps(nodes))
+        (graph_path / "edges.json").write_text(json.dumps(edges))
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=wiki_path,
+        )
+
+        page = orchestrator._generate_code_health_page()
+
+        assert page is not None
+        assert page.path == "code-health.md"
+        assert page.page_type == "code-health"
+        assert "Potential Dead Code" in page.content
+        assert "unused_func" in page.content
+        # main should be excluded (entry point)
+        assert "main" not in page.content or "main.py" in page.content
+
+    @pytest.mark.asyncio
+    async def test_generate_code_health_page_no_graph(
+        self, mock_llm_client, mock_repo, mock_db, tmp_path
+    ):
+        """_generate_code_health_page returns None when graph doesn't exist."""
+        wiki_path = tmp_path / "wiki"
+        wiki_path.mkdir(parents=True)
+        # Don't create graph directory
+
+        orchestrator = GenerationOrchestrator(
+            llm_client=mock_llm_client,
+            repo=mock_repo,
+            db=mock_db,
+            wiki_path=wiki_path,
+        )
+
+        page = orchestrator._generate_code_health_page()
+
+        assert page is None

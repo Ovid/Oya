@@ -26,6 +26,7 @@ class WikiTree(BaseModel):
 
     overview: bool
     architecture: bool
+    code_health: bool
     workflows: list[str]
     directories: list[str]
     files: list[str]
@@ -45,6 +46,14 @@ async def get_architecture(
 ) -> WikiPage:
     """Get the architecture page."""
     return _get_page(paths.wiki_dir, "architecture.md", "architecture", None)
+
+
+@router.get("/code-health", response_model=WikiPage)
+async def get_code_health(
+    paths: RepoPaths = Depends(get_active_repo_paths),
+) -> WikiPage:
+    """Get the code health (dead code detection) page."""
+    return _get_page(paths.wiki_dir, "code-health.md", "code-health", None)
 
 
 @router.get("/workflows/{slug}", response_model=WikiPage)
@@ -103,6 +112,7 @@ async def get_wiki_tree(
     return WikiTree(
         overview=(wiki_path / "overview.md").exists(),
         architecture=(wiki_path / "architecture.md").exists(),
+        code_health=(wiki_path / "code-health.md").exists(),
         workflows=sorted(workflows),
         directories=sorted(directories),
         files=sorted(files),

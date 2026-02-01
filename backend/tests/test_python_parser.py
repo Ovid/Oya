@@ -509,3 +509,213 @@ def foo():
 '''
     result = parser.parse_string(code, "test.py")
     assert result.file.synopsis is None
+
+
+def test_builtin_types_not_in_references(parser):
+    """Built-in types like int, str, List should not create references."""
+    code = """
+def process(data: str, items: list, count: int) -> bool:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    # Should have no type annotation references for built-ins
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+    assert len(type_refs) == 0
+
+
+def test_extracts_type_annotation_simple(parser):
+    """Extracts simple type annotations from function parameters."""
+    code = """
+def create_user(request: CreateRequest) -> UserResponse:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "CreateRequest" in targets
+    assert "UserResponse" in targets
+    assert all(r.confidence == 0.9 for r in type_refs)
+
+
+def test_extracts_type_annotation_nested_generics(parser):
+    """Extracts types from nested generics like Dict[str, List[Item]]."""
+    code = """
+def process(data: Dict[str, List[Item]], mapping: Mapping[Key, Tuple[Value, Status]]) -> None:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    # Should extract custom types from inside generics
+    assert "Item" in targets
+    assert "Key" in targets
+    assert "Value" in targets
+    assert "Status" in targets
+    # Should NOT extract built-in types
+    assert "str" not in targets
+    assert "Dict" not in targets
+    assert "List" not in targets
+
+
+def test_extracts_type_annotation_union_types(parser):
+    """Extracts types from union annotations (X | Y)."""
+    code = """
+def handle(result: Success | Failure | None) -> Response | Error:
+    pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "Success" in targets
+    assert "Failure" in targets
+    assert "Response" in targets
+    assert "Error" in targets
+    # None is a built-in, should not appear
+    assert "None" not in targets
+
+
+def test_extracts_type_annotation_forward_refs(parser):
+    """Extracts types from forward references (string annotations)."""
+    code = """
+def create() -> "MyClass":
+    pass
+
+class MyClass:
+    def clone(self) -> "MyClass":
+        pass
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "MyClass" in targets
+
+
+def test_extracts_type_annotation_variable(parser):
+    """Extracts types from variable annotations."""
+    code = """
+config: Settings
+users: List[User] = []
+"""
+    result = parser.parse_string(code, "test.py")
+
+    assert result.ok
+    type_refs = [r for r in result.file.references if r.reference_type.value == "type_annotation"]
+
+    targets = [r.target for r in type_refs]
+    assert "Settings" in targets
+    assert "User" in targets
+
+
+def test_extracts_fastapi_response_model_reference(parser):
+    """Extracts reference from response_model decorator argument."""
+    code = """
+from pydantic import BaseModel
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+def get_user(user_id: int):
+    pass
+"""
+    result = parser.parse_string(code, "api/users.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    # Should have a reference from get_user to UserResponse
+    decorator_refs = [r for r in refs if r.target == "UserResponse" and "get_user" in r.source]
+    assert len(decorator_refs) == 1
+    assert decorator_refs[0].reference_type.value == "decorator_argument"
+
+
+def test_extracts_multiple_response_model_arguments(parser):
+    """Extracts references from multiple decorator arguments."""
+    code = """
+@router.post("/items", response_model=ItemResponse, response_class=JSONResponse)
+def create_item():
+    pass
+"""
+    result = parser.parse_string(code, "api/items.py")
+
+    assert result.ok
+    refs = result.file.references
+
+    # Should have refs for both response_model and response_class
+    targets = {r.target for r in refs if "create_item" in r.source}
+    assert "ItemResponse" in targets
+    assert "JSONResponse" in targets
+
+
+def test_marks_route_handler_as_entry_point(parser):
+    """Route handlers have is_entry_point metadata."""
+    code = """
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+"""
+    result = parser.parse_string(code, "api/health.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "health_check")
+    assert func.metadata.get("is_entry_point") is True
+
+
+def test_marks_pytest_fixture_as_entry_point(parser):
+    """pytest fixtures have is_entry_point metadata."""
+    code = """
+import pytest
+
+@pytest.fixture
+def db_session():
+    return create_session()
+"""
+    result = parser.parse_string(code, "tests/conftest.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "db_session")
+    assert func.metadata.get("is_entry_point") is True
+
+
+def test_marks_click_command_as_entry_point(parser):
+    """Click commands have is_entry_point metadata."""
+    code = """
+import click
+
+@click.command()
+def main():
+    pass
+"""
+    result = parser.parse_string(code, "cli.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "main")
+    assert func.metadata.get("is_entry_point") is True
+
+
+def test_non_decorated_function_not_entry_point(parser):
+    """Regular functions don't have is_entry_point metadata."""
+    code = """
+def helper_function():
+    return 42
+"""
+    result = parser.parse_string(code, "utils.py")
+
+    assert result.ok
+    func = next(s for s in result.file.symbols if s.name == "helper_function")
+    assert func.metadata.get("is_entry_point", False) is False
