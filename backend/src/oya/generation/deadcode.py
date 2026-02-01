@@ -171,6 +171,10 @@ def analyze_deadcode(graph_dir: Path) -> DeadcodeReport:
         if is_excluded(name):
             continue
 
+        # Skip entry points (framework-registered symbols like route handlers, fixtures)
+        if node.get("is_entry_point", False):
+            continue
+
         # Check if this node has incoming edges (from non-test code)
         has_high_conf = node_id in high_confidence_targets
         has_low_conf = node_id in low_confidence_targets

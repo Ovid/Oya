@@ -329,3 +329,79 @@ def test_generate_deadcode_page_cautious_content():
     assert "Test code" in content or "test" in content.lower()
     # Should NOT use "Probably Unused" language
     assert "Review Candidates" in content or "Potential" in content
+
+
+def test_analyze_deadcode_excludes_entry_points(tmp_path):
+    """Entry points are not flagged even without callers."""
+    from oya.generation.deadcode import analyze_deadcode
+
+    graph_dir = tmp_path / "graph"
+    graph_dir.mkdir()
+
+    nodes = [
+        {
+            "id": "api/users.py::get_users",
+            "name": "get_users",
+            "type": "function",  # Use function type so it gets analyzed
+            "file_path": "api/users.py",
+            "line_start": 10,
+            "line_end": 20,
+            "docstring": None,
+            "signature": None,
+            "parent": None,
+            "is_entry_point": True,  # FastAPI route handler - should be excluded
+        },
+        {
+            "id": "api/users.py::UserResponse",
+            "name": "UserResponse",
+            "type": "class",
+            "file_path": "api/users.py",
+            "line_start": 5,
+            "line_end": 8,
+            "docstring": None,
+            "signature": None,
+            "parent": None,
+            "is_entry_point": False,  # Used via response_model, not entry point
+        },
+        {
+            "id": "utils.py::unused_helper",
+            "name": "unused_helper",
+            "type": "function",
+            "file_path": "utils.py",
+            "line_start": 1,
+            "line_end": 5,
+            "docstring": None,
+            "signature": None,
+            "parent": None,
+            "is_entry_point": False,  # Regular function, no callers
+        },
+    ]
+
+    # Edge from route to response class (decorator_argument reference)
+    edges = [
+        {
+            "source": "api/users.py::get_users",
+            "target": "api/users.py::UserResponse",
+            "type": "decorator_argument",
+            "confidence": 0.95,
+            "line": 10,
+        }
+    ]
+
+    (graph_dir / "nodes.json").write_text(json.dumps(nodes))
+    (graph_dir / "edges.json").write_text(json.dumps(edges))
+
+    report = analyze_deadcode(graph_dir)
+
+    # Entry point (route handler) should NOT be flagged even though it has no callers
+    all_functions = report.probably_unused_functions + report.possibly_unused_functions
+    assert not any(f.name == "get_users" for f in all_functions), (
+        "Entry points should not be flagged as dead code"
+    )
+
+    # UserResponse has incoming edge from get_users, should NOT be flagged
+    all_classes = report.probably_unused_classes + report.possibly_unused_classes
+    assert not any(c.name == "UserResponse" for c in all_classes)
+
+    # unused_helper has no callers and is not entry point, should be flagged
+    assert any(f.name == "unused_helper" for f in report.probably_unused_functions)
