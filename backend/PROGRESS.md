@@ -6,6 +6,7 @@ This document summarizes the current state of the dead code detection feature fo
 
 - **Design:** `docs/plans/2026-01-30-type-annotation-tracking-design.md` - Describes the type annotation tracking approach to reduce false positives
 - **Implementation Plan:** `docs/plans/2026-01-30-deadcode-detection.md` - Original 8-task implementation plan (completed)
+- **Next Phase Design:** `docs/plans/2026-02-01-decorator-pattern-detection-design.md` - Decorator pattern detection to fix remaining false positives
 
 ## Current Branch
 
@@ -76,3 +77,29 @@ Even with these fixes, false positives will remain for:
 - Cross-language calls
 
 The page content is deliberately cautious, framing results as "review candidates" rather than confirmed dead code.
+
+## Next Phase: Decorator Pattern Detection
+
+An accuracy report (2026-02-01) showed 94% false positive rate - 34 of 36 reported classes were actually used via FastAPI decorator arguments (`response_model=MyClass`).
+
+**Design completed:** `docs/plans/2026-02-01-decorator-pattern-detection-design.md`
+
+**Key design decisions:**
+- Declarative pattern registry in `parsing/decorator_patterns.py`
+- Pattern matching helpers in base parser class
+- AST extraction implemented per-language parser
+- Entry points marked via `is_entry_point` node metadata
+- Dead code analyzer filters entry points
+
+**Files to create/modify:**
+| File | Action |
+|------|--------|
+| `backend/src/oya/parsing/decorator_patterns.py` | Create |
+| `backend/src/oya/parsing/base.py` | Modify |
+| `backend/src/oya/parsing/python_parser.py` | Modify |
+| `backend/src/oya/graph/builder.py` | Modify |
+| `backend/src/oya/generation/deadcode.py` | Modify |
+| `docs/language-customization/README.md` | Create |
+| `docs/language-customization/extending-decorator-patterns.md` | Create |
+
+**Implementation not yet started.**
