@@ -1951,8 +1951,8 @@ class TestCodeHealthPageGeneration:
         assert page.page_type == "code-health"
         assert "Potential Dead Code" in page.content
         assert "unused_func" in page.content
-        # main should be excluded (entry point)
-        assert "main" not in page.content or "main.py" in page.content
+        # main should be excluded (entry point) - check it's not a linked symbol in the table
+        assert "[main](" not in page.content
 
     @pytest.mark.asyncio
     async def test_generate_code_health_page_no_graph(

@@ -171,7 +171,7 @@ export function Sidebar() {
       )}
 
       {/* Empty state */}
-      {!wikiTree?.overview && !wikiTree?.architecture && (
+      {!wikiTree?.overview && !wikiTree?.architecture && !wikiTree?.code_health && (
         <div className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
           <p className="text-sm">No wiki pages yet.</p>
           <p className="text-xs mt-1">Click "Generate Wiki" to get started.</p>
