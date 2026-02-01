@@ -329,8 +329,9 @@ def test_generate_deadcode_page_cautious_content():
     assert "false positives" in content.lower() or "False Positives" in content
     assert "Review" in content or "review" in content
     assert "Test code" in content or "test" in content.lower()
-    # Should NOT use "Probably Unused" language
-    assert "Review Candidates" in content or "Potential" in content
+    # Should use "Review Candidates" language, NOT "Probably Unused"
+    assert "Review Candidates" in content
+    assert "Probably Unused" not in content
 
 
 def test_is_test_file_root_level_tests_directory():
