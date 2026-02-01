@@ -17,7 +17,7 @@ from oya.parsing.models import (
 
 
 # HTTP methods commonly used in web frameworks for route definitions
-ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "head", "options"})
+ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "head", "options", "trace"})
 
 # Built-in types that should not create type annotation references
 PYTHON_BUILTIN_TYPES = frozenset(
