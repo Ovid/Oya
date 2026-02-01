@@ -331,6 +331,63 @@ def test_generate_deadcode_page_cautious_content():
     assert "Review Candidates" in content or "Potential" in content
 
 
+def test_is_test_file_root_level_tests_directory():
+    """is_test_file detects files in root-level tests/ directory."""
+    from oya.generation.deadcode import is_test_file
+
+    # Root-level tests directory (no leading slash)
+    assert is_test_file("tests/test_utils.py") is True
+    assert is_test_file("tests/helpers.py") is True
+    assert is_test_file("test/test_api.py") is True
+
+    # Nested tests directory (has leading path component)
+    assert is_test_file("src/tests/test_utils.py") is True
+    assert is_test_file("backend/test/helpers.py") is True
+
+
+def test_is_test_file_filename_patterns():
+    """is_test_file detects test files by filename pattern."""
+    from oya.generation.deadcode import is_test_file
+
+    # test_* prefix
+    assert is_test_file("test_utils.py") is True
+    assert is_test_file("src/test_api.py") is True
+
+    # *_test.* suffix
+    assert is_test_file("utils_test.py") is True
+    assert is_test_file("api_test.go") is True
+
+    # *.test.* pattern (JS/TS)
+    assert is_test_file("utils.test.ts") is True
+    assert is_test_file("component.test.tsx") is True
+
+    # *.spec.* pattern
+    assert is_test_file("utils.spec.ts") is True
+    assert is_test_file("component.spec.tsx") is True
+
+    # *_spec.* suffix
+    assert is_test_file("model_spec.rb") is True
+
+
+def test_is_test_file_jest_convention():
+    """is_test_file detects __tests__ directory (Jest convention)."""
+    from oya.generation.deadcode import is_test_file
+
+    assert is_test_file("src/__tests__/component.test.js") is True
+    assert is_test_file("__tests__/App.test.tsx") is True
+
+
+def test_is_test_file_non_test_files():
+    """is_test_file returns False for production files."""
+    from oya.generation.deadcode import is_test_file
+
+    assert is_test_file("src/utils.py") is False
+    assert is_test_file("api/routes.py") is False
+    assert is_test_file("testing_utils.py") is False  # "testing" != "test"
+    assert is_test_file("contest/entry.py") is False  # "contest" contains "test"
+    assert is_test_file("latest/feature.py") is False
+
+
 def test_analyze_deadcode_excludes_entry_points(tmp_path):
     """Entry points are not flagged even without callers."""
     from oya.generation.deadcode import analyze_deadcode

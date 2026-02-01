@@ -54,15 +54,16 @@ EXCLUDED_NAME_PATTERNS = [
 
 # Patterns for identifying test files (language-agnostic)
 # These patterns match against the full file path
+# Use (^|[/\\]) to match at start-of-string OR after path separator
 TEST_PATH_PATTERNS = [
-    re.compile(r"[/\\]tests?[/\\]"),  # /test/ or /tests/ directory
-    re.compile(r"[/\\]__tests__[/\\]"),  # /__tests__/ (Jest convention)
-    re.compile(r"[/\\]specs?[/\\]"),  # /spec/ or /specs/ directory
-    re.compile(r"[/\\]test_[^/\\]+$"),  # /test_*.py etc
-    re.compile(r"[/\\][^/\\]+_test\.[^/\\]+$"),  # /*_test.py, /*_test.go etc
-    re.compile(r"[/\\][^/\\]+\.test\.[^/\\]+$"),  # /*.test.ts, /*.test.js etc
-    re.compile(r"[/\\][^/\\]+\.spec\.[^/\\]+$"),  # /*.spec.ts, /*.spec.js etc
-    re.compile(r"[/\\][^/\\]+_spec\.[^/\\]+$"),  # /*_spec.rb etc
+    re.compile(r"(^|[/\\])tests?[/\\]"),  # test/ or tests/ directory
+    re.compile(r"(^|[/\\])__tests__[/\\]"),  # __tests__/ (Jest convention)
+    re.compile(r"(^|[/\\])specs?[/\\]"),  # spec/ or specs/ directory
+    re.compile(r"(^|[/\\])test_[^/\\]+$"),  # test_*.py etc
+    re.compile(r"(^|[/\\])[^/\\]+_test\.[^/\\]+$"),  # *_test.py, *_test.go etc
+    re.compile(r"(^|[/\\])[^/\\]+\.test\.[^/\\]+$"),  # *.test.ts, *.test.js etc
+    re.compile(r"(^|[/\\])[^/\\]+\.spec\.[^/\\]+$"),  # *.spec.ts, *.spec.js etc
+    re.compile(r"(^|[/\\])[^/\\]+_spec\.[^/\\]+$"),  # *_spec.rb etc
 ]
 
 
