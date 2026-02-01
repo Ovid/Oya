@@ -41,7 +41,7 @@ export interface JobStatus {
 
 export interface WikiPage {
   content: string
-  page_type: 'overview' | 'architecture' | 'workflow' | 'directory' | 'file'
+  page_type: 'overview' | 'architecture' | 'code-health' | 'workflow' | 'directory' | 'file'
   path: string
   word_count: number
   source_path: string | null
@@ -132,7 +132,7 @@ export interface AppState {
   error: string | null
 }
 
-export type PageType = 'overview' | 'architecture' | 'workflow' | 'directory' | 'file'
+export type PageType = 'overview' | 'architecture' | 'code-health' | 'workflow' | 'directory' | 'file'
 
 // Workspace Switching Types
 export interface WorkspaceSwitchRequest {
