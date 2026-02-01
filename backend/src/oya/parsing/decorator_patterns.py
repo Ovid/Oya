@@ -17,7 +17,10 @@ class ReferencePattern:
 
     Attributes:
         decorator_name: Regex matching decorator name (e.g., "get|post|put").
-        object_name: Regex matching object (e.g., "router|app"), None for bare decorators.
+        object_name: Regex matching object prefix, or None for bare decorators only.
+            - None: matches only bare decorators like @fixture
+            - r".*": matches any object like @router.get, @app.get
+            - r"^router$": matches only @router.* decorators
         arguments: Tuple of argument names that contain type references.
     """
 
@@ -32,7 +35,10 @@ class EntryPointPattern:
 
     Attributes:
         decorator_name: Regex matching decorator name.
-        object_name: Regex matching object, None for bare decorators.
+        object_name: Regex matching object prefix, or None for bare decorators only.
+            - None: matches only bare decorators like @fixture
+            - r".*": matches any object like @router.get, @app.get
+            - r"^pytest$": matches only @pytest.* decorators
     """
 
     decorator_name: str

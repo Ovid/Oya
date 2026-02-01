@@ -80,8 +80,16 @@ class BaseParser(ABC):
         if not re.match(pattern.decorator_name, decorator_name):
             return False
 
-        # If pattern specifies an object, it must match
-        if pattern.object_name is not None:
+        # Check object_name matching:
+        # - pattern.object_name=None means "bare decorator only" (no object prefix)
+        # - pattern.object_name=r".*" means "any object prefix required"
+        # - pattern.object_name=r"^specific$" means "must match specific object"
+        if pattern.object_name is None:
+            # Pattern requires bare decorator (no object)
+            if object_name is not None:
+                return False
+        else:
+            # Pattern requires an object that matches the regex
             if object_name is None:
                 return False
             if not re.match(pattern.object_name, object_name):

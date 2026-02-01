@@ -77,16 +77,21 @@ def test_matches_decorator_pattern_object_mismatch():
 
 
 def test_matches_decorator_pattern_none_object_for_bare_decorator():
-    """_matches_decorator_pattern handles bare decorators (no object)."""
+    """_matches_decorator_pattern with object_name=None matches only bare decorators.
+
+    Per decorator_patterns.py docs: object_name=None means "bare decorators" only.
+    If you want to match any object, use object_name=r".*" pattern.
+    """
     parser = ConcreteParser()
     pattern = EntryPointPattern(
         decorator_name=r"^fixture$",
-        object_name=None,  # Bare decorator
+        object_name=None,  # Bare decorator ONLY
     )
 
-    # None pattern matches any object_name (including None)
+    # None pattern matches only bare decorators (object_name must also be None)
     assert parser._matches_decorator_pattern("fixture", None, pattern) is True
-    assert parser._matches_decorator_pattern("fixture", "pytest", pattern) is True
+    # Must NOT match decorators with an object (e.g., @pytest.fixture)
+    assert parser._matches_decorator_pattern("fixture", "pytest", pattern) is False
 
 
 def test_matches_decorator_pattern_requires_object_when_specified():
